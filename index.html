@@ -1,0 +1,3106 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>MENTOR SYSTEM : BNI IDEAL</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+:root{
+  --bg:#0C1520;--bg2:#162030;--bg3:#1E2D40;--bg4:#253650;
+  --gold:#F0B429;--gold2:#FCD34D;
+  --green:#10B981;--greenl:rgba(16,185,129,0.15);
+  --yellow:#F59E0B;--yellowl:rgba(245,158,11,0.15);
+  --red:#EF4444;--redl:rgba(239,68,68,0.15);
+  --gray:#64748B;--gray2:#94A3B8;
+  --white:#F8FAFC;--border:rgba(255,255,255,0.07);
+  --r:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);min-height:100vh;overflow-x:hidden;}
+#loader{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity .4s;}
+#loader.out{opacity:0;pointer-events:none;}
+.spin{width:28px;height:28px;border:2.5px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:sp .7s linear infinite;margin-top:1rem;}
+@keyframes sp{to{transform:rotate(360deg);}}
+.loader-logo{font-size:1.4rem;font-weight:700;letter-spacing:.05em;color:var(--gold);}
+.toast{position:fixed;bottom:72px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--bg3);border:1px solid var(--border);color:var(--white);padding:9px 18px;border-radius:999px;font-size:.82rem;z-index:600;opacity:0;transition:all .25s;pointer-events:none;white-space:nowrap;}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
+#loginScreen{min-height:100vh;display:none;flex-direction:column;align-items:center;justify-content:center;padding:1.5rem;position:relative;overflow:hidden;}
+#loginScreen::before{content:'';position:absolute;width:400px;height:400px;background:radial-gradient(circle,rgba(240,180,41,.06) 0%,transparent 70%);top:-80px;right:-80px;pointer-events:none;}
+.login-badge{background:var(--gold);color:var(--bg);font-size:.65rem;font-weight:700;letter-spacing:.15em;padding:3px 10px;border-radius:999px;margin-bottom:.875rem;}
+.login-title{font-size:1.9rem;font-weight:700;text-align:center;line-height:1.1;margin-bottom:.3rem;}
+.login-title span{color:var(--gold);}
+.login-sub{font-size:.82rem;color:var(--gray2);margin-bottom:2rem;text-align:center;}
+.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:.625rem;width:100%;max-width:380px;}
+.role-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:1.125rem .75rem;text-align:center;cursor:pointer;transition:all .2s;position:relative;user-select:none;}
+.role-card:active{transform:scale(.97);}
+.role-card:hover{border-color:rgba(240,180,41,.3);}
+.role-card .icon{font-size:1.75rem;margin-bottom:.4rem;display:block;}
+.role-card .rn{font-size:.9rem;font-weight:600;}
+.role-card .rd{font-size:.68rem;color:var(--gray2);margin-top:2px;}
+.mc-badge{position:absolute;top:7px;right:7px;background:var(--gold);color:var(--bg);font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:999px;}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;z-index:300;padding:1rem;}
+.overlay.on{display:flex;}
+.pin-modal{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:1.375rem 1.25rem;width:100%;max-width:300px;}
+.pin-title{font-size:.95rem;font-weight:700;text-align:center;margin-bottom:.2rem;}
+.pin-sub{font-size:.75rem;color:var(--gray2);text-align:center;margin-bottom:1.125rem;}
+.pin-dots{display:flex;justify-content:center;gap:.5rem;margin-bottom:1.125rem;}
+.dot{width:13px;height:13px;border-radius:50%;background:var(--border);transition:all .15s;}
+.dot.on{background:var(--gold);}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:.4375rem;}
+.pb{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:.8rem;font-size:1.2rem;font-weight:500;color:var(--white);cursor:pointer;font-family:'Sarabun',sans-serif;text-align:center;transition:all .1s;user-select:none;}
+.pb:active{background:var(--bg4);transform:scale(.93);}
+.pb.ghost{opacity:0;pointer-events:none;}
+.pb.del{font-size:.9rem;color:var(--gray2);}
+.pin-err{color:var(--red);font-size:.75rem;text-align:center;margin-top:.5rem;min-height:1.1em;}
+.app{display:none;flex-direction:column;min-height:100vh;}
+.app.on{display:flex;}
+.hdr{background:var(--bg2);border-bottom:1px solid var(--border);padding:.5rem 1rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.hdr-l{display:flex;align-items:center;gap:.5rem;}
+.hdr-logo{font-size:.95rem;font-weight:700;}
+.hdr-logo span{color:var(--gold);}
+.hdr-role{background:var(--gold);color:var(--bg);font-size:.6rem;font-weight:700;padding:2px 7px;border-radius:999px;letter-spacing:.05em;}
+.hdr-role.m{background:var(--green);}
+.btn-out{background:none;border:none;color:var(--gray2);font-size:.78rem;cursor:pointer;padding:4px 8px;border-radius:8px;font-family:'Sarabun',sans-serif;}
+.tabs{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;}
+.tabs::-webkit-scrollbar{display:none;}
+.tb{flex:1;min-width:64px;padding:.55rem .2rem;background:none;border:none;border-bottom:2px solid transparent;color:var(--gray);font-size:.68rem;font-family:'Sarabun',sans-serif;cursor:pointer;transition:all .15s;white-space:nowrap;text-align:center;}
+.tb.on{color:var(--gold);border-bottom-color:var(--gold);font-weight:600;}
+.ti{display:block;font-size:.95rem;margin-bottom:1px;}
+.content{flex:1;padding:.875rem;overflow-y:auto;padding-bottom:2rem;}
+.pane{display:none;animation:fu .2s ease;}
+.pane.on{display:block;}
+@keyframes fu{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:translateY(0);}}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:.8rem;margin-bottom:.5rem;}
+.ct{font-size:.63rem;font-weight:700;color:var(--gray2);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem;}
+.sh{font-size:.63rem;font-weight:700;color:var(--gray2);letter-spacing:.1em;text-transform:uppercase;margin:.8rem 0 .35rem;}
+.sg{display:grid;grid-template-columns:repeat(4,1fr);gap:.35rem;margin-bottom:.5rem;}
+.sb{border-radius:9px;padding:.55rem .3rem;text-align:center;}
+.sb .n{font-size:1.65rem;font-weight:700;line-height:1;}
+.sb .l{font-size:.58rem;margin-top:3px;opacity:.8;}
+.bG{background:var(--greenl);color:var(--green);}
+.bY{background:var(--yellowl);color:var(--yellow);}
+.bR{background:var(--redl);color:var(--red);}
+.bD{background:rgba(100,116,139,.2);color:#94A3B8;}
+.filter-bar{display:flex;gap:.375rem;margin-bottom:.625rem;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;}
+.filter-bar::-webkit-scrollbar{display:none;}
+.fb{background:var(--bg3);border:1px solid var(--border);border-radius:999px;padding:.3rem .75rem;font-size:.75rem;color:var(--gray2);cursor:pointer;white-space:nowrap;font-family:'Sarabun',sans-serif;transition:all .15s;}
+.fb.on{background:var(--gold);color:var(--bg);border-color:var(--gold);font-weight:600;}
+.mr{display:flex;align-items:center;gap:.55rem;padding:.55rem;border-radius:9px;margin-bottom:.325rem;background:var(--bg3);cursor:pointer;transition:all .15s;user-select:none;}
+.mr:active{background:rgba(240,180,41,.1);}
+.av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;flex-shrink:0;}
+.mi{flex:1;min-width:0;}
+.mn{font-size:.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ms{font-size:.67rem;color:var(--gray2);}
+.msc{font-family:'IBM Plex Mono',monospace;font-size:.88rem;font-weight:500;}
+.mt{font-size:.72rem;}
+.tld{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.scg{display:grid;grid-template-columns:1fr 1fr;gap:.45rem;}
+.scc{background:var(--bg3);border-radius:11px;padding:.7rem;position:relative;border:1px solid var(--border);}
+.scn{font-size:.75rem;font-weight:600;margin-bottom:3px;}
+.sca{font-family:'IBM Plex Mono',monospace;font-size:1.35rem;font-weight:700;}
+.scd{font-size:.68rem;margin-top:2px;}
+.scg2{position:absolute;top:7px;right:7px;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;}
+.scs{font-size:.62rem;color:var(--gray2);margin-top:4px;}
+.chart-wrap{position:relative;height:64px;margin:8px 0;}
+.chart-svg{width:100%;height:100%;}
+.detail-panel{position:fixed;inset:0;background:var(--bg);z-index:200;overflow-y:auto;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);}
+.detail-panel.on{transform:translateX(0);}
+.dp-hdr{background:var(--bg2);border-bottom:1px solid var(--border);padding:.6rem 1rem;display:flex;align-items:center;gap:.75rem;position:sticky;top:0;z-index:10;}
+.dp-back{background:none;border:none;color:var(--gray2);cursor:pointer;font-size:1.1rem;padding:4px;border-radius:8px;}
+.dp-title{font-size:.95rem;font-weight:700;flex:1;}
+.dp-content{padding:.875rem;padding-bottom:2rem;}
+.hero{background:linear-gradient(135deg,var(--bg3),var(--bg2));border:1px solid var(--border);border-radius:var(--r);padding:.875rem;margin-bottom:.5rem;}
+.hero-name{font-size:1.05rem;font-weight:700;}
+.hero-meta{font-size:.75rem;color:var(--gray2);margin-top:2px;}
+.hero-score{font-family:'IBM Plex Mono',monospace;font-size:2.2rem;font-weight:700;}
+.hero-row{display:flex;align-items:center;gap:.75rem;margin-top:.6rem;}
+.attend-pill{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;font-size:.7rem;font-weight:600;margin-top:.5rem;}
+.action-row{display:flex;gap:.5rem;margin-bottom:.5rem;}
+.action-btn{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:.6rem .5rem;font-size:.75rem;font-family:'Sarabun',sans-serif;color:var(--white);cursor:pointer;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:4px;transition:all .15s;}
+.action-btn:active{transform:scale(.97);}
+.action-btn.call{border-color:rgba(16,185,129,.3);color:var(--green);}
+.action-btn.mail{border-color:rgba(240,180,41,.3);color:var(--gold);}
+.kr{display:flex;align-items:center;gap:.55rem;padding:.45rem 0;border-bottom:1px solid var(--border);}
+.kr:last-child{border-bottom:none;}
+.ki{font-size:.95rem;flex-shrink:0;width:20px;text-align:center;}
+.kl{font-size:.75rem;flex:1;}
+.kbw{width:68px;background:var(--bg3);border-radius:4px;height:5px;}
+.kb{height:5px;border-radius:4px;transition:width .5s ease;}
+.kv{font-family:'IBM Plex Mono',monospace;font-size:.67rem;color:var(--gray2);width:40px;text-align:right;}
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.375rem;margin-bottom:.5rem;}
+.stat-box{background:var(--bg3);border-radius:9px;padding:.6rem .5rem;text-align:center;}
+.stat-num{font-family:'IBM Plex Mono',monospace;font-size:1.1rem;font-weight:700;}
+.stat-lbl{font-size:.62rem;color:var(--gray2);margin-top:2px;}
+.pc{border-radius:10px;padding:.7rem;margin-bottom:.425rem;border-left:3px solid;}
+.pn{font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;opacity:.7;}
+.pt{font-size:.82rem;font-weight:600;margin:3px 0;}
+.pa{font-size:.72rem;opacity:.85;line-height:1.5;}
+.pg{font-size:.67rem;margin-top:5px;opacity:.7;font-style:italic;}
+.rr{display:flex;align-items:center;gap:.55rem;padding:.55rem;background:var(--bg3);border-radius:9px;margin-bottom:.325rem;}
+.ri{flex:1;}
+.rn{font-size:.82rem;font-weight:600;}
+.rd2{font-size:.67rem;color:var(--gray2);margin-top:1px;}
+.mm{background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.2);border-radius:9px;padding:.7rem;margin-bottom:.325rem;}
+.mm-n{font-size:.77rem;font-weight:600;color:var(--gold);margin-bottom:3px;}
+.mm-t{font-size:.75rem;opacity:.9;line-height:1.5;}
+.fg{margin-bottom:.7rem;}
+.fl{font-size:.72rem;color:var(--gray2);margin-bottom:.28rem;display:block;}
+.fs,.fi,.ft{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:.575rem .8rem;color:var(--white);font-family:'Sarabun',sans-serif;font-size:.85rem;outline:none;transition:border-color .15s;}
+.fs:focus,.fi:focus,.ft:focus{border-color:var(--gold);}
+.ft{resize:vertical;min-height:68px;}
+.btn-p{width:100%;background:var(--gold);color:var(--bg);border:none;border-radius:11px;padding:.75rem;font-size:.88rem;font-weight:700;font-family:'Sarabun',sans-serif;cursor:pointer;transition:all .15s;}
+.btn-p:active{transform:scale(.98);}
+.empty{text-align:center;padding:2.5rem 1rem;color:var(--gray2);}
+.empty-i{font-size:2rem;margin-bottom:.5rem;}
+.lt{text-align:center;padding:2rem;color:var(--gray2);font-size:.82rem;}
+.alert-strip{background:var(--redl);border:1px solid rgba(239,68,68,.3);border-radius:var(--r);padding:.75rem;margin-bottom:.5rem;}
+.as-title{font-size:.63rem;font-weight:700;color:var(--red);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.375rem;}
+/* ── Growth App ── */
+#growthApp{display:none;flex-direction:column;min-height:100vh;}
+#growthApp.on{display:flex;}
+.zone-hg{background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);color:#EF4444;}
+.zone-lg{background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);color:#F59E0B;}
+.zone-ok{background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);color:#10B981;}
+.zone-in{background:rgba(100,116,139,.15);border:1px solid rgba(100,116,139,.3);color:#64748B;}
+.zone-pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.62rem;font-weight:700;white-space:nowrap;}
+.gm-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:.75rem;margin-bottom:.425rem;cursor:pointer;transition:all .15s;user-select:none;}
+.gm-card:active{opacity:.85;}
+.gm-card.urgent{border-left:3px solid #EF4444;}
+.gm-card.warning{border-left:3px solid #F59E0B;}
+.gm-card.good{border-left:3px solid #10B981;}
+.gm-top{display:flex;align-items:center;gap:.55rem;margin-bottom:.5rem;}
+.gm-av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0;}
+.gm-info{flex:1;min-width:0;}
+.gm-name{font-size:.85rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.gm-sub{font-size:.67rem;color:var(--gray2);display:flex;align-items:center;gap:.375rem;}
+.gm-score{font-family:'IBM Plex Mono',monospace;font-size:.9rem;font-weight:500;}
+.ref-bar-wrap{margin-top:.375rem;}
+.ref-label{display:flex;justify-content:space-between;font-size:.67rem;color:var(--gray2);margin-bottom:3px;}
+.ref-bars{display:flex;flex-direction:column;gap:3px;}
+.ref-bar-row{display:flex;align-items:center;gap:.375rem;}
+.ref-bar-lbl{font-size:.62rem;width:20px;color:var(--gray2);flex-shrink:0;}
+.ref-bar-bg{flex:1;height:6px;background:var(--bg3);border-radius:4px;overflow:hidden;}
+.ref-bar-fill{height:6px;border-radius:4px;transition:width .5s ease;}
+.ref-val{font-family:'IBM Plex Mono',monospace;font-size:.67rem;width:32px;text-align:right;flex-shrink:0;}
+.tyfcb-row{display:flex;align-items:center;gap:.5rem;margin-top:.375rem;padding-top:.375rem;border-top:1px solid var(--border);}
+.tyfcb-val{font-family:'IBM Plex Mono',monospace;font-size:.8rem;font-weight:600;color:var(--gold);}
+.tyfcb-lbl{font-size:.62rem;color:var(--gray2);}
+.gsum-grid{display:grid;grid-template-columns:1fr 1fr;gap:.375rem;margin-bottom:.625rem;}
+.gsum-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:.625rem;text-align:center;}
+.gsum-n{font-size:1.5rem;font-weight:700;line-height:1;}
+.gsum-l{font-size:.62rem;color:var(--gray2);margin-top:3px;}
+.strategy-item{background:var(--bg3);border-radius:10px;padding:.75rem;margin-bottom:.5rem;border-left:3px solid var(--gold);}
+.s-match-name{font-size:.85rem;font-weight:600;}
+.s-match-why{font-size:.72rem;color:var(--gray2);margin-top:3px;line-height:1.5;}
+.s-match-cta{font-size:.72rem;color:var(--gold);margin-top:6px;font-weight:600;padding-top:6px;border-top:1px solid rgba(240,180,41,.15);}
+/* Strategy enhanced */
+.strat-header{display:flex;gap:.5rem;margin-bottom:.625rem;}
+.strat-stat{flex:1;background:var(--bg3);border-radius:8px;padding:.5rem;text-align:center;border:1px solid var(--border);}
+.strat-n{display:block;font-size:1.25rem;font-weight:700;line-height:1;}
+.strat-l{display:block;font-size:.62rem;color:var(--gray2);margin-top:2px;}
+.strat-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.375rem;}
+.strat-urgency{font-size:.72rem;font-weight:700;}
+.strat-balance{font-size:.78rem;margin-bottom:.375rem;padding:.25rem .375rem;background:rgba(255,255,255,.04);border-radius:5px;}
+.strat-suggest-lbl{font-size:.68rem;font-weight:600;color:#A78BFA;margin-bottom:.25rem;}
+.strat-match{display:flex;align-items:center;gap:.375rem;padding:.2rem 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:.7rem;}
+.strat-match-name{font-weight:600;color:var(--white);flex:1;}
+.strat-match-meta{color:var(--gray2);font-size:.65rem;}
+.strat-match-rr{color:#10B981;font-size:.65rem;white-space:nowrap;}
+.cross-badge.mini{font-size:.55rem;background:rgba(139,92,246,.2);color:#A78BFA;padding:1px 4px;border-radius:3px;}
+.strat-inactive-row{display:flex;align-items:center;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:.78rem;}
+/* ── CheckIn & Matching ── */
+.upload-zone{border:2px dashed rgba(240,180,41,.3);border-radius:var(--r);padding:1.5rem;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:.625rem;}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--gold);background:rgba(240,180,41,.05);}
+.upload-zone input{display:none;}
+.upload-icon{font-size:2rem;margin-bottom:.5rem;}
+.upload-txt{font-size:.82rem;color:var(--gray2);}
+.upload-txt strong{color:var(--gold);}
+.cm{display:flex;align-items:center;gap:.5rem;padding:.45rem .625rem;border-radius:8px;margin-bottom:.25rem;background:var(--bg3);}
+.cm.sub{background:rgba(245,158,11,.08);border-left:2px solid var(--yellow);}
+.cm-name{font-size:.8rem;font-weight:600;flex:1;}
+.cm-lf{font-size:.67rem;color:var(--gray2);margin-top:1px;}
+.cm-badge{font-size:.6rem;padding:1px 6px;border-radius:999px;white-space:nowrap;flex-shrink:0;}
+.cm-badge.real{background:rgba(16,185,129,.15);color:var(--green);}
+.cm-badge.sub{background:rgba(245,158,11,.15);color:var(--yellow);}
+.match-card{background:var(--bg3);border-radius:12px;padding:.75rem;margin-bottom:.5rem;border-left:3px solid var(--gold);}
+.match-card.high{border-left-color:#EF4444;}
+.match-card.medium{border-left-color:#F0B429;}
+.match-card.low{border-left-color:#64748B;}
+.match-names{font-size:.85rem;font-weight:700;margin-bottom:4px;}
+.match-names span{color:var(--gold);}
+.match-reason{font-size:.73rem;color:var(--gray2);line-height:1.5;}
+.match-lf{font-size:.68rem;color:var(--gray2);margin-top:3px;font-style:italic;}
+.match-action{font-size:.73rem;color:var(--white);margin-top:5px;font-weight:600;}
+.match-meta{display:flex;align-items:center;gap:.375rem;margin-top:5px;}
+.match-priority{font-size:.6rem;padding:2px 7px;border-radius:999px;}
+.priority-high{background:rgba(239,68,68,.2);color:#EF4444;}
+.priority-medium{background:rgba(240,180,41,.2);color:var(--gold);}
+.priority-low{background:rgba(100,116,139,.2);color:#94A3B8;}
+.cross-badge{font-size:.6rem;padding:2px 7px;border-radius:999px;background:rgba(139,92,246,.2);color:#A78BFA;}
+.week-sel{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:.575rem .8rem;color:var(--white);font-family:'Sarabun',sans-serif;font-size:.85rem;outline:none;margin-bottom:.625rem;}
+.match-summary{background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.3);border-radius:var(--r);padding:.75rem;margin-bottom:.625rem;font-size:.8rem;color:#C4B5FD;line-height:1.6;}
+/* ── Reports ── */
+.rpt-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:.8rem;margin-bottom:.5rem;}
+.rpt-card.has-reply{border-left:3px solid var(--green);}
+.rpt-card.no-reply{border-left:3px solid var(--yellow);}
+.rpt-meta{font-size:.63rem;color:var(--gray2);letter-spacing:.05em;margin-bottom:.3rem;display:flex;gap:.5rem;align-items:center;}
+.rpt-team-badge{padding:1px 7px;border-radius:999px;font-size:.6rem;font-weight:700;background:rgba(240,180,41,.15);color:var(--gold);}
+.rpt-member{font-size:.85rem;font-weight:700;margin-bottom:.25rem;}
+.rpt-score{font-family:'IBM Plex Mono',monospace;font-size:.8rem;}
+.rpt-section{margin-top:.45rem;}
+.rpt-label{font-size:.62rem;font-weight:700;color:var(--gray2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.2rem;}
+.rpt-text{font-size:.8rem;line-height:1.55;color:var(--white);}
+.rpt-reply-box{margin-top:.6rem;background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.2);border-radius:9px;padding:.6rem;}
+.rpt-reply-label{font-size:.62rem;font-weight:700;color:var(--green);margin-bottom:.3rem;}
+.rpt-reply-input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:.5rem .7rem;color:var(--white);font-family:'Sarabun',sans-serif;font-size:.82rem;outline:none;resize:vertical;min-height:56px;transition:border-color .15s;}
+.rpt-reply-input:focus{border-color:var(--green);}
+.btn-reply{background:var(--green);color:#fff;border:none;border-radius:8px;padding:.45rem 1rem;font-size:.78rem;font-weight:700;font-family:'Sarabun',sans-serif;cursor:pointer;margin-top:.4rem;transition:all .15s;}
+.btn-reply:active{transform:scale(.97);}
+.btn-reply:disabled{opacity:.5;cursor:not-allowed;}
+.rpt-empty{text-align:center;padding:2rem;color:var(--gray2);font-size:.82rem;}
+/* ── Report card states ── */
+.rpt-card.replied  { border-left: 3px solid #60A5FA; }
+.rpt-card.done     { border-left: 3px solid var(--green); opacity: .75; }
+.rpt-done-banner   {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--greenl); border-radius: 8px;
+  padding: .45rem .65rem; margin-top: .5rem;
+}
+.rpt-done-txt { font-size: .72rem; color: var(--green); font-weight: 700; }
+.rpt-done-at  { font-size: .65rem; color: var(--gray2); }
+.btn-done   {
+  background: #1D4ED8; color: #fff; border: none; border-radius: 8px;
+  padding: .4rem .9rem; font-size: .75rem; font-weight: 700;
+  font-family: 'Sarabun', sans-serif; cursor: pointer;
+  margin-top: .45rem; transition: all .15s;
+}
+.btn-done:active   { transform: scale(.97); }
+.btn-done.green    { background: var(--green); }
+.btn-done:disabled { opacity: .5; cursor: not-allowed; }
+.btn-reopen {
+  background: none; border: 1px solid var(--border);
+  color: var(--gray2); border-radius: 8px;
+  padding: .35rem .8rem; font-size: .72rem;
+  font-family: 'Sarabun', sans-serif; cursor: pointer;
+}
+.rpt-filter-status {
+  display: flex; gap: .375rem; margin-bottom: .5rem;
+  overflow-x: auto; scrollbar-width: none;
+}
+.rpt-filter-status::-webkit-scrollbar { display: none; }
+
+/* ── Notification Badge ── */
+.role-card .notif-badge {
+  position:absolute;top:6px;left:6px;
+  background:#EF4444;color:#fff;
+  font-size:.6rem;font-weight:700;
+  padding:1px 6px;border-radius:999px;
+  min-width:18px;text-align:center;
+  display:none;
+}
+.role-card .notif-badge.on { display:block; }
+
+/* ── Notification Panel ── */
+.notif-panel{
+  position:fixed;inset:0;background:rgba(0,0,0,.75);
+  display:none;align-items:flex-end;justify-content:center;
+  z-index:400;padding:1rem;
+}
+.notif-panel.on{display:flex;}
+.notif-box{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:20px;width:100%;max-width:420px;
+  max-height:75vh;overflow-y:auto;padding:1.125rem;
+}
+.notif-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:.75rem;
+}
+.notif-title{font-size:1rem;font-weight:700;}
+.notif-count{
+  background:var(--red);color:#fff;
+  font-size:.65rem;font-weight:700;
+  padding:2px 8px;border-radius:999px;
+}
+.notif-item{
+  background:var(--bg3);border-radius:10px;
+  padding:.65rem .75rem;margin-bottom:.375rem;
+  border-left:3px solid #60A5FA;
+}
+.notif-item-meta{
+  font-size:.62rem;color:var(--gray2);margin-bottom:3px;
+}
+.notif-item-name{font-size:.85rem;font-weight:700;margin-bottom:3px;}
+.notif-item-msg{
+  font-size:.75rem;color:var(--gray2);
+  line-height:1.5;
+  display:-webkit-box;-webkit-line-clamp:2;
+  -webkit-box-orient:vertical;overflow:hidden;
+}
+.btn-notif-ack{
+  width:100%;background:var(--gold);color:var(--bg);
+  border:none;border-radius:11px;padding:.7rem;
+  font-size:.88rem;font-weight:700;
+  font-family:'Sarabun',sans-serif;cursor:pointer;
+  margin-top:.75rem;transition:all .15s;
+}
+.btn-notif-ack:active{transform:scale(.98);}
+.notif-empty{
+  text-align:center;padding:1.5rem;
+  color:var(--gray2);font-size:.82rem;
+}
+
+/* ── New Members ── */
+.nm-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:.8rem;margin-bottom:.5rem;cursor:pointer;transition:all .15s;}
+.nm-card:active{opacity:.85;}
+.nm-card-top{display:flex;align-items:center;gap:.625rem;margin-bottom:.5rem;}
+.nm-av{width:36px;height:36px;border-radius:50%;background:rgba(139,92,246,.2);color:#A78BFA;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;flex-shrink:0;}
+.nm-name{font-size:.88rem;font-weight:700;}
+.nm-meta{font-size:.68rem;color:var(--gray2);margin-top:2px;}
+.nm-progress-wrap{margin-top:.375rem;}
+.nm-progress-bar{height:6px;background:var(--bg3);border-radius:4px;overflow:hidden;}
+.nm-progress-fill{height:6px;border-radius:4px;background:linear-gradient(90deg,#8B5CF6,#60A5FA);transition:width .5s ease;}
+.nm-progress-txt{display:flex;justify-content:space-between;font-size:.62rem;color:var(--gray2);margin-top:3px;}
+.nm-add-btn{width:100%;background:rgba(139,92,246,.15);border:1px dashed rgba(139,92,246,.4);border-radius:var(--r);padding:.75rem;font-size:.85rem;font-weight:600;color:#A78BFA;font-family:'Sarabun',sans-serif;cursor:pointer;margin-bottom:.625rem;transition:all .15s;}
+.nm-add-btn:active{background:rgba(139,92,246,.25);}
+/* Checklist Panel */
+.cl-panel{position:fixed;inset:0;background:var(--bg);z-index:250;overflow-y:auto;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);}
+.cl-panel.on{transform:translateX(0);}
+.cl-hdr{background:var(--bg2);border-bottom:1px solid var(--border);padding:.6rem 1rem;display:flex;align-items:center;gap:.75rem;position:sticky;top:0;z-index:10;}
+.cl-back{background:none;border:none;color:var(--gray2);cursor:pointer;font-size:1.1rem;padding:4px;}
+.cl-title{font-size:.95rem;font-weight:700;flex:1;}
+.cl-content{padding:.875rem;padding-bottom:2rem;}
+.cl-hero{background:linear-gradient(135deg,rgba(139,92,246,.15),rgba(96,165,250,.1));border:1px solid rgba(139,92,246,.2);border-radius:var(--r);padding:.875rem;margin-bottom:.625rem;}
+.cl-hero-name{font-size:1rem;font-weight:700;}
+.cl-hero-meta{font-size:.72rem;color:var(--gray2);margin-top:2px;}
+.cl-prog{margin-top:.625rem;}
+.cl-prog-bar{height:8px;background:var(--bg3);border-radius:4px;overflow:hidden;}
+.cl-prog-fill{height:8px;border-radius:4px;background:linear-gradient(90deg,#8B5CF6,#60A5FA);}
+.cl-prog-txt{display:flex;justify-content:space-between;font-size:.68rem;color:var(--gray2);margin-top:4px;}
+.cl-phase{font-size:.63rem;font-weight:700;color:#A78BFA;letter-spacing:.1em;text-transform:uppercase;margin:1rem 0 .375rem;}
+.cl-task{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:.65rem .75rem;margin-bottom:.325rem;}
+.cl-task.passed{border-left:3px solid var(--green);background:rgba(16,185,129,.05);}
+.cl-task.failed{border-left:3px solid var(--red);background:rgba(239,68,68,.05);}
+.cl-task-top{display:flex;align-items:center;gap:.5rem;}
+.cl-task-tl{font-size:.62rem;color:var(--gold);background:rgba(240,180,41,.1);padding:1px 6px;border-radius:999px;flex-shrink:0;}
+.cl-task-name{font-size:.82rem;font-weight:600;flex:1;}
+.cl-task-status{font-size:.68rem;color:var(--gray2);margin-top:3px;margin-left:0;}
+.cl-task-actions{display:flex;gap:.375rem;margin-top:.5rem;}
+.btn-pass{background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);color:var(--green);border-radius:8px;padding:.35rem .75rem;font-size:.72rem;font-weight:700;font-family:'Sarabun',sans-serif;cursor:pointer;transition:all .15s;}
+.btn-pass.active{background:var(--green);color:#fff;}
+.btn-nopass{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:var(--red);border-radius:8px;padding:.35rem .75rem;font-size:.72rem;font-weight:700;font-family:'Sarabun',sans-serif;cursor:pointer;transition:all .15s;}
+.btn-nopass.active{background:var(--red);color:#fff;}
+.btn-reset{background:var(--bg3);border:1px solid var(--border);color:var(--gray2);border-radius:8px;padding:.35rem .6rem;font-size:.68rem;font-family:'Sarabun',sans-serif;cursor:pointer;}
+.cl-task-meta{font-size:.65rem;color:var(--gray2);margin-top:4px;}
+/* Add NM Form */
+.nm-form-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:flex-end;justify-content:center;z-index:300;padding:1rem;}
+.nm-form-overlay.on{display:flex;}
+.nm-form-box{background:var(--bg2);border:1px solid var(--border);border-radius:20px 20px 16px 16px;width:100%;max-width:420px;padding:1.25rem;}
+.nm-form-title{font-size:1rem;font-weight:700;margin-bottom:1rem;text-align:center;}
+
+/* ── Conversation History ── */
+.conv-wrap{margin-top:.5rem;}
+.conv-item{display:flex;gap:.5rem;padding:.5rem 0;border-bottom:1px solid var(--border);}
+.conv-item:last-child{border-bottom:none;}
+.conv-bubble{flex:1;background:var(--bg3);border-radius:10px;padding:.55rem .75rem;}
+.conv-bubble.mc{background:rgba(96,165,250,.08);border-left:3px solid #60A5FA;}
+.conv-bubble.mentor{background:rgba(240,180,41,.08);border-left:3px solid var(--gold);}
+.conv-bubble.issue{background:rgba(239,68,68,.08);border-left:3px solid var(--red);}
+.conv-who{font-size:.62rem;font-weight:700;margin-bottom:3px;}
+.conv-who.mc{color:#60A5FA;}
+.conv-who.mentor{color:var(--gold);}
+.conv-who.issue{color:var(--red);}
+.conv-txt{font-size:.78rem;line-height:1.55;}
+.conv-time{font-size:.62rem;color:var(--gray2);margin-top:3px;}
+
+/* ── Power Teams ── */
+.pt-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:.8rem;margin-bottom:.5rem;}
+.pt-hdr{display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;cursor:pointer;user-select:none;}
+.pt-icon{font-size:1.4rem;}
+.pt-name{font-size:.9rem;font-weight:700;flex:1;}
+.pt-count{font-size:.72rem;color:var(--gray2);background:var(--bg3);padding:2px 8px;border-radius:999px;}
+.pt-toggle{color:var(--gray2);font-size:.8rem;transition:transform .2s;}
+.pt-toggle.open{transform:rotate(180deg);}
+.pt-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:.375rem;margin-bottom:.5rem;}
+.pt-stat{background:var(--bg3);border-radius:8px;padding:.5rem;text-align:center;}
+.pt-stat-n{font-family:'IBM Plex Mono',monospace;font-size:.95rem;font-weight:700;}
+.pt-stat-l{font-size:.6rem;color:var(--gray2);margin-top:2px;}
+.pt-members{display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.5rem;}
+.pt-chip{font-size:.7rem;padding:3px 9px;border-radius:999px;font-weight:600;}
+.pt-chip.green{background:rgba(16,185,129,.15);color:var(--green);}
+.pt-chip.yellow{background:rgba(245,158,11,.15);color:var(--yellow);}
+.pt-chip.red{background:rgba(239,68,68,.15);color:var(--red);}
+.pt-chip.black{background:rgba(100,116,139,.2);color:var(--gray2);}
+.pt-chip.none{background:var(--bg3);color:var(--gray2);}
+.pt-suggest-title{font-size:.63rem;font-weight:700;color:#A78BFA;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.375rem;}
+.pt-suggest{background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.2);border-radius:9px;padding:.55rem .7rem;margin-bottom:.325rem;}
+.pt-suggest-names{font-size:.82rem;font-weight:700;margin-bottom:3px;}
+.pt-suggest-names span{color:#A78BFA;}
+.pt-suggest-reason{font-size:.7rem;color:var(--gray2);}
+.pt-suggest-badge{display:inline-block;font-size:.6rem;padding:1px 6px;border-radius:999px;margin-top:3px;}
+.pt-suggest-badge.high{background:rgba(239,68,68,.2);color:#EF4444;}
+.pt-suggest-badge.medium{background:rgba(139,92,246,.2);color:#A78BFA;}
+.pt-synergy-title{font-size:.63rem;font-weight:700;color:#60A5FA;letter-spacing:.08em;text-transform:uppercase;margin:.6rem 0 .35rem;}
+.pt-synergy{background:rgba(96,165,250,.07);border:1px solid rgba(96,165,250,.2);border-radius:9px;padding:.45rem .65rem;margin-bottom:.3rem;display:flex;align-items:flex-start;gap:.5rem;}
+.pt-syn-icon{font-size:1.1rem;flex-shrink:0;margin-top:1px;}
+.pt-syn-name{font-size:.78rem;font-weight:700;color:#93C5FD;}
+.pt-syn-desc{font-size:.68rem;color:var(--gray2);margin-top:1px;}
+.pt-syn-pair{font-size:.68rem;color:#60A5FA;margin-top:2px;}
+.pt-card.unassigned{border-color:rgba(245,158,11,.3);}
+.pt-card.unassigned .pt-hdr{opacity:.85;}
+.pt-body{display:none;}
+.pt-body.open{display:block;}
+/* ── MC Broadcast ── */
+.bc-msg-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:.6rem .8rem;margin-bottom:.4rem;}
+.bc-msg-text{font-size:.82rem;line-height:1.5;color:var(--white);}
+.bc-msg-time{font-size:.65rem;color:var(--gray2);margin-top:4px;}
+/* ── Alert Center ── */
+.alert-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:.6rem .75rem;margin-bottom:.4rem;}
+.alert-card.emergency{border-left:3px solid var(--red);}
+.alert-card.warning{border-left:3px solid var(--yellow);}
+.alert-hdr{display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem;}
+.alert-icon{font-size:1rem;flex-shrink:0;}
+.alert-name{font-size:.85rem;font-weight:700;flex:1;}
+.alert-team{font-size:.62rem;background:var(--bg3);padding:2px 6px;border-radius:999px;color:var(--gray2);}
+.alert-detail{font-size:.72rem;color:var(--gray2);}
+/* ── Mentor Performance ── */
+.perf-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:.7rem .8rem;margin-bottom:.4rem;}
+.perf-hdr{display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;}
+.perf-team{font-size:.9rem;font-weight:700;flex:1;}
+.perf-flag{font-size:.62rem;padding:2px 7px;border-radius:999px;}
+.perf-flag.ok{background:rgba(16,185,129,.15);color:var(--green);}
+.perf-flag.partial{background:rgba(245,158,11,.15);color:var(--yellow);}
+.perf-flag.stale{background:rgba(239,68,68,.15);color:var(--red);}
+.perf-flag.none{background:var(--bg3);color:var(--gray2);}
+.perf-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.35rem;margin-bottom:.4rem;}
+.perf-stat{background:var(--bg3);border-radius:7px;padding:.4rem;text-align:center;}
+.perf-stat-n{font-size:.95rem;font-weight:700;font-family:'IBM Plex Mono',monospace;}
+.perf-stat-l{font-size:.58rem;color:var(--gray2);margin-top:1px;}
+.perf-no-report{font-size:.68rem;color:var(--red);margin-top:.35rem;}
+/* ── Meeting Prep ── */
+.mp-section{margin-bottom:.875rem;}
+.mp-title{font-size:.7rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;margin-bottom:.4rem;}
+.mp-announce{background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.25);border-radius:var(--r);padding:.75rem;margin-bottom:.75rem;}
+.mp-ann-row{display:flex;justify-content:space-between;align-items:center;padding:.3rem 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:.78rem;}
+.mp-ann-row:last-child{border-bottom:none;}
+.mp-ann-val{font-family:'IBM Plex Mono',monospace;font-weight:700;}
+.mp-chip-list{display:flex;flex-wrap:wrap;gap:.3rem;}
+.mp-chip{font-size:.72rem;background:var(--bg2);border:1px solid var(--border);border-radius:999px;padding:3px 10px;color:var(--gray2);}
+.mp-chip.warn{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:var(--red);}
+/* ── Chapter Pulse ── */
+.pulse-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.75rem;}
+.pulse-stat{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:.75rem;text-align:center;}
+.pulse-n{font-family:'IBM Plex Mono',monospace;font-size:1.4rem;font-weight:700;line-height:1;}
+.pulse-l{font-size:.62rem;color:var(--gray2);margin-top:3px;}
+.tl-bar-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:.75rem;margin-bottom:.75rem;}
+.tl-bar-lbl{font-size:.7rem;font-weight:700;margin-bottom:.5rem;color:var(--gold);}
+.tl-bar-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem;}
+.tl-bar-name{font-size:.68rem;width:72px;flex-shrink:0;color:var(--gray2);}
+.tl-bar-track{flex:1;height:10px;background:var(--bg3);border-radius:5px;overflow:hidden;}
+.tl-bar-fill{height:100%;border-radius:5px;transition:width .4s;}
+.tl-bar-cnt{font-size:.75rem;font-family:'IBM Plex Mono',monospace;min-width:28px;flex-shrink:0;text-align:right;font-weight:600;}
+.mover-section{margin-bottom:.75rem;}
+.mover-title{font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:.4rem;}
+.mover-row{display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;background:var(--bg2);border-radius:8px;margin-bottom:.3rem;}
+.mover-nick{font-size:.8rem;font-weight:700;flex:1;}
+.mover-delta{font-size:.78rem;font-family:'IBM Plex Mono',monospace;font-weight:700;}
+.mover-delta.up{color:var(--green);}
+.mover-delta.dn{color:var(--red);}
+/* ── Leaderboard ── */
+.lb-tabs{display:flex;gap:.375rem;margin-bottom:.625rem;}
+.lb-tab{background:var(--bg2);border:1px solid var(--border);color:var(--gray2);border-radius:20px;padding:4px 12px;font-size:.72rem;cursor:pointer;font-family:'Sarabun',sans-serif;}
+.lb-tab.on{background:var(--gold);color:var(--bg);border-color:var(--gold);font-weight:700;}
+.stabs{display:flex;gap:.375rem;margin-bottom:.625rem;flex-wrap:wrap;}
+.stb{background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:.72rem;color:var(--gray2);cursor:pointer;font-family:'Sarabun',sans-serif;transition:all .15s;}
+.stb.on{background:var(--bg4);color:var(--white);border-color:rgba(255,255,255,.2);font-weight:600;}
+.sub-pane{display:none;}
+.sub-pane.on{display:block;}
+.lb-row{display:flex;align-items:center;gap:.5rem;padding:.45rem .6rem;background:var(--bg2);border:1px solid var(--border);border-radius:9px;margin-bottom:.3rem;}
+.lb-rank{font-size:.7rem;font-family:'IBM Plex Mono',monospace;color:var(--gray2);width:20px;text-align:center;flex-shrink:0;}
+.lb-rank.gold{color:var(--gold);font-weight:700;}
+.lb-name{font-size:.8rem;font-weight:600;flex:1;}
+.lb-val{font-size:.78rem;font-family:'IBM Plex Mono',monospace;font-weight:700;}
+.lb-bar-wrap{width:70px;flex-shrink:0;}
+.lb-bar-track{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;}
+.lb-bar-fill{height:100%;border-radius:3px;}
+/* ── Visitor Tracker ── */
+.vis-summary{display:flex;gap:.5rem;margin-bottom:.75rem;}
+.vis-stat{flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:.6rem;text-align:center;}
+.vis-n{font-size:1.4rem;font-weight:700;font-family:'IBM Plex Mono',monospace;}
+.vis-l{font-size:.6rem;color:var(--gray2);margin-top:2px;}
+.vis-row{display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;background:var(--bg2);border:1px solid var(--border);border-radius:9px;margin-bottom:.3rem;}
+.vis-name{font-size:.8rem;flex:1;}
+.vis-badge{font-size:.7rem;font-family:'IBM Plex Mono',monospace;font-weight:700;background:rgba(96,165,250,.15);color:#60A5FA;padding:2px 7px;border-radius:999px;}
+.vis-badge.zero{background:rgba(239,68,68,.1);color:var(--red);}
+.vis-no-section{margin-top:.75rem;}
+.vis-no-title{font-size:.63rem;font-weight:700;color:var(--red);letter-spacing:.07em;text-transform:uppercase;margin-bottom:.4rem;}
+/* ── Chapter Actions ── */
+.ca-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:.65rem .75rem;margin-bottom:.4rem;}
+.ca-card.emergency{border-left:3px solid var(--red);}
+.ca-card.warning{border-left:3px solid var(--yellow);}
+.ca-card.info{border-left:3px solid rgba(96,165,250,.6);}
+.ca-hdr{display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem;}
+.ca-name{font-size:.85rem;font-weight:700;flex:1;}
+.ca-team{font-size:.62rem;background:var(--bg3);padding:2px 7px;border-radius:999px;color:var(--gray2);}
+.ca-score{font-size:.68rem;font-family:'IBM Plex Mono',monospace;}
+.ca-alerts{display:flex;flex-direction:column;gap:3px;}
+.ca-alert{font-size:.7rem;color:var(--gray2);line-height:1.4;}
+/* ── Focus 3 ── */
+.f3-wrap{display:flex;gap:.4rem;margin-bottom:.5rem;overflow-x:auto;padding:.1rem 0;}
+.f3-card{flex:0 0 auto;width:148px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:.45rem .55rem;}
+.f3-card.f3-e{border-color:rgba(239,68,68,.5);background:rgba(239,68,68,.08);}
+.f3-card.f3-w{border-color:rgba(245,158,11,.5);background:rgba(245,158,11,.07);}
+.f3-card.f3-q{border-color:rgba(59,130,246,.4);background:rgba(59,130,246,.07);}
+.f3-name{font-size:.72rem;font-weight:700;margin-bottom:.12rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.f3-tl{font-size:.65rem;margin-right:.25rem;}
+.f3-action{font-size:.63rem;color:var(--gray2);line-height:1.4;}
+/* ── Team Health Summary ── */
+.th-card{background:rgba(240,180,41,.05);border:1px solid rgba(240,180,41,.2);border-radius:10px;padding:.5rem .65rem;margin-bottom:.5rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;}
+.th-stat{text-align:center;flex:1;min-width:52px;}
+.th-num{font-size:1.05rem;font-weight:700;font-family:'IBM Plex Mono',monospace;}
+.th-lbl{font-size:.58rem;color:var(--gray2);margin-top:.1rem;}
+/* ── Coaching Guide ── */
+.cg-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:.6rem .75rem;margin-bottom:.5rem;}
+.cg-card.cg-critical{border-color:rgba(239,68,68,.45);}
+.cg-card.cg-warning{border-color:rgba(245,158,11,.45);}
+.cg-card.cg-attention{border-color:rgba(240,180,41,.35);}
+.cg-card.cg-good{border-color:rgba(16,185,129,.35);}
+.cg-hdr{display:flex;align-items:center;gap:.4rem;margin-bottom:.35rem;}
+.cg-name{font-size:.82rem;font-weight:700;flex:1;}
+.cg-score{font-size:.75rem;font-family:'IBM Plex Mono',monospace;font-weight:700;}
+.cg-badge{font-size:.6rem;border-radius:999px;padding:2px 8px;font-weight:700;}
+.cg-badge.cg-critical{background:rgba(239,68,68,.2);color:#EF4444;}
+.cg-badge.cg-warning{background:rgba(245,158,11,.2);color:#F59E0B;}
+.cg-badge.cg-attention{background:rgba(240,180,41,.2);color:#F0B429;}
+.cg-badge.cg-good{background:rgba(16,185,129,.15);color:#10B981;}
+.cg-point{font-size:.7rem;padding:.18rem 0;border-bottom:1px solid var(--border);line-height:1.5;}
+.cg-point:last-child{border-bottom:none;}
+.cg-point.cp-critical{color:#EF4444;}
+.cg-point.cp-warning{color:#F59E0B;}
+.cg-point.cp-quick{color:#FBBF24;}
+.cg-point.cp-plan{color:#60A5FA;}
+.cg-wins{margin-top:.35rem;border-top:1px solid rgba(16,185,129,.15);padding-top:.25rem;}
+.cg-win{font-size:.67rem;color:#10B981;line-height:1.5;}
+/* ── 1-2-1 Log ── */
+.log-section{margin-top:.8rem;padding-top:.6rem;border-top:1px solid var(--border);}
+.log-hdr{font-size:.7rem;font-weight:700;color:var(--gold);margin-bottom:.4rem;letter-spacing:.06em;display:flex;align-items:center;justify-content:space-between;}
+.log-form{display:flex;flex-direction:column;gap:.4rem;margin-bottom:.55rem;}
+.log-input{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:.45rem .6rem;font-size:.72rem;color:var(--txt);font-family:Sarabun,sans-serif;resize:none;width:100%;box-sizing:border-box;}
+.log-btn{align-self:flex-end;background:var(--gold);color:var(--bg);border:none;border-radius:8px;padding:.38rem .9rem;font-size:.72rem;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif;}
+.log-entry{border-bottom:1px solid var(--border);padding:.4rem 0;}
+.log-entry:last-child{border-bottom:none;}
+.log-ts{font-size:.63rem;color:var(--gray2);margin-bottom:.15rem;}
+.log-note{font-size:.72rem;line-height:1.5;}
+.log-next{font-size:.68rem;color:#60A5FA;margin-top:.1rem;}
+/* ── Scorecard Movement ── */
+.mv-bar{display:flex;gap:.375rem;margin-bottom:.5rem;flex-wrap:wrap;}
+.mv-chip{flex:1;min-width:70px;border-radius:9px;padding:.5rem .4rem;text-align:center;}
+.mv-num{font-family:'IBM Plex Mono',monospace;font-size:1.4rem;font-weight:700;line-height:1;}
+.mv-lbl{font-size:.6rem;margin-top:2px;opacity:.8;}
+.zone-list{margin-bottom:.5rem;}
+.zone-item{display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;border-radius:8px;margin-bottom:.3rem;}
+.zone-item.up{background:rgba(16,185,129,.12);border-left:3px solid #10B981;}
+.zone-item.dn{background:rgba(239,68,68,.12);border-left:3px solid #EF4444;}
+.zone-name{font-size:.8rem;font-weight:600;flex:1;}
+.zone-arrow{font-size:.72rem;color:var(--gray2);}
+.zone-diff{font-family:'IBM Plex Mono',monospace;font-size:.72rem;font-weight:600;}
+.rank-row{display:flex;align-items:center;gap:.5rem;padding:.35rem .5rem;border-radius:7px;margin-bottom:.25rem;}
+.rank-pos{font-size:.7rem;color:var(--gray2);width:18px;text-align:center;flex-shrink:0;}
+.rank-name{font-size:.8rem;font-weight:600;flex:1;}
+.rank-team{font-size:.62rem;color:var(--gray2);}
+.rank-delta{font-family:'IBM Plex Mono',monospace;font-size:.78rem;font-weight:700;flex-shrink:0;}
+/* ── Version Footer ── */
+.ver-footer{text-align:center;padding:.75rem 1rem 1.25rem;color:var(--gray);font-size:.65rem;letter-spacing:.05em;border-top:1px solid var(--border);margin-top:.5rem;}
+.ver-footer span{color:var(--gold);font-weight:600;}
+/* ── Mentor Activity Card ── */
+.ma-row{display:flex;align-items:center;gap:.5rem;padding:.5rem .6rem;border-radius:9px;margin-bottom:.3rem;background:var(--bg3);cursor:default;}
+.ma-team{font-size:.8rem;font-weight:700;width:72px;flex-shrink:0;}
+.ma-scores{display:flex;gap:5px;flex:1;}
+.ma-badge{font-size:.62rem;font-weight:700;padding:2px 6px;border-radius:5px;white-space:nowrap;}
+.ma-up{background:rgba(16,185,129,.2);color:#10B981;}
+.ma-dn{background:rgba(239,68,68,.2);color:#EF4444;}
+.ma-eq{background:rgba(100,116,139,.2);color:#94A3B8;}
+.ma-report{font-size:.67rem;flex:1;text-align:right;white-space:nowrap;}
+.ma-ok{color:#10B981;}.ma-warn{color:#F59E0B;}.ma-err{color:#EF4444;}
+.ma-flag{width:16px;text-align:center;font-size:.82rem;flex-shrink:0;}
+.wa-wrap{margin-bottom:.75rem;}
+.wa-hdr{font-size:.7rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.4rem;padding:0 .25rem;}
+.wa-card{border-radius:10px;padding:.55rem .7rem;margin-bottom:.35rem;border-left:3px solid transparent;}
+.wa-e{background:rgba(239,68,68,.12);border-color:#EF4444;}
+.wa-w{background:rgba(245,158,11,.12);border-color:#F59E0B;}
+.wa-q{background:rgba(59,130,246,.12);border-color:#3B82F6;}
+.wa-p{background:rgba(100,116,139,.1);border-color:#64748B;}
+.wa-ok{background:rgba(16,185,129,.08);border-color:#10B981;}
+.wa-top{display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem;}
+.wa-name{font-size:.82rem;font-weight:700;flex:1;}
+.wa-score{font-size:.68rem;padding:2px 6px;border-radius:5px;font-weight:700;background:rgba(255,255,255,.07);}
+.wa-tl{font-size:.78rem;width:18px;text-align:center;}
+.wa-action{font-size:.73rem;color:var(--gray2);line-height:1.45;}
+.wa-target{font-size:.67rem;color:var(--gray);margin-top:.1rem;}
+.wa-count{font-size:.63rem;color:var(--gray);float:right;margin-top:-.5rem;}
+.gt-wrap{margin-bottom:.75rem;}
+.gt-hdr{font-size:.7rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.4rem;padding:0 .25rem;}
+.gt-card{border-radius:10px;padding:.55rem .7rem;margin-bottom:.35rem;border-left:3px solid #8B5CF6;background:rgba(139,92,246,.08);}
+.gt-card.done{border-color:var(--border);background:rgba(100,116,139,.06);opacity:.7;}
+.gt-top{display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem;}
+.gt-member{font-size:.82rem;font-weight:700;flex:1;}
+.gt-team{font-size:.65rem;color:#A78BFA;padding:2px 5px;border-radius:4px;background:rgba(139,92,246,.15);}
+.gt-pri{font-size:.78rem;width:18px;text-align:center;}
+.gt-type{font-size:.67rem;color:var(--gray2);}
+.gt-note{font-size:.73rem;color:var(--gray2);line-height:1.45;margin-bottom:.25rem;}
+.gt-resp-wrap{margin-top:.3rem;}
+.gt-resp-input{width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--border);border-radius:7px;color:var(--txt);font-size:.73rem;padding:.35rem .5rem;font-family:Sarabun,sans-serif;resize:none;}
+.gt-btn{margin-top:.3rem;font-size:.72rem;padding:.3rem .9rem;border-radius:7px;border:none;cursor:pointer;font-family:Sarabun,sans-serif;font-weight:600;}
+.gt-btn-submit{background:#8B5CF6;color:#fff;}
+.gt-btn-done{background:#10B981;color:#fff;}
+.gt-done-note{font-size:.68rem;color:#10B981;margin-top:.2rem;}
+.gm-task-btn{float:right;font-size:.65rem;padding:2px 8px;border-radius:6px;border:1px solid rgba(139,92,246,.4);background:rgba(139,92,246,.1);color:#A78BFA;cursor:pointer;font-family:Sarabun,sans-serif;}
+.gm-task-form{margin-top:.5rem;padding:.5rem;background:var(--bg3);border-radius:8px;border:1px solid rgba(139,92,246,.2);}
+.gm-task-form select,.gm-task-form textarea{width:100%;box-sizing:border-box;background:var(--bg2);border:1px solid var(--border);border-radius:7px;color:var(--txt);font-size:.73rem;padding:.3rem .5rem;font-family:Sarabun,sans-serif;margin-bottom:.3rem;}
+.gm-task-form textarea{resize:none;}
+.risk-card{border-radius:10px;padding:.5rem .65rem;margin-bottom:.3rem;display:flex;align-items:center;gap:.5rem;background:var(--bg3);}
+.risk-streak{font-size:.7rem;font-weight:700;border-radius:5px;padding:2px 6px;white-space:nowrap;flex-shrink:0;}
+.risk-s3{background:rgba(245,158,11,.2);color:#F59E0B;}
+.risk-s4{background:rgba(251,146,60,.2);color:#FB923C;}
+.risk-s5{background:rgba(239,68,68,.2);color:#EF4444;}
+.risk-name{flex:1;font-size:.8rem;font-weight:700;min-width:0;}
+.risk-sub{font-size:.65rem;color:var(--gray2);}
+.risk-score{font-size:.78rem;font-weight:700;text-align:right;white-space:nowrap;}
+.risk-spark{display:flex;align-items:flex-end;gap:2px;height:18px;flex-shrink:0;}
+.risk-bar{width:5px;border-radius:2px 2px 0 0;min-height:2px;}
+
+/* ── MC Assignments ────────────────────────────────────────── */
+.asgn-form{background:var(--card);border-radius:12px;padding:14px;margin-bottom:14px;border:1px solid var(--border);}
+.asgn-form .ct{font-size:14px;font-weight:700;color:var(--accent);margin-bottom:10px;}
+.asgn-row{display:flex;gap:8px;margin-bottom:8px;}
+.asgn-row .fi,.asgn-row .fs{flex:1;}
+.asgn-list{display:flex;flex-direction:column;gap:8px;}
+.asgn-card{background:var(--card);border-radius:12px;padding:12px 14px;border-left:4px solid var(--border);}
+.asgn-card.pending{border-left-color:#F0B429;}
+.asgn-card.done{border-left-color:#10B981;opacity:.75;}
+.asgn-card-hdr{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.asgn-mentor-badge{background:rgba(240,180,41,.15);color:var(--accent);border-radius:6px;padding:2px 8px;font-size:12px;font-weight:700;}
+.asgn-member-badge{background:rgba(96,165,250,.15);color:#60A5FA;border-radius:6px;padding:2px 8px;font-size:11px;}
+.asgn-status{margin-left:auto;font-size:11px;color:var(--muted);}
+.asgn-msg{font-size:13px;color:var(--text);line-height:1.5;margin-bottom:6px;}
+.asgn-meta{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:8px;}
+.asgn-ack-btn{background:rgba(16,185,129,.15);color:#10B981;border:1px solid rgba(16,185,129,.3);border-radius:8px;padding:4px 12px;font-size:12px;cursor:pointer;font-family:Sarabun,sans-serif;margin-left:auto;}
+.asgn-section-hdr{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;padding:8px 0 4px;}
+
+/* ── BNI MEMBER Directory ──────────────────────────────────── */
+#directoryScreen{position:fixed;inset:0;background:var(--bg);z-index:200;display:none;flex-direction:column;overflow:hidden;}
+.dir-hdr{background:#131E2D;padding:14px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.dir-back{background:rgba(255,255,255,.1);border:none;color:var(--text);border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;font-family:Sarabun,sans-serif;}
+.dir-htitle{font-size:16px;font-weight:700;color:var(--accent);flex:1;}
+.dir-htotal{font-size:11px;color:var(--muted);}
+.dir-body{flex:1;overflow-y:auto;padding:12px 16px;}
+.dir-stats{display:flex;gap:6px;margin-bottom:12px;}
+.dir-stat{background:var(--card);border-radius:10px;padding:8px 10px;flex:1;text-align:center;border:1px solid var(--border);}
+.ds-n{font-size:18px;font-weight:700;line-height:1.1;}
+.ds-l{font-size:10px;color:var(--muted);margin-top:2px;}
+.dir-filter{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
+.dir-fb{background:var(--card);border:1px solid var(--border);color:var(--muted);border-radius:20px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:Sarabun,sans-serif;transition:.15s;}
+.dir-fb.on{background:var(--accent);color:#0F1923;border-color:var(--accent);font-weight:700;}
+.dir-search{width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-size:14px;margin-bottom:8px;box-sizing:border-box;font-family:Sarabun,sans-serif;outline:none;}
+.dir-search:focus{border-color:var(--accent);}
+.dir-count{font-size:11px;color:var(--muted);margin-bottom:8px;}
+.dir-grid{display:flex;flex-direction:column;gap:8px;}
+.dir-card{background:var(--card);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px;border:1px solid var(--border);}
+.dir-badge{width:56px;height:56px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;}
+.db-score{font-size:17px;font-weight:700;line-height:1;}
+.db-tl{font-size:11px;margin-top:2px;}
+.dir-info{flex:1;min-width:0;}
+.dir-name{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.dir-contact{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
+.dir-contact a{color:var(--accent);text-decoration:none;}
+.dir-entry-btn{background:var(--card);border:1px solid rgba(240,180,41,.3);border-radius:12px;padding:12px 16px;margin:12px 0 0;cursor:pointer;display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;}
+.dir-entry-btn:active{opacity:.75;}
+.dir-entry-btn .deb-icon{font-size:26px;flex-shrink:0;}
+.dir-eb-label{font-size:14px;font-weight:700;color:var(--text);}
+.dir-entry-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+
+</style>
+</head>
+<body>
+
+<div id="loader"><div class="loader-logo">BNI IDEAL</div><div class="spin"></div></div>
+<div class="toast" id="toast"></div>
+
+<!-- Login -->
+<div id="loginScreen">
+  <div class="login-badge">BNI IDEAL · MENTOR SYSTEM 2026</div>
+  <div class="login-title">Mentor <span>&</span> Mentee</div>
+  <div class="login-sub">เลือก Role เพื่อเข้าสู่ระบบ</div>
+<div class="role-grid">
+  <div class="role-card" onclick="openPin('mc')"><div class="mc-badge">MC</div><span class="icon">🤖</span><div class="rn">Mentor Coordinator</div><div class="rd">Mentor Coordinator</div></div>
+  <div class="role-card" onclick="openPin('toomtam')"><span class="notif-badge" id="nb-toomtam"></span><span class="icon">🛡️</span><div class="rn">TOOMTAM</div><div class="rd">ดูทีม + กรอก Core Issue</div></div>
+  <div class="role-card" onclick="openPin('aof')"><span class="notif-badge" id="nb-aof"></span><span class="icon">🛡️</span><div class="rn">AOF</div><div class="rd">ดูทีม + กรอก Core Issue</div></div>
+  <div class="role-card" onclick="openPin('draft')"><span class="notif-badge" id="nb-draft"></span><span class="icon">🛡️</span><div class="rn">DRAFT</div><div class="rd">ดูทีม + กรอก Core Issue</div></div>
+  <div class="role-card" onclick="openPin('phai')"><span class="notif-badge" id="nb-phai"></span><span class="icon">🛡️</span><div class="rn">PHAI</div><div class="rd">ดูทีม + กรอก Core Issue</div></div>
+  <div class="role-card" onclick="openPin('amp')"><span class="notif-badge" id="nb-amp"></span><span class="icon">🛡️</span><div class="rn">AMP</div><div class="rd">ดูทีม + กรอก Core Issue</div></div>
+  <div class="role-card" onclick="openPin('growth')" style="border-color:rgba(139,92,246,.3);"><span class="icon">📈</span><div class="rn">Growth</div><div class="rd">Growth Coordinator</div></div>
+  <div class="role-card" onclick="openDirectory()" style="border-color:rgba(96,165,250,.3);"><span class="icon">👥</span><div class="rn">BNI MEMBER</div><div class="rd">รายชื่อสมาชิก · ไม่ต้องรหัส</div></div>
+</div>
+  </div>
+</div>
+
+<!-- BNI MEMBER Directory (Public) -->
+<div id="directoryScreen">
+  <div class="dir-hdr">
+    <button class="dir-back" onclick="closeDirectory()">← กลับ</button>
+    <div class="dir-htitle">👥 BNI MEMBER</div>
+    <div class="dir-htotal" id="dir-htotal"></div>
+  </div>
+  <div class="dir-body">
+    <div class="dir-stats" id="dir-stats"></div>
+    <div class="dir-filter">
+      <button class="dir-fb on" onclick="dirSetFilter('all',this)">ทั้งหมด</button>
+      <button class="dir-fb" onclick="dirSetFilter('green',this)">🟢 เขียว</button>
+      <button class="dir-fb" onclick="dirSetFilter('yellow',this)">🟡 เหลือง</button>
+      <button class="dir-fb" onclick="dirSetFilter('red',this)">🔴 แดง</button>
+      <button class="dir-fb" onclick="dirSetFilter('black',this)">⚫ ดำ</button>
+    </div>
+    <input class="dir-search" type="text" placeholder="🔍 ค้นหาชื่อ หรืออีเมล..." oninput="dirSearch(this.value)">
+    <div class="dir-count" id="dir-count"></div>
+    <div class="dir-grid" id="dir-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+  </div>
+</div>
+
+<!-- PIN Modal -->
+<div class="overlay" id="pinModal" onclick="closePinOverlay(event)">
+  <div class="pin-modal">
+    <div class="pin-title" id="pinTitle">Login</div>
+    <div class="pin-sub">ใส่ PIN 4 หลัก</div>
+    <div class="pin-dots" id="pinDots">
+      <div class="dot" id="d0"></div><div class="dot" id="d1"></div>
+      <div class="dot" id="d2"></div><div class="dot" id="d3"></div>
+    </div>
+    <div class="pad">
+      <div class="pb" onclick="pi('1')">1</div><div class="pb" onclick="pi('2')">2</div><div class="pb" onclick="pi('3')">3</div>
+      <div class="pb" onclick="pi('4')">4</div><div class="pb" onclick="pi('5')">5</div><div class="pb" onclick="pi('6')">6</div>
+      <div class="pb" onclick="pi('7')">7</div><div class="pb" onclick="pi('8')">8</div><div class="pb" onclick="pi('9')">9</div>
+      <div class="pb ghost"></div><div class="pb" onclick="pi('0')">0</div><div class="pb del" onclick="pd()">⌫</div>
+    </div>
+    <div class="pin-err" id="pinErr"></div>
+  </div>
+</div>
+
+<!-- MC App -->
+<div class="app" id="mcApp">
+  <div class="hdr">
+    <div class="hdr-l"><div class="hdr-logo">BNI <span>IDEAL</span></div><div class="hdr-role" id="mcRoleLbl">MC</div></div>
+    <button class="btn-out" onclick="logout()">ออก</button>
+  </div>
+  <div class="tabs">
+    <button class="tb on" onclick="mct('dashboard',this)"><span class="ti">📊</span>Dashboard</button>
+    <button class="tb" onclick="mct('mentor',this)"><span class="ti">🎯</span>Mentor</button>
+    <button class="tb" onclick="mct('reports',this)"><span class="ti">📋</span>รายงาน</button>
+    <button class="tb" onclick="mct('messages',this)"><span class="ti">💬</span>สื่อสาร</button>
+    <button class="tb" onclick="mct('newmembers',this)"><span class="ti">👥</span>สมาชิก</button>
+  </div>
+  <div class="content">
+    <!-- Dashboard -->
+    <div class="pane on" id="mc-dashboard">
+      <div id="mc-summary"></div>
+      <div id="mc-mentor-activity"></div>
+      <div id="mc-risk-monitor"></div>
+      <div id="mc-alert-list" style="margin-bottom:.5rem;"></div>
+      <div class="filter-bar" id="mc-filter">
+        <button class="fb on" onclick="setFilter('all',this)">ทั้งหมด</button>
+        <button class="fb" onclick="setFilter('black',this)">⚫ ดำ</button>
+        <button class="fb" onclick="setFilter('red',this)">🔴 แดง</button>
+        <button class="fb" onclick="setFilter('yellow',this)">🟡 เหลือง</button>
+        <button class="fb" onclick="setFilter('green',this)">🟢 เขียว</button>
+        <button class="fb" onclick="setFilter('alert',this)">🚨 Alert</button>
+      </div>
+      <div class="filter-bar" id="mc-mentor-filter" style="margin-top:-.25rem;padding-top:.25rem;border-top:1px solid var(--border);">
+        <button class="fb on" onclick="setMentorFilter('all',this)">👥 ทุกทีม</button>
+        <button class="fb" onclick="setMentorFilter('TOOMTAM',this)">TOOMTAM</button>
+        <button class="fb" onclick="setMentorFilter('Aof',this)">Aof</button>
+        <button class="fb" onclick="setMentorFilter('Draft',this)">Draft</button>
+        <button class="fb" onclick="setMentorFilter('PHAI',this)">PHAI</button>
+        <button class="fb" onclick="setMentorFilter('AMP',this)">AMP</button>
+      </div>
+      <div id="mc-members"><div class="lt">⏳ กำลังโหลด...</div></div>
+    </div>
+
+    <!-- Mentor: Perf + Meeting Prep -->
+    <div class="pane" id="mc-mentor">
+      <div class="stabs">
+        <button class="stb on" onclick="mcsub('mentorperf',this)">📊 Mentor Perf</button>
+        <button class="stb" onclick="mcsub('meetingprep',this)">📅 Meeting Prep</button>
+      </div>
+      <div class="sub-pane on" id="mcs-mentorperf">
+        <div id="mc-perf-content"><div class="lt">⏳ กำลังโหลด...</div></div>
+      </div>
+      <div class="sub-pane" id="mcs-meetingprep">
+        <div id="mc-meeting-content"><div class="lt">⏳ กำลังโหลด...</div></div>
+      </div>
+    </div>
+
+    <!-- รายงาน: Reports + Scorecard + Renewal -->
+    <div class="pane" id="mc-reports">
+      <div class="stabs">
+        <button class="stb on" onclick="mcsub('rpts',this)">📋 รายงาน</button>
+        <button class="stb" onclick="mcsub('scorecard',this)">📈 Scorecard</button>
+        <button class="stb" onclick="mcsub('renewal',this)">💳 Renewal</button>
+      </div>
+      <div class="sub-pane on" id="mcs-rpts">
+        <div class="filter-bar" id="rpt-filter">
+          <button class="fb on" onclick="setRptFilter('all',this)">ทั้งหมด</button>
+          <button class="fb" onclick="setRptFilter('toomtam',this)">TOOMTAM</button>
+          <button class="fb" onclick="setRptFilter('aof',this)">Aof</button>
+          <button class="fb" onclick="setRptFilter('draft',this)">Draft</button>
+          <button class="fb" onclick="setRptFilter('phai',this)">PHAI</button>
+          <button class="fb" onclick="setRptFilter('amp',this)">AMP</button>
+        </div>
+        <div class="rpt-filter-status">
+          <button class="fb on" onclick="setRptStatus('all',this)">ทั้งหมด</button>
+          <button class="fb" onclick="setRptStatus('open',this)">🟡 รอดำเนินการ</button>
+          <button class="fb" onclick="setRptStatus('replied',this)">🔵 ตอบแล้ว</button>
+          <button class="fb" onclick="setRptStatus('done',this)">✅ ปิดแล้ว</button>
+        </div>
+        <div id="rpt-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+      </div>
+      <div class="sub-pane" id="mcs-scorecard">
+        <div id="mc-scorecard"><div class="lt">⏳ กำลังโหลด...</div></div>
+      </div>
+      <div class="sub-pane" id="mcs-renewal">
+        <div id="mc-renewal"><div class="lt">⏳ กำลังโหลด...</div></div>
+      </div>
+    </div>
+
+    <!-- สื่อสาร: Broadcast + Messages + Assignments -->
+    <div class="pane" id="mc-messages">
+      <div class="card" style="background:rgba(240,180,41,.06);border-color:rgba(240,180,41,.25);margin-bottom:.75rem;">
+        <div class="ct">📢 Broadcast ทุกทีม</div>
+        <textarea class="ft" id="bc-msg" rows="3" placeholder="ข้อความถึง Mentor ทุกทีม เช่น ขอ Visitor เพิ่ม 2 คนก่อนวันศุกร์นี้"></textarea>
+        <button class="btn-p" style="margin-top:.5rem;" onclick="sendBroadcast()">📢 ส่งทุกทีม</button>
+      </div>
+      <div class="sh">📢 Broadcasts ที่ส่งแล้ว</div>
+      <div id="mc-broadcast-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+      <div class="sh" style="margin-top:.75rem;">💬 ส่งข้อความรายคน</div>
+      <div id="mc-msg-form"></div>
+      <div id="mc-msg-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+      <div class="sh" style="margin-top:.75rem;">📌 มอบหมายงาน</div>
+      <div class="asgn-row" style="margin-bottom:.5rem;">
+        <select class="fs" id="asgn-mentor"><option value="">— เลือก Mentor —</option><option>TOOMTAM</option><option>Aof</option><option>Draft</option><option>PHAI</option><option>AMP</option></select>
+        <input class="fi" type="text" id="asgn-member" placeholder="ชื่อ Mentee (ถ้ามี)">
+      </div>
+      <textarea class="ft" id="asgn-msg" placeholder="รายละเอียดงาน / ข้อความถึง Mentor..." rows="3" style="margin-bottom:8px;"></textarea>
+      <button class="btn-p" onclick="submitMCAssignment()">📌 ส่งงาน</button>
+      <div class="sh" style="margin-top:.75rem;">งานที่มอบหมายแล้ว</div>
+      <div id="mc-assign-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+    </div>
+
+    <!-- สมาชิก: New Members -->
+    <div class="pane" id="mc-newmembers">
+      <div id="mc-nm-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /mcApp -->
+
+<!-- Mentor App -->
+<div class="app" id="mentorApp">
+  <div class="hdr">
+    <div class="hdr-l"><div class="hdr-logo">BNI <span>IDEAL</span></div><div class="hdr-role m" id="mentorRoleLbl">Mentor</div></div>
+    <button class="btn-out" onclick="logout()">ออก</button>
+  </div>
+  <div class="tabs">
+    <button class="tb on" onclick="mnt('myteam',this)"><span class="ti">👥</span>ทีมฉัน</button>
+    <button class="tb" onclick="mnt('report',this)"><span class="ti">📝</span>รายงาน</button>
+    <button class="tb" onclick="mnt('renewal',this)"><span class="ti">💳</span>Renewal</button>
+    <button class="tb" onclick="mnt('newmembers',this)"><span class="ti">👶</span>New Members</button>
+    <button class="tb" onclick="mnt('mcmsg',this)"><span class="ti">💬</span>MC Msg</button>
+    <button class="tb" onclick="mnt('coaching',this)"><span class="ti">💡</span>Coach</button>
+  </div>
+  <div class="content">
+    <div class="pane on" id="mentor-myteam">
+      <div id="mentor-focus3"></div>
+      <div id="mentor-weekly"></div>
+      <div id="mentor-growth-tasks"></div>
+      <div class="filter-bar" id="m-filter">
+        <button class="fb on" onclick="setMFilter('all',this)">ทั้งหมด</button>
+        <button class="fb" onclick="setMFilter('black',this)">⚫ ดำ</button>
+        <button class="fb" onclick="setMFilter('red',this)">🔴 แดง</button>
+        <button class="fb" onclick="setMFilter('yellow',this)">🟡 เหลือง</button>
+        <button class="fb" onclick="setMFilter('green',this)">🟢 เขียว</button>
+      </div>
+      <div id="mentor-members"><div class="lt">⏳ กำลังโหลด...</div></div>
+    </div>
+    <div class="pane" id="mentor-report"><div id="mentor-report-c"><div class="lt">⏳ กำลังโหลด...</div></div></div>
+    <div class="pane" id="mentor-renewal"><div class="lt">⏳ กำลังโหลด...</div></div>
+    <div class="pane" id="mentor-newmembers">
+  <div id="mentor-nm-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+</div>
+    <div class="pane" id="mentor-mcmsg">
+      <div class="asgn-section-hdr">📢 Broadcast จาก MC</div>
+      <div id="mentor-broadcast-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+      <div class="asgn-section-hdr" style="margin-top:10px;">📌 งานจาก MC</div>
+      <div id="mentor-assign-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+      <div class="sh" style="margin-top:10px;">💬 ข้อความจาก MC</div>
+      <div id="mentor-msg-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+    </div>
+    <div class="pane" id="mentor-coaching">
+      <div class="sh">💡 Coaching Guide — ทีมฉัน</div>
+      <div id="mentor-cg-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+    </div>
+  </div>
+</div>
+<!-- Growth App -->
+<div class="app" id="growthApp">
+  <div class="hdr">
+    <div class="hdr-l"><div class="hdr-logo">BNI <span>IDEAL</span></div><div class="hdr-role" style="background:#8B5CF6;">Growth</div></div>
+    <button class="btn-out" onclick="logout()">ออก</button>
+  </div>
+  <div class="tabs">
+    <button class="tb on" onclick="gtab('dashboard',this)"><span class="ti">📈</span>Dashboard</button>
+    <button class="tb" onclick="gtab('analytics',this)"><span class="ti">📊</span>Analytics</button>
+    <button class="tb" onclick="gtab('activity',this)"><span class="ti">⚡</span>Activity</button>
+    <button class="tb" onclick="gtab('gstrategy',this)"><span class="ti">🤝</span>Strategy</button>
+    <button class="tb" onclick="gtab('ops',this)"><span class="ti">🛠</span>Ops</button>
+  </div>
+  <div class="content">
+    <!-- Dashboard -->
+    <div class="pane on" id="g-dashboard">
+      <div id="g-summary"></div>
+      <div class="filter-bar" id="g-filter">
+        <button class="fb on" onclick="setGFilter('all',this)">ทั้งหมด</button>
+        <button class="fb" onclick="setGFilter('highGiverLowRecv',this)">🔴 ต้องช่วย</button>
+        <button class="fb" onclick="setGFilter('lowGiverHighRecv',this)">🟡 ให้น้อยเกิน</button>
+        <button class="fb" onclick="setGFilter('balanced',this)">✅ สมดุล</button>
+      </div>
+      <div id="g-members"><div class="lt">⏳ กำลังโหลด...</div></div>
+    </div>
+
+    <!-- Analytics: Chapter Pulse + Leaderboard -->
+    <div class="pane" id="g-analytics">
+      <div class="stabs">
+        <button class="stb on" onclick="gsub('pulse',this)">📊 Chapter Pulse</button>
+        <button class="stb" onclick="gsub('leaderboard',this)">🏆 Leaderboard</button>
+      </div>
+      <div class="sub-pane on" id="gs-pulse">
+        <div id="g-pulse-content"><div class="lt">⏳ กำลังโหลด...</div></div>
+      </div>
+      <div class="sub-pane" id="gs-leaderboard">
+        <div class="lb-tabs">
+          <button class="lb-tab on" id="lbt-given" onclick="lbSort('given',this)">💚 Given</button>
+          <button class="lb-tab" id="lbt-recv" onclick="lbSort('recv',this)">💙 Received</button>
+          <button class="lb-tab" id="lbt-score" onclick="lbSort('score',this)">🏆 Score</button>
+        </div>
+        <div id="g-lb-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+      </div>
+    </div>
+
+    <!-- Activity: Visitors + Chapter Actions -->
+    <div class="pane" id="g-activity">
+      <div class="stabs">
+        <button class="stb on" onclick="gsub('visitors',this)">👥 Visitors</button>
+        <button class="stb" onclick="gsub('chapteractions',this)">⚡ Actions</button>
+      </div>
+      <div class="sub-pane on" id="gs-visitors">
+        <div id="g-vis-content"><div class="lt">⏳ กำลังโหลด...</div></div>
+      </div>
+      <div class="sub-pane" id="gs-chapteractions">
+        <div class="card" style="background:rgba(239,68,68,.07);border-color:rgba(239,68,68,.2);margin-bottom:.625rem;">
+          <div style="font-size:.8rem;color:#FCA5A5;line-height:1.6;">⚡ <strong>Actions สัปดาห์นี้</strong><br>สมาชิกที่ต้องการความช่วยเหลือ เรียงจากด่วนที่สุด ทุกทีมรวมกัน</div>
+        </div>
+        <div id="g-ca-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+      </div>
+    </div>
+
+    <!-- Strategy: 1-2-1 + Power Team -->
+    <div class="pane" id="g-gstrategy">
+      <div class="stabs">
+        <button class="stb on" onclick="gsub('121',this)">🤝 1-2-1</button>
+        <button class="stb" onclick="gsub('powerteam',this)">💪 Power Team</button>
+      </div>
+      <div class="sub-pane on" id="gs-121">
+        <div class="card" style="background:rgba(139,92,246,.08);border-color:rgba(139,92,246,.3);margin-bottom:.75rem;">
+          <div style="font-size:.8rem;color:#A78BFA;line-height:1.6;">💡 <strong>1-2-1 Strategy</strong><br>จับคู่สมาชิกกลุ่ม 🔴 กับกลุ่มที่มีธุรกิจเชื่อมกัน เพื่อเพิ่มโอกาสรับ Referral กลับมา</div>
+        </div>
+        <div id="g-strategy-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+      </div>
+      <div class="sub-pane" id="gs-powerteam">
+        <div class="card" style="background:rgba(139,92,246,.08);border-color:rgba(139,92,246,.3);margin-bottom:.625rem;">
+          <div style="font-size:.8rem;color:#A78BFA;line-height:1.6;">⚡ <strong>Power Team</strong><br>กลุ่มอาชีพที่ควรส่ง Referral ให้กัน และแนะนำคู่ 1-2-1 ที่ควรทำด่วน</div>
+        </div>
+        <div id="g-pt-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+      </div>
+    </div>
+
+    <!-- Ops: Check-In + Tasks -->
+    <div class="pane" id="g-ops">
+      <div class="stabs">
+        <button class="stb on" onclick="gsub('checkin',this)">📋 Check-In</button>
+        <button class="stb" onclick="gsub('tasks',this)">🎯 Tasks</button>
+      </div>
+      <div class="sub-pane on" id="gs-checkin">
+        <div class="card" style="margin-bottom:.5rem;">
+          <div class="ct">📋 วาง text การเช็คอิน</div>
+          <div style="font-size:.75rem;color:var(--gray2);margin-bottom:.5rem;line-height:1.6;">
+            รองรับ 2 format อัตโนมัติ:<br>
+            <span style="color:var(--gold)">① Raw text</span> — copy จาก PDF/ระบบ BNI ตรงๆ<br>
+            <span style="color:var(--gold)">② CSV จาก Gemini</span> — ชื่อ,สมาชิก,,Looking For
+          </div>
+          <textarea class="ft" id="ci-textarea" rows="8" placeholder="วาง text เช็คอิน BNI ที่นี่&#10;&#10;ตัวอย่าง Raw text:&#10;1 : Ittipon Setthawattananon (สมาชิก)&#10;Looking for : ผู้รับเหมาก่อสร้าง&#10;&#10;ตัวอย่าง CSV:&#10;Ittipon,สมาชิก,,ผู้รับเหมา"></textarea>
+          <button class="btn-p" style="margin-top:.5rem;" onclick="ciParse()">📋 อ่านข้อมูล</button>
+        </div>
+        <div id="ci-result" style="display:none">
+          <div class="card" style="margin-bottom:.5rem;">
+            <div class="ct">ผลการอ่าน PDF</div>
+            <div id="ci-summary" style="font-size:.8rem;color:var(--gray2);margin-bottom:.625rem;"></div>
+            <button class="btn-p" id="ci-save-btn" onclick="ciSave()">💾 บันทึกลง Sheet</button>
+          </div>
+          <div class="sh">รายชื่อ</div>
+          <div id="ci-list"></div>
+        </div>
+        <div id="ci-history" style="display:none">
+          <div class="sh" style="margin-top:.875rem;">ประวัติ Check-In</div>
+          <select class="week-sel" id="ci-week-sel" onchange="ciLoadWeek(this.value)"></select>
+          <div id="ci-week-list"></div>
+        </div>
+      </div>
+      <div class="sub-pane" id="gs-tasks">
+        <div style="font-size:.8rem;font-weight:700;margin-bottom:.5rem;">🎯 Tasks ที่ส่งให้ Mentor</div>
+        <div style="display:flex;gap:.4rem;margin-bottom:.5rem;flex-wrap:wrap;">
+          <button class="fb on" id="gtf-all" onclick="setGTaskFilter('all',this)">ทั้งหมด</button>
+          <button class="fb" id="gtf-open" onclick="setGTaskFilter('open',this)">🔵 รอดำเนินการ</button>
+          <button class="fb" id="gtf-done" onclick="setGTaskFilter('done',this)">✅ เสร็จแล้ว</button>
+        </div>
+        <div id="g-tasks-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Member Detail Panel -->
+<div class="detail-panel" id="detailPanel">
+  <div class="dp-hdr">
+    <button class="dp-back" onclick="closeDetail()">←</button>
+    <div class="dp-title" id="dp-title">รายละเอียด</div>
+  </div>
+  <div class="dp-content" id="dp-content"><div class="lt">⏳ กำลังโหลด...</div></div>
+</div>
+
+<script>
+var S={role:null,isMC:false,teamName:null,displayName:null,pin:'',pending:null,allMembers:[],teamMembers:[],curFilter:'all',curMFilter:'all',curMentorFilter:'all'};
+var GS={members:[],curFilter:'all',loaded:false,taskFilter:'all'};
+
+function call(action,params,cb){
+  var p=Object.assign({},params||{});
+  p.action=action;
+  p.role=S.role;
+  google.script.run.withSuccessHandler(function(r){cb(null,r);}).withFailureHandler(function(e){cb(e,null);}).dispatch(p);
+}
+function sc(s){return !s?'#64748B':s>=70?'#10B981':s>=50?'#F59E0B':s>=30?'#EF4444':'#64748B';}
+function tlc(tl){return tl==='green'?'#10B981':tl==='yellow'?'#F59E0B':tl==='red'?'#EF4444':'#64748B';}
+function avbg(tl){return tl==='green'?'rgba(16,185,129,.2)':tl==='yellow'?'rgba(245,158,11,.2)':tl==='red'?'rgba(239,68,68,.2)':'rgba(100,116,139,.2)';}
+function bc(pct){return pct>=100?'#10B981':pct>=60?'#F59E0B':'#EF4444';}
+function gcol(g){return g==='A'?{bg:'rgba(16,185,129,.2)',c:'#10B981'}:g==='B'?{bg:'rgba(96,165,250,.2)',c:'#60A5FA'}:g==='C'?{bg:'rgba(245,158,11,.2)',c:'#F59E0B'}:{bg:'rgba(239,68,68,.2)',c:'#EF4444'};}
+function fmt(n){if(!n)return '0';if(n>=1000000)return (n/1000000).toFixed(1)+'M';if(n>=1000)return (n/1000).toFixed(0)+'K';return n.toString();}
+function toast(msg,dur){var el=document.getElementById('toast');el.textContent=msg;el.classList.add('on');setTimeout(function(){el.classList.remove('on');},dur||2000);}
+function showLoad(){document.getElementById('loader').classList.remove('out');}
+function hideLoad(){document.getElementById('loader').classList.add('out');}
+
+function miniChart(scores){
+  var vals=scores.filter(function(s){return s.score!==null&&s.score>0;});
+  if(vals.length<2)return '';
+  var mn=Math.min.apply(null,vals.map(function(v){return v.score;}));
+  var mx=Math.max.apply(null,vals.map(function(v){return v.score;}));
+  var range=Math.max(mx-mn,10);
+  var W=280,H=60,pad=4;
+  var pts=vals.map(function(v,i){var x=pad+i*(W-pad*2)/(vals.length-1);var y=H-pad-(v.score-mn)/(range)*(H-pad*2);return x+','+y;});
+  var lineColor=vals[vals.length-1].score>vals[0].score?'#10B981':vals[vals.length-1].score<vals[0].score?'#EF4444':'#F59E0B';
+  var lastX=pts[pts.length-1].split(',')[0],lastY=pts[pts.length-1].split(',')[1];
+  return '<div class="chart-wrap"><svg class="chart-svg" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none"><polyline points="'+pts.join(' ')+'" fill="none" stroke="'+lineColor+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="'+lastX+'" cy="'+lastY+'" r="3" fill="'+lineColor+'"/></svg></div>';
+}
+
+function memberRow(m,clickFn){
+  var name=m.name||'';var nick=m.nick||'';
+  var score=m.latest||m.score||0;
+  var tl=m.tl||(score>=70?'green':score>=50?'yellow':score>=30?'red':'black');
+  var initials=nick?nick.slice(0,2):name.slice(0,2);
+  return '<div class="mr" onclick="'+clickFn+'"><div class="av" style="background:'+avbg(tl)+';color:'+sc(score)+'">'+initials+'</div><div class="mi"><div class="mn">'+name.split(' ').slice(0,2).join(' ')+(nick?' ('+nick+')':'')+'</div><div class="ms">'+(m.mentor||'')+(m.trend?' · '+m.trend:'')+'</div></div><div style="text-align:right"><div class="msc" style="color:'+sc(score)+'">'+score+'</div><div class="mt">'+(m.trend||'')+'</div></div><div class="tld" style="background:'+tlc(tl)+'"></div></div>';
+}
+
+var roleNames={mc:'ตูมตาม (MC)',toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP',growth:'Growth Coordinator'};
+function openPin(role){S.pending=role;S.pin='';updDots();document.getElementById('pinTitle').textContent='Login — '+roleNames[role];document.getElementById('pinErr').textContent='';document.getElementById('pinModal').classList.add('on');}
+function closePinOverlay(e){if(e.target===document.getElementById('pinModal'))document.getElementById('pinModal').classList.remove('on');}
+function pi(d){if(S.pin.length>=4)return;S.pin+=d;updDots();if(S.pin.length===4)setTimeout(doLogin,120);}
+function pd(){S.pin=S.pin.slice(0,-1);updDots();document.getElementById('pinErr').textContent='';}
+function updDots(){for(var i=0;i<4;i++)document.getElementById('d'+i).className='dot'+(i<S.pin.length?' on':'');}
+function doLogin(){
+  showLoad();
+  google.script.run
+    .withSuccessHandler(function(r){hideLoad();if(r.ok){document.getElementById('pinModal').classList.remove('on');enterApp(r);}else{S.pin='';updDots();document.getElementById('pinErr').textContent='❌ '+r.error;}})
+    .withFailureHandler(function(e){hideLoad();S.pin='';updDots();document.getElementById('pinErr').textContent='❌ เกิดข้อผิดพลาด';})
+    .apiLogin({role:S.pending,pin:S.pin});
+}
+
+function enterApp(r){
+  S.role=r.role;S.isMC=r.isMC;S.teamName=r.teamName;S.displayName=r.displayName;
+  // แสดง Version ทุก role
+  if(r.version){
+    document.getElementById('verNum').textContent=r.version;
+    document.getElementById('verDate').textContent=r.versionDate||'';
+    document.getElementById('verFooter').style.display='block';
+  }
+  document.getElementById('loginScreen').style.display='none';
+  if(r.isMC){
+    document.getElementById('mcRoleLbl').textContent='MC · ตูมตาม';
+    document.getElementById('mcApp').classList.add('on');
+    loadDashboard();
+    loadMentorActivity();
+    loadRiskMonitor();
+    loadAlertCenter();
+  } else if(r.role==='growth'){
+    document.getElementById('growthApp').classList.add('on');
+    loadGrowthData();
+  } else {
+    document.getElementById('mentorRoleLbl').textContent=r.displayName;
+    document.getElementById('mentorApp').classList.add('on');
+    loadWeeklyActions();
+    loadGrowthTasksForMentor();
+    loadMyTeam();
+  }
+}
+function logout(){
+  S={role:null,isMC:false,teamName:null,displayName:null,pin:'',pending:null,allMembers:[],teamMembers:[],curFilter:'all',curMFilter:'all',curMentorFilter:'all'};
+  GS={members:[],curFilter:'all',loaded:false,taskFilter:'all'};
+  document.getElementById('mcApp').classList.remove('on');
+  document.getElementById('mentorApp').classList.remove('on');
+  document.getElementById('growthApp').classList.remove('on');
+  document.getElementById('loginScreen').style.display='flex';
+}
+
+function mct(tab,btn){
+  _swTab('#mcApp',tab,btn);
+  if(tab==='mentor'){loadMentorPerformance();}
+  if(tab==='reports'){loadReports();}
+  if(tab==='messages'){loadBroadcasts('mc');loadMessages('mc');loadMcMsgForm();loadMCAssignments();}
+  if(tab==='newmembers'){loadNewMembers('mc');}
+}
+function mcsub(sub,btn){
+  var par=btn.parentElement.parentElement;
+  par.querySelectorAll('.stb').forEach(function(b){b.classList.remove('on');});
+  par.querySelectorAll('.sub-pane').forEach(function(p){p.classList.remove('on');});
+  btn.classList.add('on');
+  document.getElementById('mcs-'+sub).classList.add('on');
+  if(sub==='mentorperf')loadMentorPerformance();
+  if(sub==='meetingprep')loadMeetingPrep();
+  if(sub==='scorecard')loadScorecard();
+  if(sub==='renewal')loadRenewal('mc');
+  if(sub==='rpts')loadReports();
+}
+function mnt(tab,btn){_swTab('#mentorApp',tab,btn);if(tab==='report')loadReportForm();if(tab==='renewal')loadRenewal('mentor');if(tab==='mcmsg'){loadBroadcasts('mentor');loadMessages('mentor');loadMentorAssignments();}if(tab==='newmembers')loadNewMembers('mentor');if(tab==='coaching')loadCoachingGuide();}
+function gtab(tab,btn){
+  document.querySelectorAll('#growthApp .tb').forEach(function(b){b.classList.remove('on');});
+  document.querySelectorAll('#growthApp .pane').forEach(function(p){p.classList.remove('on');});
+  btn.classList.add('on');
+  document.getElementById('g-'+tab).classList.add('on');
+  if(tab==='analytics'){loadChapterPulse();}
+  if(tab==='activity'){loadVisitorTracker();}
+  if(tab==='gstrategy'){renderStrategy();}
+  if(tab==='ops'){loadCheckinHistory();}
+}
+function gsub(sub,btn){
+  var par=btn.parentElement.parentElement;
+  par.querySelectorAll('.stb').forEach(function(b){b.classList.remove('on');});
+  par.querySelectorAll('.sub-pane').forEach(function(p){p.classList.remove('on');});
+  btn.classList.add('on');
+  document.getElementById('gs-'+sub).classList.add('on');
+  if(sub==='pulse')loadChapterPulse();
+  if(sub==='leaderboard')loadLeaderboard();
+  if(sub==='visitors')loadVisitorTracker();
+  if(sub==='chapteractions')loadChapterActions();
+  if(sub==='121')renderStrategy();
+  if(sub==='powerteam')loadPowerTeams();
+  if(sub==='checkin')loadCheckinHistory();
+  if(sub==='tasks')loadGrowthTasksForGrowth();
+}
+function _swTab(app,tab,btn){
+  document.querySelectorAll(app+' .tb').forEach(function(b){b.classList.remove('on');});
+  document.querySelectorAll(app+' .pane').forEach(function(p){p.classList.remove('on');});
+  btn.classList.add('on');
+  var prefix=app==='#mcApp'?'mc-':'mentor-';
+  var el=document.getElementById(prefix+tab);if(el)el.classList.add('on');
+}
+
+function loadDashboard(){
+  call('getDashboard',{},function(err,r){
+    if(err||!r.ok){document.getElementById('mc-members').innerHTML='<div class="empty">❌ '+(err?err.message:r.error)+'</div>';return;}
+    S.allMembers=r.members;
+    var s=r.summary;
+    document.getElementById('mc-summary').innerHTML='<div class="sg"><div class="sb bG"><div class="n">'+s.green+'</div><div class="l">🟢 เขียว</div></div><div class="sb bY"><div class="n">'+s.yellow+'</div><div class="l">🟡 เหลือง</div></div><div class="sb bR"><div class="n">'+s.red+'</div><div class="l">🔴 แดง</div></div><div class="sb bD"><div class="n">'+s.black+'</div><div class="l">⚫ ดำ</div></div></div>';
+    renderMembers();
+  });
+}
+
+function loadMentorActivity(){
+  var el=document.getElementById('mc-mentor-activity');
+  if(!el)return;
+  el.innerHTML='<div class="lt" style="font-size:.72rem;padding:.5rem 0;">⏳ กำลังโหลด Mentor Activity...</div>';
+  call('getMentorActivity',{},function(err,r){
+    if(err||!r||!r.ok){el.innerHTML='';return;}
+    var html='<div class="card" style="margin-bottom:.5rem;">'
+      +'<div class="ct" style="display:flex;justify-content:space-between;align-items:center;">'
+      +'<span>🎯 Mentor Activity</span>'
+      +'<button style="background:none;border:none;color:var(--gray2);font-size:.7rem;cursor:pointer;font-family:Sarabun,sans-serif;" onclick="loadMentorActivity()">🔄 refresh</button>'
+      +'</div>';
+    r.teams.forEach(function(t){
+      if(t.error){
+        html+='<div class="ma-row"><div class="ma-team" style="color:var(--red);">'+t.team+'</div>'
+          +'<div class="ma-report ma-err">⚠️ '+t.error+'</div></div>';
+        return;
+      }
+      var flag=t.statusFlag==='ok'?'✅':t.statusFlag==='partial'?'⚠️':t.statusFlag==='stale'?'🕐':'❌';
+      var flagCls=t.statusFlag==='ok'?'ma-ok':t.statusFlag==='none'?'ma-err':'ma-warn';
+      // Score badges
+      var badges='';
+      if(t.scoreUp>0)    badges+='<span class="ma-badge ma-up">↑'+t.scoreUp+'</span>';
+      if(t.scoreDown>0)  badges+='<span class="ma-badge ma-dn">↓'+t.scoreDown+'</span>';
+      if(t.scoreSame>0)  badges+='<span class="ma-badge ma-eq">→'+t.scoreSame+'</span>';
+      if(!badges)        badges='<span class="ma-badge ma-eq">ยังไม่มีคะแนน</span>';
+      // Report text
+      var rpt='';
+      if(t.statusFlag==='none'){
+        rpt='<span class="ma-err">ยังไม่มีรายงานเลย</span>';
+      } else if(t.daysSince===0){
+        rpt='<span class="ma-ok">รายงานวันนี้</span>';
+      } else if(t.daysSince!==null){
+        var cls=t.daysSince<=7?'ma-ok':t.daysSince<=14?'ma-warn':'ma-err';
+        rpt='<span class="'+cls+'">รายงาน '+t.daysSince+' วันที่แล้ว</span>';
+      }
+      if(t.notReported&&t.notReported.length>0){
+        rpt+=' <span style="font-size:.6rem;color:var(--gray2);">('+t.notReported.length+' คนยังไม่มี)</span>';
+      }
+      if(t.openCount>0){
+        rpt+=' <span style="font-size:.6rem;color:#F59E0B;">· '+t.openCount+' เคสค้าง</span>';
+      }
+      html+='<div class="ma-row">'
+        +'<div class="ma-flag '+flagCls+'">'+flag+'</div>'
+        +'<div class="ma-team">'+t.team+'</div>'
+        +'<div class="ma-scores">'+badges+'</div>'
+        +'<div class="ma-report">'+rpt+'</div>'
+        +'</div>';
+    });
+    html+='</div>';
+    el.innerHTML=html;
+  });
+}
+function loadWeeklyActions(){
+  var el=document.getElementById('mentor-weekly');
+  var f3el=document.getElementById('mentor-focus3');
+  if(!el)return;
+  el.innerHTML='<div class="lt" style="font-size:.72rem;padding:.5rem 0;">⏳ กำลังโหลด Action List...</div>';
+  call('getWeeklyActions',{},function(err,r){
+    if(err||!r||!r.ok){el.innerHTML='';return;}
+    if(!r.actions||!r.actions.length){el.innerHTML='';return;}
+    // Focus 3 — top 3 non-ok cards
+    if(f3el){
+      var top3=r.actions.filter(function(a){return a.urgency<=3;}).slice(0,3);
+      if(top3.length){
+        var urgClass=['','f3-e','f3-w','f3-q'];
+        var f3html='<div class="f3-wrap">';
+        top3.forEach(function(a){
+          var cls=urgClass[a.urgency]||'';
+          var tl={'green':'🟢','yellow':'🟡','red':'🔴','black':'⚫'}[a.tl]||'';
+          f3html+='<div class="f3-card '+cls+'">'
+            +'<div class="f3-name"><span class="f3-tl">'+tl+'</span>'+(a.nick||a.name.split(' ')[0])+'</div>'
+            +'<div class="f3-action">'+(a.topTitle||a.topAction||'').substring(0,50)+'</div>'
+            +'</div>';
+        });
+        f3html+='</div>';
+        f3el.innerHTML=f3html;
+      } else {
+        f3el.innerHTML='';
+      }
+    }
+    var urgClass=['','wa-e','wa-w','wa-q','wa-p','wa-ok'];
+    var html='<div class="wa-wrap"><div class="wa-hdr">📋 Action List สัปดาห์นี้ — '+r.teamName+'</div>';
+    r.actions.forEach(function(a){
+      var uc=urgClass[a.urgency]||'wa-p';
+      var tl={'green':'🟢','yellow':'🟡','red':'🔴','black':'⚫','':'-'}[a.tl]||'-';
+      var absTxt=a.absent>0?(' <span style="color:var(--gray);font-size:.65rem;">ขาด '+a.absent+'ครั้ง</span>'):'';
+      var actionHtml='';
+      if(a.topTitle){actionHtml='<div class="wa-action">'+a.topTitle+'</div>';}
+      if(a.topAction){actionHtml+='<div class="wa-action" style="color:var(--gold2,#FBBF24);">→ '+a.topAction+'</div>';}
+      if(a.topTarget){actionHtml+='<div class="wa-target">🎯 เป้า: '+a.topTarget+'</div>';}
+      var countHtml=a.totalActions>1?'<div class="wa-count">+' +(a.totalActions-1)+' รายการ</div>':'';
+      html+='<div class="wa-card '+uc+'">'
+        +countHtml
+        +'<div class="wa-top">'
+        +'<div class="wa-tl">'+tl+'</div>'
+        +'<div class="wa-name">'+(a.nick||a.name)+absTxt+'</div>'
+        +'<div class="wa-score">'+a.score+'%</div>'
+        +'</div>'
+        +actionHtml
+        +'</div>';
+    });
+    html+='<div style="text-align:right;"><button style="background:none;border:none;color:var(--gray2);font-size:.65rem;cursor:pointer;font-family:Sarabun,sans-serif;" onclick="loadWeeklyActions()">🔄 refresh</button></div></div>';
+    el.innerHTML=html;
+  });
+}
+// ── Coaching Guide ──────────────────────────────────────────
+function loadCoachingGuide(){
+  var el=document.getElementById('mentor-cg-list');
+  if(!el)return;
+  el.innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
+  call('getCoachingGuide',{},function(err,r){
+    if(err||!r||!r.ok){el.innerHTML='<div class="empty">❌ โหลดไม่ได้</div>';return;}
+    if(!r.guides||!r.guides.length){el.innerHTML='<div class="empty">ไม่มีข้อมูล</div>';return;}
+    el.innerHTML=renderCoachingGuide(r.guides);
+  });
+}
+function renderCoachingGuide(guides){
+  var lvlColor={critical:'cp-critical',warning:'cp-warning',quick:'cp-quick',plan:'cp-plan'};
+  var statusLabel={critical:'🚨 วิกฤต',warning:'⚠️ ควรดูแล',attention:'💡 ต้องทำ',good:'✅ ดีอยู่'};
+  var html='';
+  guides.forEach(function(g){
+    var scoreColor=g.score>=70?'#10B981':g.score>=50?'#F59E0B':g.score>=30?'#EF4444':'#64748B';
+    var tl=g.score>=70?'🟢':g.score>=50?'🟡':g.score>=30?'🔴':'⚫';
+    html+='<div class="cg-card cg-'+g.status+'">'
+      +'<div class="cg-hdr">'
+      +'<div class="cg-name">'+tl+' '+(g.nick||g.name.split(' ')[0])+'</div>'
+      +'<div class="cg-score" style="color:'+scoreColor+'">'+g.score+'%</div>'
+      +'<span class="cg-badge cg-'+g.status+'">'+statusLabel[g.status]+'</span>'
+      +'</div>';
+    if(g.points&&g.points.length){
+      html+='<div>';
+      g.points.forEach(function(pt){
+        html+='<div class="cg-point '+(lvlColor[pt.level]||'')+'">'+pt.icon+' '+escHtml(pt.text)+'</div>';
+      });
+      html+='</div>';
+    }
+    if(g.wins&&g.wins.length){
+      html+='<div class="cg-wins">';
+      g.wins.forEach(function(w){html+='<div class="cg-win">✅ '+escHtml(w)+'</div>';});
+      html+='</div>';
+    }
+    html+='</div>';
+  });
+  return html;
+}
+// ── 1-2-1 Log ───────────────────────────────────────────────
+function load121Section(memberName){
+  var el=document.getElementById('dp-121-section');
+  if(!el)return;
+  el.innerHTML='<div class="lt" style="font-size:.7rem;">⏳ โหลด 1-2-1 log...</div>';
+  call('get121Logs',{memberName:memberName},function(err,r){
+    if(err||!r){el.innerHTML='';return;}
+    el.innerHTML=build121Section(memberName,r.ok&&r.logs?r.logs:[]);
+  });
+}
+function build121Section(memberName,logs){
+  var safeName=memberName.replace(/'/g,"\\'");
+  var html='<div class="log-section">'
+    +'<div class="log-hdr"><span>📝 1-2-1 Log</span></div>'
+    +'<div class="log-form">'
+    +'<textarea id="log-note-input" class="log-input" rows="2" placeholder="สรุปประเด็น 1-2-1 วันนี้..."></textarea>'
+    +'<textarea id="log-next-input" class="log-input" rows="1" placeholder="Next Step (ถ้ามี)"></textarea>'
+    +'<button class="log-btn" onclick="save121LogEntry(\''+safeName+'\',this)">บันทึก</button>'
+    +'</div>';
+  if(logs.length){
+    html+='<div>';
+    logs.forEach(function(lg){
+      html+='<div class="log-entry">'
+        +'<div class="log-ts">'+lg.loggedAt+'</div>'
+        +'<div class="log-note">'+escHtml(lg.note)+'</div>'
+        +(lg.nextStep?'<div class="log-next">→ '+escHtml(lg.nextStep)+'</div>':'')
+        +'</div>';
+    });
+    html+='</div>';
+  } else {
+    html+='<div style="font-size:.7rem;color:var(--gray2);text-align:center;padding:.4rem 0;">ยังไม่มีบันทึก</div>';
+  }
+  html+='</div>';
+  return html;
+}
+function save121LogEntry(memberName,btn){
+  var noteEl=document.getElementById('log-note-input');
+  var nextEl=document.getElementById('log-next-input');
+  var note=(noteEl?noteEl.value:'').trim();
+  if(!note){noteEl&&noteEl.focus();return;}
+  var next=nextEl?nextEl.value.trim():'';
+  btn.disabled=true;btn.textContent='⏳';
+  call('save121Log',{memberName:memberName,note:note,nextStep:next},function(err,r){
+    if(err||!r||!r.ok){btn.disabled=false;btn.textContent='บันทึก';alert('บันทึกไม่ได้: '+(err?err.message:(r&&r.error)||''));return;}
+    load121Section(memberName);
+  });
+}
+function loadRiskMonitor(){
+  var el=document.getElementById('mc-risk-monitor');
+  if(!el)return;
+  call('getRiskMembers',{},function(err,r){
+    if(err||!r||!r.ok||!r.risks||!r.risks.length){el.innerHTML='';return;}
+    var html='<div class="card" style="margin-bottom:.5rem;border-color:rgba(239,68,68,.3);">'
+      +'<div class="ct" style="display:flex;justify-content:space-between;align-items:center;">'
+      +'<span>⚠️ เฝ้าระวัง — คะแนนลดต่อเนื่อง</span>'
+      +'<button style="background:none;border:none;color:var(--gray2);font-size:.7rem;cursor:pointer;font-family:Sarabun,sans-serif;" onclick="loadRiskMonitor()">🔄</button>'
+      +'</div>';
+    r.risks.forEach(function(m){
+      var sc3=m.streak>=5?'risk-s5':m.streak>=4?'risk-s4':'risk-s3';
+      var scoreColor=m.score>=70?'#10B981':m.score>=50?'#F59E0B':m.score>=30?'#EF4444':'#64748B';
+      var tl=m.score>=70?'🟢':m.score>=50?'🟡':m.score>=30?'🔴':'⚫';
+      // Sparkline bars
+      var maxS=Math.max.apply(null,m.recentScores)||1;
+      var spark=m.recentScores.map(function(s,i){
+        var h=Math.max(2,Math.round(s/maxS*16));
+        var isLast=i===m.recentScores.length-1;
+        var col=isLast?scoreColor:'rgba(100,116,139,.4)';
+        return '<div class="risk-bar" style="height:'+h+'px;background:'+col+'"></div>';
+      }).join('');
+      html+='<div class="risk-card">'
+        +'<div class="risk-streak '+sc3+'">↓'+m.streak+'เดือน</div>'
+        +'<div class="risk-name">'+escHtml(m.nick||m.name.split(' ')[0])
+          +'<div class="risk-sub">'+escHtml(m.team)+' · ลด '+m.decline+' pts</div>'
+        +'</div>'
+        +'<div class="risk-spark">'+spark+'</div>'
+        +'<div class="risk-score" style="color:'+scoreColor+'">'+tl+' '+m.score+'</div>'
+        +'</div>';
+    });
+    html+='</div>';
+    el.innerHTML=html;
+  });
+}
+function setFilter(f,btn){S.curFilter=f;document.querySelectorAll('#mc-filter .fb').forEach(function(b){b.classList.remove('on');});btn.classList.add('on');renderMembers();}
+function setMentorFilter(f,btn){S.curMentorFilter=f;document.querySelectorAll('#mc-mentor-filter .fb').forEach(function(b){b.classList.remove('on');});btn.classList.add('on');renderMembers();}
+function setMFilter(f,btn){S.curMFilter=f;document.querySelectorAll('#m-filter .fb').forEach(function(b){b.classList.remove('on');});btn.classList.add('on');renderMentorMembers();}
+function setGFilter(f,btn){GS.curFilter=f;document.querySelectorAll('#g-filter .fb').forEach(function(b){b.classList.remove('on');});btn.classList.add('on');renderGrowthMembers();}
+function setGTaskFilter(f,btn){GS.taskFilter=f;document.querySelectorAll('#g-tasks .fb').forEach(function(b){b.classList.remove('on');});btn.classList.add('on');loadGrowthTasksForGrowth();}
+
+function toggleGrowthTaskForm(formId,name,team){
+  var el=document.getElementById(formId);
+  if(!el)return;
+  el.style.display=el.style.display==='none'?'block':'none';
+}
+
+function submitGrowthTask(name,team,formId){
+  var typeEl=document.getElementById(formId+'-type');
+  var noteEl=document.getElementById(formId+'-note');
+  if(!typeEl||!noteEl)return;
+  var taskType=typeEl.value;
+  var note=noteEl.value.trim();
+  call('createGrowthTask',{teamName:team,memberName:name,taskType:taskType,note:note,priority:'📋'},function(err,r){
+    if(r&&r.ok){
+      toast('✅ ส่ง Task ให้ Mentor '+team+' แล้ว');
+      var el=document.getElementById(formId); if(el)el.style.display='none';
+      noteEl.value='';
+    } else {
+      toast('❌ '+(err?err.message:(r&&r.error)||'เกิดข้อผิดพลาด'));
+    }
+  });
+}
+
+function loadGrowthTasksForGrowth(){
+  var el=document.getElementById('g-tasks-list');
+  if(!el)return;
+  el.innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
+  var sf=GS.taskFilter||'all';
+  call('getGrowthTasks',{statusFilter:sf},function(err,r){
+    if(err||!r||!r.ok){el.innerHTML='<div class="empty">❌ โหลดไม่ได้</div>';return;}
+    if(!r.tasks||!r.tasks.length){
+      el.innerHTML='<div class="empty"><div class="empty-i">📭</div>'+(sf==='open'?'ไม่มี Task ที่รอดำเนินการ':sf==='done'?'ยังไม่มี Task ที่เสร็จแล้ว':'ยังไม่มี Task')+'</div>';
+      return;
+    }
+    var html='';
+    r.tasks.forEach(function(t){
+      var isDone=t.status==='done';
+      html+='<div class="gt-card'+(isDone?' done':'')+'"><div class="gt-top">'
+        +'<div class="gt-pri">'+t.priority+'</div>'
+        +'<div class="gt-member">'+escHtml(t.memberName)+'</div>'
+        +'<div class="gt-team">'+escHtml(t.team)+'</div>'
+        +'</div>'
+        +'<div class="gt-type">'+escHtml(t.taskType)+'</div>'
+        +(t.note?'<div class="gt-note">'+escHtml(t.note)+'</div>':'')
+        +'<div style="font-size:.63rem;color:var(--gray);margin-top:.2rem;">ส่งเมื่อ '+escHtml(t.createdAt)+'</div>'
+        +(isDone?'<div class="gt-done-note">✅ Mentor ดำเนินการแล้ว'+(t.respondedAt?' ('+escHtml(t.respondedAt)+')':'')+'</div>':'')+'</div>'
+        +(isDone&&t.response?'<div class="gt-note" style="color:#10B981;margin-top:.15rem;">💬 '+escHtml(t.response)+'</div>':'')
+        +'</div>';
+    });
+    el.innerHTML=html;
+  });
+}
+
+function loadGrowthTasksForMentor(){
+  var el=document.getElementById('mentor-growth-tasks');
+  if(!el)return;
+  call('getGrowthTasks',{statusFilter:'open'},function(err,r){
+    if(err||!r||!r.ok||!r.tasks||!r.tasks.length){el.innerHTML='';return;}
+    var html='<div class="gt-wrap"><div class="gt-hdr">🎯 Growth ส่งมาให้ดูแล</div>';
+    r.tasks.forEach(function(t,i){
+      var tid='gtask-'+i;
+      html+='<div class="gt-card" id="gtc-'+tid+'"><div class="gt-top">'
+        +'<div class="gt-pri">'+t.priority+'</div>'
+        +'<div class="gt-member">'+escHtml(t.memberName)+'</div>'
+        +'<div class="gt-type" style="margin-left:auto;font-size:.65rem;color:var(--gray);">'+escHtml(t.createdAt)+'</div>'
+        +'</div>'
+        +'<div class="gt-type" style="color:#A78BFA;margin-bottom:.15rem;">'+escHtml(t.taskType)+'</div>'
+        +(t.note?'<div class="gt-note">'+escHtml(t.note)+'</div>':'')
+        +'<div class="gt-resp-wrap">'
+        +'<textarea class="gt-resp-input" id="'+tid+'-resp" rows="1" placeholder="บอก Growth ว่าทำอะไรแล้ว..."></textarea>'
+        +'<button class="gt-btn gt-btn-done" onclick="respondGrowthTask(\''+t.id+'\',\''+tid+'\')">✅ ดำเนินการแล้ว</button>'
+        +'</div></div>';
+    });
+    html+='<div style="text-align:right;"><button style="background:none;border:none;color:var(--gray2);font-size:.65rem;cursor:pointer;font-family:Sarabun,sans-serif;" onclick="loadGrowthTasksForMentor()">🔄 refresh</button></div></div>';
+    el.innerHTML=html;
+  });
+}
+
+function respondGrowthTask(id,tid){
+  var respEl=document.getElementById(tid+'-resp');
+  var resp=respEl?respEl.value.trim():'';
+  call('respondGrowthTask',{id:id,response:resp},function(err,r){
+    if(r&&r.ok){
+      toast('✅ ส่งผลการดำเนินการแล้ว');
+      loadGrowthTasksForMentor();
+    } else {
+      toast('❌ '+(err?err.message:(r&&r.error)||'เกิดข้อผิดพลาด'));
+    }
+  });
+}
+
+function renderMembers(){
+  var f=S.curFilter;
+  var mf=S.curMentorFilter;
+  var list=S.allMembers.filter(function(m){
+    var tlOk=(f==='all')||(f==='alert'?(m.tl==='black'||m.absent>=3):(m.tl===f));
+    var mentorOk=(mf==='all')||(m.mentor===mf);
+    return tlOk&&mentorOk;
+  });
+  if(!list.length){document.getElementById('mc-members').innerHTML='<div class="empty"><div class="empty-i">🔍</div>ไม่พบสมาชิกในตัวกรองนี้</div>';return;}
+  var html='';
+  var useGroups=(f==='all'&&mf==='all');
+  if(useGroups){
+    var groups={};
+    list.forEach(function(m){var t=m.mentor||'—';if(!groups[t])groups[t]=[];groups[t].push(m);});
+    Object.keys(groups).sort().forEach(function(t){
+      html+='<div class="sh">'+escHtml(t)+' <span style="font-size:.65rem;color:var(--gray2);">('+groups[t].length+' คน)</span></div>';
+      html+=groups[t].map(function(m){return memberRow(m,"openDetail('"+m.name.replace(/'/g,"\\'")+"')");}).join('');
+    });
+  } else {
+    if(mf!=='all'){
+      html='<div class="sh">ทีม '+escHtml(mf)+' <span style="font-size:.65rem;color:var(--gray2);">('+list.length+' คน)</span></div>';
+    }
+    html+=list.map(function(m){return memberRow(m,"openDetail('"+m.name.replace(/'/g,"\\'")+"')");}).join('');
+  }
+  document.getElementById('mc-members').innerHTML=html;
+}
+
+function loadMyTeam(){
+  call('getMyTeam',{},function(err,r){
+    if(err||!r.ok){document.getElementById('mentor-members').innerHTML='<div class="empty">❌</div>';return;}
+    S.teamMembers=r.members;renderMentorMembers();
+  });
+}
+function renderMentorMembers(){
+  var f=S.curMFilter;
+  var list=S.teamMembers.filter(function(m){return f==='all'||m.tl===f;});
+  if(!list.length){document.getElementById('mentor-members').innerHTML='<div class="empty"><div class="empty-i">🔍</div>ไม่พบ</div>';return;}
+  // Team Health Summary (computed from all team members, not filtered)
+  var all=S.teamMembers;
+  var tlCount={green:0,yellow:0,red:0,black:0,none:0};
+  var totScore=0,abCount=0;
+  all.forEach(function(m){tlCount[m.tl]=(tlCount[m.tl]||0)+1;totScore+=m.score||0;abCount+=m.absent||0;});
+  var avgScore=all.length?Math.round(totScore/all.length):0;
+  var avgColor=avgScore>=70?'#10B981':avgScore>=50?'#F59E0B':avgScore>=30?'#EF4444':'#64748B';
+  var html='<div class="th-card">'
+    +'<div class="th-stat"><div class="th-num" style="color:'+avgColor+'">'+avgScore+'</div><div class="th-lbl">เฉลี่ย</div></div>'
+    +'<div class="th-stat"><div class="th-num" style="color:#10B981">'+tlCount.green+'</div><div class="th-lbl">🟢 เขียว</div></div>'
+    +'<div class="th-stat"><div class="th-num" style="color:#F59E0B">'+tlCount.yellow+'</div><div class="th-lbl">🟡 เหลือง</div></div>'
+    +'<div class="th-stat"><div class="th-num" style="color:#EF4444">'+tlCount.red+'</div><div class="th-lbl">🔴 แดง</div></div>'
+    +'<div class="th-stat"><div class="th-num" style="color:#64748B">'+tlCount.black+'</div><div class="th-lbl">⚫ ดำ</div></div>'
+    +(abCount>0?'<div class="th-stat"><div class="th-num" style="color:#EF4444">'+abCount+'</div><div class="th-lbl">ขาด</div></div>':'')
+    +'</div>';
+  html+='<div class="card" style="background:rgba(240,180,41,.08);border-color:rgba(240,180,41,.2);margin-bottom:.5rem;"><div style="font-size:.78rem;color:var(--gold);">📋 ส่งรายงาน Line ตูมตามก่อน 18:00 วันพฤหัส</div></div>';
+  list.forEach(function(m){
+    html+=memberRow(m,"openDetail('"+m.name.replace(/'/g,"\\'")+"')");
+    if(m.mcMsg)html+=
+      '<div class="mm-dot" id="mmdot-'+m.row+'" onclick="toggleMsg('+m.row+')" style="display:inline-flex;align-items:center;gap:4px;margin:-.1rem 0 .35rem .55rem;cursor:pointer;">'
+      +'<span style="background:rgba(240,180,41,.2);color:var(--gold);border-radius:999px;padding:2px 8px;font-size:.68rem;font-weight:600;">💬 MC มีข้อความ ▾</span>'
+      +'</div>'
+      +'<div class="mm" id="mmbox-'+m.row+'" style="display:none;margin-top:-.2rem;margin-bottom:.35rem;">'
+      +'<div class="mm-n">💬 จากตูมตาม:</div><div class="mm-t">'+m.mcMsg+'</div></div>';
+  });
+  document.getElementById('mentor-members').innerHTML=html;
+}
+
+function openDetail(name){
+  document.getElementById('dp-title').textContent=name.split(' ').slice(0,2).join(' ');
+  document.getElementById('dp-content').innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
+  document.getElementById('detailPanel').classList.add('on');
+  call('getMemberDetail',{memberName:name},function(err,r){
+    if(err||!r.ok){document.getElementById('dp-content').innerHTML='<div class="empty">❌ '+(err?err.message:r.error)+'</div>';return;}
+    document.getElementById('dp-content').innerHTML=buildDetail(r);
+    if(S.role&&S.role!=='mc'&&S.role!=='growth')load121Section(name);
+  });
+}
+function closeDetail(){document.getElementById('detailPanel').classList.remove('on');}
+
+function buildDetail(d){
+  var score=d.score;
+  var attendBg=d.attendRisk==='critical'?'var(--redl)':d.attendRisk==='danger'?'var(--yellowl)':d.attendRisk==='warning'?'rgba(245,158,11,.1)':'var(--greenl)';
+  var attendC=d.attendRisk==='critical'?'#EF4444':d.attendRisk!=='ok'?'#F59E0B':'#10B981';
+  var attendTxt=d.attendRisk==='critical'?'🚨 ขาดไปแล้ว '+d.actual.absent+' ครั้ง — วิกฤต!':d.attendRisk==='danger'?'⚠️ ขาดไปแล้ว '+d.actual.absent+' ครั้ง — อันตราย':d.attendRisk==='warning'?'📋 ขาดไปแล้ว '+d.actual.absent+' ครั้ง — ระวัง':'✅ ไม่เคยขาดเลย';
+  var actBtns='<div class="action-row">';
+  if(d.actual.phone)actBtns+='<a class="action-btn call" href="tel:'+d.actual.phone+'">📞 โทรเลย</a>';
+  if(d.actual.email)actBtns+='<a class="action-btn mail" href="mailto:'+d.actual.email+'">✉️ อีเมล</a>';
+  actBtns+='</div>';
+  var statsHTML='<div class="stats-grid"><div class="stat-box"><div class="stat-num" style="color:var(--gold)">'+fmt(d.actual.tyfcb)+'</div><div class="stat-lbl">TYFCB (฿)</div></div><div class="stat-box"><div class="stat-num" style="color:var(--green)">'+fmt(d.given)+'</div><div class="stat-lbl">Given (฿)</div></div><div class="stat-box"><div class="stat-num" style="color:#60A5FA">'+fmt(d.recv)+'</div><div class="stat-lbl">Received (฿)</div></div></div>';
+  var chartHTML='';
+  if(d.scoreHistory&&d.scoreHistory.length>0){
+    chartHTML='<div class="card"><div class="ct">Trend คะแนนรายเดือน</div>'+miniChart(d.scoreHistory);
+    var labels=d.scoreHistory.filter(function(s){return s.score!==null&&s.score>0;});
+    if(labels.length>0){chartHTML+='<div style="display:flex;justify-content:space-between;margin-top:4px;"><span style="font-size:.62rem;color:var(--gray2)">'+labels[0].month+'</span><span style="font-size:.82rem;font-weight:600;font-family:\'IBM Plex Mono\',monospace;color:'+sc(labels[labels.length-1].score)+'">'+labels[labels.length-1].score+'</span><span style="font-size:.62rem;color:var(--gray2)">'+labels[labels.length-1].month+'</span></div>';}
+    chartHTML+='</div>';
+  }
+  var keys=[{icon:'🤝',label:'1-2-1',act:d.actual.oToOne,tgt:d.target.oToOne,unit:'ครั้ง'},{icon:'💡',label:'Referral ให้',act:d.actual.rg,tgt:d.target.referral,unit:'ใบ'},{icon:'📨',label:'Referral รับ',act:d.actual.rr,tgt:d.target.referral,unit:'ใบ'},{icon:'👥',label:'Visitor',act:d.actual.visitor,tgt:d.target.visitor,unit:'คน'},{icon:'📚',label:'CEU',act:d.actual.ceu,tgt:d.target.ceu,unit:'แต้ม'}];
+  var keysHTML=keys.map(function(k){var pct=Math.min(100,Math.round(k.act/Math.max(1,k.tgt)*100));return '<div class="kr"><div class="ki">'+k.icon+'</div><div class="kl">'+k.label+'</div><div class="kbw"><div class="kb" style="width:'+pct+'%;background:'+bc(pct)+'"></div></div><div class="kv">'+k.act+'/'+k.tgt+'</div></div>';}).join('');
+  var prHTML=d.priorities.map(function(p,i){var bg=p.type==='emergency'?'var(--redl)':p.type==='warning'?'rgba(245,158,11,.1)':p.type==='quick'?'rgba(240,180,41,.1)':'rgba(59,130,246,.1)';var brd=p.type==='emergency'?'#EF4444':p.type==='warning'?'#F59E0B':p.type==='quick'?'#F0B429':'#3B82F6';return '<div class="pc" style="background:'+bg+';border-left-color:'+brd+'"><div class="pn">Priority '+(i+1)+'</div><div class="pt">'+p.title+'</div><div class="pa">'+p.action.replace(/\n/g,'<br>')+'</div><div class="pg">🎯 '+p.target+'</div></div>';}).join('');
+  return '<div class="hero"><div class="hero-name">'+d.name+' ('+d.nick+')</div><div class="hero-meta">'+d.mentor+' · '+d.actual.bniDays+' วันใน BNI · '+d.weeks+' สัปดาห์</div><div class="hero-row"><div class="hero-score" style="color:'+sc(score)+'">'+score+'</div><div><div style="font-size:1rem;">'+(score>=70?'🟢 เขียว':score>=50?'🟡 เหลือง':score>=30?'🔴 แดง':'⚫ ดำ')+'</div><div style="font-size:.72rem;color:var(--gray2);">Balance: '+d.balance+'</div></div></div><div class="attend-pill" style="background:'+attendBg+';color:'+attendC+'">'+attendTxt+'</div></div>'+actBtns+statsHTML+chartHTML+'<div class="card"><div class="ct">5 Keys (6 เดือน)</div>'+keysHTML+'</div><div class="sh">⚔️ Priority</div>'+prHTML+buildConvHistory(d)+'<div id="dp-121-section"></div><div style="height:1rem;"></div>';
+
+}
+
+function loadScorecard(){
+  document.getElementById('mc-scorecard').innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
+  call('getScorecard',{},function(err,r){
+    if(err||!r.ok){document.getElementById('mc-scorecard').innerHTML='<div class="empty">❌</div>';return;}
+    var mv=r.movement;
+    var html='';
+
+    // ── [1] Movement Summary Bar ────────────────────────────────
+    html+='<div class="card" style="margin-bottom:.5rem;">'
+      +'<div class="ct">📊 '+r.prevMonth+' → '+r.thisMonth+' · Movement ('+mv.total+' คน)</div>'
+      +'<div class="mv-bar">'
+      +'<div class="mv-chip" style="background:rgba(16,185,129,.15);color:#10B981;">'
+        +'<div class="mv-num">'+mv.up+'</div><div class="mv-lbl">↑ ขึ้น</div></div>'
+      +'<div class="mv-chip" style="background:rgba(100,116,139,.15);color:#94A3B8;">'
+        +'<div class="mv-num">'+mv.same+'</div><div class="mv-lbl">→ คงที่</div></div>'
+      +'<div class="mv-chip" style="background:rgba(239,68,68,.15);color:#EF4444;">'
+        +'<div class="mv-num">'+mv.down+'</div><div class="mv-lbl">↓ ลด</div></div>'
+      +'<div class="mv-chip" style="background:rgba(139,92,246,.15);color:#A78BFA;">'
+        +'<div class="mv-num">'+(mv.zoneUp.length+mv.zoneDn.length)+'</div><div class="mv-lbl">⚡ เปลี่ยนโซน</div></div>'
+      +'</div></div>';
+
+    // ── [2] Zone Changes ────────────────────────────────────────
+    if(mv.zoneUp.length||mv.zoneDn.length){
+      html+='<div class="card" style="margin-bottom:.5rem;">'
+        +'<div class="ct">⚡ เปลี่ยน Traffic Light Zone เดือนนี้</div>'
+        +'<div class="zone-list">';
+      if(mv.zoneUp.length){
+        html+='<div style="font-size:.63rem;font-weight:700;color:#10B981;letter-spacing:.08em;margin:.3rem 0 .2rem;">🏆 เลื่อนขึ้น</div>';
+        mv.zoneUp.forEach(function(m){
+          html+='<div class="zone-item up">'
+            +'<div class="zone-name">'+m.nick+'<span style="font-size:.68rem;color:var(--gray2);"> '+m.team+'</span></div>'
+            +'<div class="zone-arrow">'+m.from+' → '+m.to+'</div>'
+            +'<div class="zone-diff" style="color:#10B981;">+'+m.diff+'</div>'
+            +'</div>';
+        });
+      }
+      if(mv.zoneDn.length){
+        html+='<div style="font-size:.63rem;font-weight:700;color:#EF4444;letter-spacing:.08em;margin:.4rem 0 .2rem;">🚨 ตกลง</div>';
+        mv.zoneDn.forEach(function(m){
+          html+='<div class="zone-item dn">'
+            +'<div class="zone-name">'+m.nick+'<span style="font-size:.68rem;color:var(--gray2);"> '+m.team+'</span></div>'
+            +'<div class="zone-arrow">'+m.from+' → '+m.to+'</div>'
+            +'<div class="zone-diff" style="color:#EF4444;">'+m.diff+'</div>'
+            +'</div>';
+        });
+      }
+      html+='</div></div>';
+    }
+
+    // ── [3] Top Improved / Most Declined ───────────────────────
+    if(r.topImproved.length||r.topDeclined.length){
+      html+='<div class="card" style="margin-bottom:.5rem;"><div class="scg">';
+      if(r.topImproved.length){
+        html+='<div><div style="font-size:.63rem;font-weight:700;color:#10B981;letter-spacing:.08em;margin-bottom:.375rem;">🏅 ขึ้นมากสุด</div>';
+        r.topImproved.forEach(function(m,i){
+          html+='<div class="rank-row" style="background:rgba(16,185,129,.08);">'
+            +'<div class="rank-pos">'+(i+1)+'</div>'
+            +'<div><div class="rank-name">'+m.nick+'</div>'
+            +'<div class="rank-team">'+m.team+' · '+m.from+'→'+m.to+'</div></div>'
+            +'<div class="rank-delta" style="color:#10B981;">+'+m.diff+'</div>'
+            +'</div>';
+        });
+        html+='</div>';
+      }
+      if(r.topDeclined.length){
+        html+='<div><div style="font-size:.63rem;font-weight:700;color:#EF4444;letter-spacing:.08em;margin-bottom:.375rem;">📉 ลดมากสุด</div>';
+        r.topDeclined.forEach(function(m,i){
+          html+='<div class="rank-row" style="background:rgba(239,68,68,.08);">'
+            +'<div class="rank-pos">'+(i+1)+'</div>'
+            +'<div><div class="rank-name">'+m.nick+'</div>'
+            +'<div class="rank-team">'+m.team+' · '+m.from+'→'+m.to+'</div></div>'
+            +'<div class="rank-delta" style="color:#EF4444;">'+m.diff+'</div>'
+            +'</div>';
+        });
+        html+='</div>';
+      }
+      html+='</div></div>';
+    }
+
+    // ── [4] Team Cards ──────────────────────────────────────────
+    html+='<div class="card"><div class="ct">📈 Team Scorecard · '+r.prevMonth+' → '+r.thisMonth+'</div><div class="scg">';
+    r.teams.forEach(function(t){
+      var gc2=gcol(t.grade);
+      var dc=t.diff>0?'#10B981':t.diff<0?'#EF4444':'#64748B';
+      var dt=(t.diff>0?'▲ +':t.diff<0?'▼ ':'→ ')+Math.abs(t.diff);
+      html+='<div class="scc">'
+        +'<div class="scg2" style="background:'+gc2.bg+';color:'+gc2.c+'">'+t.grade+'</div>'
+        +'<div class="scn">'+t.name+'</div>'
+        +'<div class="sca" style="color:'+sc(t.thisAvg)+'">'+t.thisAvg+'</div>'
+        +'<div class="scd" style="color:'+dc+'">'+dt+' vs '+r.prevMonth+'</div>'
+        +'<div class="scs">'+t.count+' คน · แดง/ดำ '+t.redBlk+' · ดิ่ง '+t.diving+'</div>'
+        +'</div>';
+    });
+    html+='</div></div>';
+
+    document.getElementById('mc-scorecard').innerHTML=html;
+  });
+}
+
+function loadRenewal(app){
+  var id=app==='mc'?'mc-renewal':'mentor-renewal';
+  call('getRenewal',{},function(err,r){
+    if(err||!r.ok){document.getElementById(id).innerHTML='<div class="empty">❌</div>';return;}
+    var late=r.items.filter(function(i){return i.status==='late';});
+    var soon=r.items.filter(function(i){return i.status==='soon';});
+    var ok=r.items.filter(function(i){return i.status!=='late'&&i.status!=='soon';});
+    function rrow(i){var icon=i.status==='late'?'🔴':i.status==='soon'?'⚠️':'📅';var txt=i.diffDays<0?'หมดไป '+Math.abs(i.diffDays)+' วัน · ค่าปรับ 1,070฿':'เหลือ '+i.diffDays+' วัน · '+i.expStr;return '<div class="rr"><div style="font-size:1.4rem;">'+icon+'</div><div class="ri"><div class="rn">'+i.name+'</div><div class="rd2">'+i.team+' · '+txt+'</div></div></div>';}
+    var html='';
+    if(late.length)html+='<div class="sh" style="color:var(--red)">🔴 LATE — โทรแจ้งทันที</div>'+late.map(rrow).join('');
+    if(soon.length)html+='<div class="sh" style="color:var(--yellow)">⚠️ ใกล้ครบ</div>'+soon.map(rrow).join('');
+    if(ok.length)html+='<div class="sh">📅 ปกติ</div>'+ok.map(rrow).join('');
+    if(!r.items.length)html='<div class="empty"><div class="empty-i">✅</div>ไม่มีรายการ</div>';
+    document.getElementById(id).innerHTML=html;
+  });
+}
+
+function loadMessages(app){
+  var id=app==='mc'?'mc-msg-list':'mentor-msg-list';
+  call('getMessages',{},function(err,r){
+    if(err||!r.ok||!r.messages.length){document.getElementById(id).innerHTML='<div class="empty"><div class="empty-i">💬</div>ยังไม่มีข้อความ</div>';return;}
+    document.getElementById(id).innerHTML=r.messages.map(function(m){return '<div class="mm"><div class="mm-n">['+m.team+'] '+m.name+' ('+m.nick+')</div><div class="mm-t">'+m.msg+'</div></div>';}).join('');
+  });
+}
+
+function loadMcMsgForm(){
+  if(S.role!=='mc')return;
+  document.getElementById('mc-msg-form').innerHTML='<div class="card"><div class="ct">💬 พิมพ์ข้อความให้ Mentor</div><div class="fg"><label class="fl">ทีม</label><select class="fs" id="msg-team" onchange="loadTeam(this.value)"><option value="">— เลือกทีม —</option><option>TOOMTAM</option><option>Aof</option><option>Draft</option><option>PHAI</option><option>AMP</option></select></div><div class="fg"><label class="fl">Mentee</label><select class="fs" id="msg-member"><option value="">— เลือกทีมก่อน —</option></select></div><div class="fg"><label class="fl">ข้อความ</label><textarea class="ft" id="msg-txt" placeholder="เช่น: พี่ยา คุยเรียบร้อยแล้ว รอ update วันที่ 5"></textarea></div><button class="btn-p" onclick="sendMsg()">ส่งข้อความ →</button></div><div class="sh">ข้อความที่ส่งแล้ว</div>';
+}
+function loadTeam(teamName){
+  if(!teamName)return;
+  var roleMap={TOOMTAM:'toomtam',Aof:'aof',Draft:'draft',PHAI:'phai',AMP:'amp'};
+  call('getMyTeam',{role:roleMap[teamName]},function(err,r){var sel=document.getElementById('msg-member');sel.innerHTML='<option value="">— เลือก —</option>';if(r&&r.ok)r.members.forEach(function(m){sel.innerHTML+='<option value="'+m.row+'|'+m.name+'">'+m.name+' ('+m.nick+')</option>';});});
+}
+function sendMsg(){
+  var team=document.getElementById('msg-team').value;var memVal=document.getElementById('msg-member').value;var msg=document.getElementById('msg-txt').value.trim();
+  if(!team||!memVal||!msg){toast('❌ กรุณากรอกข้อมูลให้ครบ');return;}
+  var memName=memVal.split('|')[1]||'';
+  if(!confirm('ยืนยันส่งข้อความ?\n\nถึง: '+memName+' ('+team+')\n"'+msg+'"')){return;}
+  var row=parseInt(memVal.split('|')[0]);
+  call('saveMCMessage',{teamName:team,row:row,message:msg},function(err,r){if(r&&r.ok){toast('✅ ส่งข้อความแล้ว');document.getElementById('msg-txt').value='';loadMessages('mc');}else toast('❌ '+(err?err.message:r.error));});
+}
+
+function loadReportForm(){
+  var members=S.teamMembers.filter(function(m){return !!m.name;});
+  var opts=members.map(function(m){
+    var tl=!m.latest?'—':m.latest>=70?'🟢':m.latest>=50?'🟡':m.latest>=30?'🔴':'⚫';
+    return '<option value="'+m.row+'|'+m.name+'">'+m.name+' ('+m.nick+') · '+tl+' '+( m.latest||'—')+'</option>';
+  });
+  document.getElementById('mentor-report-c').innerHTML='<div class="card"><div class="ct">📝 กรอก Core Issue</div><div class="fg"><label class="fl">Mentee</label><select class="fs" id="rc-mem"><option value="">— เลือก —</option>'+opts.join('')+'</select></div><div class="fg"><label class="fl">Core Issue หลัก</label><select class="fs" id="rc-core"><option value="">— เลือก —</option><option>ขาดประชุม / มาสาย</option><option>ยอด Referral ต่ำ</option><option>ไม่ทำ 1-2-1 / ทำไม่ครบ</option><option>รอการต่ออายุ</option><option>ธุรกิจยุ่ง / ไม่มีเวลาทำ 5 Keys</option><option>ยังไม่เรียน CEU</option></select></div><div class="fg"><label class="fl">Action ที่ทำแล้ว</label><textarea class="ft" id="rc-act" placeholder="เช่น: โทรคุยแล้ว นัด 1:1 วันศุกร์"></textarea></div><div class="fg"><label class="fl">แผนสัปดาห์ถัดไป</label><textarea class="ft" id="rc-plan" placeholder="เช่น: ติดตามผลหลังประชุม ช่วยหา Visitor"></textarea></div><button class="btn-p" onclick="submitReport()">ส่งรายงาน →</button></div>';
+}
+function submitReport(){
+  var sel=document.getElementById('rc-mem').value;var core=document.getElementById('rc-core').value;var act=document.getElementById('rc-act').value;var plan=document.getElementById('rc-plan').value;
+  if(!sel||!core){toast('❌ กรุณาเลือก Mentee และ Core Issue');return;}
+  var parts=sel.split('|');
+  call('saveCoreIssue',{row:parseInt(parts[0]),memberName:parts[1],coreIssue:core,actionTaken:act,plan:plan},function(err,r){if(r&&r.ok)toast('✅ บันทึกเรียบร้อยแล้ว');else toast('❌ '+(err?err.message:r.error));});
+}
+
+// ── Growth Functions ──────────────────────────────────────────
+function loadGrowthData(){
+  call('getGrowthData',{},function(err,r){
+    if(err||!r.ok){document.getElementById('g-members').innerHTML='<div class="empty">❌ '+(err?err.message:(r&&r.error)||'ไม่ทราบ')+'<br><br><button class="btn-p" style="width:auto;padding:.5rem 1.5rem;" onclick="loadGrowthData()">🔄 ลองใหม่</button></div>';return;}
+    GS.members=r.members;GS.loaded=true;
+    renderGrowthSummary(r.summary);
+    renderGrowthMembers();
+  });
+}
+
+function renderGrowthSummary(s){
+  document.getElementById('g-summary').innerHTML=
+    '<div class="gsum-grid">'+
+    '<div class="gsum-card" style="border-color:rgba(239,68,68,.3)"><div class="gsum-n" style="color:#EF4444">'+s.highGiverLowRecv+'</div><div class="gsum-l">🔴 ให้เยอะ รับน้อย<br>ต้องเข้าช่วยด่วน</div></div>'+
+    '<div class="gsum-card" style="border-color:rgba(245,158,11,.3)"><div class="gsum-n" style="color:#F59E0B">'+s.lowGiverHighRecv+'</div><div class="gsum-l">🟡 รับเยอะ ให้น้อย<br>ต้องกระตุ้น</div></div>'+
+    '<div class="gsum-card" style="border-color:rgba(16,185,129,.3)"><div class="gsum-n" style="color:#10B981">'+s.balanced+'</div><div class="gsum-l">✅ สมดุล<br>ดูแลต่อเนื่อง</div></div>'+
+    '<div class="gsum-card"><div class="gsum-n" style="color:var(--gold)">'+s.total+'</div><div class="gsum-l">👥 สมาชิกทั้งหมด</div></div>'+
+    '</div>';
+}
+
+function renderGrowthMembers(){
+  var f=GS.curFilter;
+  var list=f==='all'?GS.members:GS.members.filter(function(m){return m.zone===f;});
+  if(!list.length){document.getElementById('g-members').innerHTML='<div class="empty"><div class="empty-i">🔍</div>ไม่พบสมาชิกในกลุ่มนี้</div>';return;}
+  document.getElementById('g-members').innerHTML=list.map(function(m){return buildGrowthCard(m);}).join('');
+}
+
+function buildGrowthCard(m){
+  var zoneClass=m.zone==='highGiverLowRecv'?'urgent':m.zone==='lowGiverHighRecv'?'warning':m.zone==='balanced'?'good':'';
+  var zonePillClass=m.zone==='highGiverLowRecv'?'zone-hg':m.zone==='lowGiverHighRecv'?'zone-lg':m.zone==='balanced'?'zone-ok':'zone-in';
+  var zoneLabel=m.zone==='highGiverLowRecv'?'🔴 ให้เยอะ รับน้อย — ต้องช่วย':m.zone==='lowGiverHighRecv'?'🟡 รับเยอะ ให้น้อย':m.zone==='balanced'?'✅ สมดุล':'⬜ ข้อมูลน้อยเกินไป';
+  var maxRef=Math.max(m.rgCount,m.rrCount,1);
+  var rgPct=Math.round(m.rgCount/maxRef*100);
+  var rrPct=Math.round(m.rrCount/maxRef*100);
+  var rgColor='#10B981';
+  var rrColor=m.zone==='highGiverLowRecv'?'#EF4444':'#60A5FA';
+  var initials=m.nick?m.nick.slice(0,2):m.name.slice(0,2);
+  var scoreColor=m.score>=70?'#10B981':m.score>=50?'#F59E0B':m.score>=30?'#EF4444':'#64748B';
+  var avBg=m.tl==='green'?'rgba(16,185,129,.2)':m.tl==='yellow'?'rgba(245,158,11,.2)':m.tl==='red'?'rgba(239,68,68,.2)':'rgba(100,116,139,.2)';
+  var safeN=m.name.replace(/'/g,"\\'");
+  var safeTeam=m.mentor.replace(/'/g,"\\'");
+  var formId='gtf-'+m.name.replace(/[^a-zA-Z0-9]/g,'_');
+  return '<div class="gm-card '+zoneClass+'" id="gmc-'+formId+'">' +
+    '<div class="gm-top" onclick="openDetail(\''+safeN+'\')" style="cursor:pointer;"><div class="gm-av" style="background:'+avBg+';color:'+scoreColor+'">'+initials+'</div><div class="gm-info"><div class="gm-name">'+m.name.split(' ').slice(0,2).join(' ')+(m.nick?' ('+m.nick+')':'')+'</div><div class="gm-sub"><span>'+m.mentor+'</span><span class="zone-pill '+zonePillClass+'">'+zoneLabel+'</span></div></div><div class="gm-score" style="color:'+scoreColor+'">'+m.score+'</div></div>' +
+    '<div class="ref-bar-wrap"><div class="ref-label"><span>Referral (ใบ)</span><span>ให้ '+m.rgCount+' | รับ '+m.rrCount+'</span></div><div class="ref-bars"><div class="ref-bar-row"><span class="ref-bar-lbl">ให้</span><div class="ref-bar-bg"><div class="ref-bar-fill" style="width:'+rgPct+'%;background:'+rgColor+'"></div></div><span class="ref-val" style="color:'+rgColor+'">'+m.rgCount+'</span></div><div class="ref-bar-row"><span class="ref-bar-lbl">รับ</span><div class="ref-bar-bg"><div class="ref-bar-fill" style="width:'+rrPct+'%;background:'+rrColor+'"></div></div><span class="ref-val" style="color:'+rrColor+'">'+m.rrCount+'</span></div></div></div>' +
+    '<div class="tyfcb-row"><div><div class="tyfcb-val">฿'+fmt(m.tyfcb)+'</div><div class="tyfcb-lbl">TYFCB รวม</div></div><div style="margin-left:.75rem"><div class="tyfcb-val" style="color:var(--gray2)">฿'+fmt(m.tyfcbPerDay)+'</div><div class="tyfcb-lbl">ต่อวัน</div></div><div style="margin-left:auto"><div class="tyfcb-val" style="color:var(--gray2)">'+m.bniDays+'</div><div class="tyfcb-lbl">วันใน BNI</div></div></div>' +
+    '<div style="text-align:right;margin-top:.35rem;"><button class="gm-task-btn" onclick="toggleGrowthTaskForm(\''+formId+'\',\''+safeN+'\',\''+safeTeam+'\');event.stopPropagation()">🎯 มอบหมาย Mentor</button></div>' +
+    '<div id="'+formId+'" class="gm-task-form" style="display:none;">'
+      +'<select id="'+formId+'-type"><option value="Referral">ช่วยหา Referral ให้</option><option value="1-2-1">นัด 1-2-1 ด่วน</option><option value="ติดตาม">ติดตามความคืบหน้า</option><option value="ประชุม">ช่วยเรื่องมาประชุม</option><option value="อื่นๆ">อื่นๆ</option></select>'
+      +'<textarea id="'+formId+'-note" rows="2" placeholder="รายละเอียดที่ต้องการให้ Mentor ดำเนินการ..."></textarea>'
+      +'<button class="gt-btn gt-btn-submit" onclick="submitGrowthTask(\''+safeN+'\',\''+safeTeam+'\',\''+formId+'\')">ส่ง Task →</button>'
+      +'</div>'
+    +'</div>';
+}
+
+function renderStrategy(){
+  if(!GS.loaded){loadGrowthData();return;}
+
+  // เรียงตาม gap มากสุด (ให้มากกว่ารับ)
+  var needHelp=GS.members
+    .filter(function(m){return m.zone==='highGiverLowRecv';})
+    .sort(function(a,b){return(b.rgCount-b.rrCount)-(a.rgCount-a.rrCount);});
+
+  // คนที่รับเยอะ ให้น้อย (reciprocity ratio สูง) + balanced เป็น fallback
+  var potentialGivers=GS.members
+    .filter(function(m){return m.zone==='lowGiverHighRecv'||m.zone==='balanced';})
+    .sort(function(a,b){
+      return (b.rrCount/(b.rgCount+0.5))-(a.rrCount/(a.rgCount+0.5));
+    });
+
+  // คนที่ยังไม่มี Referral เลย
+  var inactive=GS.members.filter(function(m){
+    return m.rgCount===0&&m.rrCount===0&&m.score>0;
+  });
+
+  var el=document.getElementById('g-strategy-list');
+  if(needHelp.length===0&&inactive.length===0){
+    el.innerHTML='<div class="empty"><div class="empty-i">🎉</div><div>ทุกคนสมดุลดี!</div><div style="font-size:.72rem;color:var(--gray2);margin-top:.25rem;">ไม่มีสมาชิกที่ให้ Referral เยอะกว่ารับ</div></div>';
+    return;
+  }
+
+  var html='';
+
+  // ── Header stats ──────────────────────────────────────────────
+  html+='<div class="strat-header">'+
+    '<div class="strat-stat"><span class="strat-n" style="color:#EF4444">'+needHelp.length+'</span><span class="strat-l">ต้องช่วย</span></div>'+
+    '<div class="strat-stat"><span class="strat-n" style="color:#10B981">'+potentialGivers.length+'</span><span class="strat-l">ให้ได้</span></div>'+
+    '<div class="strat-stat"><span class="strat-n" style="color:#64748B">'+inactive.length+'</span><span class="strat-l">ยังไม่แอคทีฟ</span></div>'+
+  '</div>';
+
+  // ── ต้องช่วย ──────────────────────────────────────────────────
+  if(needHelp.length>0){
+    html+='<div class="sh">🔴 ต้องได้รับ Referral กลับ ('+needHelp.length+' คน)</div>';
+    html+=needHelp.map(function(a){
+      var gap=a.rgCount-a.rrCount;
+      var urgency=gap>=5?'🚨 วิกฤต':gap>=3?'⚠️ เร่งด่วน':'🔴 ต้องดูแล';
+      var urgColor=gap>=5?'#EF4444':gap>=3?'#F59E0B':'#FB923C';
+
+      // หา candidates: cross-team ก่อน, fallback = ทุกทีม
+      var cross=potentialGivers.filter(function(b){return b.mentor!==a.mentor;});
+      var pool=(cross.length>=2?cross:potentialGivers).slice(0,3);
+
+      var matchHTML=pool.length>0?pool.map(function(b){
+        var isCross=b.mentor!==a.mentor;
+        return '<div class="strat-match">'+
+          '<span class="strat-match-name">'+b.name.split(' ')[0]+' ('+b.nick+')</span>'+
+          '<span class="strat-match-meta">'+b.mentor+(isCross?' <span class="cross-badge mini">🔀</span>':'')+'</span>'+
+          '<span class="strat-match-rr">รับ '+b.rrCount+' | ให้ '+b.rgCount+'</span>'+
+        '</div>';
+      }).join(''):'<div style="font-size:.7rem;color:var(--gray2);padding:.25rem 0">→ ยังไม่มีคู่ที่เหมาะสม</div>';
+
+      return '<div class="strategy-item">'+
+        '<div class="strat-top">'+
+          '<div><div class="s-match-name">'+a.name.split(' ').slice(0,2).join(' ')+' ('+a.nick+')</div><div style="font-size:.68rem;color:var(--gray2)">'+a.mentor+'</div></div>'+
+          '<div style="text-align:right"><div class="strat-urgency" style="color:'+urgColor+'">'+urgency+'</div><div style="font-size:.65rem;color:var(--gray2)">ช่องว่าง '+gap+' ใบ</div></div>'+
+        '</div>'+
+        '<div class="strat-balance">ให้ <strong style="color:#10B981">'+a.rgCount+'</strong> ใบ — รับกลับ <strong style="color:#EF4444">'+a.rrCount+'</strong> ใบ ('+a.giveRatio+'% เป็นผู้ให้)</div>'+
+        '<div class="strat-suggest-lbl">แนะนำ 1-2-1 กับ:</div>'+
+        matchHTML+
+        '<div class="s-match-cta">⚡ Growth จัด 1-2-1 สามเส้า — ช่วย '+a.name.split(' ')[0]+' รับ Referral กลับมา</div>'+
+      '</div>';
+    }).join('');
+  }
+
+  // ── ยังไม่มี Referral ─────────────────────────────────────────
+  if(inactive.length>0){
+    html+='<div class="sh" style="margin-top:.75rem">⬜ ยังไม่มี Referral เลย ('+inactive.length+' คน)</div>';
+    html+='<div class="strategy-item" style="border-color:var(--border)">'+
+      inactive.map(function(m){
+        return '<div class="strat-inactive-row">'+
+          '<div><span style="font-weight:600">'+m.name.split(' ')[0]+' ('+m.nick+')</span> <span style="font-size:.65rem;color:var(--gray2)">'+m.mentor+'</span></div>'+
+          '<span style="font-size:.68rem;color:var(--gray2)">'+m.score+' pts</span>'+
+        '</div>';
+      }).join('')+
+      '<div class="s-match-cta" style="margin-top:.5rem">💡 Growth ช่วย kickstart 1-2-1 ครั้งแรกให้ทั้ง '+inactive.length+' คนนี้</div>'+
+    '</div>';
+  }
+
+  el.innerHTML=html;
+}
+
+window.addEventListener('popstate',function(){closeDetail();});
+window.onload=function(){
+  setTimeout(function(){
+    hideLoad();
+    document.getElementById('loginScreen').style.display='flex';
+    loadNotifBadges();
+  },700);
+};
+
+function loadNotifBadges(){
+  google.script.run
+    .withSuccessHandler(function(r){
+      if(!r||!r.ok) return;
+      var map={toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP'};
+      Object.keys(map).forEach(function(role){
+        var teamName=map[role];
+        var count=r.counts[teamName]||0;
+        var el=document.getElementById('nb-'+role);
+        if(el&&count>0){
+          el.textContent=count;
+          el.classList.add('on');
+        }
+      });
+    })
+    .withFailureHandler(function(){})
+    .dispatch({action:'getUnreadCounts',role:'system'});
+}
+
+// ── CheckIn State & Functions ─────────────────────────────────
+var CI={parsed:[],date:'',week:''};
+
+function ciParse(){
+  var raw=document.getElementById('ci-textarea').value.trim();
+  if(!raw){toast('❌ กรุณาวาง CSV ก่อนครับ');return;}
+  showLoad();
+  google.script.run
+    .withSuccessHandler(function(r){
+      hideLoad();
+      if(!r.ok){toast('\u274C '+r.error);return;}
+      CI.parsed=r.members; CI.date=r.date; CI.week=r.week;
+      ciRenderResult(r);
+    })
+    .withFailureHandler(function(e){hideLoad();toast('\u274C '+e.message);})
+    .parseCheckinCSV(raw);
+}
+
+function ciRenderResult(r){
+  var real=r.members.filter(function(m){return m.status==='สมาชิก';}).length;
+  var sub=r.members.filter(function(m){return m.status==='ตัวแทน';}).length;
+  document.getElementById('ci-summary').innerHTML=
+    '📅 '+r.date+' (สัปดาห์ '+r.week+')<br>✅ สมาชิก: '+real+' คน | 🔄 ส่งแทน: '+sub+' คน | รวม: '+r.members.length+' คน';
+  document.getElementById('ci-list').innerHTML=r.members.map(function(m){
+    var isSub=m.status==='ตัวแทน';
+    return '<div class="cm'+(isSub?' sub':'')+'">'+
+      '<div style="flex:1"><div class="cm-name">'+m.name+(isSub?' <span style="font-size:.62rem;color:var(--yellow)">→ แทน '+(m.sub_for||'?')+'</span>':'')+'</div>'+
+      '<div class="cm-lf">'+(m.looking_for||'—')+'</div></div>'+
+      '<span class="cm-badge '+(isSub?'sub':'real')+'">'+(isSub?'Sub':'สมาชิก')+'</span></div>';
+  }).join('');
+  document.getElementById('ci-result').style.display='block';
+}
+
+function ciSave(){
+  if(!CI.parsed.length){toast('❌ ยังไม่มีข้อมูล');return;}
+  var btn=document.getElementById('ci-save-btn');
+  btn.textContent='⏳ กำลังบันทึก...'; btn.disabled=true;
+  call('saveCheckin',{members:CI.parsed,date:CI.date,week:CI.week},function(err,r){
+    btn.textContent='💾 บันทึกลง Sheet'; btn.disabled=false;
+    if(r&&r.ok){toast('✅ บันทึก '+r.saved+' คน สัปดาห์ '+r.week);loadCheckinHistory();loadMatchingWeeks();}
+    else toast('❌ '+(err?err.message:r.error));
+  });
+}
+
+function loadCheckinHistory(){
+  call('getCheckinLog',{},function(err,r){
+    if(err||!r.ok||!r.weeks||!r.weeks.length) return;
+    var sel=document.getElementById('ci-week-sel');
+    sel.innerHTML=r.weeks.map(function(w){
+      return '<option value="'+w.week+'"'+(w.week===r.currentWeek?' selected':'')+'>สัปดาห์ '+w.week+' ('+w.count+' คน)</option>';
+    }).join('');
+    document.getElementById('ci-history').style.display='block';
+    ciLoadWeek(r.currentWeek);
+  });
+}
+
+function ciLoadWeek(week){
+  call('getCheckinLog',{week:week},function(err,r){
+    if(err||!r.ok) return;
+    document.getElementById('ci-week-list').innerHTML=r.members.map(function(m){
+      var isSub=m.status==='ตัวแทน';
+      return '<div class="cm'+(isSub?' sub':'')+'">'+
+        '<div style="flex:1"><div class="cm-name">'+m.name+'</div>'+
+        '<div class="cm-lf">'+(m.looking_for||'—')+'</div></div>'+
+        '<span class="cm-badge '+(isSub?'sub':'real')+'">'+(isSub?'Sub':'สมาชิก')+'</span></div>';
+    }).join('');
+  });
+}
+
+// ── Matching Functions ────────────────────────────────────────
+function loadMatchingWeeks(){
+  call('getCheckinLog',{},function(err,r){
+    if(err||!r.ok||!r.weeks||!r.weeks.length) return;
+    var sel=document.getElementById('match-week-sel');
+    if(!sel) return;
+    sel.innerHTML=r.weeks.map(function(w){
+      return '<option value="'+w.week+'"'+(w.week===r.currentWeek?' selected':'')+'>สัปดาห์ '+w.week+' ('+w.count+' คน)</option>';
+    }).join('');
+  });
+}
+
+function runMatching(){
+  var week=document.getElementById('match-week-sel').value;
+  if(!week){toast('❌ เลือกสัปดาห์ก่อนครับ');return;}
+  var btn=document.getElementById('match-btn');
+  btn.textContent='⏳ กำลังวิเคราะห์...'; btn.disabled=true;
+  document.getElementById('match-result').innerHTML='<div class="lt">⏳ กำลังวิเคราะห์ Looking For...<br>ใช้เวลาไม่กี่วินาทีครับ</div>';
+
+  call('getCheckinLog',{week:week},function(err,r){
+    if(err||!r.ok){btn.textContent='🔗 วิเคราะห์คู่ 1-2-1';btn.disabled=false;toast('❌ โหลดข้อมูลไม่ได้');return;}
+    call('getAIMatching',{members:r.members,week:week},function(err2,r2){
+      btn.textContent='🔗 วิเคราะห์คู่ 1-2-1'; btn.disabled=false;
+      if(err2||!r2.ok){
+        document.getElementById('match-result').innerHTML='<div class="empty">❌ '+(err2?err2.message:r2.error)+'</div>';
+        return;
+      }
+      var html='';
+      if(r2.summary) html+='<div class="match-summary">📊 '+r2.summary+'</div>';
+      if(!r2.matches||!r2.matches.length){
+        html+='<div class="empty"><div class="empty-i">🤔</div>ไม่พบคู่ที่ Looking For ตรงกันสัปดาห์นี้</div>';
+      } else {
+        html+='<div class="sh">คู่แนะนำ ('+r2.matches.length+' คู่)</div>';
+        html+=r2.matches.map(function(m){
+          var pc=m.priority==='high'?'high':m.priority==='medium'?'medium':'low';
+          var pl=m.priority==='high'?'🔴 สำคัญ':m.priority==='medium'?'🟡 แนะนำ':'⬜ ทางเลือก';
+          return '<div class="match-card '+pc+'">'+
+            '<div class="match-names">'+m.person_a+' <span>↔</span> '+m.person_b+'</div>'+
+            '<div class="match-lf">A: '+m.lf_a+'</div>'+
+            '<div class="match-lf">B: '+m.lf_b+'</div>'+
+            '<div class="match-reason">'+m.reasons.join(' · ')+'</div>'+
+            '<div class="match-meta">'+
+              '<span class="match-priority priority-'+pc+'">'+pl+'</span>'+
+              (m.cross_team?'<span class="cross-badge">🔀 ข้ามทีม</span>':'')+
+              '<span style="font-size:.62rem;color:var(--gray2);margin-left:auto;">'+m.mentor_a+' ↔ '+m.mentor_b+'</span>'+
+            '</div></div>';
+        }).join('');
+      }
+      document.getElementById('match-result').innerHTML=html;
+    });
+  });
+}
+// ── Reports (MC) ─────────────────────────────────────────────
+var RPT={all:[],filter:'all',statusFilter:'all'};
+var RPT_IDX={};  // เก็บ team/row/memberName แยกต่างหาก ไม่ต้อง escape ใน onclick
+
+function loadReports(){
+  document.getElementById('rpt-list').innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
+  call('getReports',{},function(err,r){
+    if(err||!r.ok){
+      document.getElementById('rpt-list').innerHTML='<div class="rpt-empty">❌ '+(err?err.message:r.error)+'</div>';
+      return;
+    }
+    RPT.all=r.reports||[];
+    renderReports();
+  });
+}
+
+function setRptFilter(f,btn){
+  RPT.filter=f;
+  document.querySelectorAll('#rpt-filter .fb').forEach(function(b){b.classList.remove('on');});
+  btn.classList.add('on');
+  renderReports();
+}
+function setRptStatus(s,btn){
+  RPT.statusFilter=s;
+  document.querySelectorAll('.rpt-filter-status .fb').forEach(function(b){b.classList.remove('on');});
+  btn.classList.add('on');
+  renderReports();
+}
+
+function renderReports(){
+  var list=RPT.filter==='all'?RPT.all:RPT.all.filter(function(r){return r.team.toLowerCase()===RPT.filter;});
+  if(RPT.statusFilter!=='all'){
+    list=list.filter(function(r){
+      var s=r.status||'';
+      if(RPT.statusFilter==='open')    return !r.reply&&s!=='done';
+      if(RPT.statusFilter==='replied') return r.reply&&s!=='done';
+      if(RPT.statusFilter==='done')    return s==='done';
+      return true;
+    });
+  }
+  if(!list.length){
+    document.getElementById('rpt-list').innerHTML='<div class="rpt-empty"><div style="font-size:1.5rem;margin-bottom:.5rem;">📭</div>ไม่พบรายงานในตัวกรองนี้</div>';
+    return;
+  }
+  document.getElementById('rpt-list').innerHTML=list.map(function(r,i){return buildRptCard(r,i);}).join('');
+}
+
+function buildRptCard(r,idx){
+  var isDone   = r.status==='done';
+  var hasReply = !!(r.reply&&r.reply.trim());
+  var cardClass= isDone?'done':hasReply?'replied':'no-reply';
+  var scoreColor=r.score>=70?'var(--green)':r.score>=50?'var(--yellow)':'var(--red)';
+  var tl       = r.score>=70?'🟢':r.score>=50?'🟡':r.score>=30?'🔴':'⚫';
+
+  // เก็บ data ใน RPT_IDX แทนการใส่ใน onclick string โดยตรง
+  RPT_IDX[idx] = { team: r.team, row: r.row, memberName: r.memberName };
+
+  var replySection='';
+  if(isDone){
+    replySection=
+      '<div class="rpt-reply-box"><div class="rpt-reply-label">✅ MC ตอบแล้ว</div>'
+      +'<div class="rpt-text">'+escHtml(r.reply)+'</div></div>'
+      +'<div class="rpt-done-banner">'
+      +'<div><div class="rpt-done-txt">✅ ปิดเคสแล้ว</div>'
+      +'<div class="rpt-done-at">'+escHtml(r.doneAt)+'</div></div>'
+      +'<button class="btn-reopen" id="rbtn-'+idx+'" onclick="setStatus('+idx+',\'reopened\')">↩ Reopen</button>'
+      +'</div>';
+  } else if(hasReply){
+    replySection=
+      '<div class="rpt-reply-box"><div class="rpt-reply-label">💬 Reply ที่ส่งแล้ว</div>'
+      +'<div class="rpt-text">'+escHtml(r.reply)+'</div></div>'
+      +'<button class="btn-done green" id="rbtn-'+idx+'" onclick="setStatus('+idx+',\'done\')">✅ ปิดเคสนี้</button>';
+  } else {
+    replySection=
+      '<div class="rpt-reply-box"><div class="rpt-reply-label">💬 ตอบกลับ Mentor</div>'
+      +'<textarea class="rpt-reply-input" id="reply-'+idx+'" placeholder="พิมพ์ข้อความถึง Mentor '+escHtml(r.team)+'..."></textarea>'
+      +'<button class="btn-reply" id="rbtn-'+idx+'" onclick="submitReply('+idx+')">ส่ง Reply →</button>'
+      +'</div>';
+  }
+
+  // History section (collapsed by default)
+  var histSection = '';
+  if(r.history && r.history.length > 0){
+    var histId = 'rpt-hist-'+idx;
+    var hLines = r.history.map(function(h){
+      return '<div style="border-left:2px solid var(--border);padding:.3rem .5rem;margin-bottom:.3rem;opacity:.7;">'
+        +'<div style="font-size:.62rem;color:var(--gray);">'+escHtml(h.savedAt||'')+(h.closedAt?' → ✅ '+escHtml(h.closedAt):'')+'</div>'
+        +'<div style="font-size:.72rem;">'+escHtml(h.coreIssue||'')+'</div>'
+        +(h.actionTaken?'<div style="font-size:.68rem;color:var(--gray2);">Action: '+escHtml(h.actionTaken)+'</div>':'')
+        +'</div>';
+    }).join('');
+    histSection = '<div style="margin-top:.3rem;">'
+      +'<button onclick="var e=document.getElementById(\''+histId+'\');e.style.display=e.style.display===\'none\'?\'block\':\'none\'" '
+      +'style="background:none;border:none;color:var(--gray2);font-size:.65rem;cursor:pointer;font-family:Sarabun,sans-serif;padding:0;">📜 ประวัติ '+r.history.length+' รายการก่อนหน้า ▾</button>'
+      +'<div id="'+histId+'" style="display:none;margin-top:.3rem;">'+hLines+'</div>'
+      +'</div>';
+  }
+
+  return '<div class="rpt-card '+cardClass+'">'
+    +'<div class="rpt-meta"><span class="rpt-team-badge">'+escHtml(r.team)+'</span>'
+    +'<span>'+escHtml(r.savedAt||'')+'</span></div>'
+    +'<div class="rpt-member">'+escHtml(r.memberName)
+    +(r.nick?' <span style="font-size:.75rem;color:var(--gray2);">('+escHtml(r.nick)+')</span>':'')
+    +'<span class="rpt-score" style="color:'+scoreColor+';margin-left:.5rem;">'+tl+' '+r.score+'</span></div>'
+    +(r.coreIssue?'<div class="rpt-section"><div class="rpt-label">Core Issue</div><div class="rpt-text">'+escHtml(r.coreIssue)+'</div></div>':'')
+    +(r.actionTaken?'<div class="rpt-section"><div class="rpt-label">Action ที่ทำแล้ว</div><div class="rpt-text">'+escHtml(r.actionTaken)+'</div></div>':'')
+    +(r.plan?'<div class="rpt-section"><div class="rpt-label">แผนสัปดาห์ถัดไป</div><div class="rpt-text">'+escHtml(r.plan)+'</div></div>':'')
+    +histSection
+    +replySection+'</div>';
+}
+
+function submitReply(idx){
+  var d=RPT_IDX[idx];
+  if(!d){toast('❌ ไม่พบข้อมูล');return;}
+  var txt=document.getElementById('reply-'+idx);
+  var btn=document.getElementById('rbtn-'+idx);
+  if(!txt||!txt.value.trim()){toast('❌ กรุณาพิมพ์ข้อความก่อนครับ');return;}
+  btn.disabled=true; btn.textContent='⏳ กำลังส่ง...';
+  call('saveReply',{teamName:d.team,row:d.row,memberName:d.memberName,reply:txt.value.trim()},function(err,r){
+    if(r&&r.ok){
+      toast('✅ ส่ง Reply แล้ว');
+      loadReports();
+    } else {
+      btn.disabled=false; btn.textContent='ส่ง Reply →';
+      toast('❌ '+(err?err.message:r.error));
+    }
+  });
+}
+function setStatus(idx,status){
+  var d=RPT_IDX[idx];
+  if(!d){toast('❌ ไม่พบข้อมูล');return;}
+  var btn=document.getElementById('rbtn-'+idx);
+  if(btn){ btn.disabled=true; btn.textContent='⏳...'; }
+  call('setReportStatus',{teamName:d.team,row:d.row,memberName:d.memberName,status:status},
+    function(err,r){
+      if(r&&r.ok){
+        var label=status==='done'?'✅ ปิดเคสแล้ว':'↩ Reopen แล้ว';
+        toast(label);
+        loadReports();
+      } else {
+        if(btn){ btn.disabled=false; btn.textContent=status==='done'?'✅ ปิดเคสนี้':'↩ Reopen'; }
+        toast('❌ '+(err?err.message:r.error));
+      }
+    });
+}
+
+function escHtml(s){
+  if(!s)return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+// ── New Members ───────────────────────────────────────────────
+var NM = { members: [], curFileUrl: '' };
+
+function loadNewMembers(appType) {
+  var listId = appType==='mc' ? 'mc-nm-list' : 'mentor-nm-list';
+  document.getElementById(listId).innerHTML = '<div class="lt">⏳ กำลังโหลด...</div>';
+
+  call('getNewMembers', {}, function(err, r) {
+    if (err || !r.ok) {
+      document.getElementById(listId).innerHTML = '<div class="empty">❌ ' + (err?err.message:r.error) + '</div>';
+      return;
+    }
+    NM.members = r.members;
+    if(r.debug) toast(r.debug, 8000);
+    renderNewMembers(appType, r.members);
+  });
+}
+
+function renderNewMembers(appType, members) {
+  var listId = appType==='mc' ? 'mc-nm-list' : 'mentor-nm-list';
+  var html = '';
+
+  if (appType === 'mc') {
+    html += '<button class="nm-add-btn" onclick="openNMForm()">➕ เพิ่มสมาชิกใหม่</button>';
+  }
+
+  if (!members.length) {
+    html += '<div class="empty"><div class="empty-i">👶</div>ยังไม่มีสมาชิกใหม่</div>';
+    document.getElementById(listId).innerHTML = html;
+    return;
+  }
+
+  html += members.map(function(m) {
+    var pct = m.progress || 0;
+    var initials = m.nick ? m.nick.slice(0,2) : m.name.slice(0,2);
+    var statusColor = pct >= 100 ? 'var(--green)' : pct > 0 ? 'var(--gold)' : 'var(--gray2)';
+    return '<div class="nm-card" onclick="openCL(\'' + encodeURIComponent(m.fileUrl) + '\',\'' + encodeURIComponent(m.name) + '\')">'
+      + '<div class="nm-card-top">'
+      + '<div class="nm-av">' + initials + '</div>'
+      + '<div style="flex:1">'
+      + '<div class="nm-name">' + escHtml(m.name) + ' (' + escHtml(m.nick) + ')</div>'
+      + '<div class="nm-meta">Mentor: ' + escHtml(m.mentor) + ' · เริ่ม ' + escHtml(m.startDate) + ' · ครบ 8W: ' + escHtml(m.w8Date) + '</div>'
+      + '</div>'
+      + '<div style="text-align:right;font-size:.8rem;font-weight:700;color:' + statusColor + '">' + pct + '%</div>'
+      + '</div>'
+      + '<div class="nm-progress-wrap">'
+      + '<div class="nm-progress-bar"><div class="nm-progress-fill" style="width:' + pct + '%"></div></div>'
+      + '<div class="nm-progress-txt"><span>' + escHtml(m.status) + '</span><span>หมดอายุ ' + escHtml(m.expDate) + '</span></div>'
+      + '</div></div>';
+  }).join('');
+
+  document.getElementById(listId).innerHTML = html;
+}
+
+// ── Checklist Panel ───────────────────────────────────────────
+function openCL(encodedUrl, encodedName) {
+  var fileUrl  = decodeURIComponent(encodedUrl);
+  var name     = decodeURIComponent(encodedName);
+  NM.curFileUrl = fileUrl;
+
+  document.getElementById('cl-title').textContent = name;
+  document.getElementById('cl-sheet-link').href = fileUrl;
+  document.getElementById('cl-content').innerHTML = '<div class="lt">⏳ กำลังโหลด Checklist...</div>';
+  document.getElementById('clPanel').classList.add('on');
+
+  call('getNMChecklist', { fileUrl: fileUrl }, function(err, r) {
+    if (err || !r.ok) {
+      document.getElementById('cl-content').innerHTML = '<div class="empty">❌ ' + (err?err.message:r.error) + '</div>';
+      return;
+    }
+    renderChecklist(r);
+  });
+}
+
+function closeCL() {
+  document.getElementById('clPanel').classList.remove('on');
+}
+
+function renderChecklist(d) {
+  var progColor = d.pct >= 100 ? '#10B981' : d.pct >= 50 ? '#F59E0B' : '#8B5CF6';
+  var html = '<div class="cl-hero">'
+    + '<div class="cl-hero-name">' + escHtml(d.memberName) + ' (' + escHtml(d.nick) + ')</div>'
+    + '<div class="cl-hero-meta">Mentor: ' + escHtml(d.mentor) + ' · เริ่ม ' + escHtml(d.startDate) + '</div>'
+    + '<div class="cl-prog">'
+    + '<div class="cl-prog-bar"><div class="cl-prog-fill" style="width:' + d.pct + '%"></div></div>'
+    + '<div class="cl-prog-txt"><span>✅ ' + d.done + '/' + d.total + ' tasks</span><span style="color:' + progColor + ';font-weight:700;">' + d.pct + '%</span></div>'
+    + '</div></div>';
+
+  // Group tasks by phase
+  var phases = {};
+  var phaseOrder = [];
+  d.tasks.forEach(function(t) {
+    if (!phases[t.phase]) { phases[t.phase] = []; phaseOrder.push(t.phase); }
+    phases[t.phase].push(t);
+  });
+
+  phaseOrder.forEach(function(phase) {
+    html += '<div class="cl-phase">' + escHtml(phase) + '</div>';
+    phases[phase].forEach(function(t) {
+      var taskClass = t.pass ? 'passed' : t.nopass ? 'failed' : '';
+      var statusTxt = t.pass
+        ? '✅ ผ่านแล้ว' + (t.date ? ' · ' + t.date : '') + (t.by ? ' · โดย ' + t.by : '')
+        : t.nopass ? '❌ ยังไม่ผ่าน'
+        : '⏳ ' + escHtml(t.status);
+
+      html += '<div class="cl-task ' + taskClass + '" id="task-' + t.rowNum + '">'
+        + '<div class="cl-task-top">'
+        + (t.timeline ? '<span class="cl-task-tl">' + escHtml(t.timeline) + '</span>' : '')
+        + '<span class="cl-task-name">' + escHtml(t.task) + '</span>'
+        + '</div>'
+        + '<div class="cl-task-status">' + statusTxt + '</div>'
+        + '<div class="cl-task-actions">'
+        + '<button class="btn-pass' + (t.pass?' active':'') + '" onclick="tickTask(' + t.rowNum + ',true)">✅ Pass</button>'
+        + '<button class="btn-nopass' + (t.nopass?' active':'') + '" onclick="tickTask(' + t.rowNum + ',false)">❌ No Pass</button>'
+        + '<button class="btn-reset" onclick="tickTask(' + t.rowNum + ',null)">↺</button>'
+        + '</div>'
+        + (t.comment ? '<div class="cl-task-meta">💬 ' + escHtml(t.comment) + '</div>' : '')
+        + '</div>';
+    });
+  });
+
+  document.getElementById('cl-content').innerHTML = html;
+}
+
+function tickTask(rowNum, passVal) {
+  var btn = document.querySelector('#task-' + rowNum + ' .btn-pass');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+
+  call('saveNMCheckItem', {
+    fileUrl: NM.curFileUrl,
+    rowNum:  rowNum,
+    pass:    passVal
+  }, function(err, r) {
+    if (r && r.ok) {
+      toast('✅ บันทึกแล้ว');
+      // reload checklist
+      call('getNMChecklist', { fileUrl: NM.curFileUrl }, function(err2, r2) {
+        if (r2 && r2.ok) renderChecklist(r2);
+      });
+    } else {
+      toast('❌ ' + (err ? err.message : r.error));
+      if (btn) { btn.disabled = false; btn.textContent = '✅ Pass'; }
+    }
+  });
+}
+
+// ── Add New Member Form ───────────────────────────────────────
+function openNMForm() {
+  // set default date = today
+  var today = new Date();
+  var y = today.getFullYear();
+  var m = String(today.getMonth()+1).padStart(2,'0');
+  var d = String(today.getDate()).padStart(2,'0');
+  document.getElementById('nm-date').value = y + '-' + m + '-' + d;
+  document.getElementById('nmFormOverlay').classList.add('on');
+}
+
+function closeNMForm(e) {
+  if (!e || e.target === document.getElementById('nmFormOverlay')) {
+    document.getElementById('nmFormOverlay').classList.remove('on');
+  }
+}
+
+function submitNewMember() {
+  var name   = document.getElementById('nm-name').value.trim();
+  var nick   = document.getElementById('nm-nick').value.trim();
+  var biz    = document.getElementById('nm-biz').value.trim();
+  var mentor = document.getElementById('nm-mentor').value;
+  var date   = document.getElementById('nm-date').value;
+
+  if (!name || !nick || !mentor || !date) {
+    toast('❌ กรุณากรอกข้อมูลให้ครบ');
+    return;
+  }
+
+  var btn = document.getElementById('nm-submit-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ กำลังสร้างไฟล์...';
+
+  call('addNewMember', {
+    name: name, nick: nick, business: biz,
+    mentor: mentor, startDate: date
+  }, function(err, r) {
+    btn.disabled = false;
+    btn.textContent = '✅ สร้างและเพิ่มสมาชิก';
+
+    if (r && r.ok) {
+      toast('✅ เพิ่ม ' + r.name + ' แล้ว!', 3000);
+      document.getElementById('nmFormOverlay').classList.remove('on');
+      // clear form
+      ['nm-name','nm-nick','nm-biz'].forEach(function(id) {
+        document.getElementById(id).value = '';
+      });
+      document.getElementById('nm-mentor').value = '';
+      // reload list
+      loadNewMembers('mc');
+    } else {
+      toast('❌ ' + (err ? err.message : r.error));
+    }
+  });
+}
+
+function toggleMsg(row){
+  var dot = document.getElementById('mmdot-'+row);
+  var box = document.getElementById('mmbox-'+row);
+  if(!box) return;
+  var isOpen = box.style.display !== 'none';
+  box.style.display = isOpen ? 'none' : 'block';
+  dot.querySelector('span').textContent = isOpen ? '💬 MC มีข้อความ ▾' : '💬 MC มีข้อความ ▴';
+}
+
+function buildConvHistory(d){
+  var items = [];
+
+  // Core Issue จาก col X (array หรือ object เก่า)
+  if(d.coreIssue){
+    var ciArr = Array.isArray(d.coreIssue) ? d.coreIssue : [d.coreIssue];
+    ciArr.forEach(function(ci, idx){
+      if(!ci.coreIssue) return;
+      var isClosed = !!ci.closedAt;
+      var label = isClosed
+        ? '✅ Core Issue (ปิดแล้ว ' + ci.closedAt + ')'
+        : (idx < ciArr.length - 1 ? '📋 Core Issue (ก่อนหน้า)' : '🔴 Core Issue (ปัจจุบัน)');
+      items.push({
+        type: isClosed ? 'mc' : 'issue',
+        who: label,
+        txt: ci.coreIssue
+          + (ci.actionTaken ? '\n✦ Action: '+ci.actionTaken : '')
+          + (ci.plan        ? '\n✦ แผน: '+ci.plan           : ''),
+        time: ci.savedAt || ''
+      });
+    });
+  }
+
+  // MC Reply จาก col AA
+  if(d.mcReply){
+    var replies = d.mcReply.split(/\n\n+/);
+    replies.forEach(function(rep){
+      rep = rep.trim();
+      if(!rep) return;
+      var timeMatch = rep.match(/\[MC ([^\]]+)\]/);
+      var time = timeMatch ? timeMatch[1] : '';
+      var txt  = rep.replace(/^\[MC [^\]]+\]\n?/,'').trim();
+      if(txt) items.push({ type:'mc', who:'💬 MC (ตูมตาม)', txt:txt, time:time });
+    });
+  }
+
+  if(!items.length) return '';
+
+  var html = '<div class="sh">💬 ประวัติ MC ↔ Mentor</div><div class="conv-wrap">';
+  items.forEach(function(item){
+    html += '<div class="conv-item">'
+      +'<div class="conv-bubble '+item.type+'">'
+      +'<div class="conv-who '+item.type+'">'+escHtml(item.who)+'</div>'
+      +'<div class="conv-txt">'+escHtml(item.txt).replace(/\n/g,'<br>')+'</div>'
+      +(item.time?'<div class="conv-time">'+escHtml(item.time)+'</div>':'')
+      +'</div></div>';
+  });
+  html += '</div>';
+  return html;
+}
+// ── Power Teams ───────────────────────────────────────────────
+function loadPowerTeams(){
+  document.getElementById('g-pt-list').innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
+  call('getPowerTeams',{},function(err,r){
+    if(err||!r.ok){
+      document.getElementById('g-pt-list').innerHTML='<div class="empty">❌ '+(err?err.message:r.error)+'</div>';
+      return;
+    }
+    renderPowerTeams(r.teams);
+  });
+}
+
+function renderPowerTeams(teams){
+  var html = teams.map(function(t,idx){
+    var scoreColor = t.avgScore>=70?'var(--green)':t.avgScore>=50?'var(--yellow)':'var(--red)';
+    var fmt = function(n){ return n>=1000000?(n/1000000).toFixed(1)+'M':n>=1000?(n/1000).toFixed(0)+'K':n.toString(); };
+    var isUnassigned = t.id === 'unassigned';
+
+    // member chips
+    var chips = t.members.map(function(m){
+      var tl = m.tl==='green'?'green':m.tl==='yellow'?'yellow':m.tl==='red'?'red':m.tl==='black'?'black':'none';
+      return '<span class="pt-chip '+tl+'">'+(m.nick||m.name)+'</span>';
+    }).join('');
+
+    // in-team 1-2-1 suggestions (supports reasons[] array or legacy reason string)
+    var suggestHtml = '';
+    if(t.suggestions && t.suggestions.length){
+      suggestHtml = '<div class="pt-suggest-title">⚡ แนะนำ 1-2-1 ในกลุ่ม</div>';
+      suggestHtml += t.suggestions.map(function(s){
+        var reasonsArr = Array.isArray(s.reasons) ? s.reasons : (s.reason ? [s.reason] : []);
+        return '<div class="pt-suggest">'
+          +'<div class="pt-suggest-names">'+escHtml(s.a)+' <span>↔</span> '+escHtml(s.b)
+          +' <span style="font-size:.68rem;color:var(--gray2);">('+s.aScore+' · '+s.bScore+')</span></div>'
+          +'<div class="pt-suggest-reason">'+reasonsArr.map(escHtml).join('<br>')+'</div>'
+          +'<span class="pt-suggest-badge '+s.priority+'">'+(s.priority==='high'?'🔴 ด่วน':'🟣 แนะนำ')+'</span>'
+          +'</div>';
+      }).join('');
+    }
+
+    // cross-team synergy
+    var synergyHtml = '';
+    if(t.synergy && t.synergy.length){
+      synergyHtml = '<div class="pt-synergy-title">🔗 Synergy ข้ามกลุ่ม</div>';
+      synergyHtml += t.synergy.map(function(sy){
+        return '<div class="pt-synergy">'
+          +'<span class="pt-syn-icon">'+sy.partnerIcon+'</span>'
+          +'<div>'
+          +'<div class="pt-syn-name">'+escHtml(sy.partnerName)+'</div>'
+          +'<div class="pt-syn-desc">'+escHtml(sy.desc)+'</div>'
+          +(sy.suggestA&&sy.suggestB?'<div class="pt-syn-pair">แนะนำ: '+escHtml(sy.suggestA)+' ↔ '+escHtml(sy.suggestB)+'</div>':'')
+          +'</div>'
+          +'</div>';
+      }).join('');
+    }
+
+    return '<div class="pt-card'+(isUnassigned?' unassigned':'')+'">'
+      +'<div class="pt-hdr" onclick="togglePT('+idx+')">'
+      +'<span class="pt-icon">'+t.icon+'</span>'
+      +'<span class="pt-name">'+escHtml(t.name)+'</span>'
+      +'<span class="pt-count">'+t.count+' คน</span>'
+      +(t.redBlack>0?'<span style="background:rgba(239,68,68,.15);color:var(--red);font-size:.6rem;padding:2px 7px;border-radius:999px;">⚠️ '+t.redBlack+' แดง/ดำ</span>':'')
+      +(isUnassigned?'<span style="background:rgba(245,158,11,.15);color:var(--yellow);font-size:.6rem;padding:2px 7px;border-radius:999px;">ยังไม่จัดกลุ่ม</span>':'')
+      +'<span class="pt-toggle" id="pt-toggle-'+idx+'">▼</span>'
+      +'</div>'
+      +'<div class="pt-body" id="pt-body-'+idx+'">'
+      +'<div class="pt-stats">'
+      +'<div class="pt-stat"><div class="pt-stat-n" style="color:'+scoreColor+'">'+t.avgScore+'</div><div class="pt-stat-l">avg score</div></div>'
+      +'<div class="pt-stat"><div class="pt-stat-n" style="color:var(--green)">฿'+fmt(t.totalGiven)+'</div><div class="pt-stat-l">Given รวม</div></div>'
+      +'<div class="pt-stat"><div class="pt-stat-n" style="color:#60A5FA">฿'+fmt(t.totalRecv)+'</div><div class="pt-stat-l">Received รวม</div></div>'
+      +'</div>'
+      +'<div class="pt-members">'+chips+'</div>'
+      +suggestHtml
+      +synergyHtml
+      +'</div>'
+      +'</div>';
+  }).join('');
+
+  document.getElementById('g-pt-list').innerHTML = html;
+}
+
+function togglePT(idx){
+  var body    = document.getElementById('pt-body-'+idx);
+  var toggle  = document.getElementById('pt-toggle-'+idx);
+  var isOpen  = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  toggle.classList.toggle('open', !isOpen);
+}
+
+// ── MC Assignments ────────────────────────────────────────────
+function loadMCAssignments() {
+  document.getElementById('mc-assign-list').innerHTML = '<div class="lt">⏳ กำลังโหลด...</div>';
+  call('getMCAssignments', {}, function(err, r) {
+    if (err || !r || !r.ok) { document.getElementById('mc-assign-list').innerHTML = '<div class="lt">❌ '+(err?err.message:(r&&r.error)||'Error')+'</div>'; return; }
+    var list = r.assignments || [];
+    if (!list.length) { document.getElementById('mc-assign-list').innerHTML = '<div class="empty"><div class="empty-i">📌</div>ยังไม่มีงานที่มอบหมาย</div>'; return; }
+    document.getElementById('mc-assign-list').innerHTML = list.map(buildMCAssignCard).join('');
+  });
+}
+function buildMCAssignCard(a) {
+  var isPending = a.status === 'pending';
+  return '<div class="asgn-card '+(isPending?'pending':'done')+'">'+
+    '<div class="asgn-card-hdr">'+
+    '<span class="asgn-mentor-badge">🛡️ '+escHtml(a.mentor)+'</span>'+
+    (a.memberName?'<span class="asgn-member-badge">👤 '+escHtml(a.memberName)+'</span>':'')+
+    '<span class="asgn-status">'+(isPending?'⏳ Pending':'✅ Done')+'</span>'+
+    '</div>'+
+    '<div class="asgn-msg">'+escHtml(a.message)+'</div>'+
+    '<div class="asgn-meta">'+
+    '<span>🕐 '+escHtml(a.createdAt)+'</span>'+
+    (a.doneAt?'<span>✅ '+escHtml(a.doneAt)+'</span>':'')+
+    '</div></div>';
+}
+function submitMCAssignment() {
+  var mentor = document.getElementById('asgn-mentor').value;
+  var member = document.getElementById('asgn-member').value.trim();
+  var msg    = document.getElementById('asgn-msg').value.trim();
+  if (!mentor) { toast('❌ กรุณาเลือก Mentor'); return; }
+  if (!msg)    { toast('❌ กรุณาใส่รายละเอียดงาน'); return; }
+  call('createMCAssignment', { mentor:mentor, memberName:member, message:msg }, function(err, r) {
+    if (err || !r || !r.ok) { toast('❌ '+(err?err.message:(r&&r.error)||'Error')); return; }
+    toast('✅ ส่งงานให้ '+mentor+' แล้ว');
+    document.getElementById('asgn-mentor').value = '';
+    document.getElementById('asgn-member').value = '';
+    document.getElementById('asgn-msg').value = '';
+    loadMCAssignments();
+  });
+}
+
+function loadMentorAssignments() {
+  var el = document.getElementById('mentor-assign-list');
+  if (!el) return;
+  el.innerHTML = '<div class="lt">⏳ กำลังโหลด...</div>';
+  call('getMentorAssignments', {}, function(err, r) {
+    if (err || !r || !r.ok) { el.innerHTML = '<div class="lt">❌ '+(err?err.message:(r&&r.error)||'Error')+'</div>'; return; }
+    var list = (r.assignments || []).filter(function(a){ return a.status === 'pending'; });
+    if (!list.length) { el.innerHTML = '<div class="empty" style="padding:12px 0;"><div class="empty-i">📌</div>ไม่มีงานค้างอยู่</div>'; return; }
+    el.innerHTML = list.map(buildMentorAssignCard).join('');
+  });
+}
+function buildMentorAssignCard(a) {
+  return '<div class="asgn-card pending" style="margin-bottom:8px;">'+
+    '<div class="asgn-card-hdr">'+
+    (a.memberName?'<span class="asgn-member-badge">👤 '+escHtml(a.memberName)+'</span>':'')+
+    '<span class="asgn-status">⏳ '+escHtml(a.createdAt)+'</span>'+
+    '</div>'+
+    '<div class="asgn-msg">'+escHtml(a.message)+'</div>'+
+    '<div class="asgn-meta">'+
+    '<button class="asgn-ack-btn" onclick="ackAssignment('+a.row+',this)">✅ รับทราบ</button>'+
+    '</div></div>';
+}
+function ackAssignment(row, btn) {
+  btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...';
+  call('ackAssignment', { row:row }, function(err, r) {
+    if (err || !r || !r.ok) { toast('❌ '+(err?err.message:(r&&r.error)||'Error')); btn.disabled=false; btn.textContent='✅ รับทราบ'; return; }
+    toast('✅ รับทราบแล้ว');
+    loadMentorAssignments();
+  });
+}
+
+// ── BNI MEMBER Directory (Public) ────────────────────────────
+var DIR = { members:[], filter:'all', search:'' };
+
+function openDirectory() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('directoryScreen').style.display = 'flex';
+  if (!DIR.members.length) loadMemberDirectory();
+}
+function closeDirectory() {
+  document.getElementById('directoryScreen').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+}
+function loadMemberDirectory() {
+  document.getElementById('dir-list').innerHTML = '<div class="lt">⏳ กำลังโหลด...</div>';
+  call('getMemberDirectory', {}, function(err, r) {
+    if (err || !r || !r.ok) {
+      document.getElementById('dir-list').innerHTML = '<div class="lt">❌ ' + (err?err.message:(r&&r.error)||'Error') + '</div>';
+      return;
+    }
+    DIR.members = r.members || [];
+    renderDirectory();
+  });
+}
+function dirSetFilter(f, btn) {
+  DIR.filter = f;
+  document.querySelectorAll('.dir-fb').forEach(function(b){ b.classList.remove('on'); });
+  btn.classList.add('on');
+  renderDirectory();
+}
+function dirSearch(val) {
+  DIR.search = (val||'').toLowerCase().trim();
+  renderDirectory();
+}
+function renderDirectory() {
+  var all = DIR.members;
+  var counts = { green:0, yellow:0, red:0, black:0, none:0 };
+  all.forEach(function(m){ counts[m.tl] = (counts[m.tl]||0) + 1; });
+
+  document.getElementById('dir-stats').innerHTML =
+    '<div class="dir-stat"><div class="ds-n">'+all.length+'</div><div class="ds-l">ทั้งหมด</div></div>'+
+    '<div class="dir-stat"><div class="ds-n" style="color:#10B981">'+(counts.green||0)+'</div><div class="ds-l">🟢</div></div>'+
+    '<div class="dir-stat"><div class="ds-n" style="color:#F59E0B">'+(counts.yellow||0)+'</div><div class="ds-l">🟡</div></div>'+
+    '<div class="dir-stat"><div class="ds-n" style="color:#EF4444">'+(counts.red||0)+'</div><div class="ds-l">🔴</div></div>'+
+    '<div class="dir-stat"><div class="ds-n" style="color:#64748B">'+(counts.black||0)+'</div><div class="ds-l">⚫</div></div>';
+  document.getElementById('dir-htotal').textContent = all.length + ' สมาชิก';
+
+  var list = all.filter(function(m){
+    if (DIR.filter !== 'all' && m.tl !== DIR.filter) return false;
+    if (DIR.search) {
+      var s = DIR.search;
+      return m.name.toLowerCase().indexOf(s) >= 0 || (m.email && m.email.toLowerCase().indexOf(s) >= 0);
+    }
+    return true;
+  });
+
+  document.getElementById('dir-count').textContent = 'แสดง ' + list.length + ' คน';
+  if (!list.length) { document.getElementById('dir-list').innerHTML = '<div class="lt">ไม่พบสมาชิกที่ตรงเงื่อนไข</div>'; return; }
+  document.getElementById('dir-list').innerHTML = list.map(buildDirCard).join('');
+}
+function buildDirCard(m) {
+  var bg = avbg(m.tl), bc = tlc(m.tl);
+  var tlLabel = {green:'🟢',yellow:'🟡',red:'🔴',black:'⚫',none:'—'}[m.tl]||'—';
+  return '<div class="dir-card">'+
+    '<div class="dir-badge" style="background:'+bg+';border:1px solid '+bc+';">'+
+    '<div class="db-score" style="color:'+bc+'">'+(m.score||'—')+'</div>'+
+    '<div class="db-tl">'+tlLabel+'</div>'+
+    '</div>'+
+    '<div class="dir-info">'+
+    '<div class="dir-name">'+escHtml(m.name)+'</div>'+
+    (m.email?'<div class="dir-contact">✉️ <a href="mailto:'+escHtml(m.email)+'">'+escHtml(m.email)+'</a></div>':'')+
+    (m.phone?'<div class="dir-contact">📞 '+escHtml(m.phone)+'</div>':'')+
+    '</div></div>';
+}
+
+// ── Broadcast ─────────────────────────────────────────────────
+function sendBroadcast(){
+  var msg=document.getElementById('bc-msg').value.trim();
+  if(!msg){toast('❌ กรุณาใส่ข้อความ');return;}
+  call('sendBroadcast',{message:msg},function(err,r){
+    if(err||!r||!r.ok){toast('❌ '+(err?err.message:(r&&r.error)||'Error'));return;}
+    toast('📢 ส่ง Broadcast แล้ว '+r.sentAt);
+    document.getElementById('bc-msg').value='';
+    loadBroadcasts('mc');
+  });
+}
+function loadBroadcasts(appType){
+  var elId = appType==='mc'?'mc-broadcast-list':'mentor-broadcast-list';
+  var el = document.getElementById(elId);
+  if(!el) return;
+  el.innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
+  call('getBroadcasts',{},function(err,r){
+    if(err||!r||!r.ok){el.innerHTML='<div class="lt">❌ '+(err?err.message:(r&&r.error)||'Error')+'</div>';return;}
+    var list=r.broadcasts||[];
+    if(!list.length){el.innerHTML='<div class="empty" style="padding:12px 0;"><div class="empty-i">📢</div>ยังไม่มี Broadcast</div>';return;}
+    // Mentor sees only last 3; MC sees all
+    var show = appType==='mentor' ? list.slice(0,3) : list;
+    el.innerHTML=show.map(function(b){
+      return '<div class="bc-msg-card">'
+        +'<div class="bc-msg-text">'+escHtml(b.message).replace(/\n/g,'<br>')+'</div>'
+        +'<div class="bc-msg-time">📢 '+escHtml(b.sentAt)+'</div>'
+        +'</div>';
+    }).join('');
+  });
+}
+
+// ── Alert Center (MC) ──────────────────────────────────────────
+function loadAlertCenter(){
+  var el=document.getElementById('mc-alert-list');
+  el.innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
+  call('getAlertCenter',{},function(err,r){
+    if(err||!r||!r.ok){el.innerHTML='<div class="lt">❌ '+(err?err.message:(r&&r.error)||'Error')+'</div>';return;}
+    if(!r.alerts||!r.alerts.length){
+      el.innerHTML='<div class="empty"><div class="empty-i">✅</div>ไม่มี alerts ตอนนี้ ทุกอย่างปกติดี</div>';return;
+    }
+    var html='<div style="font-size:.72rem;color:var(--gray2);margin-bottom:.5rem;">พบ <strong style="color:var(--white)">'+r.total+'</strong> alerts</div>';
+    html+=r.alerts.map(function(a){
+      var scoreColor=a.tl==='green'?'var(--green)':a.tl==='yellow'?'var(--yellow)':a.tl==='red'||a.tl==='black'?'var(--red)':'var(--gray2)';
+      return '<div class="alert-card '+a.level+'">'
+        +'<div class="alert-hdr">'
+        +'<span class="alert-icon">'+a.icon+'</span>'
+        +'<div class="alert-name">'+escHtml(a.name.split(' ')[0])+'</div>'
+        +'<span class="alert-team">'+escHtml(a.team)+'</span>'
+        +(a.score?'<span style="font-size:.68rem;font-family:\'IBM Plex Mono\',monospace;color:'+scoreColor+'">'+a.score+'</span>':'')
+        +'</div>'
+        +'<div class="alert-detail">'+escHtml(a.detail)+'</div>'
+        +'</div>';
+    }).join('');
+    el.innerHTML=html;
+  });
+}
+
+// ── Mentor Performance (MC) ─────────────────────────────────────
+function loadMentorPerformance(){
+  var el=document.getElementById('mc-perf-content');
+  el.innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
+  call('getMentorPerformance',{},function(err,r){
+    if(err||!r||!r.ok){el.innerHTML='<div class="lt">❌ '+(err?err.message:(r&&r.error)||'Error')+'</div>';return;}
+    var html='';
+    (r.teams||[]).forEach(function(t){
+      var flag=t.statusFlag||'none';
+      var flagLabel=flag==='ok'?'✅ ดี':flag==='partial'?'⚠️ บางส่วน':flag==='stale'?'🔴 ค้างนาน':'— ยังไม่มี';
+      var upColor=t.scoreUp>0?'var(--green)':'var(--gray2)';
+      var dnColor=t.scoreDown>0?'var(--red)':'var(--gray2)';
+      html+='<div class="perf-card">'
+        +'<div class="perf-hdr">'
+        +'<div class="perf-team">🛡️ '+escHtml(t.team)+'</div>'
+        +'<span class="perf-flag '+flag+'">'+flagLabel+'</span>'
+        +'</div>'
+        +'<div class="perf-grid">'
+        +'<div class="perf-stat"><div class="perf-stat-n" style="color:'+upColor+'">'+t.scoreUp+'</div><div class="perf-stat-l">📈 ขึ้น</div></div>'
+        +'<div class="perf-stat"><div class="perf-stat-n" style="color:'+dnColor+'">'+t.scoreDown+'</div><div class="perf-stat-l">📉 ลง</div></div>'
+        +'<div class="perf-stat"><div class="perf-stat-n">'+t.openCount+'</div><div class="perf-stat-l">📋 Open Cases</div></div>'
+        +'<div class="perf-stat"><div class="perf-stat-n">'+t.reportCount+'</div><div class="perf-stat-l">✍️ รายงาน</div></div>'
+        +'<div class="perf-stat"><div class="perf-stat-n">'+(t.oldestOpenDays||0)+'</div><div class="perf-stat-l">⏰ วัน (oldest)</div></div>'
+        +'<div class="perf-stat"><div class="perf-stat-n">'+(t.daysSince!=null?t.daysSince:'—')+'</div><div class="perf-stat-l">📅 วันที่แล้วส่ง</div></div>'
+        +'</div>'
+        +(t.notReported&&t.notReported.length?'<div class="perf-no-report">⚠️ ยังไม่มี Core Issue: '+t.notReported.map(function(n){return n.split(' ')[0];}).join(', ')+'</div>':'')
+        +'</div>';
+    });
+    el.innerHTML=html||'<div class="lt">ไม่มีข้อมูล</div>';
+  });
+}
+
+// ── Meeting Prep (MC) ──────────────────────────────────────────
+function loadMeetingPrep(){
+  var el=document.getElementById('mc-meeting-content');
+  el.innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
+  call('getMeetingPrep',{},function(err,r){
+    if(err||!r||!r.ok){el.innerHTML='<div class="lt">❌ '+(err?err.message:(r&&r.error)||'Error')+'</div>';return;}
+    var s=r.stats||{};
+    var fmt=function(n){return n>=1000000?(n/1000000).toFixed(1)+'M':n>=1000?(n/1000).toFixed(0)+'K':String(n);};
+    var avgColor=s.avgScore>=70?'var(--green)':s.avgScore>=50?'var(--yellow)':'var(--red)';
+    var tc=s.tlCount||{};
+    var html='<div class="mp-announce">'
+      +'<div style="font-size:.72rem;font-weight:700;color:var(--gold);margin-bottom:.5rem;">📣 ตัวเลขประกาศในที่ประชุม</div>'
+      +'<div class="mp-ann-row"><span>จำนวนสมาชิก</span><span class="mp-ann-val">'+s.memberCount+' คน</span></div>'
+      +'<div class="mp-ann-row"><span>คะแนนเฉลี่ย</span><span class="mp-ann-val" style="color:'+avgColor+'">'+s.avgScore+'</span></div>'
+      +'<div class="mp-ann-row"><span>Given รวม</span><span class="mp-ann-val" style="color:var(--green)">฿'+fmt(s.totalGiven)+'</span></div>'
+      +'<div class="mp-ann-row"><span>Received รวม</span><span class="mp-ann-val" style="color:#60A5FA">฿'+fmt(s.totalRecv)+'</span></div>'
+      +'<div class="mp-ann-row"><span>TL 🟢/🟡/🔴/⚫</span><span class="mp-ann-val">'+(tc.green||0)+'/'+(tc.yellow||0)+'/'+(tc.red||0)+'/'+(tc.black||0)+'</span></div>'
+      +'</div>';
+
+    // Top givers
+    if(r.topGivers&&r.topGivers.length){
+      html+='<div class="mp-section"><div class="mp-title" style="color:var(--green)">🏆 Top Referral Givers</div>'
+        +'<div class="mp-chip-list">'
+        +r.topGivers.map(function(g,i){return '<span class="mp-chip">'+(i===0?'🥇':i===1?'🥈':'🥉')+' '+escHtml(g.name)+' ('+g.given+')</span>';}).join('')
+        +'</div></div>';
+    }
+
+    // No visitor
+    if(r.noVisitor&&r.noVisitor.length){
+      html+='<div class="mp-section"><div class="mp-title" style="color:var(--red)">👥 ยังไม่พา Visitor ('+r.noVisitor.length+' คน)</div>'
+        +'<div class="mp-chip-list">'
+        +r.noVisitor.map(function(n){return '<span class="mp-chip warn">'+escHtml(n)+'</span>';}).join('')
+        +'</div></div>';
+    }
+
+    // Pending TYFCB
+    if(r.pendingTYFCB&&r.pendingTYFCB.length){
+      html+='<div class="mp-section"><div class="mp-title" style="color:var(--yellow)">💬 ยังไม่ส่ง TYFCB ('+r.pendingTYFCB.length+' คน)</div>'
+        +'<div class="mp-chip-list">'
+        +r.pendingTYFCB.map(function(n){return '<span class="mp-chip">'+escHtml(n)+'</span>';}).join('')
+        +'</div></div>';
+    }
+
+    el.innerHTML=html;
+  });
+}
+
+// ── Chapter Pulse ──────────────────────────────────────────────
+var PULSE_DATA = null;
+function loadChapterPulse(){
+  var el = document.getElementById('g-pulse-content');
+  el.innerHTML = '<div class="lt">⏳ กำลังโหลด...</div>';
+  call('getChapterPulse',{},function(err,r){
+    if(err||!r||!r.ok){el.innerHTML='<div class="lt">❌ '+(err?err.message:(r&&r.error)||'Error')+'</div>';return;}
+    PULSE_DATA = r;
+    renderChapterPulse(r);
+  });
+}
+function renderChapterPulse(d){
+  var fmt=function(n){return n>=1000000?(n/1000000).toFixed(1)+'M':n>=1000?(n/1000).toFixed(0)+'K':String(n);};
+  var avgColor=d.avgScore>=70?'var(--green)':d.avgScore>=50?'var(--yellow)':'var(--red)';
+  var html='<div class="pulse-grid">'
+    +'<div class="pulse-stat"><div class="pulse-n" style="color:'+avgColor+'">'+d.avgScore+'</div><div class="pulse-l">คะแนนเฉลี่ย Chapter</div></div>'
+    +'<div class="pulse-stat"><div class="pulse-n">'+d.memberCount+'</div><div class="pulse-l">สมาชิกทั้งหมด</div></div>'
+    +'<div class="pulse-stat"><div class="pulse-n" style="color:var(--green)">฿'+fmt(d.totalGiven)+'</div><div class="pulse-l">Given รวม</div></div>'
+    +'<div class="pulse-stat"><div class="pulse-n" style="color:#60A5FA">฿'+fmt(d.totalRecv)+'</div><div class="pulse-l">Received รวม</div></div>'
+    +'</div>';
+  // TL distribution bar
+  var tc=d.tlCount, total=d.memberCount||1;
+  var tlCfg=[
+    {k:'green',label:'🟢 เขียว',color:'var(--green)'},
+    {k:'yellow',label:'🟡 เหลือง',color:'var(--yellow)'},
+    {k:'red',label:'🔴 แดง',color:'var(--red)'},
+    {k:'black',label:'⚫ ดำ',color:'#94A3B8'}
+  ];
+  html+='<div class="tl-bar-wrap"><div class="tl-bar-lbl">📊 Traffic Light Distribution</div>';
+  tlCfg.forEach(function(c){
+    var cnt=tc[c.k]||0;
+    var pct=Math.round(cnt/total*100);
+    html+='<div class="tl-bar-row">'
+      +'<div class="tl-bar-name">'+c.label+'</div>'
+      +'<div class="tl-bar-track"><div class="tl-bar-fill" style="width:'+pct+'%;background:'+c.color+';"></div></div>'
+      +'<div class="tl-bar-cnt" style="color:'+c.color+'">'+cnt+'</div>'
+      +'</div>';
+  });
+  html+='</div>';
+  // Movers
+  if(d.risers&&d.risers.length){
+    html+='<div class="mover-section"><div class="mover-title" style="color:var(--green)">📈 ขึ้นมาก</div>';
+    d.risers.forEach(function(m){
+      html+='<div class="mover-row">'
+        +'<span class="pt-chip '+m.tl+'" style="flex-shrink:0">'+escHtml(m.nick||m.name)+'</span>'
+        +'<span class="mover-nick">'+escHtml(m.name.split(' ')[0])+'</span>'
+        +'<span class="mover-delta up">+'+m.delta+' ('+m.prev+'→'+m.score+')</span>'
+        +'</div>';
+    });
+    html+='</div>';
+  }
+  if(d.fallers&&d.fallers.length){
+    html+='<div class="mover-section"><div class="mover-title" style="color:var(--red)">📉 ลงมาก</div>';
+    d.fallers.forEach(function(m){
+      html+='<div class="mover-row">'
+        +'<span class="pt-chip '+m.tl+'" style="flex-shrink:0">'+escHtml(m.nick||m.name)+'</span>'
+        +'<span class="mover-nick">'+escHtml(m.name.split(' ')[0])+'</span>'
+        +'<span class="mover-delta dn">'+m.delta+' ('+m.prev+'→'+m.score+')</span>'
+        +'</div>';
+    });
+    html+='</div>';
+  }
+  document.getElementById('g-pulse-content').innerHTML=html;
+}
+
+// ── Leaderboard ────────────────────────────────────────────────
+var LB = { members:[], sort:'given' };
+function loadLeaderboard(){
+  var el=document.getElementById('g-lb-list');
+  if(LB.members.length){renderLeaderboard();return;}
+  el.innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
+  call('getLeaderboard',{},function(err,r){
+    if(err||!r||!r.ok){el.innerHTML='<div class="lt">❌ '+(err?err.message:(r&&r.error)||'Error')+'</div>';return;}
+    LB.members=r.members||[];
+    renderLeaderboard();
+  });
+}
+function lbSort(by,btn){
+  LB.sort=by;
+  document.querySelectorAll('.lb-tab').forEach(function(b){b.classList.remove('on');});
+  btn.classList.add('on');
+  renderLeaderboard();
+}
+function renderLeaderboard(){
+  var ms=LB.members.slice().sort(function(a,b){return b[LB.sort==='recv'?'recv':LB.sort==='score'?'score':'given']-a[LB.sort==='recv'?'recv':LB.sort==='score'?'score':'given'];});
+  var maxVal=ms.length?ms[0][LB.sort==='recv'?'recv':LB.sort==='score'?'score':'given']||1:1;
+  var fmt=function(n){return n>=1000000?(n/1000000).toFixed(1)+'M':n>=1000?(n/1000).toFixed(0)+'K':String(n);};
+  var valKey=LB.sort==='recv'?'recv':LB.sort==='score'?'score':'given';
+  var barColor=LB.sort==='recv'?'#60A5FA':LB.sort==='score'?'var(--gold)':'var(--green)';
+  var html=ms.map(function(m,i){
+    var val=m[valKey]||0;
+    var pct=maxVal>0?Math.round(val/maxVal*100):0;
+    var rankClass=i===0?'gold':'';
+    return '<div class="lb-row">'
+      +'<div class="lb-rank '+rankClass+'">'+(i+1)+'</div>'
+      +'<span class="pt-chip '+m.tl+'" style="flex-shrink:0;">'+escHtml(m.nick||m.name.split(' ')[0])+'</span>'
+      +'<div class="lb-name">'+escHtml(m.name.split(' ')[0])+'</div>'
+      +'<div class="lb-bar-wrap"><div class="lb-bar-track"><div class="lb-bar-fill" style="width:'+pct+'%;background:'+barColor+';height:5px;border-radius:3px;"></div></div>'
+      +'<div style="font-size:.6rem;color:var(--gray2);margin-top:1px;">'+(LB.sort==='score'?val:('฿'+fmt(val)))+'</div></div>'
+      +'</div>';
+  }).join('');
+  document.getElementById('g-lb-list').innerHTML=html||'<div class="lt">ไม่มีข้อมูล</div>';
+}
+
+// ── Visitor Tracker ────────────────────────────────────────────
+function loadVisitorTracker(){
+  var el=document.getElementById('g-vis-content');
+  el.innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
+  call('getVisitorTracker',{},function(err,r){
+    if(err||!r||!r.ok){el.innerHTML='<div class="lt">❌ '+(err?err.message:(r&&r.error)||'Error')+'</div>';return;}
+    renderVisitorTracker(r);
+  });
+}
+function renderVisitorTracker(d){
+  var total=d.visitors?d.visitors.length:0;
+  var noVis=d.noVisitor?d.noVisitor.length:0;
+  var html='<div class="vis-summary">'
+    +'<div class="vis-stat"><div class="vis-n">'+d.withVisitor+'</div><div class="vis-l">พา Visitor แล้ว</div></div>'
+    +'<div class="vis-stat"><div class="vis-n" style="color:var(--red)">'+noVis+'</div><div class="vis-l">ยังไม่พา Visitor</div></div>'
+    +'<div class="vis-stat"><div class="vis-n">'+total+'</div><div class="vis-l">สมาชิกทั้งหมด</div></div>'
+    +'</div>';
+  // Members with visitors (sorted desc)
+  var withList=(d.visitors||[]).filter(function(v){return v.visitors>0;});
+  if(withList.length){
+    html+='<div style="font-size:.63rem;font-weight:700;color:var(--green);letter-spacing:.07em;text-transform:uppercase;margin-bottom:.4rem;">✅ พา Visitor แล้ว</div>';
+    html+=withList.map(function(v){
+      var met=v.visitors>=v.target;
+      return '<div class="vis-row">'
+        +'<span class="pt-chip '+v.tl+'" style="flex-shrink:0;">'+escHtml(v.name.split(' ')[0])+'</span>'
+        +'<div class="vis-name">'+escHtml(v.name.split(' ')[0])+'</div>'
+        +'<span class="vis-badge'+(met?'':' ')+'">'+v.visitors+' คน'+(met?' ✅':'')+'</span>'
+        +'</div>';
+    }).join('');
+  }
+  // Members with no visitors
+  if(noVis>0){
+    html+='<div class="vis-no-section"><div class="vis-no-title">⚠️ ยังไม่พา Visitor เลย ('+noVis+' คน)</div>';
+    html+=(d.noVisitor||[]).map(function(v){
+      return '<div class="vis-row">'
+        +'<span class="pt-chip '+v.tl+'" style="flex-shrink:0;">'+escHtml(v.name.split(' ')[0])+'</span>'
+        +'<div class="vis-name">'+escHtml(v.name.split(' ')[0])+'</div>'
+        +'<span class="vis-badge zero">0 คน</span>'
+        +'</div>';
+    }).join('');
+    html+='</div>';
+  }
+  document.getElementById('g-vis-content').innerHTML=html;
+}
+
+// ── Chapter Actions ────────────────────────────────────────────
+function loadChapterActions(){
+  var el=document.getElementById('g-ca-list');
+  el.innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
+  call('getChapterActions',{},function(err,r){
+    if(err||!r||!r.ok){el.innerHTML='<div class="lt">❌ '+(err?err.message:(r&&r.error)||'Error')+'</div>';return;}
+    renderChapterActions(r);
+  });
+}
+function renderChapterActions(d){
+  if(!d.actions||!d.actions.length){
+    document.getElementById('g-ca-list').innerHTML='<div class="empty"><div class="empty-i">✅</div>ไม่มี actions ด่วนสัปดาห์นี้ ทุกคนอยู่ในเกณฑ์ดี</div>';
+    return;
+  }
+  var html='<div style="font-size:.72rem;color:var(--gray2);margin-bottom:.5rem;">พบ <strong style="color:var(--white)">'+d.total+'</strong> คน ต้องการความช่วยเหลือ</div>';
+  html+=d.actions.map(function(a){
+    var scoreColor=a.tl==='green'?'var(--green)':a.tl==='yellow'?'var(--yellow)':a.tl==='red'?'var(--red)':'var(--gray2)';
+    return '<div class="ca-card '+a.topLevel+'">'
+      +'<div class="ca-hdr">'
+      +'<span class="pt-chip '+a.tl+'" style="flex-shrink:0;">'+escHtml(a.nick||a.name.split(' ')[0])+'</span>'
+      +'<div class="ca-name">'+escHtml(a.name.split(' ')[0])+'</div>'
+      +'<span class="ca-team">'+escHtml(a.team)+'</span>'
+      +'<span class="ca-score" style="color:'+scoreColor+'">'+a.score+'</span>'
+      +'</div>'
+      +'<div class="ca-alerts">'+a.alerts.map(function(al){return '<div class="ca-alert">'+al.icon+' '+escHtml(al.text)+'</div>';}).join('')+'</div>'
+      +'</div>';
+  }).join('');
+  document.getElementById('g-ca-list').innerHTML=html;
+}
+
+</script>
+<!-- Checklist Panel -->
+<div class="cl-panel" id="clPanel">
+  <div class="cl-hdr">
+    <button class="cl-back" onclick="closeCL()">←</button>
+    <div class="cl-title" id="cl-title">Checklist</div>
+    <a id="cl-sheet-link" href="#" target="_blank" style="font-size:.72rem;color:var(--gold);text-decoration:none;">📊 เปิด Sheet</a>
+  </div>
+  <div class="cl-content" id="cl-content"><div class="lt">⏳ กำลังโหลด...</div></div>
+</div>
+
+<!-- Add New Member Form -->
+<div class="nm-form-overlay" id="nmFormOverlay" onclick="closeNMForm(event)">
+  <div class="nm-form-box">
+    <div class="nm-form-title">➕ เพิ่มสมาชิกใหม่</div>
+    <div class="fg"><label class="fl">ชื่อ-นามสกุล</label><input class="fi" id="nm-name" placeholder="เช่น Somchai Jaidee"></div>
+    <div class="fg"><label class="fl">ชื่อเล่น</label><input class="fi" id="nm-nick" placeholder="เช่น ติ๊ก"></div>
+    <div class="fg"><label class="fl">ธุรกิจ</label><input class="fi" id="nm-biz" placeholder="เช่น ร้านยางรถยนต์"></div>
+    <div class="fg"><label class="fl">Mentor ที่ดูแล</label>
+      <select class="fs" id="nm-mentor">
+        <option value="">— เลือก Mentor —</option>
+        <option>TOOMTAM</option><option>Aof</option><option>Draft</option><option>PHAI</option><option>AMP</option>
+      </select>
+    </div>
+    <div class="fg"><label class="fl">วันเริ่มสมาชิก</label><input class="fi" type="date" id="nm-date"></div>
+    <button class="btn-p" id="nm-submit-btn" onclick="submitNewMember()">✅ สร้างและเพิ่มสมาชิก</button>
+  </div>
+</div>
+
+<div class="ver-footer" id="verFooter">BNI IDEAL Mentor System <span id="verNum">v—</span> | <span id="verDate">—</span></div>
+</body>
+</html>

@@ -1,0 +1,279 @@
+<!--
+  BNI IDEAL — CheckIn & AI Matching Extension
+  วางส่วนนี้เข้าใน index.html (index_v3.html) ดังนี้:
+
+  [CSS]  → วางต่อท้ายใน <style> ก่อน </style>
+  [HTML] → วางใน <div id="growthApp"> ต่อท้าย tab "g-strategy"
+           และเพิ่ม tab button ใหม่ใน .tabs ของ growthApp
+  [JS]   → วางต่อท้ายใน <script> ก่อน </script>
+-->
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- [CSS] เพิ่มใน <style>                                      -->
+<!-- ══════════════════════════════════════════════════════════ -->
+/*
+.upload-zone{border:2px dashed rgba(240,180,41,.3);border-radius:var(--r);padding:1.5rem;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:.625rem;}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--gold);background:rgba(240,180,41,.05);}
+.upload-zone input{display:none;}
+.upload-icon{font-size:2rem;margin-bottom:.5rem;}
+.upload-txt{font-size:.82rem;color:var(--gray2);}
+.upload-txt strong{color:var(--gold);}
+.checkin-member{display:flex;align-items:center;gap:.5rem;padding:.45rem .625rem;border-radius:8px;margin-bottom:.25rem;background:var(--bg3);}
+.checkin-member.sub{background:rgba(245,158,11,.08);border-left:2px solid var(--yellow);}
+.cm-name{font-size:.8rem;font-weight:600;flex:1;}
+.cm-lf{font-size:.67rem;color:var(--gray2);margin-top:1px;}
+.cm-badge{font-size:.6rem;padding:1px 6px;border-radius:999px;white-space:nowrap;flex-shrink:0;}
+.cm-badge.real{background:rgba(16,185,129,.15);color:var(--green);}
+.cm-badge.sub{background:rgba(245,158,11,.15);color:var(--yellow);}
+.match-card{background:var(--bg3);border-radius:12px;padding:.75rem;margin-bottom:.5rem;border-left:3px solid var(--gold);}
+.match-card.high{border-left-color:#EF4444;}
+.match-card.medium{border-left-color:#F0B429;}
+.match-card.low{border-left-color:#64748B;}
+.match-names{font-size:.85rem;font-weight:700;margin-bottom:4px;}
+.match-names span{color:var(--gold);}
+.match-reason{font-size:.75rem;color:var(--gray2);line-height:1.5;}
+.match-action{font-size:.75rem;color:var(--white);margin-top:5px;font-weight:600;}
+.match-priority{font-size:.6rem;padding:2px 8px;border-radius:999px;float:right;}
+.priority-high{background:rgba(239,68,68,.2);color:#EF4444;}
+.priority-medium{background:rgba(240,180,41,.2);color:var(--gold);}
+.priority-low{background:rgba(100,116,139,.2);color:#94A3B8;}
+.week-select{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:.575rem .8rem;color:var(--white);font-family:'Sarabun',sans-serif;font-size:.85rem;outline:none;margin-bottom:.625rem;}
+.ai-summary{background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.3);border-radius:var(--r);padding:.75rem;margin-bottom:.625rem;font-size:.8rem;color:#C4B5FD;line-height:1.6;}
+*/
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- [HTML tab button] เพิ่มใน .tabs ของ growthApp             -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--
+<button class="tb" onclick="gtab('checkin',this)"><span class="ti">📋</span>Check-In</button>
+<button class="tb" onclick="gtab('aimatching',this)"><span class="ti">🤖</span>AI Match</button>
+-->
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- [HTML pane] เพิ่มใน content ของ growthApp                 -->
+<!-- ══════════════════════════════════════════════════════════ -->
+
+<!-- Check-In Tab -->
+<div class="pane" id="g-checkin">
+  <!-- Upload Zone -->
+  <div class="upload-zone" id="checkin-upload-zone" onclick="document.getElementById('checkin-file').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleCheckinDrop(event)">
+    <input type="file" id="checkin-file" accept=".pdf" onchange="handleCheckinFile(this.files[0])">
+    <div class="upload-icon">📄</div>
+    <div class="upload-txt"><strong>กด หรือ ลาก PDF Check-In มาวาง</strong><br>ระบบจะ parse ชื่อ + Looking For อัตโนมัติ</div>
+  </div>
+
+  <!-- Parse Result -->
+  <div id="checkin-parse-result" style="display:none;">
+    <div class="card" style="margin-bottom:.5rem;">
+      <div class="ct">ผลการอ่าน PDF</div>
+      <div id="checkin-parse-summary" style="font-size:.8rem;margin-bottom:.625rem;"></div>
+      <button class="btn-p" onclick="saveCheckin()" id="checkin-save-btn">💾 บันทึกลง Sheet</button>
+    </div>
+    <div class="sh">รายชื่อที่อ่านได้</div>
+    <div id="checkin-member-list"></div>
+  </div>
+
+  <!-- History -->
+  <div id="checkin-history" style="display:none;">
+    <div class="sh" style="margin-top:.875rem;">ประวัติ Check-In</div>
+    <select class="week-select" id="checkin-week-select" onchange="loadCheckinWeek(this.value)"></select>
+    <div id="checkin-week-members"></div>
+  </div>
+</div>
+
+<!-- AI Matching Tab -->
+<div class="pane" id="g-aimatching">
+  <div class="card" style="background:rgba(139,92,246,.08);border-color:rgba(139,92,246,.3);margin-bottom:.625rem;">
+    <div style="font-size:.8rem;color:#A78BFA;line-height:1.6;">
+      🤖 <strong>AI 1-2-1 Matching</strong><br>
+      Claude วิเคราะห์ Looking For ของทุกคนในสัปดาห์นี้<br>
+      แล้วแนะนำคู่ที่ควร 1-2-1 กันพร้อมเหตุผล
+    </div>
+  </div>
+
+  <div class="fg">
+    <label class="fl">เลือกสัปดาห์</label>
+    <select class="week-select" id="ai-week-select"></select>
+  </div>
+
+  <button class="btn-p" onclick="runAIMatching()" id="ai-match-btn">🤖 วิเคราะห์ด้วย AI</button>
+
+  <div id="ai-matching-result" style="margin-top:.75rem;"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- [JS] เพิ่มใน <script>                                      -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<script>
+// ── CheckIn State ─────────────────────────────────────────────
+var CI = { parsed:[], date:'', week:'' };
+
+// ── gtab: เพิ่ม case checkin และ aimatching ──────────────────
+// ใน function gtab(tab, btn) เดิม เพิ่ม:
+// if (tab==='checkin') loadCheckinHistory();
+// if (tab==='aimatching') loadAIWeeks();
+
+// ── Handle File Upload ────────────────────────────────────────
+function handleCheckinDrop(e) {
+  e.preventDefault();
+  document.getElementById('checkin-upload-zone').classList.remove('drag');
+  var file = e.dataTransfer.files[0];
+  if (file && file.type === 'application/pdf') handleCheckinFile(file);
+  else toast('❌ กรุณาเลือกไฟล์ PDF เท่านั้น');
+}
+
+function handleCheckinFile(file) {
+  if (!file) return;
+  showLoad();
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var base64 = e.target.result.split(',')[1];
+    google.script.run
+      .withSuccessHandler(function(r) {
+        hideLoad();
+        if (!r.ok) { toast('❌ ' + r.error); return; }
+        CI.parsed = r.members;
+        CI.date   = r.date;
+        CI.week   = r.week;
+        renderCheckinParseResult(r);
+      })
+      .withFailureHandler(function(e) { hideLoad(); toast('❌ ' + e.message); })
+      .parseCheckinPDF(base64);
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderCheckinParseResult(r) {
+  var real = r.members.filter(function(m){ return m.status==='สมาชิก'; }).length;
+  var sub  = r.members.filter(function(m){ return m.status==='ตัวแทน'; }).length;
+
+  document.getElementById('checkin-parse-summary').innerHTML =
+    '📅 ' + r.date + ' (สัปดาห์ ' + r.week + ')<br>' +
+    '✅ สมาชิก: ' + real + ' คน | 🔄 ส่งแทน: ' + sub + ' คน | รวม: ' + r.members.length + ' คน';
+
+  document.getElementById('checkin-member-list').innerHTML = r.members.map(function(m) {
+    var isSub = m.status === 'ตัวแทน';
+    return '<div class="checkin-member' + (isSub?' sub':'') + '">' +
+      '<div style="flex:1"><div class="cm-name">' + m.name + (isSub ? ' <span style="font-size:.67rem;color:var(--yellow)">→ แทน ' + (m.sub_for||'?') + '</span>' : '') + '</div>' +
+      '<div class="cm-lf">' + (m.looking_for || '—') + '</div></div>' +
+      '<span class="cm-badge ' + (isSub?'sub':'real') + '">' + (isSub?'Sub':'สมาชิก') + '</span>' +
+      '</div>';
+  }).join('');
+
+  document.getElementById('checkin-parse-result').style.display = 'block';
+}
+
+function saveCheckin() {
+  if (!CI.parsed.length) { toast('❌ ยังไม่มีข้อมูลที่ parse แล้ว'); return; }
+  document.getElementById('checkin-save-btn').textContent = '⏳ กำลังบันทึก...';
+  document.getElementById('checkin-save-btn').disabled = true;
+
+  call('saveCheckin', { members:CI.parsed, date:CI.date, week:CI.week }, function(err, r) {
+    document.getElementById('checkin-save-btn').textContent = '💾 บันทึกลง Sheet';
+    document.getElementById('checkin-save-btn').disabled = false;
+    if (r && r.ok) {
+      toast('✅ บันทึก ' + r.saved + ' คน สัปดาห์ ' + r.week + ' แล้วครับ');
+      loadCheckinHistory();
+    } else {
+      toast('❌ ' + (err ? err.message : r.error));
+    }
+  });
+}
+
+function loadCheckinHistory() {
+  call('getCheckinLog', {}, function(err, r) {
+    if (err || !r.ok || !r.weeks.length) return;
+    var sel = document.getElementById('checkin-week-select');
+    sel.innerHTML = r.weeks.map(function(w) {
+      return '<option value="'+w.week+'"'+(w.week===r.currentWeek?' selected':'')+'>สัปดาห์ '+w.week+' ('+w.count+' คน)</option>';
+    }).join('');
+    document.getElementById('checkin-history').style.display = 'block';
+    loadCheckinWeek(r.currentWeek);
+    // โหลด week list สำหรับ AI tab ด้วย
+    loadAIWeeks(r.weeks, r.currentWeek);
+  });
+}
+
+function loadCheckinWeek(week) {
+  call('getCheckinLog', { week:week }, function(err, r) {
+    if (err || !r.ok) return;
+    document.getElementById('checkin-week-members').innerHTML = r.members.map(function(m) {
+      var isSub = m.status === 'ตัวแทน';
+      return '<div class="checkin-member' + (isSub?' sub':'') + '">' +
+        '<div style="flex:1"><div class="cm-name">' + m.name + '</div>' +
+        '<div class="cm-lf">' + (m.looking_for || '—') + '</div></div>' +
+        '<span class="cm-badge ' + (isSub?'sub':'real') + '">' + (isSub?'Sub':'สมาชิก') + '</span>' +
+        '</div>';
+    }).join('');
+  });
+}
+
+function loadAIWeeks(weeks, current) {
+  var sel = document.getElementById('ai-week-select');
+  if (!sel) return;
+  if (weeks) {
+    sel.innerHTML = weeks.map(function(w) {
+      return '<option value="'+w.week+'"'+(w.week===current?' selected':'')+'>สัปดาห์ '+w.week+' ('+w.count+' คน)</option>';
+    }).join('');
+  } else {
+    // โหลดจาก API ถ้าไม่ได้ส่งมา
+    call('getCheckinLog', {}, function(err, r) {
+      if (err || !r.ok) return;
+      sel.innerHTML = r.weeks.map(function(w) {
+        return '<option value="'+w.week+'"'+(w.week===r.currentWeek?' selected':'')+'>สัปดาห์ '+w.week+' ('+w.count+' คน)</option>';
+      }).join('');
+    });
+  }
+}
+
+function runAIMatching() {
+  var week = document.getElementById('ai-week-select').value;
+  if (!week) { toast('❌ เลือกสัปดาห์ก่อนครับ'); return; }
+
+  var btn = document.getElementById('ai-match-btn');
+  btn.textContent = '⏳ AI กำลังวิเคราะห์...';
+  btn.disabled = true;
+  document.getElementById('ai-matching-result').innerHTML = '<div class="lt">🤖 Claude กำลังอ่าน Looking For และวิเคราะห์คู่ที่เหมาะสม...<br>ใช้เวลาประมาณ 10-20 วินาทีครับ</div>';
+
+  // โหลดสมาชิกสัปดาห์นั้นก่อน แล้วส่งให้ AI
+  call('getCheckinLog', { week:week }, function(err, r) {
+    if (err || !r.ok) { btn.textContent='🤖 วิเคราะห์ด้วย AI'; btn.disabled=false; toast('❌ โหลดข้อมูลไม่ได้'); return; }
+
+    call('getAIMatching', { members:r.members, week:week }, function(err2, r2) {
+      btn.textContent = '🤖 วิเคราะห์ด้วย AI';
+      btn.disabled = false;
+
+      if (err2 || !r2.ok) {
+        document.getElementById('ai-matching-result').innerHTML = '<div class="empty">❌ ' + (err2 ? err2.message : r2.error) + '</div>';
+        return;
+      }
+
+      var html = '';
+
+      // Summary
+      if (r2.summary) {
+        html += '<div class="ai-summary">💡 ' + r2.summary + '</div>';
+      }
+
+      // Matches
+      if (!r2.matches || !r2.matches.length) {
+        html += '<div class="empty"><div class="empty-i">🤔</div>ไม่พบคู่ที่เหมาะสมในสัปดาห์นี้</div>';
+      } else {
+        html += '<div class="sh">คู่ที่แนะนำ (' + r2.matches.length + ' คู่)</div>';
+        html += r2.matches.map(function(m) {
+          var priClass = m.priority === 'high' ? 'high' : m.priority === 'medium' ? 'medium' : 'low';
+          var priLabel = m.priority === 'high' ? '🔴 สำคัญ' : m.priority === 'medium' ? '🟡 แนะนำ' : '⬜ ทางเลือก';
+          return '<div class="match-card ' + priClass + '">' +
+            '<span class="match-priority priority-' + priClass + '">' + priLabel + '</span>' +
+            '<div class="match-names">' + m.person_a + ' <span>↔</span> ' + m.person_b + '</div>' +
+            '<div class="match-reason">' + m.reason + '</div>' +
+            '<div class="match-action">⚡ ' + m.action + '</div>' +
+            '</div>';
+        }).join('');
+      }
+
+      document.getElementById('ai-matching-result').innerHTML = html;
+    });
+  });
+}
+</script>
