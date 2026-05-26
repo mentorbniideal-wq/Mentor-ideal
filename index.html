@@ -18,8 +18,14 @@
   --white:#F8FAFC;--border:rgba(255,255,255,0.07);
   --r:12px;
 }
+body.light{
+  --bg:#F1F5F9;--bg2:#FFFFFF;--bg3:#E2EAF4;--bg4:#D1DCEE;
+  --white:#0F172A;--border:rgba(0,0,0,0.08);
+  --gray:#64748B;--gray2:#475569;
+}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);min-height:100vh;overflow-x:hidden;}
+body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);min-height:100vh;overflow-x:hidden;transition:background .2s,color .2s;}
+.theme-btn{background:none;border:1px solid var(--border);color:var(--gray2);border-radius:8px;padding:4px 8px;font-size:.82rem;cursor:pointer;margin-right:.4rem;line-height:1.4;}
 #loader{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity .4s;}
 #loader.out{opacity:0;pointer-events:none;}
 .spin{width:28px;height:28px;border:2.5px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:sp .7s linear infinite;margin-top:1rem;}
@@ -94,6 +100,9 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
 .mi{flex:1;min-width:0;}
 .mn{font-size:.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .ms{font-size:.67rem;color:var(--gray2);}
+.mr-acts{display:flex;gap:4px;margin-top:4px;}
+.mr-act{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;background:var(--bg4);border:1px solid var(--border);font-size:.68rem;color:var(--gray);text-decoration:none;font-family:Sarabun,sans-serif;transition:background .1s;}
+.mr-act:active{background:rgba(240,180,41,.2);color:var(--gold);}
 .msc{font-family:'IBM Plex Mono',monospace;font-size:.88rem;font-weight:500;}
 .mt{font-size:.72rem;}
 .tld{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
@@ -108,6 +117,22 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
 .chart-svg{width:100%;height:100%;}
 .detail-panel{position:fixed;inset:0;background:var(--bg);z-index:200;overflow-y:auto;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);}
 .detail-panel.on{transform:translateX(0);}
+.notif-panel{position:fixed;inset:0;background:var(--bg);z-index:201;overflow-y:auto;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);}
+.notif-panel.on{transform:translateX(0);}
+.notif-bell-btn{position:relative;background:none;border:1px solid var(--border);color:var(--gray2);border-radius:8px;padding:4px 8px;font-size:.9rem;cursor:pointer;margin-right:.3rem;line-height:1.4;}
+.notif-count{position:absolute;top:-5px;right:-5px;background:#EF4444;color:#fff;font-size:.55rem;font-weight:700;border-radius:999px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 3px;}
+.notif-sec{font-size:.63rem;font-weight:700;color:var(--gray2);letter-spacing:.1em;text-transform:uppercase;margin:.8rem 0 .3rem;padding-top:.5rem;border-top:1px solid var(--border);}
+.notif-sec:first-of-type{border-top:none;margin-top:0;}
+.notif-item{display:flex;align-items:flex-start;gap:.55rem;padding:.55rem;background:var(--bg3);border-radius:9px;margin-bottom:.3rem;cursor:pointer;}
+.notif-item:active{background:rgba(240,180,41,.1);}
+.notif-item.emergency{border-left:3px solid #EF4444;}
+.notif-item.warning{border-left:3px solid #F59E0B;}
+.ni-icon{font-size:1.1rem;flex-shrink:0;margin-top:2px;}
+.ni-body{flex:1;min-width:0;}
+.ni-name{font-size:.8rem;font-weight:600;}
+.ni-detail{font-size:.68rem;color:var(--gray2);margin-top:1px;}
+.ni-team{font-size:.62rem;color:var(--gold);margin-top:2px;}
+.notif-badge-tab{display:inline-flex;align-items:center;justify-content:center;background:#EF4444;color:#fff;font-size:.52rem;font-weight:700;border-radius:999px;min-width:14px;height:14px;padding:0 3px;margin-left:3px;vertical-align:top;}
 .dp-hdr{background:var(--bg2);border-bottom:1px solid var(--border);padding:.6rem 1rem;display:flex;align-items:center;gap:.75rem;position:sticky;top:0;z-index:10;}
 .dp-back{background:none;border:none;color:var(--gray2);cursor:pointer;font-size:1.1rem;padding:4px;border-radius:8px;}
 .dp-title{font-size:.95rem;font-weight:700;flex:1;}
@@ -123,13 +148,14 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
 .action-btn:active{transform:scale(.97);}
 .action-btn.call{border-color:rgba(16,185,129,.3);color:var(--green);}
 .action-btn.mail{border-color:rgba(240,180,41,.3);color:var(--gold);}
-.kr{display:flex;align-items:center;gap:.55rem;padding:.45rem 0;border-bottom:1px solid var(--border);}
+.kr{display:flex;align-items:center;gap:.5rem;padding:.5rem 0;border-bottom:1px solid var(--border);}
 .kr:last-child{border-bottom:none;}
 .ki{font-size:.95rem;flex-shrink:0;width:20px;text-align:center;}
-.kl{font-size:.75rem;flex:1;}
-.kbw{width:68px;background:var(--bg3);border-radius:4px;height:5px;}
-.kb{height:5px;border-radius:4px;transition:width .5s ease;}
-.kv{font-family:'IBM Plex Mono',monospace;font-size:.67rem;color:var(--gray2);width:40px;text-align:right;}
+.kl{font-size:.75rem;flex-shrink:0;width:76px;}
+.kbw{flex:1;background:var(--bg3);border-radius:5px;height:8px;min-width:40px;overflow:hidden;}
+.kb{height:8px;border-radius:5px;transition:width .6s ease;min-width:2px;}
+.kv{font-family:'IBM Plex Mono',monospace;font-size:.67rem;color:var(--gray2);flex-shrink:0;width:44px;text-align:right;}
+.kpct{font-size:.62rem;font-weight:700;flex-shrink:0;width:30px;text-align:right;}
 .stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.375rem;margin-bottom:.5rem;}
 .stat-box{background:var(--bg3);border-radius:9px;padding:.6rem .5rem;text-align:center;}
 .stat-num{font-family:'IBM Plex Mono',monospace;font-size:1.1rem;font-weight:700;}
@@ -143,6 +169,9 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
 .ri{flex:1;}
 .rn{font-size:.82rem;font-weight:600;}
 .rd2{font-size:.67rem;color:var(--gray2);margin-top:1px;}
+.renew-btn{background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.4);border-radius:8px;color:#10B981;font-size:.7rem;font-family:Sarabun,sans-serif;padding:5px 9px;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+.renew-btn:active{background:rgba(16,185,129,.3);}
+.renew-btn:disabled{opacity:.45;cursor:default;}
 .mm{background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.2);border-radius:9px;padding:.7rem;margin-bottom:.325rem;}
 .mm-n{font-size:.77rem;font-weight:600;color:var(--gold);margin-bottom:3px;}
 .mm-t{font-size:.75rem;opacity:.9;line-height:1.5;}
@@ -240,6 +269,8 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
 .priority-medium{background:rgba(240,180,41,.2);color:var(--gold);}
 .priority-low{background:rgba(100,116,139,.2);color:#94A3B8;}
 .cross-badge{font-size:.6rem;padding:2px 7px;border-radius:999px;background:rgba(139,92,246,.2);color:#A78BFA;}
+.match-task-btn{background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);color:#10B981;border-radius:8px;padding:3px 8px;font-size:.62rem;cursor:pointer;margin-left:auto;font-family:Sarabun,sans-serif;}
+.match-task-btn:disabled{opacity:.5;cursor:default;}
 .week-sel{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:.575rem .8rem;color:var(--white);font-family:'Sarabun',sans-serif;font-size:.85rem;outline:none;margin-bottom:.625rem;}
 .match-summary{background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.3);border-radius:var(--r);padding:.75rem;margin-bottom:.625rem;font-size:.8rem;color:#C4B5FD;line-height:1.6;}
 /* ── Reports ── */
@@ -366,6 +397,9 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
 .nm-progress-txt{display:flex;justify-content:space-between;font-size:.62rem;color:var(--gray2);margin-top:3px;}
 .nm-add-btn{width:100%;background:rgba(139,92,246,.15);border:1px dashed rgba(139,92,246,.4);border-radius:var(--r);padding:.75rem;font-size:.85rem;font-weight:600;color:#A78BFA;font-family:'Sarabun',sans-serif;cursor:pointer;margin-bottom:.625rem;transition:all .15s;}
 .nm-add-btn:active{background:rgba(139,92,246,.25);}
+.nm-assign-btn{width:100%;margin-top:.5rem;background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.35);border-radius:var(--r);padding:.55rem;font-size:.8rem;font-weight:700;color:#10B981;font-family:'Sarabun',sans-serif;cursor:pointer;transition:all .15s;}
+.nm-assign-btn:active{background:rgba(16,185,129,.25);}
+.nm-assign-btn:disabled{opacity:.45;cursor:default;}
 /* Checklist Panel */
 .cl-panel{position:fixed;inset:0;background:var(--bg);z-index:250;overflow-y:auto;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);}
 .cl-panel.on{transform:translateX(0);}
@@ -672,6 +706,49 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
 .risk-spark{display:flex;align-items:flex-end;gap:2px;height:18px;flex-shrink:0;}
 .risk-bar{width:5px;border-radius:2px 2px 0 0;min-height:2px;}
 
+/* ── Theme A: BNI Executive Red ────────────────────────────── */
+:root{--bnired:#CC2229;--bnireds:rgba(204,34,41,.1);--bnibordr:rgba(204,34,41,.28);}
+#growthApp .hdr{background:linear-gradient(90deg,#0D1117 0%,#180A0A 100%);border-bottom:1px solid var(--bnibordr);}
+#growthApp .hdr-role{background:var(--bnired);}
+#growthApp .tabs{background:#0F1117;border-bottom:1px solid var(--bnibordr);}
+#growthApp .tb.on{color:#FF5555;border-bottom-color:var(--bnired);}
+/* Chapter Scorecard */
+.ch-sc{background:linear-gradient(135deg,#0F172A 0%,#170808 100%);border:1px solid var(--bnibordr);border-radius:var(--r);padding:.875rem;margin-bottom:.6rem;}
+.ch-sc-title{font-size:.58rem;font-weight:700;color:var(--bnired);letter-spacing:.14em;text-transform:uppercase;margin-bottom:.6rem;display:flex;align-items:center;gap:.5rem;}
+.ch-sc-title::after{content:'';flex:1;height:1px;background:var(--bnibordr);}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:.35rem;margin-bottom:.35rem;}
+.kpi-row.r3{grid-template-columns:repeat(3,1fr);}
+.kpi-box{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:9px;padding:.55rem .4rem;text-align:center;}
+.kpi-n{font-family:'IBM Plex Mono',monospace;font-size:1.1rem;font-weight:700;line-height:1;}
+.kpi-l{font-size:.53rem;color:var(--gray2);margin-top:3px;line-height:1.3;}
+/* Nudge Engine */
+.nudge-card{border-radius:var(--r);padding:.7rem;margin-bottom:.45rem;border-left:4px solid;}
+.nudge-card.p1{background:rgba(204,34,41,.09);border-color:var(--bnired);}
+.nudge-card.p2{background:rgba(245,158,11,.07);border-color:#F59E0B;}
+.nudge-card.p3{background:rgba(139,92,246,.07);border-color:#8B5CF6;}
+.nudge-card.p4{background:rgba(100,116,139,.07);border-color:#64748B;}
+.nudge-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.3rem;}
+.nudge-who{flex:1;}
+.nudge-name{font-size:.82rem;font-weight:700;}
+.nudge-team{font-size:.62rem;color:var(--gray2);margin-top:1px;}
+.nudge-issue{font-size:.75rem;line-height:1.55;color:var(--white);}
+.nudge-action{font-size:.7rem;color:var(--gold);font-weight:600;border-top:1px solid rgba(255,255,255,.06);padding-top:.35rem;margin-top:.4rem;}
+.nudge-quick-btn{background:rgba(204,34,41,.18);border:1px solid var(--bnibordr);border-radius:7px;color:#FF6B6B;font-size:.62rem;font-family:Sarabun,sans-serif;padding:3px 9px;cursor:pointer;flex-shrink:0;margin-top:2px;}
+/* Achievements */
+.ach-grid{display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin-bottom:.5rem;}
+.ach-card{background:linear-gradient(145deg,var(--bg2),var(--bg3));border:1px solid var(--border);border-radius:12px;padding:.75rem .6rem;text-align:center;position:relative;overflow:hidden;}
+.ach-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(204,34,41,.5),transparent);}
+.ach-medal{font-size:1.5rem;line-height:1;margin-bottom:.3rem;}
+.ach-cat{font-size:.55rem;color:var(--gray2);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.2rem;}
+.ach-name{font-size:.8rem;font-weight:700;line-height:1.3;}
+.ach-val{font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:var(--gold);margin-top:3px;}
+/* Weekly Summary */
+.sum-output{background:#060D14;border:1px solid var(--bnibordr);border-radius:var(--r);padding:.875rem;font-family:'IBM Plex Mono',monospace;font-size:.72rem;line-height:1.75;color:#E2E8F0;white-space:pre-wrap;word-break:break-word;margin-bottom:.625rem;max-height:55vh;overflow-y:auto;}
+.sum-copy-btn{width:100%;background:var(--bnired);color:#fff;border:none;border-radius:11px;padding:.7rem;font-size:.85rem;font-weight:700;font-family:Sarabun,sans-serif;cursor:pointer;transition:all .15s;margin-bottom:.5rem;}
+.sum-copy-btn:active{transform:scale(.98);opacity:.85;}
+.sum-gen-btn{width:100%;background:rgba(204,34,41,.15);border:1px solid var(--bnibordr);border-radius:11px;padding:.65rem;font-size:.85rem;font-weight:600;font-family:Sarabun,sans-serif;color:#FF6B6B;cursor:pointer;transition:all .15s;margin-bottom:.5rem;}
+.sum-gen-btn:active{transform:scale(.98);}
+
 /* ── MC Assignments ────────────────────────────────────────── */
 .asgn-form{background:var(--card);border-radius:12px;padding:14px;margin-bottom:14px;border:1px solid var(--border);}
 .asgn-form .ct{font-size:14px;font-weight:700;color:var(--accent);margin-bottom:10px;}
@@ -720,7 +797,125 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
 .dir-entry-btn:active{opacity:.75;}
 .dir-entry-btn .deb-icon{font-size:26px;flex-shrink:0;}
 .dir-eb-label{font-size:14px;font-weight:700;color:var(--text);}
+.dir-acts{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;}
+.dir-act{display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;background:rgba(255,255,255,.06);border:1px solid var(--border);font-size:.72rem;color:var(--gray2);text-decoration:none;font-family:Sarabun,sans-serif;transition:background .1s;}
+.dir-act:active{background:rgba(240,180,41,.2);color:var(--gold);}
+#dirProfilePanel{position:fixed;inset:0;background:var(--bg);z-index:201;transform:translateX(100%);transition:transform .25s ease;display:flex;flex-direction:column;overflow:hidden;}
+#dirProfilePanel.on{transform:translateX(0);}
+.dpp-hdr{background:#131E2D;padding:14px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.dpp-back{background:rgba(255,255,255,.1);border:none;color:var(--text);border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;font-family:Sarabun,sans-serif;}
+.dpp-title{font-size:15px;font-weight:700;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.dpp-body{flex:1;overflow-y:auto;padding:16px;}
+.dpp-hero{display:flex;align-items:center;gap:14px;background:var(--card);border-radius:14px;padding:16px;margin-bottom:14px;border:1px solid var(--border);}
+.dpp-badge{width:76px;height:76px;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;}
+.dpp-iname{font-size:1.05rem;font-weight:700;line-height:1.3;}
+.dpp-nick{font-size:.85rem;color:var(--muted);margin-top:2px;}
+.dpp-mentor{font-size:.78rem;color:var(--muted);margin-top:5px;background:rgba(255,255,255,.06);border-radius:8px;padding:2px 7px;display:inline-block;}
+.dpp-actions{display:flex;flex-direction:column;gap:10px;}
+.dpp-btn{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;text-decoration:none;color:var(--text);transition:opacity .15s;}
+.dpp-btn:active{opacity:.7;}
+.dpp-btn.call{border-color:rgba(16,185,129,.35);}
+.dpp-btn.email{border-color:rgba(96,165,250,.35);}
+.dpp-btn-icon{font-size:1.4rem;flex-shrink:0;}
+.dpp-btn-info{flex:1;min-width:0;}
+.dpp-btn-label{font-size:.9rem;font-weight:600;}
+.dpp-btn-sub{font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .dir-entry-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+
+/* ── Power Team Revenue View ── */
+.pt-chapter-bar{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:.75rem;margin-bottom:.625rem;}
+.pt-chapter-title{font-size:.63rem;font-weight:700;color:var(--gray2);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.4rem;}
+.pt-chapter-nums{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.35rem;}
+.pt-chapter-recv{font-size:1.05rem;font-weight:700;color:var(--white);}
+.pt-chapter-goal{font-size:.73rem;color:var(--gray2);}
+.pt-chapter-pct{font-size:1.25rem;font-weight:700;color:var(--gold);}
+.pt-bar-track{background:rgba(255,255,255,.07);border-radius:999px;height:7px;overflow:hidden;margin-bottom:.35rem;}
+.pt-bar-fill{height:100%;border-radius:999px;transition:width .4s ease;}
+.pt-chapter-meta{font-size:.67rem;color:var(--gray2);line-height:1.5;}
+.pt-team-card{border-radius:var(--r);border:1px solid var(--border);margin-bottom:.45rem;overflow:hidden;background:var(--bg2);}
+.pt-team-card.tl-green{border-color:rgba(16,185,129,.4);}
+.pt-team-card.tl-yellow{border-color:rgba(245,158,11,.35);}
+.pt-team-card.tl-red{border-color:rgba(239,68,68,.35);}
+.pt-team-hdr{display:flex;align-items:center;gap:.45rem;padding:.6rem .75rem;cursor:pointer;user-select:none;}
+.pt-team-hdr:active{background:rgba(255,255,255,.03);}
+.pt-team-name{font-size:.83rem;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pt-team-pct{font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;flex-shrink:0;}
+.pt-team-pct.tl-green{background:rgba(16,185,129,.15);color:#10B981;}
+.pt-team-pct.tl-yellow{background:rgba(245,158,11,.15);color:#F59E0B;}
+.pt-team-pct.tl-red{background:rgba(239,68,68,.15);color:#EF4444;}
+.pt-team-icon{font-size:.9rem;flex-shrink:0;}
+.pt-team-cnt{font-size:.67rem;color:var(--gray2);flex-shrink:0;}
+.pt-team-toggle{font-size:.6rem;color:var(--gray);transition:transform .2s;flex-shrink:0;}
+.pt-team-toggle.open{transform:rotate(180deg);}
+.pt-team-body{display:none;padding:0 .75rem .7rem;}
+.pt-team-body.open{display:block;}
+.pt-team-amounts{display:flex;justify-content:space-between;font-size:.68rem;color:var(--gray2);margin-bottom:.25rem;}
+.pt-section-label{font-size:.6rem;font-weight:700;color:var(--gray2);letter-spacing:.08em;text-transform:uppercase;margin:.45rem 0 .3rem;}
+.pt-member-row{display:flex;align-items:center;gap:.4rem;padding:.35rem .25rem;border-radius:7px;}
+.pt-member-row:nth-child(even){background:rgba(255,255,255,.025);}
+.pt-badge-tl{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.pt-member-nick{font-size:.8rem;font-weight:600;width:50px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pt-member-prof{font-size:.67rem;color:var(--gray2);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pt-member-pct{font-size:.7rem;font-weight:700;width:40px;text-align:right;flex-shrink:0;}
+.pt-member-recv{font-size:.63rem;color:var(--gray2);width:48px;text-align:right;flex-shrink:0;}
+.pt-refwk{font-size:.6rem;color:var(--yellow);width:50px;text-align:right;flex-shrink:0;}
+.pt-alerts-section{margin-top:.25rem;}
+.pt-alert-card{background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2);border-radius:9px;padding:.5rem .65rem;margin-bottom:.3rem;display:flex;align-items:center;gap:.45rem;}
+.pt-alert-nick{font-size:.8rem;font-weight:600;width:48px;flex-shrink:0;}
+.pt-alert-team{font-size:.65rem;color:var(--gray2);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pt-alert-pct{font-size:.8rem;font-weight:700;color:var(--red);width:40px;text-align:right;flex-shrink:0;}
+.pt-alert-refwk{font-size:.63rem;color:var(--yellow);width:56px;text-align:right;flex-shrink:0;}
+/* departed members */
+.pt-departed-toggle{font-size:.68rem;color:var(--gray2);background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:7px;padding:.3rem .6rem;cursor:pointer;margin:.35rem 0 .2rem;text-align:left;width:100%;font-family:'Sarabun',sans-serif;display:flex;justify-content:space-between;align-items:center;}
+.pt-departed-toggle:active{opacity:.7;}
+.pt-departed-body{display:none;}
+.pt-departed-body.open{display:block;}
+.pt-member-row.departed{opacity:.45;}
+.pt-member-row.departed .pt-member-nick{text-decoration:line-through;color:var(--gray);}
+.pt-departed-recv{font-size:.65rem;color:var(--gray2);padding:.2rem .25rem .35rem;border-top:1px solid var(--border);margin-top:.15rem;}
+/* chapter bar counters */
+.pt-chapter-tags{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.4rem;}
+.pt-chapter-tag{font-size:.62rem;padding:2px 8px;border-radius:999px;font-weight:600;}
+.pt-tag-active{background:rgba(16,185,129,.12);color:#10B981;}
+.pt-tag-departed{background:rgba(100,116,139,.15);color:#94A3B8;}
+/* refresh + toolbar */
+.pt-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;}
+.pt-toolbar-label{font-size:.63rem;font-weight:700;color:var(--gray2);letter-spacing:.08em;text-transform:uppercase;}
+.pt-refresh-btn{background:none;border:1px solid var(--border);border-radius:8px;color:var(--gray2);font-size:.7rem;cursor:pointer;padding:3px 9px;font-family:'Sarabun',sans-serif;}
+.pt-refresh-btn:active{opacity:.6;}
+/* filter + sort bar */
+.pt-filter-bar{display:flex;gap:.3rem;flex-wrap:wrap;align-items:center;margin:.45rem 0 .2rem;}
+.pt-filter-btn{font-size:.63rem;padding:3px 10px;border-radius:999px;border:1px solid var(--border);background:none;color:var(--gray2);cursor:pointer;font-family:'Sarabun',sans-serif;transition:background .15s;}
+.pt-filter-btn.active{background:var(--gold);color:#000;border-color:var(--gold);}
+.pt-sort-select{font-size:.63rem;padding:3px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--fg);font-family:'Sarabun',sans-serif;cursor:pointer;margin-left:auto;}
+/* toggle status button */
+.pt-status-btn{background:none;border:none;cursor:pointer;font-size:.82rem;padding:0 2px;line-height:1;flex-shrink:0;}
+.pt-status-btn:active{opacity:.4;}
+/* inline edit */
+.pt-edit-cell{cursor:pointer;position:relative;}
+.pt-edit-cell:hover{text-decoration:underline dotted;}
+.pt-edit-input{width:76px;font-size:.7rem;padding:2px 4px;border:1px solid var(--gold);border-radius:4px;background:var(--bg2);color:var(--fg);font-family:'Sarabun',sans-serif;text-align:right;}
+/* search box */
+.pt-search-wrap{position:relative;margin:.4rem 0 .2rem;}
+.pt-search-input{width:100%;box-sizing:border-box;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--fg);font-size:.78rem;padding:.38rem .7rem .38rem 1.8rem;font-family:'Sarabun',sans-serif;}
+.pt-search-input:focus{border-color:var(--gold);outline:none;}
+.pt-search-ico{position:absolute;left:.55rem;top:50%;transform:translateY(-50%);font-size:.72rem;pointer-events:none;}
+/* edit mode table */
+.pt-em-mode-btn{font-size:.7rem;padding:3px 11px;border-radius:8px;border:1px solid var(--border);background:none;color:var(--gray2);cursor:pointer;font-family:'Sarabun',sans-serif;margin-left:.4rem;}
+.pt-em-mode-btn.active{background:rgba(250,204,21,.12);border-color:var(--gold);color:var(--gold);}
+.pt-em-section{margin-bottom:.6rem;}
+.pt-em-header{font-size:.6rem;font-weight:700;color:var(--gray2);text-transform:uppercase;letter-spacing:.08em;padding:.4rem .25rem .15rem;border-top:1px solid var(--border);margin-top:.25rem;}
+.pt-em-row{background:var(--bg2);border-radius:10px;padding:.48rem .6rem;margin-bottom:.3rem;border:1px solid var(--border);}
+.pt-em-row.departed{opacity:.45;}
+.pt-em-row-top{display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem;}
+.pt-em-nick{flex:1;font-size:.78rem;font-weight:600;}
+.pt-em-team-sel{font-size:.65rem;padding:3px 5px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--fg);font-family:'Sarabun',sans-serif;max-width:130px;}
+.pt-em-row-bot{display:flex;gap:.4rem;align-items:center;}
+.pt-em-label{font-size:.58rem;color:var(--gray2);white-space:nowrap;}
+.pt-em-input{flex:1;min-width:0;font-size:.7rem;padding:3px 5px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--fg);font-family:'Sarabun',sans-serif;text-align:right;}
+.pt-em-input:focus{border-color:var(--gold);outline:none;}
+/* old power teams synergy section */
+.pt-synergy-sep{border:none;border-top:1px solid var(--border);margin:1rem 0 .5rem;}
 
 </style>
 </head>
@@ -769,6 +964,17 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
   </div>
 </div>
 
+<!-- BNI Member Profile Panel -->
+<div id="dirProfilePanel">
+  <div class="dpp-hdr">
+    <button class="dpp-back" onclick="closeDirProfile()">← กลับ</button>
+    <div class="dpp-title" id="dpp-name">Profile</div>
+  </div>
+  <div class="dpp-body">
+    <div id="dpp-content"></div>
+  </div>
+</div>
+
 <!-- PIN Modal -->
 <div class="overlay" id="pinModal" onclick="closePinOverlay(event)">
   <div class="pin-modal">
@@ -792,20 +998,22 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
 <div class="app" id="mcApp">
   <div class="hdr">
     <div class="hdr-l"><div class="hdr-logo">BNI <span>IDEAL</span></div><div class="hdr-role" id="mcRoleLbl">MC</div></div>
-    <button class="btn-out" onclick="logout()">ออก</button>
+    <div style="display:flex;align-items:center;"><button class="notif-bell-btn" id="notif-bell" onclick="openNotifPanel()">🔔<span class="notif-count" id="notif-total" style="display:none">0</span></button><button class="theme-btn" onclick="toggleTheme()" id="themeBtn">☀️</button><button class="btn-out" onclick="logout()">ออก</button></div>
   </div>
   <div class="tabs">
     <button class="tb on" onclick="mct('dashboard',this)"><span class="ti">📊</span>Dashboard</button>
     <button class="tb" onclick="mct('mentor',this)"><span class="ti">🎯</span>Mentor</button>
-    <button class="tb" onclick="mct('reports',this)"><span class="ti">📋</span>รายงาน</button>
+    <button class="tb" id="mc-rpt-tab" onclick="mct('reports',this)"><span class="ti">📋</span>รายงาน<span class="notif-badge-tab" id="rpt-badge" style="display:none">0</span></button>
     <button class="tb" onclick="mct('messages',this)"><span class="ti">💬</span>สื่อสาร</button>
     <button class="tb" onclick="mct('newmembers',this)"><span class="ti">👥</span>สมาชิก</button>
+    <button class="tb" onclick="mct('linesettings',this)"><span class="ti">🔔</span>LINE</button>
   </div>
   <div class="content">
     <!-- Dashboard -->
     <div class="pane on" id="mc-dashboard">
       <div id="mc-summary"></div>
       <div id="mc-mentor-activity"></div>
+      <div id="mc-121-summary"></div>
       <div id="mc-risk-monitor"></div>
       <div id="mc-alert-list" style="margin-bottom:.5rem;"></div>
       <div class="filter-bar" id="mc-filter">
@@ -866,6 +1074,9 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
         <div id="rpt-list"><div class="lt">⏳ กำลังโหลด...</div></div>
       </div>
       <div class="sub-pane" id="mcs-scorecard">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:.35rem;">
+          <button onclick="exportDashboardCSV()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 10px;font-size:.72rem;color:var(--gray2);cursor:pointer;">⬇️ Export CSV</button>
+        </div>
         <div id="mc-scorecard"><div class="lt">⏳ กำลังโหลด...</div></div>
       </div>
       <div class="sub-pane" id="mcs-renewal">
@@ -901,6 +1112,20 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
       <div id="mc-nm-list"><div class="lt">⏳ กำลังโหลด...</div></div>
     </div>
 
+    <!-- LINE Settings -->
+    <div class="pane" id="mc-linesettings">
+      <div class="sh">🔔 ตั้งค่า LINE Notification</div>
+      <div id="line-token-status" style="margin-bottom:.75rem;"></div>
+      <div class="card" style="background:rgba(6,182,212,.06);border-color:rgba(6,182,212,.25);margin-bottom:.75rem;font-size:.82rem;line-height:1.6;">
+        <b>วิธีหา LINE User ID:</b><br>
+        1. เพิ่ม LINE Official Account ของระบบเป็นเพื่อน<br>
+        2. พิมพ์ข้อความ <b>"myid"</b> ไปหา Bot<br>
+        3. Bot จะตอบกลับด้วย LINE User ID ของคุณ<br>
+        4. Copy ค่านั้นมาใส่ในช่องด้านล่าง
+      </div>
+      <div id="line-ids-form"><div class="lt">⏳ กำลังโหลด...</div></div>
+    </div>
+
   </div><!-- /content -->
 </div><!-- /mcApp -->
 
@@ -908,7 +1133,7 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
 <div class="app" id="mentorApp">
   <div class="hdr">
     <div class="hdr-l"><div class="hdr-logo">BNI <span>IDEAL</span></div><div class="hdr-role m" id="mentorRoleLbl">Mentor</div></div>
-    <button class="btn-out" onclick="logout()">ออก</button>
+    <div style="display:flex;align-items:center;"><button class="theme-btn" onclick="toggleTheme()">☀️</button><button class="btn-out" onclick="logout()">ออก</button></div>
   </div>
   <div class="tabs">
     <button class="tb on" onclick="mnt('myteam',this)"><span class="ti">👥</span>ทีมฉัน</button>
@@ -955,19 +1180,21 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
 <div class="app" id="growthApp">
   <div class="hdr">
     <div class="hdr-l"><div class="hdr-logo">BNI <span>IDEAL</span></div><div class="hdr-role" style="background:#8B5CF6;">Growth</div></div>
-    <button class="btn-out" onclick="logout()">ออก</button>
+    <div style="display:flex;align-items:center;"><button class="theme-btn" onclick="toggleTheme()">☀️</button><button class="btn-out" onclick="logout()">ออก</button></div>
   </div>
   <div class="tabs">
     <button class="tb on" onclick="gtab('dashboard',this)"><span class="ti">📈</span>Dashboard</button>
     <button class="tb" onclick="gtab('analytics',this)"><span class="ti">📊</span>Analytics</button>
     <button class="tb" onclick="gtab('activity',this)"><span class="ti">⚡</span>Activity</button>
-    <button class="tb" onclick="gtab('gstrategy',this)"><span class="ti">🤝</span>Strategy</button>
     <button class="tb" onclick="gtab('ops',this)"><span class="ti">🛠</span>Ops</button>
+    <button class="tb" onclick="gtab('powerteam',this)"><span class="ti">⚡</span>Power Team</button>
   </div>
   <div class="content">
     <!-- Dashboard -->
     <div class="pane on" id="g-dashboard">
+      <div id="g-chapter-scorecard"></div>
       <div id="g-summary"></div>
+      <div id="g-121-summary"></div>
       <div class="filter-bar" id="g-filter">
         <button class="fb on" onclick="setGFilter('all',this)">ทั้งหมด</button>
         <button class="fb" onclick="setGFilter('highGiverLowRecv',this)">🔴 ต้องช่วย</button>
@@ -977,14 +1204,18 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
       <div id="g-members"><div class="lt">⏳ กำลังโหลด...</div></div>
     </div>
 
-    <!-- Analytics: Chapter Pulse + Leaderboard -->
+    <!-- Analytics: Chapter Pulse + Leaderboard + Achievements -->
     <div class="pane" id="g-analytics">
       <div class="stabs">
-        <button class="stb on" onclick="gsub('pulse',this)">📊 Chapter Pulse</button>
-        <button class="stb" onclick="gsub('leaderboard',this)">🏆 Leaderboard</button>
+        <button class="stb on" onclick="gsub('pulse',this)">📊 Pulse</button>
+        <button class="stb" onclick="gsub('leaderboard',this)">🏆 Board</button>
+        <button class="stb" onclick="gsub('achievements',this)">🎖 Awards</button>
       </div>
       <div class="sub-pane on" id="gs-pulse">
         <div id="g-pulse-content"><div class="lt">⏳ กำลังโหลด...</div></div>
+      </div>
+      <div class="sub-pane" id="gs-achievements">
+        <div id="g-ach-content"><div class="lt">⏳ กำลังโหลด...</div></div>
       </div>
       <div class="sub-pane" id="gs-leaderboard">
         <div class="lb-tabs">
@@ -1013,56 +1244,53 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
       </div>
     </div>
 
-    <!-- Strategy: 1-2-1 + Power Team -->
-    <div class="pane" id="g-gstrategy">
-      <div class="stabs">
-        <button class="stb on" onclick="gsub('121',this)">🤝 1-2-1</button>
-        <button class="stb" onclick="gsub('powerteam',this)">💪 Power Team</button>
-      </div>
-      <div class="sub-pane on" id="gs-121">
-        <div class="card" style="background:rgba(139,92,246,.08);border-color:rgba(139,92,246,.3);margin-bottom:.75rem;">
-          <div style="font-size:.8rem;color:#A78BFA;line-height:1.6;">💡 <strong>1-2-1 Strategy</strong><br>จับคู่สมาชิกกลุ่ม 🔴 กับกลุ่มที่มีธุรกิจเชื่อมกัน เพื่อเพิ่มโอกาสรับ Referral กลับมา</div>
-        </div>
-        <div id="g-strategy-list"><div class="lt">⏳ กำลังโหลด...</div></div>
-      </div>
-      <div class="sub-pane" id="gs-powerteam">
-        <div class="card" style="background:rgba(139,92,246,.08);border-color:rgba(139,92,246,.3);margin-bottom:.625rem;">
-          <div style="font-size:.8rem;color:#A78BFA;line-height:1.6;">⚡ <strong>Power Team</strong><br>กลุ่มอาชีพที่ควรส่ง Referral ให้กัน และแนะนำคู่ 1-2-1 ที่ควรทำด่วน</div>
-        </div>
-        <div id="g-pt-list"><div class="lt">⏳ กำลังโหลด...</div></div>
-      </div>
-    </div>
-
-    <!-- Ops: Check-In + Tasks -->
+    <!-- Ops: Check-In + Tasks + Nudges + Summary -->
     <div class="pane" id="g-ops">
       <div class="stabs">
         <button class="stb on" onclick="gsub('checkin',this)">📋 Check-In</button>
         <button class="stb" onclick="gsub('tasks',this)">🎯 Tasks</button>
+        <button class="stb" onclick="gsub('nudges',this)">🔔 Nudges</button>
+        <button class="stb" onclick="gsub('gweeksummary',this)">📱 Summary</button>
       </div>
       <div class="sub-pane on" id="gs-checkin">
-        <div class="card" style="margin-bottom:.5rem;">
-          <div class="ct">📋 วาง text การเช็คอิน</div>
-          <div style="font-size:.75rem;color:var(--gray2);margin-bottom:.5rem;line-height:1.6;">
-            รองรับ 2 format อัตโนมัติ:<br>
-            <span style="color:var(--gold)">① Raw text</span> — copy จาก PDF/ระบบ BNI ตรงๆ<br>
-            <span style="color:var(--gold)">② CSV จาก Gemini</span> — ชื่อ,สมาชิก,,Looking For
-          </div>
-          <textarea class="ft" id="ci-textarea" rows="8" placeholder="วาง text เช็คอิน BNI ที่นี่&#10;&#10;ตัวอย่าง Raw text:&#10;1 : Ittipon Setthawattananon (สมาชิก)&#10;Looking for : ผู้รับเหมาก่อสร้าง&#10;&#10;ตัวอย่าง CSV:&#10;Ittipon,สมาชิก,,ผู้รับเหมา"></textarea>
-          <button class="btn-p" style="margin-top:.5rem;" onclick="ciParse()">📋 อ่านข้อมูล</button>
+        <!-- Upload Button -->
+        <div class="card" style="margin-bottom:.5rem;text-align:center;">
+          <div class="ct">📋 นำเข้าข้อมูล Check-In</div>
+          <div style="font-size:.75rem;color:var(--gray2);margin-bottom:.75rem;">เลือกไฟล์ .csv จากระบบ BNI (IDEAL-Check-in-YYYY-MM-DD.csv)</div>
+          <input type="file" id="ci-file-input" accept=".csv" style="display:none" onchange="ciFileSelected(event)">
+          <button class="btn-p" onclick="document.getElementById('ci-file-input').click()" style="max-width:240px;margin:0 auto;">
+            📂 เลือกไฟล์ .csv
+          </button>
+          <div id="ci-filename" style="font-size:.72rem;color:var(--gray2);margin-top:.5rem;min-height:1em;"></div>
         </div>
+        <!-- Preview (หลัง upload) -->
         <div id="ci-result" style="display:none">
           <div class="card" style="margin-bottom:.5rem;">
-            <div class="ct">ผลการอ่าน PDF</div>
+            <div class="ct">ผลการอ่าน CSV</div>
             <div id="ci-summary" style="font-size:.8rem;color:var(--gray2);margin-bottom:.625rem;"></div>
-            <button class="btn-p" id="ci-save-btn" onclick="ciSave()">💾 บันทึกลง Sheet</button>
+            <div style="display:flex;gap:.5rem;">
+              <button class="btn-p" id="ci-save-btn" onclick="ciSave()" style="flex:1">💾 บันทึกลง Sheet</button>
+              <button style="flex:0 0 auto;background:var(--bg3);border:1px solid var(--border);border-radius:11px;padding:.5rem .75rem;color:var(--gray2);font-family:Sarabun,sans-serif;font-size:.8rem;cursor:pointer;" onclick="ciReset()">✕ ล้าง</button>
+            </div>
           </div>
-          <div class="sh">รายชื่อ</div>
+          <div class="sh">รายชื่อที่อ่านได้</div>
           <div id="ci-list"></div>
         </div>
+        <!-- History + Matching -->
         <div id="ci-history" style="display:none">
-          <div class="sh" style="margin-top:.875rem;">ประวัติ Check-In</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin:.875rem 0 .35rem;">
+            <div class="sh" style="margin:0;">ประวัติ Check-In</div>
+          </div>
           <select class="week-sel" id="ci-week-sel" onchange="ciLoadWeek(this.value)"></select>
           <div id="ci-week-list"></div>
+          <div id="ci-absent-section"></div>
+          <!-- AI Matching Card -->
+          <div class="card" style="margin-top:.75rem;background:rgba(139,92,246,.06);border-color:rgba(139,92,246,.25);">
+            <div class="ct" style="color:#A78BFA;">🔗 วิเคราะห์คู่ 1-2-1 (AI)</div>
+            <div style="font-size:.75rem;color:var(--gray2);margin-bottom:.625rem;line-height:1.6;">AI อ่าน Looking For แล้วแนะนำว่าใครควร 1-2-1 กับใคร<br>เพื่อสร้าง Referral ให้กันได้</div>
+            <button class="btn-p" id="match-btn" onclick="runMatching()" style="background:#7C3AED;">🔗 วิเคราะห์คู่ 1-2-1 สัปดาห์นี้</button>
+          </div>
+          <div id="match-result"></div>
         </div>
       </div>
       <div class="sub-pane" id="gs-tasks">
@@ -1074,7 +1302,41 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
         </div>
         <div id="g-tasks-list"><div class="lt">⏳ กำลังโหลด...</div></div>
       </div>
+      <div class="sub-pane" id="gs-nudges">
+        <div class="card" style="background:var(--bnireds);border-color:var(--bnibordr);margin-bottom:.5rem;">
+          <div style="font-size:.72rem;color:#FF6B6B;line-height:1.6;">🔔 <strong>Smart Nudge Engine</strong><br>วิเคราะห์จากข้อมูล R2Y — แสดงสมาชิกที่ต้องการความช่วยเหลือ เรียงตามความเร่งด่วน</div>
+        </div>
+        <div id="g-nudges-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+      </div>
+      <div class="sub-pane" id="gs-gweeksummary">
+        <div class="card" style="background:var(--bnireds);border-color:var(--bnibordr);margin-bottom:.5rem;">
+          <div style="font-size:.72rem;color:#FF6B6B;line-height:1.6;">📱 <strong>Weekly Summary Card</strong><br>สร้างสรุปสัปดาห์นี้สำหรับ Share ใน LINE Group Chapter</div>
+        </div>
+        <button class="sum-gen-btn" onclick="genWeeklySummary()">⚡ สร้าง Summary ใหม่</button>
+        <div id="g-sum-output" style="display:none">
+          <div id="g-sum-text" class="sum-output"></div>
+          <button class="sum-copy-btn" onclick="copyGSummary()">📋 Copy สำหรับ LINE</button>
+        </div>
+      </div>
     </div>
+
+    <!-- Power Team Revenue View -->
+    <div class="pane" id="g-powerteam">
+      <div class="stabs">
+        <button class="stb on" onclick="gptab('revenue',this)">💰 Revenue</button>
+        <button class="stb" onclick="gptab('synergy',this)">💡 1-2-1 Synergy</button>
+      </div>
+      <div class="sub-pane on" id="gs-ptrevenue">
+        <div id="pt-chapter-bar"><div class="lt">⏳ กำลังโหลด...</div></div>
+        <div id="pt-teams-list"></div>
+        <div id="pt-alerts-list"></div>
+      </div>
+      <div class="sub-pane" id="gs-ptsynergy">
+        <div id="syn-toolbar"></div>
+        <div id="g-pt-list"></div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -1087,9 +1349,19 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
   <div class="dp-content" id="dp-content"><div class="lt">⏳ กำลังโหลด...</div></div>
 </div>
 
+<div class="notif-panel" id="notifPanel">
+  <div class="dp-hdr">
+    <button class="dp-back" onclick="closeNotifPanel()">←</button>
+    <div class="dp-title">🔔 ศูนย์แจ้งเตือน</div>
+    <button onclick="loadNotifPanel()" style="background:none;border:none;color:var(--gray2);font-size:.72rem;cursor:pointer;font-family:Sarabun,sans-serif;">🔄</button>
+  </div>
+  <div class="dp-content" id="notif-content"><div class="lt">⏳ กำลังโหลด...</div></div>
+</div>
+
 <script>
 var S={role:null,isMC:false,teamName:null,displayName:null,pin:'',pending:null,allMembers:[],teamMembers:[],curFilter:'all',curMFilter:'all',curMentorFilter:'all'};
-var GS={members:[],curFilter:'all',loaded:false,taskFilter:'all'};
+var GS={members:[],curFilter:'all',loaded:false,taskFilter:'all',lastSummary:null};
+var CI_WEEK_DATA=[];
 
 function call(action,params,cb){
   var p=Object.assign({},params||{});
@@ -1103,6 +1375,8 @@ function avbg(tl){return tl==='green'?'rgba(16,185,129,.2)':tl==='yellow'?'rgba(
 function bc(pct){return pct>=100?'#10B981':pct>=60?'#F59E0B':'#EF4444';}
 function gcol(g){return g==='A'?{bg:'rgba(16,185,129,.2)',c:'#10B981'}:g==='B'?{bg:'rgba(96,165,250,.2)',c:'#60A5FA'}:g==='C'?{bg:'rgba(245,158,11,.2)',c:'#F59E0B'}:{bg:'rgba(239,68,68,.2)',c:'#EF4444'};}
 function fmt(n){if(!n)return '0';if(n>=1000000)return (n/1000000).toFixed(1)+'M';if(n>=1000)return (n/1000).toFixed(0)+'K';return n.toString();}
+(function(){try{if(localStorage.getItem('bni_theme')==='light')document.body.classList.add('light');}catch(e){}})();
+function toggleTheme(){var isLight=document.body.classList.toggle('light');document.querySelectorAll('.theme-btn').forEach(function(b){b.textContent=isLight?'🌙':'☀️';});try{localStorage.setItem('bni_theme',isLight?'light':'dark');}catch(e){}}
 function toast(msg,dur){var el=document.getElementById('toast');el.textContent=msg;el.classList.add('on');setTimeout(function(){el.classList.remove('on');},dur||2000);}
 function showLoad(){document.getElementById('loader').classList.remove('out');}
 function hideLoad(){document.getElementById('loader').classList.add('out');}
@@ -1156,11 +1430,14 @@ function enterApp(r){
     document.getElementById('mcApp').classList.add('on');
     loadDashboard();
     loadMentorActivity();
+    load121Summary();
     loadRiskMonitor();
     loadAlertCenter();
+    loadNotifBadge();
   } else if(r.role==='growth'){
     document.getElementById('growthApp').classList.add('on');
     loadGrowthData();
+    load121Summary();
   } else {
     document.getElementById('mentorRoleLbl').textContent=r.displayName;
     document.getElementById('mentorApp').classList.add('on');
@@ -1184,6 +1461,7 @@ function mct(tab,btn){
   if(tab==='reports'){loadReports();}
   if(tab==='messages'){loadBroadcasts('mc');loadMessages('mc');loadMcMsgForm();loadMCAssignments();}
   if(tab==='newmembers'){loadNewMembers('mc');}
+  if(tab==='linesettings'){loadLineSettings();}
 }
 function mcsub(sub,btn){
   var par=btn.parentElement.parentElement;
@@ -1205,8 +1483,16 @@ function gtab(tab,btn){
   document.getElementById('g-'+tab).classList.add('on');
   if(tab==='analytics'){loadChapterPulse();}
   if(tab==='activity'){loadVisitorTracker();}
-  if(tab==='gstrategy'){renderStrategy();}
   if(tab==='ops'){loadCheckinHistory();}
+  if(tab==='powerteam'){PT_SYN_LOADED=false;loadGrowthPowerTeams();}
+}
+var PT_SYN_LOADED=false;
+function gptab(sub,btn){
+  document.querySelectorAll('#g-powerteam .stb').forEach(function(b){b.classList.remove('on');});
+  btn.classList.add('on');
+  document.querySelectorAll('#g-powerteam .sub-pane').forEach(function(p){p.classList.remove('on');});
+  document.getElementById(sub==='revenue'?'gs-ptrevenue':'gs-ptsynergy').classList.add('on');
+  if(sub==='synergy'&&!PT_SYN_LOADED)loadPowerTeamsSynergy();
 }
 function gsub(sub,btn){
   var par=btn.parentElement.parentElement;
@@ -1218,10 +1504,11 @@ function gsub(sub,btn){
   if(sub==='leaderboard')loadLeaderboard();
   if(sub==='visitors')loadVisitorTracker();
   if(sub==='chapteractions')loadChapterActions();
-  if(sub==='121')renderStrategy();
-  if(sub==='powerteam')loadPowerTeams();
   if(sub==='checkin')loadCheckinHistory();
   if(sub==='tasks')loadGrowthTasksForGrowth();
+  if(sub==='nudges')renderNudges();
+  if(sub==='achievements')renderAchievements();
+  if(sub==='gweeksummary'){document.getElementById('g-sum-output').style.display='none';}
 }
 function _swTab(app,tab,btn){
   document.querySelectorAll(app+' .tb').forEach(function(b){b.classList.remove('on');});
@@ -1387,6 +1674,36 @@ function renderCoachingGuide(guides){
   return html;
 }
 // ── 1-2-1 Log ───────────────────────────────────────────────
+function load121Summary(){
+  var elId=S.isMC?'mc-121-summary':'g-121-summary';
+  var el=document.getElementById(elId);
+  if(!el)return;
+  call('getAll121Logs',{},function(err,r){
+    if(err||!r||!r.ok){el.innerHTML='';return;}
+    if(!r.total){el.innerHTML='';return;}
+    var teams=Object.keys(r.byTeam);
+    var teamHtml=teams.sort().map(function(t){return '<span style="font-size:.68rem;color:var(--gray2);">'+escHtml(t)+' <b style="color:var(--white);">'+r.byTeam[t]+'</b></span>';}).join('&nbsp;·&nbsp;');
+    var recentHtml=(r.recent||[]).map(function(l){
+      return '<div style="display:flex;gap:.4rem;align-items:flex-start;padding:.3rem 0;border-bottom:1px solid var(--border);">'
+        +'<span style="font-size:.72rem;color:var(--gold);flex-shrink:0;">1-2-1</span>'
+        +'<div style="flex:1;min-width:0;">'
+          +'<div style="font-size:.75rem;font-weight:600;">'+escHtml(l.member)+'</div>'
+          +'<div style="font-size:.67rem;color:var(--gray2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escHtml(l.note)+'</div>'
+        +'</div>'
+        +'<span style="font-size:.6rem;color:var(--gray2);flex-shrink:0;">'+escHtml(l.loggedAt.slice(0,11))+'</span>'
+      +'</div>';
+    }).join('');
+    el.innerHTML='<div class="card" style="margin-bottom:.5rem;">'
+      +'<div class="ct" style="display:flex;justify-content:space-between;align-items:center;">'
+        +'<span>🤝 1-2-1 Logs</span>'
+        +'<span style="font-size:.72rem;color:var(--green);font-weight:700;">'+r.total+' รายการ</span>'
+      +'</div>'
+      +'<div style="margin-bottom:.4rem;">'+teamHtml+'</div>'
+      +recentHtml
+      +'</div>';
+  });
+}
+
 function load121Section(memberName){
   var el=document.getElementById('dp-121-section');
   if(!el)return;
@@ -1637,7 +1954,8 @@ function openDetail(name){
   call('getMemberDetail',{memberName:name},function(err,r){
     if(err||!r.ok){document.getElementById('dp-content').innerHTML='<div class="empty">❌ '+(err?err.message:r.error)+'</div>';return;}
     document.getElementById('dp-content').innerHTML=buildDetail(r);
-    if(S.role&&S.role!=='mc'&&S.role!=='growth')load121Section(name);
+    load121Section(name);
+    loadMemberNote(name);
   });
 }
 function closeDetail(){document.getElementById('detailPanel').classList.remove('on');}
@@ -1648,8 +1966,8 @@ function buildDetail(d){
   var attendC=d.attendRisk==='critical'?'#EF4444':d.attendRisk!=='ok'?'#F59E0B':'#10B981';
   var attendTxt=d.attendRisk==='critical'?'🚨 ขาดไปแล้ว '+d.actual.absent+' ครั้ง — วิกฤต!':d.attendRisk==='danger'?'⚠️ ขาดไปแล้ว '+d.actual.absent+' ครั้ง — อันตราย':d.attendRisk==='warning'?'📋 ขาดไปแล้ว '+d.actual.absent+' ครั้ง — ระวัง':'✅ ไม่เคยขาดเลย';
   var actBtns='<div class="action-row">';
-  if(d.actual.phone)actBtns+='<a class="action-btn call" href="tel:'+d.actual.phone+'">📞 โทรเลย</a>';
-  if(d.actual.email)actBtns+='<a class="action-btn mail" href="mailto:'+d.actual.email+'">✉️ อีเมล</a>';
+  if(d.actual.phone)actBtns+='<a class="action-btn call" href="tel:'+d.actual.phone+'" target="_top">📞 โทรเลย</a>';
+  if(d.actual.email)actBtns+='<a class="action-btn mail" href="mailto:'+d.actual.email+'" target="_top">✉️ อีเมล</a>';
   actBtns+='</div>';
   var statsHTML='<div class="stats-grid"><div class="stat-box"><div class="stat-num" style="color:var(--gold)">'+fmt(d.actual.tyfcb)+'</div><div class="stat-lbl">TYFCB (฿)</div></div><div class="stat-box"><div class="stat-num" style="color:var(--green)">'+fmt(d.given)+'</div><div class="stat-lbl">Given (฿)</div></div><div class="stat-box"><div class="stat-num" style="color:#60A5FA">'+fmt(d.recv)+'</div><div class="stat-lbl">Received (฿)</div></div></div>';
   var chartHTML='';
@@ -1660,10 +1978,46 @@ function buildDetail(d){
     chartHTML+='</div>';
   }
   var keys=[{icon:'🤝',label:'1-2-1',act:d.actual.oToOne,tgt:d.target.oToOne,unit:'ครั้ง'},{icon:'💡',label:'Referral ให้',act:d.actual.rg,tgt:d.target.referral,unit:'ใบ'},{icon:'📨',label:'Referral รับ',act:d.actual.rr,tgt:d.target.referral,unit:'ใบ'},{icon:'👥',label:'Visitor',act:d.actual.visitor,tgt:d.target.visitor,unit:'คน'},{icon:'📚',label:'CEU',act:d.actual.ceu,tgt:d.target.ceu,unit:'แต้ม'}];
-  var keysHTML=keys.map(function(k){var pct=Math.min(100,Math.round(k.act/Math.max(1,k.tgt)*100));return '<div class="kr"><div class="ki">'+k.icon+'</div><div class="kl">'+k.label+'</div><div class="kbw"><div class="kb" style="width:'+pct+'%;background:'+bc(pct)+'"></div></div><div class="kv">'+k.act+'/'+k.tgt+'</div></div>';}).join('');
+  var keysHTML=keys.map(function(k){var rawPct=Math.round(k.act/Math.max(1,k.tgt)*100);var pct=Math.min(100,rawPct);var col=bc(rawPct);var pctLbl='<div class="kpct" style="color:'+col+'">'+rawPct+'%</div>';return '<div class="kr"><div class="ki">'+k.icon+'</div><div class="kl">'+k.label+'</div><div class="kbw"><div class="kb" style="width:'+pct+'%;background:'+col+'"></div></div><div class="kv">'+k.act+'/'+k.tgt+'</div>'+pctLbl+'</div>';}).join('');
   var prHTML=d.priorities.map(function(p,i){var bg=p.type==='emergency'?'var(--redl)':p.type==='warning'?'rgba(245,158,11,.1)':p.type==='quick'?'rgba(240,180,41,.1)':'rgba(59,130,246,.1)';var brd=p.type==='emergency'?'#EF4444':p.type==='warning'?'#F59E0B':p.type==='quick'?'#F0B429':'#3B82F6';return '<div class="pc" style="background:'+bg+';border-left-color:'+brd+'"><div class="pn">Priority '+(i+1)+'</div><div class="pt">'+p.title+'</div><div class="pa">'+p.action.replace(/\n/g,'<br>')+'</div><div class="pg">🎯 '+p.target+'</div></div>';}).join('');
-  return '<div class="hero"><div class="hero-name">'+d.name+' ('+d.nick+')</div><div class="hero-meta">'+d.mentor+' · '+d.actual.bniDays+' วันใน BNI · '+d.weeks+' สัปดาห์</div><div class="hero-row"><div class="hero-score" style="color:'+sc(score)+'">'+score+'</div><div><div style="font-size:1rem;">'+(score>=70?'🟢 เขียว':score>=50?'🟡 เหลือง':score>=30?'🔴 แดง':'⚫ ดำ')+'</div><div style="font-size:.72rem;color:var(--gray2);">Balance: '+d.balance+'</div></div></div><div class="attend-pill" style="background:'+attendBg+';color:'+attendC+'">'+attendTxt+'</div></div>'+actBtns+statsHTML+chartHTML+'<div class="card"><div class="ct">5 Keys (6 เดือน)</div>'+keysHTML+'</div><div class="sh">⚔️ Priority</div>'+prHTML+buildConvHistory(d)+'<div id="dp-121-section"></div><div style="height:1rem;"></div>';
 
+  // Renewal badge
+  var renewalBadge = d.renewal ? '<div style="font-size:.75rem;color:var(--gray2);margin-top:.25rem;">💳 Renewal: <span style="color:var(--white);font-weight:600;">'+escHtml(d.renewal)+'</span></div>' : '';
+
+  // Attendance breakdown card
+  var totalMtg = (d.actual.attend||0) + (d.actual.absent||0) + (d.actual.late||0);
+  var attendCardHTML = '';
+  if (totalMtg > 0) {
+    var abRows = [
+      {label:'✅ เข้าประชุม', count:d.actual.attend, color:'#10B981'},
+      {label:'❌ ขาด',         count:d.actual.absent, color:'#EF4444'},
+      {label:'⏰ สาย',         count:d.actual.late,   color:'#F59E0B'}
+    ];
+    if (d.actual.sub > 0) abRows.push({label:'👥 ส่งแทน', count:d.actual.sub, color:'#60A5FA'});
+    attendCardHTML = '<div class="card"><div class="ct">📅 Attendance (' + totalMtg + ' ครั้ง)</div>';
+    abRows.forEach(function(x) {
+      var pct = Math.round(x.count / totalMtg * 100);
+      attendCardHTML += '<div class="kr"><div class="kl">'+x.label+'</div><div class="kbw"><div class="kb" style="width:'+Math.min(100,pct)+'%;background:'+x.color+'"></div></div><div class="kv">'+x.count+'</div><div class="kpct" style="color:'+x.color+'">'+pct+'%</div></div>';
+    });
+    attendCardHTML += '</div>';
+  }
+
+  var heroHTML = '<div class="hero">'
+    +'<div class="hero-name">'+escHtml(d.name)+' ('+escHtml(d.nick)+')</div>'
+    +'<div class="hero-meta">'+escHtml(d.mentor)+' · '+d.actual.bniDays+' วันใน BNI · '+d.weeks+' สัปดาห์</div>'
+    +'<div class="hero-row"><div class="hero-score" style="color:'+sc(score)+'">'+score+'</div>'
+    +'<div><div style="font-size:1rem;">'+(score>=70?'🟢 เขียว':score>=50?'🟡 เหลือง':score>=30?'🔴 แดง':'⚫ ดำ')+'</div>'
+    +'<div style="font-size:.72rem;color:var(--gray2);">Balance: '+escHtml(d.balance)+'</div></div></div>'
+    +'<div class="attend-pill" style="background:'+attendBg+';color:'+attendC+'">'+attendTxt+'</div>'
+    +renewalBadge+'</div>';
+
+  return heroHTML+actBtns+statsHTML+chartHTML+attendCardHTML
+    +'<div class="card"><div class="ct">5 Keys (6 เดือน)</div>'+keysHTML+'</div>'
+    +'<div class="sh">⚔️ Priority</div>'+prHTML
+    +buildConvHistory(d)
+    +'<div id="dp-121-section"></div>'
+    +'<div id="dp-note-section"></div>'
+    +'<div style="height:1rem;"></div>';
 }
 
 function loadScorecard(){
@@ -1772,13 +2126,35 @@ function loadRenewal(app){
     var late=r.items.filter(function(i){return i.status==='late';});
     var soon=r.items.filter(function(i){return i.status==='soon';});
     var ok=r.items.filter(function(i){return i.status!=='late'&&i.status!=='soon';});
-    function rrow(i){var icon=i.status==='late'?'🔴':i.status==='soon'?'⚠️':'📅';var txt=i.diffDays<0?'หมดไป '+Math.abs(i.diffDays)+' วัน · ค่าปรับ 1,070฿':'เหลือ '+i.diffDays+' วัน · '+i.expStr;return '<div class="rr"><div style="font-size:1.4rem;">'+icon+'</div><div class="ri"><div class="rn">'+i.name+'</div><div class="rd2">'+i.team+' · '+txt+'</div></div></div>';}
+    function rrow(i){
+      var icon=i.status==='late'?'🔴':i.status==='soon'?'⚠️':'📅';
+      var txt=i.diffDays<0?'หมดไป '+Math.abs(i.diffDays)+' วัน':'เหลือ '+i.diffDays+' วัน · '+i.expStr;
+      var safeName=i.name.replace(/'/g,"\\'");
+      var renewBtn=S.isMC?'<button class="renew-btn" onclick="extendRenewal(\''+safeName+'\',this,\''+app+'\')">✅ ต่ออายุ +1 ปี</button>':'';
+      return '<div class="rr"><div style="font-size:1.4rem;flex-shrink:0;">'+icon+'</div><div class="ri"><div class="rn">'+i.name+'</div><div class="rd2">'+i.team+' · '+txt+'</div></div>'+renewBtn+'</div>';
+    }
     var html='';
     if(late.length)html+='<div class="sh" style="color:var(--red)">🔴 LATE — โทรแจ้งทันที</div>'+late.map(rrow).join('');
     if(soon.length)html+='<div class="sh" style="color:var(--yellow)">⚠️ ใกล้ครบ</div>'+soon.map(rrow).join('');
     if(ok.length)html+='<div class="sh">📅 ปกติ</div>'+ok.map(rrow).join('');
     if(!r.items.length)html='<div class="empty"><div class="empty-i">✅</div>ไม่มีรายการ</div>';
     document.getElementById(id).innerHTML=html;
+  });
+}
+
+function extendRenewal(memberName, btn, app) {
+  if (!confirm('ยืนยันต่ออายุสมาชิก?\n\n' + memberName + '\n\nระบบจะเพิ่มเวลาอีก 1 ปีจากวันหมดอายุปัจจุบัน')) return;
+  btn.disabled = true;
+  btn.textContent = '⏳';
+  call('extendRenewal', { name: memberName }, function(err, r) {
+    if (err || !r || !r.ok) {
+      btn.disabled = false;
+      btn.textContent = '✅ ต่ออายุ +1 ปี';
+      toast('❌ ' + (err ? err.message : (r && r.error) || 'Error'));
+      return;
+    }
+    toast('✅ ต่ออายุ ' + memberName + ' แล้ว · หมดอายุ ' + r.newExpStr);
+    loadRenewal(app);
   });
 }
 
@@ -1827,11 +2203,34 @@ function submitReport(){
 function loadGrowthData(){
   call('getGrowthData',{},function(err,r){
     if(err||!r.ok){document.getElementById('g-members').innerHTML='<div class="empty">❌ '+(err?err.message:(r&&r.error)||'ไม่ทราบ')+'<br><br><button class="btn-p" style="width:auto;padding:.5rem 1.5rem;" onclick="loadGrowthData()">🔄 ลองใหม่</button></div>';return;}
-    GS.members=r.members;GS.loaded=true;
+    GS.members=r.members;GS.loaded=true;GS.lastSummary=r.summary;
+    renderChapterScorecard(r.members,r.summary);
     renderGrowthSummary(r.summary);
     renderGrowthMembers();
   });
 }
+
+function renderChapterScorecard(members,s){
+  var topScore=members.reduce(function(a,m){return m.score>a?m.score:a;},0);
+  var topTYFCB=members.reduce(function(a,m){return m.tyfcb>a?m.tyfcb:a;},0);
+  var html='<div class="ch-sc">'+
+    '<div class="ch-sc-title">📊 Chapter Scorecard</div>'+
+    '<div class="kpi-row">'+
+      '<div class="kpi-box"><div class="kpi-n" style="color:var(--gold)">'+s.total+'</div><div class="kpi-l">👥 Members</div></div>'+
+      '<div class="kpi-box"><div class="kpi-n" style="color:#10B981">'+s.highGiverLowRecv+'</div><div class="kpi-l">🔴 ต้องช่วย</div></div>'+
+      '<div class="kpi-box"><div class="kpi-n" style="color:#F59E0B">'+s.lowGiverHighRecv+'</div><div class="kpi-l">🟡 กระตุ้น</div></div>'+
+      '<div class="kpi-box"><div class="kpi-n" style="color:var(--bnired)">'+s.chapterAttendRate+'%</div><div class="kpi-l">📅 Attend Rate</div></div>'+
+    '</div>'+
+    '<div class="kpi-row r3">'+
+      '<div class="kpi-box"><div class="kpi-n" style="color:#60A5FA">'+s.total121+'</div><div class="kpi-l">🤝 1-2-1 รวม</div></div>'+
+      '<div class="kpi-box"><div class="kpi-n" style="color:#A78BFA">'+s.totalVisitors+'</div><div class="kpi-l">👤 Visitors</div></div>'+
+      '<div class="kpi-box"><div class="kpi-n" style="color:var(--gold)">฿'+fmtK(s.totalTYFCB)+'</div><div class="kpi-l">💰 TYFCB</div></div>'+
+    '</div>'+
+  '</div>';
+  document.getElementById('g-chapter-scorecard').innerHTML=html;
+}
+
+function fmtK(v){if(v>=1000000)return (v/1000000).toFixed(1)+'M';if(v>=1000)return (v/1000).toFixed(0)+'K';return String(v);}
 
 function renderGrowthSummary(s){
   document.getElementById('g-summary').innerHTML=
@@ -1876,6 +2275,159 @@ function buildGrowthCard(m){
       +'<button class="gt-btn gt-btn-submit" onclick="submitGrowthTask(\''+safeN+'\',\''+safeTeam+'\',\''+formId+'\')">ส่ง Task →</button>'
       +'</div>'
     +'</div>';
+}
+
+// ── Smart Nudge Engine ────────────────────────────────────────
+function renderNudges(){
+  if(!GS.loaded){loadGrowthData();return;}
+  var el=document.getElementById('g-nudges-list');
+  if(!el)return;
+  var nudges=[];
+  GS.members.forEach(function(m){
+    var safeN=m.name.replace(/'/g,"\\'");
+    var safeTeam=m.mentor.replace(/'/g,"\\'");
+    // P1 — ให้เยอะ รับน้อย (critical)
+    if(m.zone==='highGiverLowRecv'){
+      var gap=m.rgCount-m.rrCount;
+      nudges.push({p:1,m:m,
+        issue:'ให้ Referral แล้ว '+m.rgCount+' ใบ แต่รับกลับมาแค่ '+m.rrCount+' ใบ (ช่องว่าง '+gap+' ใบ)',
+        action:'⚡ Growth จัด 1-2-1 สามเส้า — หาคนส่ง Referral กลับด่วน',
+        safeN:safeN,safeTeam:safeTeam});
+    }
+    // P2 — รับเยอะ ให้น้อย (reciprocity)
+    if(m.zone==='lowGiverHighRecv'){
+      nudges.push({p:2,m:m,
+        issue:'รับ Referral '+m.rrCount+' ใบ แต่ให้กลับแค่ '+m.rgCount+' ใบ ('+m.giveRatio+'% เป็นผู้ให้)',
+        action:'💬 แนะนำ Mentor ให้ Coaching เรื่องการให้ Referral กลับ',
+        safeN:safeN,safeTeam:safeTeam});
+    }
+    // P3 — ไม่มี 1-2-1 เลย
+    if(m.r121===0&&m.score>0){
+      nudges.push({p:3,m:m,
+        issue:'ยังไม่มี 1-2-1 เลยในรอบนี้',
+        action:'🤝 Growth ช่วย kickstart 1-2-1 ครั้งแรก — แนะนำคู่ที่เหมาะสม',
+        safeN:safeN,safeTeam:safeTeam});
+    }
+    // P4 — ขาดประชุมเยอะ
+    if((m.attend+m.absent)>2&&m.attendRate<60){
+      nudges.push({p:4,m:m,
+        issue:'Attendance rate '+m.attendRate+'% (มา '+m.attend+' ขาด '+m.absent+' ครั้ง)',
+        action:'📋 แจ้ง Mentor ติดตาม — ขาดเกิน 40% เสี่ยงต่อ Warning Letter',
+        safeN:safeN,safeTeam:safeTeam});
+    }
+  });
+  // เรียงตาม priority แล้วตาม score ต่ำสุด
+  nudges.sort(function(a,b){return a.p!==b.p?a.p-b.p:a.m.score-b.m.score;});
+  if(!nudges.length){
+    el.innerHTML='<div class="empty"><div class="empty-i">🎉</div><div style="font-size:.9rem;font-weight:700;margin-bottom:.3rem;">Chapter แข็งแกร่งมาก!</div><div style="font-size:.75rem;color:var(--gray2)">ไม่มี alert เร่งด่วน ทุกคนอยู่ในเกณฑ์ดี</div></div>';
+    return;
+  }
+  var pClass={1:'p1',2:'p2',3:'p3',4:'p4'};
+  var pLabel={1:'🔴 วิกฤต',2:'🟡 เฝ้าระวัง',3:'🟣 ต้องดำเนินการ',4:'⬜ ติดตาม'};
+  var html='<div style="font-size:.72rem;color:var(--gray2);margin-bottom:.5rem;">พบ <strong style="color:var(--white)">'+nudges.length+'</strong> รายการ เรียงตามความเร่งด่วน</div>';
+  nudges.forEach(function(n){
+    var fid='nf-'+n.m.name.replace(/[^a-zA-Z0-9]/g,'_');
+    html+='<div class="nudge-card '+pClass[n.p]+'">'+
+      '<div class="nudge-top">'+
+        '<div class="nudge-who">'+
+          '<div class="nudge-name">'+escHtml(n.m.nick||n.m.name.split(' ')[0])+'<span style="font-weight:400;font-size:.72rem;color:var(--gray2);"> — '+escHtml(n.m.name.split(' ').slice(0,2).join(' '))+'</span></div>'+
+          '<div class="nudge-team">ทีม '+escHtml(n.m.mentor)+' · Score '+n.m.score+' · '+pLabel[n.p]+'</div>'+
+        '</div>'+
+        '<button class="nudge-quick-btn" onclick="toggleGrowthTaskForm(\''+fid+'\',\''+n.safeN+'\',\''+n.safeTeam+'\')">🎯 Task</button>'+
+      '</div>'+
+      '<div class="nudge-issue">'+escHtml(n.issue)+'</div>'+
+      '<div class="nudge-action">'+n.action+'</div>'+
+      '<div id="'+fid+'" class="gm-task-form" style="display:none;margin-top:.5rem;">'+
+        '<select id="'+fid+'-type"><option value="Referral">ช่วยหา Referral ให้</option><option value="1-2-1">นัด 1-2-1 ด่วน</option><option value="ติดตาม">ติดตามความคืบหน้า</option><option value="ประชุม">ช่วยเรื่องมาประชุม</option><option value="อื่นๆ">อื่นๆ</option></select>'+
+        '<textarea id="'+fid+'-note" rows="2" placeholder="รายละเอียด..."></textarea>'+
+        '<button class="gt-btn gt-btn-submit" onclick="submitGrowthTask(\''+n.safeN+'\',\''+n.safeTeam+'\',\''+fid+'\')">ส่ง Task →</button>'+
+      '</div>'+
+    '</div>';
+  });
+  el.innerHTML=html;
+}
+
+// ── Achievement Badges ────────────────────────────────────────
+function renderAchievements(){
+  if(!GS.loaded){loadGrowthData();return;}
+  var el=document.getElementById('g-ach-content');
+  if(!el||!GS.members.length){return;}
+  var ms=GS.members;
+  function top(fn,fmt,fallback){
+    var best=ms.reduce(function(a,m){return fn(m)>fn(a)?m:a;},ms[0]);
+    var val=fn(best);
+    return {name:(best.nick||best.name.split(' ')[0]),full:best.name,val:val>0?fmt(val):null,team:best.mentor};
+  }
+  var awards=[
+    {medal:'🏆',cat:'Top Score',a:top(function(m){return m.score;},function(v){return v+' pts';})},
+    {medal:'💚',cat:'Top Referral Giver',a:top(function(m){return m.rgCount;},function(v){return v+' ใบ';})},
+    {medal:'💙',cat:'Top Referral Receiver',a:top(function(m){return m.rrCount;},function(v){return v+' ใบ';})},
+    {medal:'💰',cat:'Top TYFCB',a:top(function(m){return m.tyfcb;},function(v){return '฿'+fmtK(v);})},
+    {medal:'🤝',cat:'Most 1-2-1',a:top(function(m){return m.r121;},function(v){return v+' ครั้ง';})},
+    {medal:'👤',cat:'Top Visitor Bringer',a:top(function(m){return m.visitors;},function(v){return v+' คน';})},
+    {medal:'📅',cat:'Best Attendance',a:top(function(m){return m.attendRate;},function(v){return v+'%';})},
+    {medal:'⭐',cat:'Top CEU',a:top(function(m){return m.ceu;},function(v){return v+' pts';})}
+  ];
+  var html='<div style="font-size:.65rem;color:var(--gray2);margin-bottom:.625rem;line-height:1.6;">🎖 ผู้นำในแต่ละด้าน จากข้อมูล R2Y ปัจจุบัน</div>';
+  html+='<div class="ach-grid">';
+  awards.forEach(function(aw){
+    var a=aw.a;
+    html+='<div class="ach-card">'+
+      '<div class="ach-medal">'+aw.medal+'</div>'+
+      '<div class="ach-cat">'+aw.cat+'</div>'+
+      '<div class="ach-name">'+escHtml(a.name)+'</div>'+
+      (a.val?'<div class="ach-val">'+a.val+'</div>':'<div class="ach-val" style="color:var(--gray2)">—</div>')+
+      '<div style="font-size:.58rem;color:var(--gray2);margin-top:3px;">'+escHtml(a.team)+'</div>'+
+    '</div>';
+  });
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+// ── Weekly Summary Card ───────────────────────────────────────
+function genWeeklySummary(){
+  if(!GS.loaded){toast('⏳ กำลังโหลดข้อมูล...');loadGrowthData();return;}
+  var ms=GS.members;var s=GS.lastSummary;
+  // compute totals fresh from members
+  var totalRG=0,totalRR=0,totalVis=0,total121=0,totalTYFCB=0;
+  ms.forEach(function(m){totalRG+=m.rgCount;totalRR+=m.rrCount;totalVis+=m.visitors;total121+=m.r121;totalTYFCB+=m.tyfcb;});
+  var topScore=ms.reduce(function(a,m){return m.score>a.score?m:a;},ms[0]);
+  var topRG=ms.reduce(function(a,m){return m.rgCount>a.rgCount?m:a;},ms[0]);
+  var topTYFCB=ms.reduce(function(a,m){return m.tyfcb>a.tyfcb?m:a;},ms[0]);
+  var needHelp=ms.filter(function(m){return m.zone==='highGiverLowRecv';}).length;
+  var now=new Date();
+  var dateStr=(now.getDate())+'/'+(now.getMonth()+1)+'/'+(now.getFullYear()+543-2000);
+  var txt=
+    '📊 BNI IDEAL Chapter Report\n'+
+    '━━━━━━━━━━━━━━━━━━━\n'+
+    '📅 วันที่ '+dateStr+'\n\n'+
+    '👥 สมาชิกทั้งหมด  : '+ms.length+' คน\n'+
+    '💚 Referral ให้   : '+totalRG+' ใบ\n'+
+    '💙 Referral รับ   : '+totalRR+' ใบ\n'+
+    '👤 Visitors       : '+totalVis+' คน\n'+
+    '🤝 1-2-1          : '+total121+' ครั้ง\n'+
+    '💰 TYFCB รวม      : ฿'+fmt(totalTYFCB)+'\n\n'+
+    '🏆 Top ประจำรอบ\n'+
+    '━━━━━━━━━━━━━━━━━━━\n'+
+    '⭐ Top Score    : '+(topScore.nick||topScore.name.split(' ')[0])+' ('+topScore.score+' pts)\n'+
+    '💚 Top Giver    : '+(topRG.nick||topRG.name.split(' ')[0])+' ('+topRG.rgCount+' ใบ)\n'+
+    '💰 Top TYFCB    : '+(topTYFCB.nick||topTYFCB.name.split(' ')[0])+' (฿'+fmtK(topTYFCB.tyfcb)+')\n\n'+
+    (needHelp>0?'⚠️ ต้องดูแล '+needHelp+' คน (ให้เยอะ รับน้อย)\n\n':'')+
+    '— BNI IDEAL Mentor System';
+  document.getElementById('g-sum-text').textContent=txt;
+  document.getElementById('g-sum-output').style.display='block';
+}
+
+function copyGSummary(){
+  var txt=document.getElementById('g-sum-text').textContent;
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(txt).then(function(){toast('✅ Copy แล้ว — paste ใน LINE ได้เลย');}).catch(function(){_fallbackCopy(txt);});
+  } else {_fallbackCopy(txt);}
+}
+function _fallbackCopy(txt){
+  var ta=document.createElement('textarea');ta.value=txt;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();
+  try{document.execCommand('copy');toast('✅ Copy แล้ว');}catch(e){toast('❌ Copy ไม่ได้ — กรุณา copy ด้วยตนเอง');}
+  document.body.removeChild(ta);
 }
 
 function renderStrategy(){
@@ -1995,31 +2547,114 @@ function loadNotifBadges(){
 // ── CheckIn State & Functions ─────────────────────────────────
 var CI={parsed:[],date:'',week:''};
 
-function ciParse(){
-  var raw=document.getElementById('ci-textarea').value.trim();
-  if(!raw){toast('❌ กรุณาวาง CSV ก่อนครับ');return;}
-  showLoad();
-  google.script.run
-    .withSuccessHandler(function(r){
-      hideLoad();
-      if(!r.ok){toast('\u274C '+r.error);return;}
-      CI.parsed=r.members; CI.date=r.date; CI.week=r.week;
-      ciRenderResult(r);
-    })
-    .withFailureHandler(function(e){hideLoad();toast('\u274C '+e.message);})
-    .parseCheckinCSV(raw);
+function ciFileSelected(e){
+  var file=e.target.files[0];
+  if(file) ciReadFile(file);
+  e.target.value='';
+}
+
+function ciReadFile(file){
+  if(!file.name.toLowerCase().endsWith('.csv')){toast('❌ กรุณาเลือกไฟล์ .csv เท่านั้น');return;}
+  var fnEl=document.getElementById('ci-filename');
+  if(fnEl) fnEl.textContent='⏳ กำลังอ่าน '+file.name+'...';
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var text=e.target.result;
+    if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
+    var result=ciParseCSVText(text);
+    if(!result.ok){toast('❌ '+result.error);if(fnEl)fnEl.textContent='';return;}
+    CI.parsed=result.members; CI.date=result.date; CI.week=result.week;
+    ciRenderResult(result);
+    if(fnEl) fnEl.innerHTML='✅ <strong>'+file.name+'</strong>';
+  };
+  reader.onerror=function(){toast('❌ อ่านไฟล์ไม่ได้');if(fnEl)fnEl.textContent='';};
+  reader.readAsText(file,'UTF-8');
+}
+
+function ciParseCSVText(text){
+  var lines=text.replace(/\r/g,'').split('\n');
+  var members=[];
+  var date='';
+  for(var i=0;i<lines.length;i++){
+    var line=lines[i].trim();
+    if(!line) continue;
+    var fields=ciParseLine(line);
+    if(fields.length<4) continue;
+    var type=fields[0].trim();
+    if(type!=='Member'&&type!=='Substitute') continue;
+    var firstName=fields[1].trim();
+    var lastName=fields[2].trim();
+    if(!firstName) continue;
+    var fullName=(firstName+' '+lastName).trim();
+    var subFor=fields.length>3?fields[3].trim():'';
+    var lookingFor=fields.length>4?fields[4].trim():'';
+    var dateStr=fields.length>6?fields[6].trim():'';
+    if(dateStr&&!date) date=dateStr;
+    members.push({
+      no:String(members.length+1),
+      name:fullName,
+      status:type==='Member'?'สมาชิก':'ตัวแทน',
+      sub_for:subFor||null,
+      looking_for:lookingFor
+    });
+  }
+  if(!members.length) return{ok:false,error:'อ่านข้อมูลไม่ได้ — ตรวจสอบว่าไฟล์มีคอลัมน์ Member/Substitute'};
+  var weekStr='';
+  if(date){
+    var dp=date.split('/');
+    if(dp.length===3){
+      var d=new Date(parseInt(dp[2]),parseInt(dp[1])-1,parseInt(dp[0]));
+      if(!isNaN(d.getTime())){
+        var soy=new Date(d.getFullYear(),0,1);
+        var wn=Math.ceil((((d-soy)/86400000)+soy.getDay()+1)/7);
+        weekStr=('0'+wn).slice(-2)+'/'+d.getFullYear();
+      }
+    }
+  }
+  if(!weekStr){
+    var now=new Date();
+    var soy2=new Date(now.getFullYear(),0,1);
+    var wn2=Math.ceil((((now-soy2)/86400000)+soy2.getDay()+1)/7);
+    weekStr=('0'+wn2).slice(-2)+'/'+now.getFullYear();
+  }
+  return{ok:true,members:members,date:date,week:weekStr,total:members.length};
+}
+
+function ciParseLine(line){
+  var fields=[],cur='',inQ=false;
+  for(var i=0;i<line.length;i++){
+    var ch=line[i];
+    if(ch==='"'){
+      if(inQ&&i+1<line.length&&line[i+1]==='"'){cur+='"';i++;}
+      else inQ=!inQ;
+    } else if(ch===','&&!inQ){fields.push(cur);cur='';}
+    else cur+=ch;
+  }
+  fields.push(cur);
+  return fields;
+}
+
+function ciReset(){
+  CI.parsed=[];CI.date='';CI.week='';
+  document.getElementById('ci-result').style.display='none';
+  var fnEl=document.getElementById('ci-filename');
+  if(fnEl) fnEl.textContent='';
+  document.getElementById('ci-file-input').value='';
 }
 
 function ciRenderResult(r){
   var real=r.members.filter(function(m){return m.status==='สมาชิก';}).length;
   var sub=r.members.filter(function(m){return m.status==='ตัวแทน';}).length;
   document.getElementById('ci-summary').innerHTML=
-    '📅 '+r.date+' (สัปดาห์ '+r.week+')<br>✅ สมาชิก: '+real+' คน | 🔄 ส่งแทน: '+sub+' คน | รวม: '+r.members.length+' คน';
+    '📅 '+r.date+' &nbsp;(สัปดาห์ '+r.week+')<br>'+
+    '✅ สมาชิก: <strong>'+real+'</strong> คน &nbsp;|&nbsp; 🔄 ส่งแทน: <strong>'+sub+'</strong> คน &nbsp;|&nbsp; รวม: <strong>'+r.members.length+'</strong> คน';
   document.getElementById('ci-list').innerHTML=r.members.map(function(m){
     var isSub=m.status==='ตัวแทน';
     return '<div class="cm'+(isSub?' sub':'')+'">'+
-      '<div style="flex:1"><div class="cm-name">'+m.name+(isSub?' <span style="font-size:.62rem;color:var(--yellow)">→ แทน '+(m.sub_for||'?')+'</span>':'')+'</div>'+
-      '<div class="cm-lf">'+(m.looking_for||'—')+'</div></div>'+
+      '<div style="flex:1">'+
+        '<div class="cm-name">'+escHtml(m.name)+(isSub?'&nbsp;<span style="font-size:.62rem;color:var(--yellow)">→ แทน '+escHtml(m.sub_for||'?')+'</span>':'')+'</div>'+
+        '<div class="cm-lf">'+(m.looking_for?escHtml(m.looking_for):'<span style="opacity:.4">—</span>')+'</div>'+
+      '</div>'+
       '<span class="cm-badge '+(isSub?'sub':'real')+'">'+(isSub?'Sub':'สมาชิก')+'</span></div>';
   }).join('');
   document.getElementById('ci-result').style.display='block';
@@ -2031,8 +2666,11 @@ function ciSave(){
   btn.textContent='⏳ กำลังบันทึก...'; btn.disabled=true;
   call('saveCheckin',{members:CI.parsed,date:CI.date,week:CI.week},function(err,r){
     btn.textContent='💾 บันทึกลง Sheet'; btn.disabled=false;
-    if(r&&r.ok){toast('✅ บันทึก '+r.saved+' คน สัปดาห์ '+r.week);loadCheckinHistory();loadMatchingWeeks();}
-    else toast('❌ '+(err?err.message:r.error));
+    if(r&&r.ok){
+      toast('✅ บันทึก '+r.saved+' คน สัปดาห์ '+r.week);
+      ciReset();
+      loadCheckinHistory();
+    } else toast('❌ '+(err?err.message:r.error));
   });
 }
 
@@ -2040,72 +2678,156 @@ function loadCheckinHistory(){
   call('getCheckinLog',{},function(err,r){
     if(err||!r.ok||!r.weeks||!r.weeks.length) return;
     var sel=document.getElementById('ci-week-sel');
-    sel.innerHTML=r.weeks.map(function(w){
+    sel.innerHTML=r.weeks.slice().reverse().map(function(w){
       return '<option value="'+w.week+'"'+(w.week===r.currentWeek?' selected':'')+'>สัปดาห์ '+w.week+' ('+w.count+' คน)</option>';
     }).join('');
     document.getElementById('ci-history').style.display='block';
+    document.getElementById('match-result').innerHTML='';
     ciLoadWeek(r.currentWeek);
   });
 }
 
 function ciLoadWeek(week){
+  document.getElementById('ci-week-list').innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
   call('getCheckinLog',{week:week},function(err,r){
-    if(err||!r.ok) return;
-    document.getElementById('ci-week-list').innerHTML=r.members.map(function(m){
+    if(err||!r.ok){document.getElementById('ci-week-list').innerHTML='';return;}
+    CI_WEEK_DATA=r.members;
+    var real=r.members.filter(function(m){return m.status==='สมาชิก';}).length;
+    var sub=r.members.filter(function(m){return m.status==='ตัวแทน';}).length;
+    var html='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;">'
+      +'<div style="font-size:.72rem;color:var(--gray2);">✅ สมาชิก: '+real+' คน &nbsp;|&nbsp; 🔄 ส่งแทน: '+sub+' คน</div>'
+      +'<button onclick="exportCheckInCSV(\''+escHtml(week)+'\')" style="background:none;border:1px solid var(--border);border-radius:8px;padding:3px 8px;font-size:.7rem;color:var(--gray2);cursor:pointer;">⬇️ CSV</button>'
+      +'</div>';
+    html+=r.members.map(function(m){
       var isSub=m.status==='ตัวแทน';
       return '<div class="cm'+(isSub?' sub':'')+'">'+
-        '<div style="flex:1"><div class="cm-name">'+m.name+'</div>'+
-        '<div class="cm-lf">'+(m.looking_for||'—')+'</div></div>'+
+        '<div style="flex:1">'+
+          '<div class="cm-name">'+escHtml(m.name)+(isSub?'&nbsp;<span style="font-size:.62rem;color:var(--yellow)">→ แทน '+escHtml(m.sub_for||'?')+'</span>':'')+'</div>'+
+          '<div class="cm-lf">'+(m.looking_for?'🔍 '+escHtml(m.looking_for):'<span style="opacity:.4">—</span>')+'</div>'+
+        '</div>'+
         '<span class="cm-badge '+(isSub?'sub':'real')+'">'+(isSub?'Sub':'สมาชิก')+'</span></div>';
     }).join('');
+    document.getElementById('ci-week-list').innerHTML=html;
+    document.getElementById('match-result').innerHTML='';
+    // ── Attendance Analysis ─────────────────────────────────
+    renderAttendance(r.members);
   });
+}
+
+function renderAttendance(presentList){
+  var el=document.getElementById('ci-absent-section');
+  if(!el)return;
+  var getMasters=function(cb){
+    if(S.allMembers&&S.allMembers.length){cb(S.allMembers);return;}
+    call('getMemberList',{},function(e,r){if(e||!r||!r.ok)cb([]);else cb(r.members);});
+  };
+  getMasters(function(masters){
+    if(!masters.length){el.innerHTML='';return;}
+    var presentNames={};
+    presentList.forEach(function(m){
+      presentNames[m.name]=true;
+      if(m.sub_for)presentNames[m.sub_for]=true;
+    });
+    var absent=masters.filter(function(m){return !presentNames[m.name];});
+    if(!absent.length){
+      el.innerHTML='<div class="card" style="margin-top:.5rem;border-color:rgba(16,185,129,.3);">'
+        +'<div style="text-align:center;padding:.5rem;font-size:.82rem;color:var(--green);">🎉 สมาชิกทุกคนมาประชุมหรือส่งตัวแทนแล้ว!</div></div>';
+      return;
+    }
+    var byMentor={};
+    absent.forEach(function(m){
+      var k=m.mentor||'ไม่ระบุ';
+      if(!byMentor[k])byMentor[k]=[];
+      byMentor[k].push(m);
+    });
+    var html='<div class="card" style="margin-top:.5rem;border-color:rgba(239,68,68,.25);">'
+      +'<div class="ct" style="color:#EF4444;">🚨 ขาดประชุม ('+absent.length+' คน)</div>';
+    Object.keys(byMentor).forEach(function(mentor){
+      html+='<div style="font-size:.63rem;font-weight:700;color:var(--gray2);letter-spacing:.08em;margin:.5rem 0 .2rem;">📍 '+escHtml(mentor)+'</div>';
+      byMentor[mentor].forEach(function(m){
+        html+='<div style="display:flex;align-items:center;gap:.5rem;padding:.3rem 0;border-bottom:1px solid var(--border);">'
+          +'<span style="font-size:.82rem;">'+escHtml(m.name+(m.nick?' ('+m.nick+')':''))+'</span>'
+          +'</div>';
+      });
+    });
+    html+='</div>';
+    el.innerHTML=html;
+  });
+}
+
+function exportCheckInCSV(week){
+  var data=CI_WEEK_DATA;
+  if(!data||!data.length){toast('❌ ไม่มีข้อมูล');return;}
+  var rows=['﻿ลำดับ,ชื่อ,สถานะ,แทน,Looking For,Mentor'];
+  data.forEach(function(m,i){
+    rows.push([i+1,m.name,m.status,m.sub_for||'',m.looking_for||'',m.mentor||''].map(function(v){
+      return '"'+String(v).replace(/"/g,'""')+'"';
+    }).join(','));
+  });
+  var blob=new Blob([rows.join('\n')],{type:'text/csv;charset=utf-8;'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url;a.download='checkin-'+(week||'export').replace(/\//g,'-')+'.csv';
+  a.click();URL.revokeObjectURL(url);
+}
+
+function exportDashboardCSV(){
+  var data=S.allMembers;
+  if(!data||!data.length){toast('❌ โหลด Dashboard ก่อนครับ');return;}
+  var rows=['﻿ชื่อ,ชื่อเล่น,Mentor,คะแนน,Traffic Light,Given,Received,Balance'];
+  data.forEach(function(m){
+    rows.push([m.name,m.nick,m.mentor,m.score,m.tl,m.given,m.recv,m.balance].map(function(v){
+      return '"'+String(v||'').replace(/"/g,'""')+'"';
+    }).join(','));
+  });
+  var blob=new Blob([rows.join('\n')],{type:'text/csv;charset=utf-8;'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url;a.download='scorecard-export.csv';a.click();URL.revokeObjectURL(url);
 }
 
 // ── Matching Functions ────────────────────────────────────────
-function loadMatchingWeeks(){
-  call('getCheckinLog',{},function(err,r){
-    if(err||!r.ok||!r.weeks||!r.weeks.length) return;
-    var sel=document.getElementById('match-week-sel');
-    if(!sel) return;
-    sel.innerHTML=r.weeks.map(function(w){
-      return '<option value="'+w.week+'"'+(w.week===r.currentWeek?' selected':'')+'>สัปดาห์ '+w.week+' ('+w.count+' คน)</option>';
-    }).join('');
-  });
-}
+function loadMatchingWeeks(){}
 
 function runMatching(){
-  var week=document.getElementById('match-week-sel').value;
+  var week=document.getElementById('ci-week-sel').value;
   if(!week){toast('❌ เลือกสัปดาห์ก่อนครับ');return;}
   var btn=document.getElementById('match-btn');
   btn.textContent='⏳ กำลังวิเคราะห์...'; btn.disabled=true;
-  document.getElementById('match-result').innerHTML='<div class="lt">⏳ กำลังวิเคราะห์ Looking For...<br>ใช้เวลาไม่กี่วินาทีครับ</div>';
+  document.getElementById('match-result').innerHTML='<div class="lt">⏳ AI กำลังวิเคราะห์ Looking For...<br>ใช้เวลาประมาณ 10-20 วินาทีครับ</div>';
 
   call('getCheckinLog',{week:week},function(err,r){
-    if(err||!r.ok){btn.textContent='🔗 วิเคราะห์คู่ 1-2-1';btn.disabled=false;toast('❌ โหลดข้อมูลไม่ได้');return;}
+    if(err||!r.ok){btn.textContent='🔗 วิเคราะห์คู่ 1-2-1 สัปดาห์นี้';btn.disabled=false;toast('❌ โหลดข้อมูลไม่ได้');return;}
     call('getAIMatching',{members:r.members,week:week},function(err2,r2){
-      btn.textContent='🔗 วิเคราะห์คู่ 1-2-1'; btn.disabled=false;
+      btn.textContent='🔗 วิเคราะห์คู่ 1-2-1 สัปดาห์นี้'; btn.disabled=false;
       if(err2||!r2.ok){
         document.getElementById('match-result').innerHTML='<div class="empty">❌ '+(err2?err2.message:r2.error)+'</div>';
         return;
       }
+      window._MATCH_DATA=r2.matches||[];
       var html='';
-      if(r2.summary) html+='<div class="match-summary">📊 '+r2.summary+'</div>';
+      if(r2.summary) html+='<div class="match-summary">📊 '+escHtml(r2.summary)+'</div>';
       if(!r2.matches||!r2.matches.length){
         html+='<div class="empty"><div class="empty-i">🤔</div>ไม่พบคู่ที่ Looking For ตรงกันสัปดาห์นี้</div>';
       } else {
         html+='<div class="sh">คู่แนะนำ ('+r2.matches.length+' คู่)</div>';
-        html+=r2.matches.map(function(m){
+        html+=r2.matches.map(function(m,idx){
           var pc=m.priority==='high'?'high':m.priority==='medium'?'medium':'low';
           var pl=m.priority==='high'?'🔴 สำคัญ':m.priority==='medium'?'🟡 แนะนำ':'⬜ ทางเลือก';
+          var taskBtn=(m.mentor_a&&m.mentor_b)
+            ?'<button class="match-task-btn" onclick="createMatchTask('+idx+')" id="mtbtn-'+idx+'">📌 สร้าง Task</button>'
+            :'';
           return '<div class="match-card '+pc+'">'+
-            '<div class="match-names">'+m.person_a+' <span>↔</span> '+m.person_b+'</div>'+
-            '<div class="match-lf">A: '+m.lf_a+'</div>'+
-            '<div class="match-lf">B: '+m.lf_b+'</div>'+
-            '<div class="match-reason">'+m.reasons.join(' · ')+'</div>'+
+            '<div class="match-names">'+escHtml(m.person_a)+' <span>↔</span> '+escHtml(m.person_b)+'</div>'+
+            (m.lf_a?'<div class="match-lf">🔍 '+escHtml(m.person_a)+': '+escHtml(m.lf_a)+'</div>':'')+
+            (m.lf_b?'<div class="match-lf">🔍 '+escHtml(m.person_b)+': '+escHtml(m.lf_b)+'</div>':'')+
+            '<div class="match-reason" style="margin-top:5px;">'+(Array.isArray(m.reasons)?m.reasons.map(escHtml).join(' · '):escHtml(m.reason||''))+'</div>'+
+            (m.action?'<div class="match-action">→ '+escHtml(m.action)+'</div>':'')+
             '<div class="match-meta">'+
               '<span class="match-priority priority-'+pc+'">'+pl+'</span>'+
               (m.cross_team?'<span class="cross-badge">🔀 ข้ามทีม</span>':'')+
-              '<span style="font-size:.62rem;color:var(--gray2);margin-left:auto;">'+m.mentor_a+' ↔ '+m.mentor_b+'</span>'+
+              ((m.mentor_a&&m.mentor_b)?'<span style="font-size:.62rem;color:var(--gray2);margin-left:auto;">'+escHtml(m.mentor_a)+' ↔ '+escHtml(m.mentor_b)+'</span>':'')+
+              taskBtn+
             '</div></div>';
         }).join('');
       }
@@ -2113,6 +2835,25 @@ function runMatching(){
     });
   });
 }
+
+function createMatchTask(idx){
+  var m=(window._MATCH_DATA||[])[idx];
+  if(!m)return;
+  var btn=document.getElementById('mtbtn-'+idx);
+  if(btn)btn.disabled=true;
+  var note='1-2-1: '+m.person_a+' ↔ '+m.person_b+'\n'+(Array.isArray(m.reasons)?m.reasons.join(' · '):m.reason||'');
+  var done=0,total=(m.mentor_a?1:0)+(m.mentor_b&&m.mentor_b!==m.mentor_a?1:0);
+  function finish(ok){done++;if(done>=total){if(btn)btn.textContent='✅ ส่งแล้ว';toast('✅ สร้าง Task 1-2-1 แล้ว '+total+' ทีม');}}
+  if(m.mentor_a){
+    call('createGrowthTask',{teamName:m.mentor_a,memberName:m.person_a,taskType:'1-2-1',note:note,priority:'⭐'},function(e,r){finish(r&&r.ok);});
+  }
+  if(m.mentor_b&&m.mentor_b!==m.mentor_a){
+    call('createGrowthTask',{teamName:m.mentor_b,memberName:m.person_b,taskType:'1-2-1',note:note,priority:'⭐'},function(e,r){finish(r&&r.ok);});
+  } else if(!m.mentor_b&&m.mentor_a){
+    finish(true);
+  }
+}
+
 // ── Reports (MC) ─────────────────────────────────────────────
 var RPT={all:[],filter:'all',statusFilter:'all'};
 var RPT_IDX={};  // เก็บ team/row/memberName แยกต่างหาก ไม่ต้อง escape ใน onclick
@@ -2299,7 +3040,16 @@ function renderNewMembers(appType, members) {
     var pct = m.progress || 0;
     var initials = m.nick ? m.nick.slice(0,2) : m.name.slice(0,2);
     var statusColor = pct >= 100 ? 'var(--green)' : pct > 0 ? 'var(--gold)' : 'var(--gray2)';
-    return '<div class="nm-card" onclick="openCL(\'' + encodeURIComponent(m.fileUrl) + '\',\'' + encodeURIComponent(m.name) + '\')">'
+    var assignBtn = (appType === 'mc')
+      ? '<button class="nm-assign-btn"'
+        + ' data-name="' + escHtml(m.name) + '"'
+        + ' data-nick="' + escHtml(m.nick) + '"'
+        + ' data-mentor="' + escHtml(m.mentor) + '"'
+        + ' data-exp="' + escHtml(m.expDate) + '"'
+        + ' onclick="assignToTeam(this)">✅ เพิ่มเข้าทีม ' + escHtml(m.mentor) + '</button>'
+      : '';
+    return '<div class="nm-card">'
+      + '<div style="cursor:pointer" onclick="openCL(\'' + encodeURIComponent(m.fileUrl) + '\',\'' + encodeURIComponent(m.name) + '\')">'
       + '<div class="nm-card-top">'
       + '<div class="nm-av">' + initials + '</div>'
       + '<div style="flex:1">'
@@ -2311,7 +3061,10 @@ function renderNewMembers(appType, members) {
       + '<div class="nm-progress-wrap">'
       + '<div class="nm-progress-bar"><div class="nm-progress-fill" style="width:' + pct + '%"></div></div>'
       + '<div class="nm-progress-txt"><span>' + escHtml(m.status) + '</span><span>หมดอายุ ' + escHtml(m.expDate) + '</span></div>'
-      + '</div></div>';
+      + '</div>'
+      + '</div>'
+      + assignBtn
+      + '</div>';
   }).join('');
 
   document.getElementById(listId).innerHTML = html;
@@ -2339,6 +3092,49 @@ function openCL(encodedUrl, encodedName) {
 
 function closeCL() {
   document.getElementById('clPanel').classList.remove('on');
+}
+
+function assignToTeam(btn) {
+  var name    = btn.getAttribute('data-name');
+  var nick    = btn.getAttribute('data-nick');
+  var mentor  = btn.getAttribute('data-mentor');
+  var expDate = btn.getAttribute('data-exp');
+  // Two-tap confirm: first tap → ask, second tap → do
+  if (btn.dataset.confirm !== '1') {
+    btn.dataset.confirm = '1';
+    btn.textContent = '⚠️ กดอีกครั้งเพื่อยืนยัน';
+    btn.style.background = 'rgba(245,158,11,.2)';
+    btn.style.color = '#F59E0B';
+    btn.style.borderColor = 'rgba(245,158,11,.5)';
+    setTimeout(function() {
+      if (btn.dataset.confirm === '1') {
+        btn.dataset.confirm = '0';
+        btn.textContent = '✅ เพิ่มเข้าทีม ' + mentor;
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.style.borderColor = '';
+      }
+    }, 3000);
+    return;
+  }
+  btn.dataset.confirm = '0';
+  btn.disabled = true;
+  btn.textContent = '⏳ กำลังเพิ่ม...';
+  call('assignToTeam', { name: name, nick: nick, mentor: mentor, expDate: expDate }, function(err, r) {
+    if (err || !r.ok) {
+      btn.disabled = false;
+      btn.textContent = '❌ ' + (err ? err.message : r.error);
+      btn.style.color = '#EF4444';
+      return;
+    }
+    btn.textContent = '✔ เพิ่มเข้าทีมแล้ว';
+    btn.style.background = 'rgba(16,185,129,.25)';
+    btn.style.color = '#10B981';
+    if (r.warnings && r.warnings.length) {
+      btn.textContent += ' ⚠️';
+      btn.title = r.warnings.join('\n');
+    }
+  });
 }
 
 function renderChecklist(d) {
@@ -2450,14 +3246,14 @@ function submitNewMember() {
     btn.textContent = '✅ สร้างและเพิ่มสมาชิก';
 
     if (r && r.ok) {
-      toast('✅ เพิ่ม ' + r.name + ' แล้ว!', 3000);
+      var msg = '✅ เพิ่ม ' + r.name + ' เข้าระบบแล้ว!';
+      if (r.warnings && r.warnings.length) msg += '\n⚠️ ' + r.warnings.join('\n⚠️ ');
+      toast(msg, 4000);
       document.getElementById('nmFormOverlay').classList.remove('on');
-      // clear form
       ['nm-name','nm-nick','nm-biz'].forEach(function(id) {
         document.getElementById(id).value = '';
       });
       document.getElementById('nm-mentor').value = '';
-      // reload list
       loadNewMembers('mc');
     } else {
       toast('❌ ' + (err ? err.message : r.error));
@@ -2524,17 +3320,447 @@ function buildConvHistory(d){
   html += '</div>';
   return html;
 }
-// ── Power Teams ───────────────────────────────────────────────
-function loadPowerTeams(){
-  document.getElementById('g-pt-list').innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
-  call('getPowerTeams',{},function(err,r){
-    if(err||!r.ok){
-      document.getElementById('g-pt-list').innerHTML='<div class="empty">❌ '+(err?err.message:r.error)+'</div>';
+// ── Growth Power Teams Revenue View ──────────────────────────
+var PT={loaded:false,isGrowth:false,teams:null,summary:null,filter:'all',sort:'default',editMode:false,search:''};
+var SYN={teams:null,editMode:false};
+
+function loadGrowthPowerTeams(forceReload){
+  if(PT.loaded&&!forceReload)return;
+  PT.loaded=false;PT.editMode=false;
+  if(forceReload){PT_SYN_LOADED=false;document.getElementById('g-pt-list').innerHTML='';}
+  document.getElementById('pt-chapter-bar').innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
+  document.getElementById('pt-teams-list').innerHTML='';
+  document.getElementById('pt-alerts-list').innerHTML='';
+  call('getGrowthPowerTeams',{},function(err,r){
+    if(err||!r||!r.ok){
+      document.getElementById('pt-chapter-bar').innerHTML='<div class="empty">❌ '+(err?err.message:(r&&r.error)||'Error')+'<br><button class="btn-p" style="width:auto;padding:.4rem 1rem;margin-top:.5rem;" onclick="loadGrowthPowerTeams(true)">🔄 ลองใหม่</button></div>';
       return;
     }
-    renderPowerTeams(r.teams);
+    PT.loaded=true;
+    PT.teams=r.teams;
+    PT.isGrowth=(S.role==='growth');
+    PT.summary=r.summary;
+    renderPTChapterBar(r.summary,r.teams);
+    renderPTTeamsFiltered();
+    renderPTAlerts(r.teams);
   });
 }
+
+function renderPTChapterBar(sum,teams){
+  var pct=sum.overallPct;
+  var barColor=pct>=75?'var(--green)':pct>=40?'var(--yellow)':'var(--red)';
+  var withGoal=0,withRecv=0,hitGoal=0;
+  teams.forEach(function(t){t.members.forEach(function(m){
+    if(m.bniGoal>0)withGoal++;if(m.recv>0)withRecv++;if(m.goalPct>=100)hitGoal++;
+  });});
+  var activeTags='';
+  if(sum.activeTotal!=null){
+    activeTags='<div class="pt-chapter-tags">'
+      +'<span class="pt-chapter-tag pt-tag-active">✅ สมาชิกปัจจุบัน '+sum.activeTotal+' คน</span>'
+      +(sum.departedTotal>0?'<span class="pt-chapter-tag pt-tag-departed">🚪 ออกแล้ว '+sum.departedTotal+' คน (รวมยอด KPI)</span>':'')
+      +'</div>';
+  }
+  var editBtn=PT.isGrowth
+    ?'<button class="pt-em-mode-btn'+(PT.editMode?' active':'')+'" onclick="togglePTEditMode()">'+(PT.editMode?'✅ เสร็จ':'✏️ แก้ไข')+'</button>'
+    :'';
+  var filterBar=PT.editMode?'':('<div class="pt-filter-bar">'
+    +'<span style="font-size:.6rem;color:var(--gray2);align-self:center">กรอง:</span>'
+    +'<button class="pt-filter-btn'+(PT.filter==='all'?' active':'')+'" onclick="setPTFilter(\'all\')">ทั้งหมด</button>'
+    +'<button class="pt-filter-btn'+(PT.filter==='red'?' active':'')+'" onclick="setPTFilter(\'red\')">🚨 Red</button>'
+    +'<button class="pt-filter-btn'+(PT.filter==='yellow'?' active':'')+'" onclick="setPTFilter(\'yellow\')">⚠️ Yellow</button>'
+    +'<button class="pt-filter-btn'+(PT.filter==='green'?' active':'')+'" onclick="setPTFilter(\'green\')">✅ Green</button>'
+    +'<select class="pt-sort-select" onchange="setPTSort(this.value)">'
+    +'<option value="default"'+(PT.sort==='default'?' selected':'')+'>เรียง: ค่าเริ่มต้น</option>'
+    +'<option value="pct_asc"'+(PT.sort==='pct_asc'?' selected':'')+'>% น้อย → มาก</option>'
+    +'<option value="pct_desc"'+(PT.sort==='pct_desc'?' selected':'')+'>% มาก → น้อย</option>'
+    +'<option value="recv_desc"'+(PT.sort==='recv_desc'?' selected':'')+'>ยอดรับสูงสุด</option>'
+    +'</select>'
+    +'</div>');
+  var searchBox='<div class="pt-search-wrap">'
+    +'<span class="pt-search-ico">🔍</span>'
+    +'<input class="pt-search-input" type="text" placeholder="ค้นหาชื่อสมาชิก..." value="'+escHtml(PT.search)+'" oninput="setPTSearch(this.value)">'
+    +'</div>';
+  document.getElementById('pt-chapter-bar').innerHTML=
+    '<div class="pt-toolbar">'
+    +'<span class="pt-toolbar-label">⚡ Power Team — Chapter KPI</span>'
+    +'<div>'+editBtn+'<button class="pt-refresh-btn" onclick="loadGrowthPowerTeams(true)">🔄</button></div>'
+    +'</div>'
+    +'<div class="pt-chapter-bar">'
+    +'<div class="pt-chapter-title">Chapter Revenue Progress</div>'
+    +'<div class="pt-chapter-nums">'
+    +'<div><span class="pt-chapter-recv">฿'+fmt(sum.totalRecv)+'</span>'
+    +' <span class="pt-chapter-goal">/ ฿'+fmt(sum.totalGoal)+'</span></div>'
+    +'<span class="pt-chapter-pct">'+pct.toFixed(1)+'%</span>'
+    +'</div>'
+    +'<div class="pt-bar-track"><div class="pt-bar-fill" style="width:'+Math.min(pct,100)+'%;background:'+barColor+';"></div></div>'
+    +'<div class="pt-chapter-meta">สมาชิกรวม '+sum.memberCount+' คน &nbsp;|&nbsp; มีเป้า '+withGoal+' คน &nbsp;|&nbsp; รับรายได้แล้ว '+withRecv+' คน &nbsp;|&nbsp; ถึงเป้า '+hitGoal+' คน</div>'
+    +activeTags
+    +'</div>'
+    +searchBox
+    +filterBar;
+}
+
+function renderPTTeamsFiltered(){
+  if(!PT.teams)return;
+  if(PT.editMode){renderPTEditTable();return;}
+  var sorted=PT.teams.slice();
+  if(PT.sort==='pct_asc')sorted.sort(function(a,b){return a.teamPct-b.teamPct;});
+  else if(PT.sort==='pct_desc')sorted.sort(function(a,b){return b.teamPct-a.teamPct;});
+  else if(PT.sort==='recv_desc')sorted.sort(function(a,b){return b.teamRecv-a.teamRecv;});
+  var html=sorted.map(function(t){return buildPTCard(t,PT.teams.indexOf(t),PT.filter,PT.search);}).join('');
+  document.getElementById('pt-teams-list').innerHTML=html||'<div class="empty">ไม่พบสมาชิกที่ตรงกัน</div>';
+}
+
+function setPTFilter(f){
+  PT.filter=f;
+  renderPTChapterBar(PT.summary,PT.teams);
+  renderPTTeamsFiltered();
+  renderPTAlerts(PT.teams);
+}
+
+function setPTSort(s){PT.sort=s;renderPTTeamsFiltered();}
+
+function setPTSearch(val){
+  PT.search=(val||'').toLowerCase();
+  if(PT.editMode)renderPTEditTable();
+  else{renderPTTeamsFiltered();renderPTAlerts(PT.teams);}
+}
+
+function togglePTEditMode(){
+  PT.editMode=!PT.editMode;
+  renderPTChapterBar(PT.summary,PT.teams);
+  if(PT.editMode){
+    renderPTEditTable();
+    document.getElementById('pt-alerts-list').innerHTML='';
+  }else{
+    renderPTTeamsFiltered();
+    renderPTAlerts(PT.teams);
+  }
+}
+
+function renderPTEditTable(){
+  if(!PT.teams)return;
+  var search=PT.search;
+  var teamNames=PT.teams.map(function(t){return t.team;});
+  var html='';
+  PT.teams.forEach(function(t,tidx){
+    var members=t.members.filter(function(m){
+      if(!search)return true;
+      var n=(m.nick&&m.nick!=='nan')?m.nick:(m.firstName||'');
+      return n.toLowerCase().indexOf(search)!==-1;
+    });
+    if(!members.length)return;
+    html+='<div class="pt-em-section">';
+    html+='<div class="pt-em-header">'+escHtml(t.team)+'</div>';
+    members.forEach(function(m){
+      var midx=t.members.indexOf(m);
+      var nick=(m.nick&&m.nick!=='nan')?m.nick:(m.firstName||'');
+      var hasNick=m.nick&&m.nick!=='nan';
+      var opts=teamNames.map(function(name){return '<option value="'+escHtml(name)+'"'+(name===t.team?' selected':'')+'>'+escHtml(name)+'</option>';}).join('');
+      var stPill=hasNick
+        ?('<button onclick="togglePTMemberStatus('+tidx+','+midx+')" style="'
+          +(m.active
+            ?'background:rgba(16,185,129,.15);color:#10B981;border:1px solid rgba(16,185,129,.35);'
+            :'background:rgba(100,116,139,.15);color:#94A3B8;border:1px solid rgba(100,116,139,.35);')
+          +'border-radius:999px;font-size:.6rem;padding:2px 9px;cursor:pointer;font-family:Sarabun,sans-serif;white-space:nowrap;flex-shrink:0;">'
+          +(m.active?'🟢 ยังอยู่':'🚪 ออกแล้ว')
+          +'</button>')
+        :'';
+      html+='<div class="pt-em-row'+(m.active?'':' departed')+'">';
+      html+='<div class="pt-em-row-top">';
+      html+='<span class="pt-em-nick">'+escHtml(nick)+'</span>';
+      html+=stPill;
+      html+='<select class="pt-em-team-sel" onchange="movePTMember('+tidx+','+midx+',this.value)">'+opts+'</select>';
+      html+='</div>';
+      html+='<div class="pt-em-row-bot">';
+      html+='<span class="pt-em-label">Recv:</span>';
+      html+='<input class="pt-em-input" type="number" value="'+(m.recv||0)+'" data-key="recv" data-tidx="'+tidx+'" data-midx="'+midx+'" onchange="ptEmSave(this)">';
+      html+='<span class="pt-em-label">Goal:</span>';
+      html+='<input class="pt-em-input" type="number" value="'+(m.bniGoal||0)+'" data-key="goal" data-tidx="'+tidx+'" data-midx="'+midx+'" onchange="ptEmSave(this)">';
+      html+='</div>';
+      html+='</div>';
+    });
+    html+='</div>';
+  });
+  document.getElementById('pt-teams-list').innerHTML=html||'<div class="empty">ไม่พบสมาชิกที่ตรงกัน</div>';
+  document.getElementById('pt-alerts-list').innerHTML='';
+}
+
+function movePTMember(teamIdx,memberIdx,newTeamName){
+  if(!PT.teams)return;
+  var m=PT.teams[teamIdx].members[memberIdx];
+  if(!m)return;
+  var nick=m.nick||'';if(!nick||nick==='nan')return;
+  if(newTeamName===PT.teams[teamIdx].team)return;
+  var destIdx=-1;
+  PT.teams.forEach(function(t,i){if(t.team===newTeamName)destIdx=i;});
+  if(destIdx===-1)return;
+  // Optimistic update
+  PT.teams[teamIdx].members.splice(memberIdx,1);
+  PT.teams[destIdx].members.push(m);
+  rebuildTeamTotals(teamIdx);rebuildTeamTotals(destIdx);
+  PT.summary=recalcPTSummary();
+  renderPTChapterBar(PT.summary,PT.teams);
+  renderPTTeamsFiltered();
+  call('movePTMember',{nick:nick,newTeam:newTeamName},function(err,r){
+    if(err||!r||!r.ok){
+      var di=PT.teams[destIdx].members.indexOf(m);
+      if(di!==-1)PT.teams[destIdx].members.splice(di,1);
+      PT.teams[teamIdx].members.splice(memberIdx,0,m);
+      rebuildTeamTotals(teamIdx);rebuildTeamTotals(destIdx);
+      PT.summary=recalcPTSummary();
+      renderPTChapterBar(PT.summary,PT.teams);
+      renderPTTeamsFiltered();
+      toast('❌ '+((r&&r.error)||'ไม่สามารถบันทึกได้'),4000);
+    }else{
+      toast('✅ ย้าย '+nick+' ไป '+newTeamName+' แล้ว');
+    }
+  });
+}
+
+function ptEmSave(input){
+  var tidx=parseInt(input.dataset.tidx);
+  var midx=parseInt(input.dataset.midx);
+  var key=input.dataset.key;
+  var val=parseFloat(input.value);
+  if(isNaN(val)||val<0)return;
+  var m=PT.teams[tidx].members[midx];if(!m)return;
+  var nick=m.nick||'';
+  if(key==='recv'){m.recv=val;}else{m.bniGoal=val;}
+  m.goalPct=m.bniGoal>0?Math.round(m.recv/m.bniGoal*1000)/10:0;
+  rebuildTeamTotals(tidx);
+  PT.summary=recalcPTSummary();
+  renderPTChapterBar(PT.summary,PT.teams);
+  var payload={nick:nick};
+  if(key==='recv')payload.recv=val;else payload.bniGoal=val;
+  call('updatePTMember',payload,function(err,r){
+    if(err||!r||!r.ok)toast('⚠️ บันทึกไม่ได้: '+((r&&r.error)||'error'),4000);
+    else toast('✅ บันทึก '+key+' ของ '+nick);
+  });
+}
+
+function rebuildTeamTotals(teamIdx){
+  var t=PT.teams[teamIdx];
+  t.memberCount=t.members.length;
+  t.teamRecv=t.members.reduce(function(s,m){return s+(m.recv||0);},0);
+  t.teamGoal=t.members.reduce(function(s,m){return s+(m.bniGoal||0);},0);
+  t.teamPct=t.teamGoal>0?Math.round(t.teamRecv/t.teamGoal*1000)/10:0;
+  var ac=0,dc=0;
+  t.members.forEach(function(m){if(m.active)ac++;else dc++;});
+  t.activeCount=ac;t.departedCount=dc;
+}
+
+function buildPTCard(t,idx,tlFilter,search){
+  var pct=t.teamPct;
+  var tlCls=pct>=75?'tl-green':pct>=40?'tl-yellow':'tl-red';
+  var tlIcon=pct>=75?'✅':pct>=40?'⚠️':'🚨';
+  var barColor=pct>=75?'var(--green)':pct>=40?'var(--yellow)':'var(--red)';
+  var activeMembers=t.members.filter(function(m){
+    if(!m.active)return false;
+    if(search){var n=(m.nick&&m.nick!=='nan')?m.nick:(m.firstName||'');if(n.toLowerCase().indexOf(search)===-1)return false;}
+    if(tlFilter&&tlFilter!=='all'){var tk=tlFilter==='red'?'R':tlFilter==='yellow'?'Y':'G';if((m.tl||'')!==tk)return false;}
+    return true;
+  });
+  var departedMembers=t.members.filter(function(m){return !m.active;});
+  if((tlFilter&&tlFilter!=='all'||search)&&activeMembers.length===0)return '';
+
+  function makeRow(m,isDeparted){
+    var midx=t.members.indexOf(m);
+    var tlColor=m.tl==='G'?'#10B981':m.tl==='Y'?'#F59E0B':m.tl==='R'?'#EF4444':'#6B7280';
+    var mPct=m.goalPct||0;
+    var mPctColor=mPct>=75?'var(--green)':mPct>=40?'var(--yellow)':'var(--red)';
+    var nick=(m.nick&&m.nick!=='nan')?m.nick:(m.firstName||'');
+    var prof=(m.profession&&m.profession!=='nan'&&m.profession)?m.profession:'—';
+    var hasNick=m.nick&&m.nick!=='nan';
+    var statusBtn=PT.isGrowth&&hasNick
+      ?'<button class="pt-status-btn" title="'+(isDeparted?'กดเพื่อ: ยังอยู่':'กดเพื่อ: ออกแล้ว')+'" onclick="togglePTMemberStatus('+idx+','+midx+')">'+(isDeparted?'🚪':'🟢')+'</button>'
+      :'';
+    var recvCell=PT.isGrowth
+      ?'<div class="pt-member-recv pt-edit-cell" id="pt-recv-'+idx+'-'+midx+'" onclick="editPTRecv('+idx+','+midx+')">฿'+fmt(m.recv)+'</div>'
+      :'<div class="pt-member-recv">฿'+fmt(m.recv)+'</div>';
+    return '<div class="pt-member-row'+(isDeparted?' departed':'')+'">'
+      +'<div class="pt-badge-tl" style="background:'+tlColor+';"></div>'
+      +'<div class="pt-member-nick">'+escHtml(nick)+'</div>'
+      +'<div class="pt-member-prof">'+escHtml(prof)+'</div>'
+      +'<div class="pt-member-pct" style="color:'+mPctColor+'">'+(m.bniGoal>0?mPct.toFixed(1)+'%':'—')+'</div>'
+      +recvCell
+      +(m.refPerWeek>0?'<div class="pt-refwk">↗'+m.refPerWeek+'/wk</div>':'<div class="pt-refwk"></div>')
+      +statusBtn
+      +'</div>';
+  }
+
+  var activeRows=activeMembers.map(function(m){return makeRow(m,false);}).join('');
+  var departedSection='';
+  if(departedMembers.length>0&&(!tlFilter||tlFilter==='all')){
+    var dRecv=departedMembers.reduce(function(s,m){return s+(m.recv||0);},0);
+    var dGoal=departedMembers.reduce(function(s,m){return s+(m.bniGoal||0);},0);
+    departedSection=
+      '<button class="pt-departed-toggle" onclick="togglePTDeparted('+idx+')">'
+      +'<span>🚪 ออกแล้ว '+departedMembers.length+' คน'+(dRecv>0?' · ฿'+fmt(dRecv):'')+'</span>'
+      +'<span id="pt-dtg-'+idx+'">▶</span>'
+      +'</button>'
+      +'<div class="pt-departed-body" id="pt-dep-'+idx+'">'
+      +departedMembers.map(function(m){return makeRow(m,true);}).join('')
+      +(dGoal>0?'<div class="pt-departed-recv">ยอดรวม: ฿'+fmt(dRecv)+' / ฿'+fmt(dGoal)+' (รวมใน KPI Chapter)</div>':'')
+      +'</div>';
+  }
+  var cntLabel=(activeMembers.length||t.memberCount)+' คน'+(departedMembers.length>0?' (+'+departedMembers.length+' ออกแล้ว)':'');
+  return '<div class="pt-team-card '+tlCls+'">'
+    +'<div class="pt-team-hdr" onclick="togglePTCard('+idx+')">'
+    +'<span class="pt-team-icon">'+tlIcon+'</span>'
+    +'<span class="pt-team-name">'+escHtml(t.team)+'</span>'
+    +'<span class="pt-team-pct '+tlCls+'">'+pct.toFixed(1)+'%</span>'
+    +'<span class="pt-team-cnt">'+cntLabel+'</span>'
+    +'<span class="pt-team-toggle" id="pt-tg-'+idx+'">▼</span>'
+    +'</div>'
+    +'<div class="pt-team-body" id="pt-body-'+idx+'">'
+    +'<div class="pt-team-amounts"><span>฿'+fmt(t.teamRecv)+' / ฿'+fmt(t.teamGoal)+'</span><span></span></div>'
+    +'<div class="pt-bar-track"><div class="pt-bar-fill" style="width:'+Math.min(pct,100)+'%;background:'+barColor+';"></div></div>'
+    +'<div class="pt-section-label">สมาชิก '+activeMembers.length+' คน</div>'
+    +'<div class="pt-member-row" style="opacity:.5;pointer-events:none;">'
+    +'<div class="pt-badge-tl" style="background:transparent;"></div>'
+    +'<div class="pt-member-nick" style="font-size:.57rem;color:var(--gray2);">ชื่อ</div>'
+    +'<div class="pt-member-prof" style="font-size:.57rem;color:var(--gray2);">อาชีพ</div>'
+    +'<div class="pt-member-pct" style="font-size:.57rem;color:var(--gray2);">% เป้า</div>'
+    +'<div class="pt-member-recv" style="font-size:.57rem;color:var(--gray2);">รับแล้ว</div>'
+    +'<div class="pt-refwk" style="font-size:.57rem;color:var(--gray2);">Ref/wk</div>'
+    +(PT.isGrowth?'<div style="width:1.4rem;"></div>':'')
+    +'</div>'
+    +activeRows
+    +departedSection
+    +'</div>'
+    +'</div>';
+}
+
+function togglePTCard(idx){
+  var body=document.getElementById('pt-body-'+idx);
+  var tog=document.getElementById('pt-tg-'+idx);
+  var open=body.classList.contains('open');
+  body.classList.toggle('open',!open);
+  tog.classList.toggle('open',!open);
+}
+
+function togglePTDeparted(idx){
+  var body=document.getElementById('pt-dep-'+idx);
+  var tog=document.getElementById('pt-dtg-'+idx);
+  if(!body)return;
+  var open=body.classList.contains('open');
+  body.classList.toggle('open',!open);
+  if(tog)tog.textContent=open?'▶':'▼';
+}
+
+function togglePTMemberStatus(teamIdx,memberIdx){
+  if(!PT.teams)return;
+  var m=PT.teams[teamIdx].members[memberIdx];
+  if(!m)return;
+  var nick=m.nick||'';
+  if(!nick||nick==='nan')return;
+  var prev=m.active;
+  var newStatus=prev?'departed':'active';
+  PT.teams[teamIdx].members[memberIdx].active=!prev;
+  if(PT.editMode)renderPTEditTable();else renderPTTeamsFiltered();
+  renderPTAlerts(PT.teams);
+  call('setPTMemberStatus',{nick:nick,status:newStatus},function(err,r){
+    if(err||!r||!r.ok){
+      PT.teams[teamIdx].members[memberIdx].active=prev;
+      if(PT.editMode)renderPTEditTable();else renderPTTeamsFiltered();
+      renderPTAlerts(PT.teams);
+      toast('❌ '+((r&&r.error)||'ไม่สามารถบันทึกได้'),4000);
+    }else{
+      toast('✅ '+nick+': '+(!prev?'ยังอยู่ใน Chapter':'ออกจาก Chapter'));
+    }
+  });
+}
+
+function editPTRecv(teamIdx,memberIdx){
+  var cell=document.getElementById('pt-recv-'+teamIdx+'-'+memberIdx);
+  if(!cell||cell.querySelector('input'))return;
+  var cur=PT.teams[teamIdx].members[memberIdx].recv||0;
+  cell.innerHTML='<input class="pt-edit-input" type="number" value="'+cur+'" '
+    +'onblur="savePTRecv('+teamIdx+','+memberIdx+',this)" '
+    +'onkeydown="if(event.key===\'Enter\')this.blur();if(event.key===\'Escape\'){PT.teams['+teamIdx+'].members['+memberIdx+'].recv='+cur+';renderPTTeamsFiltered();}">';
+  setTimeout(function(){var inp=cell.querySelector('input');if(inp){inp.focus();inp.select();}},40);
+}
+
+function savePTRecv(teamIdx,memberIdx,input){
+  var val=parseFloat(input.value);
+  if(isNaN(val)||val<0)val=PT.teams[teamIdx].members[memberIdx].recv||0;
+  var m=PT.teams[teamIdx].members[memberIdx];
+  var nick=m.nick||'';
+  m.recv=val;
+  m.goalPct=m.bniGoal>0?Math.round(val/m.bniGoal*1000)/10:0;
+  var t=PT.teams[teamIdx];
+  t.teamRecv=t.members.reduce(function(s,x){return s+(x.recv||0);},0);
+  t.teamPct=t.teamGoal>0?Math.round(t.teamRecv/t.teamGoal*1000)/10:0;
+  PT.summary=recalcPTSummary();
+  renderPTChapterBar(PT.summary,PT.teams);
+  renderPTTeamsFiltered();
+  renderPTAlerts(PT.teams);
+  call('updatePTMember',{nick:nick,recv:val},function(err,r){
+    if(err||!r||!r.ok){
+      toast('⚠️ บันทึกไม่ได้: '+((r&&r.error)||'เกิดข้อผิดพลาด')+' (reset เมื่อ refresh)',5000);
+    }else{
+      toast('✅ บันทึก recv '+nick+' แล้ว');
+    }
+  });
+}
+
+function recalcPTSummary(){
+  var tg=0,tr=0,mc=0,at=0,dt=0;
+  PT.teams.forEach(function(t){
+    tg+=t.teamGoal;tr+=t.teamRecv;mc+=t.memberCount;
+    t.members.forEach(function(m){if(m.active)at++;else dt++;});
+  });
+  return{totalGoal:tg,totalRecv:tr,overallPct:tg>0?Math.round(tr/tg*1000)/10:0,
+    memberCount:mc,activeTotal:at,departedTotal:dt};
+}
+
+function renderPTAlerts(teams){
+  var alerts=[];
+  teams.forEach(function(t){
+    t.members.forEach(function(m){
+      if(m.active&&m.bniGoal>0&&m.goalPct<25){
+        if(PT.filter!=='all'){
+          var tlKey=PT.filter==='red'?'R':PT.filter==='yellow'?'Y':'G';
+          if((m.tl||'')!==tlKey)return;
+        }
+        var nick=(m.nick&&m.nick!=='nan')?m.nick:(m.firstName||'');
+        alerts.push({nick:nick,team:t.team,goalPct:m.goalPct,refPerWeek:m.refPerWeek||0,bniGoal:m.bniGoal,recv:m.recv});
+      }
+    });
+  });
+  alerts.sort(function(a,b){return a.goalPct-b.goalPct;});
+  if(!alerts.length){document.getElementById('pt-alerts-list').innerHTML='';return;}
+  document.getElementById('pt-alerts-list').innerHTML=
+    '<div class="pt-alerts-section">'
+    +'<div class="sh">🚨 สมาชิกที่ต้องการความช่วยเหลือ (เฉพาะสมาชิกปัจจุบัน)</div>'
+    +alerts.map(function(a){
+      return '<div class="pt-alert-card">'
+        +'<div class="pt-alert-nick">'+escHtml(a.nick)+'</div>'
+        +'<div class="pt-alert-team">'+escHtml(a.team)+'&nbsp;·&nbsp;฿'+fmt(a.recv)+'/฿'+fmt(a.bniGoal)+'</div>'
+        +'<div class="pt-alert-pct">'+a.goalPct.toFixed(1)+'%</div>'
+        +(a.refPerWeek>0?'<div class="pt-alert-refwk">↗'+a.refPerWeek+'/wk</div>':'<div class="pt-alert-refwk"></div>')
+        +'</div>';
+    }).join('')
+    +'</div>';
+}
+
+// ── Power Teams (1-2-1 synergy section) ───────────────────────
+function loadPowerTeamsSynergy(){
+  document.getElementById('g-pt-list').innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
+  document.getElementById('syn-toolbar').innerHTML='';
+  SYN.editMode=false;
+  call('getPowerTeams',{},function(err,r){
+    PT_SYN_LOADED=true;
+    if(err||!r||!r.ok){
+      document.getElementById('g-pt-list').innerHTML='<div class="empty">❌ '+(err?err.message:(r&&r.error)||'ไม่สามารถโหลดข้อมูลได้')+'</div>';
+      return;
+    }
+    SYN.teams=r.teams;
+    renderSynView();
+  });
+}
+function loadPowerTeams(){ loadPowerTeamsSynergy(); }
 
 function renderPowerTeams(teams){
   var html = teams.map(function(t,idx){
@@ -2580,15 +3806,15 @@ function renderPowerTeams(teams){
     }
 
     return '<div class="pt-card'+(isUnassigned?' unassigned':'')+'">'
-      +'<div class="pt-hdr" onclick="togglePT('+idx+')">'
+      +'<div class="pt-hdr" onclick="togglePT('+idx+')" style="cursor:pointer;">'
       +'<span class="pt-icon">'+t.icon+'</span>'
       +'<span class="pt-name">'+escHtml(t.name)+'</span>'
       +'<span class="pt-count">'+t.count+' คน</span>'
       +(t.redBlack>0?'<span style="background:rgba(239,68,68,.15);color:var(--red);font-size:.6rem;padding:2px 7px;border-radius:999px;">⚠️ '+t.redBlack+' แดง/ดำ</span>':'')
       +(isUnassigned?'<span style="background:rgba(245,158,11,.15);color:var(--yellow);font-size:.6rem;padding:2px 7px;border-radius:999px;">ยังไม่จัดกลุ่ม</span>':'')
-      +'<span class="pt-toggle" id="pt-toggle-'+idx+'">▼</span>'
+      +'<span class="pt-toggle" id="pts-tog-'+idx+'">▼</span>'
       +'</div>'
-      +'<div class="pt-body" id="pt-body-'+idx+'">'
+      +'<div class="pt-body" id="pts-body-'+idx+'">'
       +'<div class="pt-stats">'
       +'<div class="pt-stat"><div class="pt-stat-n" style="color:'+scoreColor+'">'+t.avgScore+'</div><div class="pt-stat-l">avg score</div></div>'
       +'<div class="pt-stat"><div class="pt-stat-n" style="color:var(--green)">฿'+fmt(t.totalGiven)+'</div><div class="pt-stat-l">Given รวม</div></div>'
@@ -2601,15 +3827,96 @@ function renderPowerTeams(teams){
       +'</div>';
   }).join('');
 
-  document.getElementById('g-pt-list').innerHTML = html;
+  document.getElementById('g-pt-list').innerHTML=html;
 }
 
 function togglePT(idx){
-  var body    = document.getElementById('pt-body-'+idx);
-  var toggle  = document.getElementById('pt-toggle-'+idx);
-  var isOpen  = body.classList.contains('open');
-  body.classList.toggle('open', !isOpen);
-  toggle.classList.toggle('open', !isOpen);
+  var body   = document.getElementById('pts-body-'+idx);
+  var toggle = document.getElementById('pts-tog-'+idx);
+  if(!body)return;
+  var isOpen = body.classList.contains('open');
+  body.classList.toggle('open',!isOpen);
+  toggle.classList.toggle('open',!isOpen);
+}
+
+function renderSynView(){
+  if(!SYN.teams)return;
+  var isGrowth=(S&&S.role==='growth')||PT.isGrowth;
+  var toolbar=isGrowth
+    ?'<div class="pt-toolbar"><span class="pt-toolbar-label">💡 1-2-1 Synergy Teams</span>'
+      +'<button class="pt-em-mode-btn'+(SYN.editMode?' active':'')+'" onclick="toggleSynEditMode()">'+(SYN.editMode?'✅ เสร็จ':'✏️ แก้ไขทีม')+'</button>'
+      +'</div>'
+    :'';
+  document.getElementById('syn-toolbar').innerHTML=toolbar;
+  if(SYN.editMode){
+    document.getElementById('g-pt-list').innerHTML=renderSynEditTableHtml();
+  } else {
+    renderPowerTeams(SYN.teams);
+  }
+}
+
+function toggleSynEditMode(){
+  SYN.editMode=!SYN.editMode;
+  renderSynView();
+}
+
+function renderSynEditTableHtml(){
+  if(!SYN.teams)return'';
+  var teamOpts=SYN.teams.filter(function(t){return t.id!=='unassigned';}).map(function(t){return t;});
+  var html='';
+  SYN.teams.forEach(function(t,tidx){
+    if(!t.members.length)return;
+    html+='<div class="pt-em-section">';
+    html+='<div class="pt-em-header">'+escHtml(t.icon+' '+t.name)+'&ensp;<span style="font-size:.6rem;color:var(--gray2);">'+t.members.length+' คน</span></div>';
+    t.members.forEach(function(m,midx){
+      var nick=m.nick||m.name||'';
+      var opts=teamOpts.map(function(opt){
+        return '<option value="'+escHtml(opt.id)+'"'+(opt.id===t.id?' selected':'')+'>'+escHtml(opt.icon+' '+opt.name)+'</option>';
+      }).join('');
+      html+='<div class="pt-em-row">';
+      html+='<div class="pt-em-row-top">';
+      html+='<span class="pt-em-nick">'+escHtml(nick)+'</span>';
+      html+='<select class="pt-em-team-sel" onchange="moveSynMember('+tidx+','+midx+',this.value)">'+opts+'</select>';
+      html+='</div>';
+      html+='</div>';
+    });
+    html+='</div>';
+  });
+  return html||'<div class="empty">ไม่พบสมาชิก</div>';
+}
+
+function moveSynMember(teamIdx,memberIdx,newTeamId){
+  if(!SYN.teams)return;
+  var srcTeam=SYN.teams[teamIdx];
+  if(!srcTeam)return;
+  var m=srcTeam.members[memberIdx];
+  if(!m)return;
+  var memberName=m.name||'';
+  var nick=m.nick||memberName||'';
+  if(!memberName&&!nick)return;
+  if(newTeamId===srcTeam.id)return;
+  var destIdx=-1;
+  SYN.teams.forEach(function(t,i){if(t.id===newTeamId)destIdx=i;});
+  if(destIdx===-1)return;
+  var destTeam=SYN.teams[destIdx];
+  // Optimistic update
+  srcTeam.members.splice(memberIdx,1);
+  srcTeam.count=srcTeam.members.length;
+  destTeam.members.push(m);
+  destTeam.count=destTeam.members.length;
+  renderSynView();
+  call('moveSynMember',{name:memberName,nick:nick,newTeamId:newTeamId},function(err,r){
+    if(err||!r||!r.ok){
+      var di=destTeam.members.indexOf(m);
+      if(di!==-1){destTeam.members.splice(di,1);destTeam.count=destTeam.members.length;}
+      srcTeam.members.splice(memberIdx,0,m);
+      srcTeam.count=srcTeam.members.length;
+      renderSynView();
+      toast('❌ '+((r&&r.error)||'ไม่สามารถบันทึกได้'),4000);
+    } else {
+      toast('✅ ย้าย '+nick+' ไป '+escHtml(destTeam.name)+' แล้ว');
+    }
+  });
 }
 
 // ── MC Assignments ────────────────────────────────────────────
@@ -2733,7 +4040,7 @@ function renderDirectory() {
     if (DIR.filter !== 'all' && m.tl !== DIR.filter) return false;
     if (DIR.search) {
       var s = DIR.search;
-      return m.name.toLowerCase().indexOf(s) >= 0 || (m.email && m.email.toLowerCase().indexOf(s) >= 0);
+      return m.name.toLowerCase().indexOf(s)>=0 || (m.nick&&m.nick.toLowerCase().indexOf(s)>=0) || (m.email&&m.email.toLowerCase().indexOf(s)>=0);
     }
     return true;
   });
@@ -2745,16 +4052,54 @@ function renderDirectory() {
 function buildDirCard(m) {
   var bg = avbg(m.tl), bc = tlc(m.tl);
   var tlLabel = {green:'🟢',yellow:'🟡',red:'🔴',black:'⚫',none:'—'}[m.tl]||'—';
-  return '<div class="dir-card">'+
-    '<div class="dir-badge" style="background:'+bg+';border:1px solid '+bc+';">'+
-    '<div class="db-score" style="color:'+bc+'">'+(m.score||'—')+'</div>'+
-    '<div class="db-tl">'+tlLabel+'</div>'+
-    '</div>'+
-    '<div class="dir-info">'+
-    '<div class="dir-name">'+escHtml(m.name)+'</div>'+
-    (m.email?'<div class="dir-contact">✉️ <a href="mailto:'+escHtml(m.email)+'">'+escHtml(m.email)+'</a></div>':'')+
-    (m.phone?'<div class="dir-contact">📞 '+escHtml(m.phone)+'</div>':'')+
-    '</div></div>';
+  var safeName = m.name.replace(/'/g,"\\'");
+  var acts = '';
+  if (m.phone) acts += '<a class="dir-act" href="tel:'+escHtml(m.phone)+'" target="_top" onclick="event.stopPropagation()">📞 โทร</a>';
+  if (m.email) acts += '<a class="dir-act" href="mailto:'+escHtml(m.email)+'" target="_top" onclick="event.stopPropagation()">✉️ Email</a>';
+  return '<div class="dir-card" onclick="openDirProfile(\''+safeName+'\')" style="cursor:pointer;">'
+    +'<div class="dir-badge" style="background:'+bg+';border:1px solid '+bc+';">'
+    +'<div class="db-score" style="color:'+bc+'">'+(m.score||'—')+'</div>'
+    +'<div class="db-tl">'+tlLabel+'</div>'
+    +'</div>'
+    +'<div class="dir-info">'
+    +'<div class="dir-name">'+escHtml(m.name)+(m.nick?' <span style="color:var(--muted);font-weight:400;font-size:.82em;">('+escHtml(m.nick)+')</span>':'')+'</div>'
+    +(m.mentor?'<div class="dir-contact">Mentor: '+escHtml(m.mentor)+'</div>':'')
+    +(acts?'<div class="dir-acts">'+acts+'</div>':'')
+    +'</div></div>';
+}
+function openDirProfile(name) {
+  var m = null;
+  for (var i=0;i<DIR.members.length;i++){if(DIR.members[i].name===name){m=DIR.members[i];break;}}
+  if (!m) return;
+  var bg=avbg(m.tl), bc=tlc(m.tl);
+  var tlFull={green:'🟢 เขียว',yellow:'🟡 เหลือง',red:'🔴 แดง',black:'⚫ ดำ',none:'—'}[m.tl]||'—';
+  document.getElementById('dpp-name').textContent = m.name+(m.nick?' ('+m.nick+')':'');
+  document.getElementById('dpp-content').innerHTML =
+    '<div class="dpp-hero">'
+    +'<div class="dpp-badge" style="background:'+bg+';border:2px solid '+bc+';">'
+    +'<div style="font-size:1.8rem;font-weight:800;color:'+bc+';line-height:1;">'+(m.score||'—')+'</div>'
+    +'<div style="font-size:.75rem;margin-top:3px;">'+tlFull+'</div>'
+    +'</div>'
+    +'<div>'
+    +'<div class="dpp-iname">'+escHtml(m.name)+'</div>'
+    +(m.nick?'<div class="dpp-nick">('+escHtml(m.nick)+')</div>':'')
+    +(m.mentor?'<div class="dpp-mentor">👥 '+escHtml(m.mentor)+'</div>':'')
+    +'</div></div>'
+    +'<div class="dpp-actions">'
+    +(m.phone?'<a class="dpp-btn call" href="tel:'+escHtml(m.phone)+'" target="_top">'
+      +'<div class="dpp-btn-icon">📞</div>'
+      +'<div class="dpp-btn-info"><div class="dpp-btn-label">โทรหา</div><div class="dpp-btn-sub">'+escHtml(m.phone)+'</div></div>'
+      +'</a>':'')
+    +(m.email?'<a class="dpp-btn email" href="mailto:'+escHtml(m.email)+'" target="_top">'
+      +'<div class="dpp-btn-icon">✉️</div>'
+      +'<div class="dpp-btn-info"><div class="dpp-btn-label">ส่งอีเมล</div><div class="dpp-btn-sub">'+escHtml(m.email)+'</div></div>'
+      +'</a>':'')
+    +((!m.phone&&!m.email)?'<div style="color:var(--muted);font-size:.85rem;text-align:center;padding:1rem;">ไม่มีข้อมูลติดต่อในระบบ</div>':'')
+    +'</div>';
+  document.getElementById('dirProfilePanel').classList.add('on');
+}
+function closeDirProfile() {
+  document.getElementById('dirProfilePanel').classList.remove('on');
 }
 
 // ── Broadcast ─────────────────────────────────────────────────
@@ -2788,6 +4133,87 @@ function loadBroadcasts(appType){
   });
 }
 
+// ── Member Notes ─────────────────────────────────────────────
+function loadMemberNote(memberName){
+  var el=document.getElementById('dp-note-section');
+  if(!el)return;
+  el.innerHTML='<div class="lt" style="font-size:.7rem;">⏳ โหลด note...</div>';
+  call('getMemberNote',{memberName:memberName},function(err,r){
+    if(err||!r||!r.ok){el.innerHTML='';return;}
+    var safeName=memberName.replace(/'/g,"\\'");
+    var metaTxt=r.savedAt?'<div style="font-size:.68rem;color:var(--gray2);margin-top:4px;">บันทึกล่าสุด: '+escHtml(r.savedAt)+(r.savedBy?' โดย '+escHtml(r.savedBy):'')+'</div>':'';
+    el.innerHTML='<div class="log-section">'
+      +'<div class="log-hdr"><span>📝 Note (Mentor/MC)</span></div>'
+      +'<div class="log-form">'
+      +'<textarea id="dp-note-txt" class="log-input" rows="3" placeholder="บันทึกส่วนตัวเกี่ยวกับสมาชิกคนนี้...">'+escHtml(r.note||'')+'</textarea>'
+      +'<button class="log-btn" onclick="saveMemberNote(\''+safeName+'\',this)">💾 บันทึก Note</button>'
+      +'</div>'+metaTxt+'</div>';
+  });
+}
+function saveMemberNote(memberName,btn){
+  var el=document.getElementById('dp-note-txt');
+  if(!el)return;
+  var prev=btn.textContent; btn.disabled=true; btn.textContent='⏳';
+  call('saveMemberNote',{memberName:memberName,note:el.value},function(err,r){
+    btn.disabled=false; btn.textContent=prev;
+    if(err||!r||!r.ok){toast('❌ '+(err?err.message:(r&&r.error)||'Error'));return;}
+    toast('✅ บันทึก Note แล้ว');
+    var meta=document.querySelector('#dp-note-section .log-section>div:last-child');
+    if(meta&&r.savedAt)meta.innerHTML='<div style="font-size:.68rem;color:var(--gray2);margin-top:4px;">บันทึกล่าสุด: '+escHtml(r.savedAt)+'</div>';
+  });
+}
+
+// ── LINE Settings ─────────────────────────────────────────────
+var LINE_ROLES=[
+  {key:'mc',      label:'MC (ตูมตาม)'},
+  {key:'TOOMTAM', label:'Mentor TOOMTAM'},
+  {key:'Aof',     label:'Mentor Aof'},
+  {key:'Draft',   label:'Mentor Draft'},
+  {key:'PHAI',    label:'Mentor PHAI'},
+  {key:'AMP',     label:'Mentor AMP'},
+  {key:'growth',  label:'Growth Coordinator'}
+];
+
+function loadLineSettings(){
+  var tokenEl=document.getElementById('line-token-status');
+  var formEl=document.getElementById('line-ids-form');
+  if(!formEl) return;
+  formEl.innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
+  call('getLineIds',{},function(err,r){
+    if(err||!r||!r.ok){
+      formEl.innerHTML='<div class="lt">❌ '+(err?err.message:(r&&r.error)||'Error')+'</div>';return;
+    }
+    if(tokenEl){
+      tokenEl.innerHTML = r.hasToken
+        ? '<div style="color:#10B981;font-size:.85rem;">✅ LINE Token ตั้งค่าแล้ว (Script Properties)</div>'
+        : '<div style="color:#EF4444;font-size:.85rem;">⚠️ ยังไม่มี LINE_TOKEN — ตั้งค่าใน Apps Script → Script Properties ก่อนครับ</div>';
+    }
+    var ids=r.ids||{};
+    var html='<div class="card" style="padding:.75rem;">';
+    LINE_ROLES.forEach(function(role){
+      var val=ids[role.key]||'';
+      html+='<div style="margin-bottom:.6rem;">'
+        +'<div style="font-size:.82rem;color:var(--gray);margin-bottom:3px;">'+escHtml(role.label)+'</div>'
+        +'<div style="display:flex;gap:6px;">'
+        +'<input class="fi" id="lid-'+role.key+'" value="'+escHtml(val)+'" placeholder="LINE User ID เช่น Uxxxxxxxx..." style="flex:1;font-size:.8rem;">'
+        +'<button class="btn-p" style="padding:6px 10px;font-size:.78rem;" onclick="saveOneLineId(\''+role.key+'\')">บันทึก</button>'
+        +'</div></div>';
+    });
+    html+='</div>';
+    formEl.innerHTML=html;
+  });
+}
+
+function saveOneLineId(roleKey){
+  var inp=document.getElementById('lid-'+roleKey);
+  if(!inp) return;
+  var val=inp.value.trim();
+  call('saveLineId',{target:roleKey,lineId:val},function(err,r){
+    if(err||!r||!r.ok){toast('❌ '+(err?err.message:(r&&r.error)||'Error'));return;}
+    toast('✅ บันทึก LINE ID แล้ว');
+  });
+}
+
 // ── Alert Center (MC) ──────────────────────────────────────────
 function loadAlertCenter(){
   var el=document.getElementById('mc-alert-list');
@@ -2811,6 +4237,118 @@ function loadAlertCenter(){
         +'</div>';
     }).join('');
     el.innerHTML=html;
+  });
+}
+
+// ── Notification Center (MC) ─────────────────────────────────
+var NOTIF={loaded:false};
+
+function openNotifPanel(){
+  document.getElementById('notifPanel').classList.add('on');
+  if(!NOTIF.loaded) loadNotifPanel();
+}
+function closeNotifPanel(){
+  document.getElementById('notifPanel').classList.remove('on');
+}
+
+function loadNotifPanel(){
+  NOTIF.loaded=false;
+  var el=document.getElementById('notif-content');
+  el.innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
+  var done=0, alertData=null, rptData=null;
+  function tryRender(){
+    done++;
+    if(done<2)return;
+    NOTIF.loaded=true;
+    renderNotifPanel(alertData,rptData);
+  }
+  call('getAlertCenter',{},function(err,r){ alertData=(r&&r.ok)?r:{alerts:[],total:0}; tryRender(); });
+  call('getReports',{},function(err,r){ rptData=(r&&r.ok)?r:{reports:[]}; tryRender(); });
+}
+
+function renderNotifPanel(alertData,rptData){
+  var el=document.getElementById('notif-content');
+  var html='';
+  var totalCount=0;
+
+  // ── Section 1: Emergency Alerts ──────────────────────────────
+  var emergency=(alertData.alerts||[]).filter(function(a){return a.level==='emergency';});
+  var warnings=(alertData.alerts||[]).filter(function(a){return a.level==='warning';});
+  totalCount+=emergency.length+warnings.length;
+
+  if(emergency.length||warnings.length){
+    if(emergency.length){
+      html+='<div class="notif-sec">🚨 เร่งด่วน ('+emergency.length+')</div>';
+      html+=emergency.map(buildNotifItem).join('');
+    }
+    if(warnings.length){
+      html+='<div class="notif-sec">⚠️ ควรดูแล ('+warnings.length+')</div>';
+      html+=warnings.map(buildNotifItem).join('');
+    }
+  }
+
+  // ── Section 2: Unreplied Reports ─────────────────────────────
+  var reports=rptData.reports||[];
+  var unreplied=reports.filter(function(r){return !r.reply&&r.status!=='done';});
+  totalCount+=unreplied.length;
+
+  if(unreplied.length){
+    html+='<div class="notif-sec">📋 รายงานรอตอบกลับ ('+unreplied.length+')</div>';
+    html+=unreplied.map(function(r){
+      return '<div class="notif-item warning" onclick="mct(\'reports\',document.getElementById(\'mc-rpt-tab\'));closeNotifPanel();">'
+        +'<div class="ni-icon">📝</div>'
+        +'<div class="ni-body">'
+          +'<div class="ni-name">'+escHtml(r.memberName)+'</div>'
+          +'<div class="ni-detail">'+escHtml((r.coreIssue||'').slice(0,60))+'</div>'
+          +'<div class="ni-team">'+escHtml(r.team)+'</div>'
+        +'</div>'
+      +'</div>';
+    }).join('');
+  }
+
+  if(!html){
+    html='<div class="empty"><div class="empty-i">✅</div>ไม่มีการแจ้งเตือนตอนนี้<br><span style="font-size:.72rem;">ทุกอย่างปกติดี</span></div>';
+  }
+
+  el.innerHTML=html;
+
+  // Update badge counts
+  var badgeEl=document.getElementById('notif-total');
+  var rptBadgeEl=document.getElementById('rpt-badge');
+  if(badgeEl){
+    if(totalCount>0){badgeEl.textContent=totalCount>99?'99+':totalCount;badgeEl.style.display='flex';}
+    else badgeEl.style.display='none';
+  }
+  if(rptBadgeEl){
+    if(unreplied.length>0){rptBadgeEl.textContent=unreplied.length;rptBadgeEl.style.display='inline-flex';}
+    else rptBadgeEl.style.display='none';
+  }
+}
+
+function buildNotifItem(a){
+  var scoreColor=a.tl==='green'?'var(--green)':a.tl==='yellow'?'var(--yellow)':a.tl==='red'||a.tl==='black'?'var(--red)':'var(--gray2)';
+  return '<div class="notif-item '+a.level+'">'
+    +'<div class="ni-icon">'+a.icon+'</div>'
+    +'<div class="ni-body">'
+      +'<div class="ni-name">'+escHtml(a.name)+(a.score?'<span style="font-size:.68rem;color:'+scoreColor+';margin-left:.3rem;">'+a.score+'</span>':'')+'</div>'
+      +'<div class="ni-detail">'+escHtml(a.detail)+'</div>'
+      +'<div class="ni-team">'+escHtml(a.team)+'</div>'
+    +'</div>'
+  +'</div>';
+}
+
+function loadNotifBadge(){
+  call('getReports',{},function(err,r){
+    if(err||!r||!r.ok)return;
+    var unreplied=(r.reports||[]).filter(function(x){return !x.reply&&x.status!=='done';}).length;
+    var rptBadgeEl=document.getElementById('rpt-badge');
+    if(rptBadgeEl&&unreplied>0){rptBadgeEl.textContent=unreplied;rptBadgeEl.style.display='inline-flex';}
+  });
+  call('getAlertCenter',{},function(err,r){
+    if(err||!r||!r.ok)return;
+    var total=(r.total||0);
+    var badgeEl=document.getElementById('notif-total');
+    if(badgeEl&&total>0){badgeEl.textContent=total>99?'99+':total;badgeEl.style.display='flex';}
   });
 }
 

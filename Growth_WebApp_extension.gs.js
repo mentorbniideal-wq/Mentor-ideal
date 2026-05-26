@@ -86,11 +86,17 @@ function apiGetGrowthData(p) {
   var members = [];
   var summary = {
     total: 0,
-    highGiverLowRecv: 0,   // 🔴 ให้เยอะ รับน้อย — ต้องช่วย
-    lowGiverHighRecv: 0,   // 🟡 รับเยอะ ให้น้อย
-    balanced: 0,           // ✅ สมดุล
+    highGiverLowRecv: 0,
+    lowGiverHighRecv: 0,
+    balanced: 0,
     totalGiven: 0,
-    totalRecv: 0
+    totalRecv: 0,
+    totalVisitors: 0,
+    total121: 0,
+    totalTYFCB: 0,
+    chapterAttend: 0,
+    chapterAbsent: 0,
+    chapterAttendRate: 0
   };
 
   for (var i = 0; i < masterData.length; i++) {
@@ -108,10 +114,15 @@ function apiGetGrowthData(p) {
 
     // ดึงจาก R2Y
     var r2y    = r2yMap[name] || null;
-    var rgCount= r2y ? (parseFloat(r2y[1]) || 0) : 0;  // RG = col 2 → index 1
-    var rrCount= r2y ? (parseFloat(r2y[2]) || 0) : 0;  // RR = col 3 → index 2
-    var tyfcb  = r2y ? (parseFloat(r2y[6]) || 0) : 0;  // TYFCB = col 7 → index 6
-    var bniDays= r2y ? (parseInt(r2y[8])   || 0) : 0;  // BNI Days = col 9 → index 8
+    var rgCount  = r2y ? (parseFloat(r2y[1])  || 0) : 0;  // RG col 2
+    var rrCount  = r2y ? (parseFloat(r2y[2])  || 0) : 0;  // RR col 3
+    var visitors = r2y ? (parseFloat(r2y[3])  || 0) : 0;  // Visi col 4
+    var r121     = r2y ? (parseFloat(r2y[4])  || 0) : 0;  // 1-2-1 col 5
+    var ceu      = r2y ? (parseFloat(r2y[5])  || 0) : 0;  // CEU col 6
+    var tyfcb    = r2y ? (parseFloat(r2y[6])  || 0) : 0;  // TYFCB col 7
+    var bniDays  = r2y ? (parseInt(r2y[8])    || 0) : 0;  // BNI Days col 9
+    var attend   = r2y ? (parseInt(r2y[9])    || 0) : 0;  // P col 10
+    var absent   = r2y ? (parseInt(r2y[10])   || 0) : 0;  // A col 11
 
     // ── Justice Index ─────────────────────────────────────────
     // เปรียบ RG (จำนวนใบที่ให้) vs RR (จำนวนใบที่รับ)
@@ -152,23 +163,36 @@ function apiGetGrowthData(p) {
       given:   given,    // ฿ จาก Master
       recv:    recv,     // ฿ จาก Master
       balance: balance,
-      rgCount: rgCount,  // จำนวนใบ RG จาก R2Y
-      rrCount: rrCount,  // จำนวนใบ RR จาก R2Y
-      giveRatio: Math.round(giveRatio * 100), // % ที่ให้
-      tyfcb:   tyfcb,
+      rgCount:     rgCount,
+      rrCount:     rrCount,
+      giveRatio:   Math.round(giveRatio * 100),
+      visitors:    visitors,
+      r121:        r121,
+      ceu:         ceu,
+      tyfcb:       tyfcb,
       tyfcbPerDay: tyfcbPerDay,
-      bniDays: bniDays,
-      zone:    zone
+      bniDays:     bniDays,
+      attend:      attend,
+      absent:      absent,
+      attendRate:  (attend + absent) > 0 ? Math.round(attend / (attend + absent) * 100) : 0,
+      zone:        zone
     };
 
     members.push(member);
     summary.total++;
-    summary.totalGiven += given;
-    summary.totalRecv  += recv;
+    summary.totalGiven    += given;
+    summary.totalRecv     += recv;
+    summary.totalVisitors += visitors;
+    summary.total121      += r121;
+    summary.totalTYFCB    += tyfcb;
+    summary.chapterAttend += attend;
+    summary.chapterAbsent += absent;
     if (zone === 'highGiverLowRecv') summary.highGiverLowRecv++;
     else if (zone === 'lowGiverHighRecv') summary.lowGiverHighRecv++;
     else if (zone === 'balanced') summary.balanced++;
   }
+  var chTotal = summary.chapterAttend + summary.chapterAbsent;
+  summary.chapterAttendRate = chTotal > 0 ? Math.round(summary.chapterAttend / chTotal * 100) : 0;
 
   // เรียงลำดับ: highGiverLowRecv ขึ้นก่อน → ตามด้วย score ต่ำสุด
   members.sort(function(a, b) {
@@ -236,6 +260,17 @@ function apiCreateGrowthTask(p) {
   var ts = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yy HH:mm');
   var id = String(new Date().getTime());
   sh.appendRow([id, p.teamName, p.memberName, p.taskType||'', p.note||'', p.priority||'📋', ts, 'open', '', '']);
+  try {
+    var mentorLineId = _getLineId(p.teamName);
+    if (mentorLineId) {
+      _sendLineMsg(mentorLineId,
+        '📋 Growth Task ใหม่\n' +
+        'ทีม: ' + p.teamName + '\nสมาชิก: ' + p.memberName + '\n' +
+        (p.taskType ? 'ประเภท: ' + p.taskType + '\n' : '') +
+        (p.note ? 'หมายเหตุ: ' + p.note.substring(0,120) + '\n' : '') +
+        '\nตรวจสอบใน BNI IDEAL System ครับ');
+    }
+  } catch(le) { Logger.log('LINE notify err: '+le.message); }
   return { ok:true, id:id };
 }
 
