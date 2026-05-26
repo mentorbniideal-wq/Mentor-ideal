@@ -1142,6 +1142,7 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
     <button class="tb" onclick="mnt('newmembers',this)"><span class="ti">👶</span>New Members</button>
     <button class="tb" onclick="mnt('mcmsg',this)"><span class="ti">💬</span>MC Msg</button>
     <button class="tb" onclick="mnt('coaching',this)"><span class="ti">💡</span>Coach</button>
+    <button class="tb" onclick="mnt('msummary',this)"><span class="ti">📱</span>Summary</button>
   </div>
   <div class="content">
     <div class="pane on" id="mentor-myteam">
@@ -1173,6 +1174,16 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
     <div class="pane" id="mentor-coaching">
       <div class="sh">💡 Coaching Guide — ทีมฉัน</div>
       <div id="mentor-cg-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+    </div>
+    <div class="pane" id="mentor-msummary">
+      <div class="card" style="background:rgba(240,180,41,.06);border-color:rgba(240,180,41,.2);margin-bottom:.5rem;">
+        <div style="font-size:.72rem;color:var(--gold);line-height:1.6;">📱 <strong>Weekly Summary</strong><br>สรุปสถานะทีมสัปดาห์นี้ — กด Copy แล้ว paste ใน LINE หรือ report ให้ MC ได้เลย</div>
+      </div>
+      <button class="sum-gen-btn" style="background:rgba(240,180,41,.12);border-color:rgba(240,180,41,.3);color:var(--gold);" onclick="genMentorSummary()">⚡ สร้าง Summary ทีม</button>
+      <div id="mentor-sum-output" style="display:none">
+        <div id="mentor-sum-text" class="sum-output" style="border-color:rgba(240,180,41,.25);"></div>
+        <button class="sum-copy-btn" style="background:#B45309;" onclick="copyMentorSummary()">📋 Copy สำหรับ LINE / รายงาน MC</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1475,7 +1486,7 @@ function mcsub(sub,btn){
   if(sub==='renewal')loadRenewal('mc');
   if(sub==='rpts')loadReports();
 }
-function mnt(tab,btn){_swTab('#mentorApp',tab,btn);if(tab==='report')loadReportForm();if(tab==='renewal')loadRenewal('mentor');if(tab==='mcmsg'){loadBroadcasts('mentor');loadMessages('mentor');loadMentorAssignments();}if(tab==='newmembers')loadNewMembers('mentor');if(tab==='coaching')loadCoachingGuide();}
+function mnt(tab,btn){_swTab('#mentorApp',tab,btn);if(tab==='report')loadReportForm();if(tab==='renewal')loadRenewal('mentor');if(tab==='mcmsg'){loadBroadcasts('mentor');loadMessages('mentor');loadMentorAssignments();}if(tab==='newmembers')loadNewMembers('mentor');if(tab==='coaching')loadCoachingGuide();if(tab==='msummary'){document.getElementById('mentor-sum-output').style.display='none';}}
 function gtab(tab,btn){
   document.querySelectorAll('#growthApp .tb').forEach(function(b){b.classList.remove('on');});
   document.querySelectorAll('#growthApp .pane').forEach(function(p){p.classList.remove('on');});
@@ -1880,6 +1891,118 @@ function respondGrowthTask(id,tid){
       toast('❌ '+(err?err.message:(r&&r.error)||'เกิดข้อผิดพลาด'));
     }
   });
+}
+
+// ── Mentor Weekly Summary ─────────────────────────────────────
+function genMentorSummary(){
+  var members=S.teamMembers||[];
+  if(!members.length){
+    if(!S.teamName){toast('⏳ กรุณาเปิดหน้า "ทีมฉัน" ก่อน');return;}
+    call('getMyTeam',{},function(err,r){
+      if(err||!r.ok){toast('❌ โหลดข้อมูลไม่ได้');return;}
+      S.teamMembers=r.members;S.teamName=r.teamName;
+      _buildMentorSummary(r.members,r.teamName);
+    });
+    return;
+  }
+  _buildMentorSummary(members,S.teamName||'ทีม');
+}
+
+function _buildMentorSummary(members,teamName){
+  var now=new Date();
+  var dateStr=now.getDate()+'/'+(now.getMonth()+1)+'/'+(now.getFullYear()+543-2000);
+
+  // Team health stats
+  var tl={green:0,yellow:0,red:0,black:0,none:0};
+  var totScore=0,scoreCt=0,totAbsent=0;
+  members.forEach(function(m){
+    tl[m.tl]=(tl[m.tl]||0)+1;
+    if(m.latest){totScore+=m.latest;scoreCt++;}
+    totAbsent+=m.absent||0;
+  });
+  var avg=scoreCt?Math.round(totScore/scoreCt):0;
+
+  // Members needing attention (red/black)
+  var urgent=members.filter(function(m){return m.tl==='red'||m.tl==='black'||m.absent>=3;});
+
+  // Members with core issues recorded
+  var hasCoreIssue=members.filter(function(m){return m.core&&m.core.trim();});
+
+  // Members with no core issue yet (score>0)
+  var noIssue=members.filter(function(m){return (!m.core||!m.core.trim())&&m.latest;});
+
+  // Renewal check (within 60 days)
+  var renewSoon=[];
+  var nowMs=now.getTime();
+  members.forEach(function(m){
+    if(!m.renewal)return;
+    var parts=m.renewal.split('/');
+    if(parts.length<3)return;
+    var d=parseInt(parts[0]),mo=parseInt(parts[1]),y=parseInt(parts[2]);
+    if(y<100)y+=2000;
+    var exp=new Date(y,mo-1,d);
+    var diff=Math.round((exp-now)/(1000*60*60*24));
+    if(diff>=0&&diff<=60)renewSoon.push({name:m.nick||m.name.split(' ')[0],days:diff,dateStr:m.renewal});
+  });
+  renewSoon.sort(function(a,b){return a.days-b.days;});
+
+  var lines=[];
+  lines.push('📋 BNI IDEAL — รายงาน Mentor');
+  lines.push('ทีม '+teamName);
+  lines.push('วันที่ '+dateStr);
+  lines.push('━━━━━━━━━━━━━━━━━━━');
+  lines.push('');
+  lines.push('👥 สมาชิก  : '+members.length+' คน');
+  lines.push('⭐ คะแนนเฉลี่ย : '+avg+' pts');
+  lines.push('🟢 เขียว '+tl.green+' | 🟡 เหลือง '+tl.yellow+' | 🔴 แดง '+tl.red+' | ⚫ ดำ '+tl.black);
+  if(totAbsent>0)lines.push('❌ ขาดประชุมรวม : '+totAbsent+' ครั้ง');
+  lines.push('');
+
+  if(urgent.length){
+    lines.push('🚨 ต้องดูแลด่วน ('+urgent.length+' คน)');
+    lines.push('━━━━━━━━━━━━━━━━━━━');
+    urgent.forEach(function(m){
+      var tlEmoji={red:'🔴',black:'⚫',green:'🟢',yellow:'🟡'}[m.tl]||'⬜';
+      var absTxt=m.absent>=3?' (ขาด '+m.absent+' ครั้ง)':'';
+      var coreTxt='';
+      if(m.core){
+        var parsed=null;
+        try{parsed=JSON.parse(m.core);}catch(e){}
+        if(parsed&&Array.isArray(parsed)&&parsed.length){coreTxt=' — '+String(parsed[parsed.length-1].coreIssue||'').substring(0,30);}
+        else if(typeof parsed==='object'&&parsed){coreTxt=' — '+String(parsed.coreIssue||'').substring(0,30);}
+        else{coreTxt=' — '+String(m.core).substring(0,30);}
+      }
+      lines.push(tlEmoji+' '+(m.nick||m.name.split(' ')[0])+' ('+m.latest+'pts)'+absTxt+coreTxt);
+    });
+    lines.push('');
+  }
+
+  lines.push('📝 Core Issue');
+  lines.push('━━━━━━━━━━━━━━━━━━━');
+  lines.push('✅ บันทึกแล้ว : '+hasCoreIssue.length+' คน');
+  if(noIssue.length)lines.push('⏳ ยังไม่มีรายงาน : '+noIssue.map(function(m){return m.nick||m.name.split(' ')[0];}).join(', '));
+  lines.push('');
+
+  if(renewSoon.length){
+    lines.push('💳 Renewal ใกล้หมด (60 วัน)');
+    lines.push('━━━━━━━━━━━━━━━━━━━');
+    renewSoon.forEach(function(r){
+      lines.push('• '+(r.name)+' — หมด '+r.dateStr+' (อีก '+r.days+' วัน)');
+    });
+    lines.push('');
+  }
+
+  lines.push('— BNI IDEAL Mentor System');
+
+  document.getElementById('mentor-sum-text').textContent=lines.join('\n');
+  document.getElementById('mentor-sum-output').style.display='block';
+}
+
+function copyMentorSummary(){
+  var txt=document.getElementById('mentor-sum-text').textContent;
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(txt).then(function(){toast('✅ Copy แล้ว — paste ใน LINE ได้เลย');}).catch(function(){_fallbackCopy(txt);});
+  } else {_fallbackCopy(txt);}
 }
 
 function renderMembers(){
