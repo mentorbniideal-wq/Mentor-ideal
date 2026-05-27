@@ -117,6 +117,19 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
 .chart-svg{width:100%;height:100%;}
 .detail-panel{position:fixed;inset:0;background:var(--bg);z-index:200;overflow-y:auto;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);}
 .detail-panel.on{transform:translateX(0);}
+#talkPanel{z-index:250;}
+.talk-step{border-radius:10px;padding:11px 13px;margin-bottom:9px;border:1px solid var(--border);}
+.talk-step.urgent{border-left:3px solid var(--red);background:rgba(239,68,68,.05);}
+.talk-step.mentor-s{border-left:3px solid var(--gold);background:rgba(240,180,41,.04);}
+.talk-step.normal-s{background:var(--bg2);}
+.talk-shdr{display:flex;align-items:center;gap:6px;margin-bottom:7px;}
+.talk-snum{background:var(--accent);color:var(--bg);border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;}
+.talk-stitle{font-weight:700;font-size:.85rem;flex:1;}
+.talk-stime{font-size:.65rem;color:var(--gray2);background:rgba(255,255,255,.06);border-radius:4px;padding:1px 6px;}
+.talk-line{display:flex;gap:6px;align-items:flex-start;padding:2px 0;font-size:.78rem;}
+.talk-line.script{color:var(--white);}
+.talk-line.note{color:var(--gray2);}
+.talk-ico{flex-shrink:0;font-size:.7rem;padding-top:2px;min-width:13px;}
 .notif-panel{position:fixed;inset:0;background:var(--bg);z-index:201;overflow-y:auto;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);}
 .notif-panel.on{transform:translateX(0);}
 .notif-bell-btn{position:relative;background:none;border:1px solid var(--border);color:var(--gray2);border-radius:8px;padding:4px 8px;font-size:.9rem;cursor:pointer;margin-right:.3rem;line-height:1.4;}
@@ -1462,6 +1475,15 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
   <div class="dp-content" id="dp-content"><div class="lt">⏳ กำลังโหลด...</div></div>
 </div>
 
+<div class="detail-panel" id="talkPanel">
+  <div class="dp-hdr">
+    <button class="dp-back" onclick="closeTalk()">←</button>
+    <div class="dp-title" id="talk-title">💬 TALK</div>
+    <button onclick="copyTalk()" style="background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.3);color:#A78BFA;border-radius:8px;padding:3px 10px;font-size:.7rem;cursor:pointer;font-family:Sarabun,sans-serif;">📋 Copy</button>
+  </div>
+  <div class="dp-content" id="talk-body"></div>
+</div>
+
 <div class="notif-panel" id="notifPanel">
   <div class="dp-hdr">
     <button class="dp-back" onclick="closeNotifPanel()">←</button>
@@ -2372,7 +2394,10 @@ function openDetail(name){
 }
 function closeDetail(){document.getElementById('detailPanel').classList.remove('on');}
 
+var _lastDetail=null;
+var _talkText='';
 function buildDetail(d){
+  _lastDetail=d;
   var score=d.score;
   var attendBg=d.attendRisk==='critical'?'var(--redl)':d.attendRisk==='danger'?'var(--yellowl)':d.attendRisk==='warning'?'rgba(245,158,11,.1)':'var(--greenl)';
   var attendC=d.attendRisk==='critical'?'#EF4444':d.attendRisk!=='ok'?'#F59E0B':'#10B981';
@@ -2388,12 +2413,15 @@ function buildDetail(d){
     }
   }
   if(S.isMC){
+    actBtns+='<button class="action-btn" style="background:rgba(108,99,255,.15);border:1px solid rgba(108,99,255,.3);color:#a78bfa;" onclick="openTalk(\'mc\')">💬 MC TALK</button>';
     if(S._detailMentor){
       actBtns+='<button class="action-btn" style="background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.3);color:#A78BFA;" onclick="openScoreModal(\''+S._detailMentor.replace(/'/g,"\\'")+'\',\''+d.name.replace(/'/g,"\\'")+'\')">📝 คะแนน</button>';
     }else{
       actBtns+='<button class="action-btn" style="background:rgba(148,163,184,.08);border:1px solid var(--border);color:var(--gray2);cursor:default;" title="ต้องกำหนดทีม Mentor ก่อนบันทึกคะแนน">📝 ยังไม่มีทีม</button>';
     }
     actBtns+='<button class="action-btn" style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:#EF4444;" onclick="archiveMember(\''+d.name.replace(/'/g,"\\'")+'\')">📦 Archive</button>';
+  }else if(S.role!=='growth'){
+    actBtns+='<button class="action-btn" style="background:rgba(240,180,41,.12);border:1px solid rgba(240,180,41,.3);color:var(--gold);" onclick="openTalk(\'mentor\')">💬 Mentor TALK</button>';
   }
   actBtns+='</div>';
   // Status selector (Mentor only, members with a real row)
@@ -3681,6 +3709,169 @@ function setStatus(idx,status){
       }
     });
 }
+
+// ══ TALK Generator ══════════════════════════════
+function closeTalk(){document.getElementById('talkPanel').classList.remove('on');}
+function copyTalk(){
+  if(!_talkText){toast('ไม่มีข้อมูล');return;}
+  navigator.clipboard.writeText(_talkText).then(function(){toast('Copy TALK แล้ว 📋');}).catch(function(){toast('ไม่สามารถ Copy ได้');});
+}
+function openTalk(talkRole){
+  if(!_lastDetail){toast('กรุณาเปิด Detail ก่อน');return;}
+  try{
+    var d=_lastDetail;
+    var nick=d.nick||d.name.split(' ')[0]||d.name;
+    var bs=d.fastTrack&&d.fastTrack.score?d.fastTrack.score:{};
+    var tl=bs.tl||(d.score>=70?'green':d.score>=50?'yellow':d.score>=30?'red':'black');
+    var absent=d.actual.absent||0;
+    var histArr=d.scoreHistory||[];
+    var delta=histArr.length>=2?(histArr[histArr.length-1].score||0)-(histArr[histArr.length-2].score||0):null;
+    var today=new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
+    var tlLabel={green:'🟢 Green',yellow:'🟡 Yellow',red:'🔴 Red',black:'⚫ Black'}[tl]||'—';
+    var nextLabel=tl==='red'?'🟡 Yellow':tl==='yellow'?'🟢 Green':'🟢 Green';
+    var steps=[],txt='';
+    if(talkRole==='mc'){
+      txt='💬 MC TALK — '+d.name+'\n'+today+'\n\n';
+      // 1. เปิด
+      steps.push({n:1,ico:'🔓',title:'เปิดบทสนทนา',time:'2 นาที',cls:'normal-s',lines:[
+        {t:'script',v:'"สวัสดีครับ '+nick+' เป็นยังไงบ้างช่วงนี้?"'},
+        {t:'note',v:'ถามธุรกิจล่าสุด สร้าง rapport ก่อนเข้าเรื่อง'}
+      ]});
+      txt+='1. เปิดบทสนทนา\n   → "สวัสดีครับ '+nick+' เป็นยังไงบ้าง?"\n\n';
+      // 2. ประเด็นเร่งด่วน
+      var urg=[],urgTxt='';
+      if(tl==='red'||tl==='black'){
+        urg.push({t:'script',v:'"BNI Score '+d.score+' pt ('+tlLabel+') ต้องการความช่วยเหลืออะไรบ้างครับ?"'});
+        urg.push({t:'note',v:'ฟังก่อน อย่าเพิ่งสั่ง — หาสาเหตุที่แท้จริง'});
+        urgTxt+='   → Red/Black Zone: '+d.score+' pt\n';
+      }
+      if(absent>=3){
+        urg.push({t:'script',v:'"ขาดประชุม '+absent+' ครั้ง มีติดขัดอะไรไหม? จะจัดการยังไงได้บ้าง?"'});
+        urgTxt+='   → ขาด '+absent+' ครั้ง\n';
+      }
+      if(d.renewal){
+        urg.push({t:'script',v:'"Renewal '+d.renewal+' วางแผนต่ออายุยังไงบ้างครับ?"'});
+        urg.push({t:'note',v:'ถ้าลังเล → หาเหตุผล / เสนอ payment plan'});
+        urgTxt+='   → Renewal: '+d.renewal+'\n';
+      }
+      if(urg.length){
+        steps.push({n:2,ico:'⚡',title:'ประเด็นเร่งด่วน',time:'10-15 นาที',cls:'urgent',lines:urg});
+        txt+='2. ประเด็นเร่งด่วน\n'+urgTxt+'\n';
+      }
+      // 3. Performance
+      var perf=[];
+      perf.push({t:'note',v:'Score: '+d.score+' pt | Ref: '+d.actual.rg+' | 1-2-1: '+d.actual.oToOne+' | Visitor: '+d.actual.visitor+' | CEU: '+d.actual.ceu});
+      if(delta!==null){
+        if(delta>0)perf.push({t:'script',v:'"คะแนนเพิ่ม +'+delta+' pt ดีมากครับ! ทำยังไงถึงเพิ่มได้?"'});
+        else if(delta<0)perf.push({t:'script',v:'"เดือนที่แล้วลด '+Math.abs(delta)+' pt — มีอะไรที่ช่วยได้ไหมครับ?"'});
+        else perf.push({t:'script',v:'"คะแนนทรงตัว มีแผน push ขึ้นไปถึง '+nextLabel+' ไหมครับ?"'});
+      }
+      steps.push({n:steps.length+1,ico:'📊',title:'ทบทวน Performance',time:'5 นาที',cls:'normal-s',lines:perf});
+      txt+=(steps.length)+'. Performance: '+d.score+' pt'+(delta!==null?' (Δ'+(delta>0?'+':'')+delta+')':'')+'\n\n';
+      // 4. Fast Track
+      if(d.fastTrack&&d.fastTrack.fastestActions&&d.fastTrack.fastestActions.length&&tl!=='green'){
+        var ftL=[{t:'script',v:'"เพื่อขึ้น '+nextLabel+' ต้องทำอะไรบ้าง ดูด้วยกันนะครับ..."'}];
+        d.fastTrack.fastestActions.slice(0,3).forEach(function(a){ftL.push({t:'note',v:a.icon+' '+a.cat+': '+a.action+' (+'+a.gain+' pts)'});});
+        steps.push({n:steps.length+1,ico:'⚡',title:'Fast Track → '+nextLabel,time:'5 นาที',cls:'normal-s',lines:ftL});
+        txt+=(steps.length)+'. Fast Track → '+nextLabel+'\n';
+        d.fastTrack.fastestActions.slice(0,3).forEach(function(a){txt+='   → '+a.cat+': '+a.action+'\n';});
+        txt+='\n';
+      }
+      // 5. Actions
+      var acts=[];
+      if(tl!=='green')acts.push({t:'action',v:'☐ ตั้งเป้า BNI Score เดือนหน้า'});
+      acts.push({t:'action',v:'☐ นัด 1-2-1 ครั้งต่อไปก่อนจบ'});
+      if(absent>=3)acts.push({t:'action',v:'☐ วางแผนแก้ปัญหาการขาดประชุม'});
+      if(d.renewal)acts.push({t:'action',v:'☐ ยืนยันแผน Renewal'});
+      acts.push({t:'action',v:'☐ บันทึกการติดต่อครั้งนี้'});
+      steps.push({n:steps.length+1,ico:'✅',title:'Action Items',time:'3 นาที',cls:'normal-s',lines:acts});
+      txt+=(steps.length)+'. Actions\n';acts.forEach(function(a){txt+='   '+a.v.replace('☐','□')+'\n';});txt+='\n';
+      // 6. ปิด
+      steps.push({n:steps.length+1,ico:'🔒',title:'ปิดบทสนทนา',time:'2 นาที',cls:'normal-s',lines:[
+        {t:'note',v:'สรุป action items ที่ตกลงกัน'},
+        {t:'script',v:'"ขอบคุณครับ '+nick+' ฝากธุรกิจด้วยนะครับ 🙏"'}
+      ]});
+      txt+=(steps.length)+'. ปิด — "ขอบคุณครับ '+nick+' 🙏"\n\n🤖 BNI IDEAL MC TALK';
+    } else {
+      // ── Mentor TALK ──
+      txt='💬 Mentor TALK — '+d.name+'\n'+today+'\n\n';
+      // 1. เปิด
+      steps.push({n:1,ico:'🤝',title:'เปิดบทสนทนา',time:'3 นาที',cls:'mentor-s',lines:[
+        {t:'script',v:'"สวัสดีครับ '+nick+' ช่วงนี้เป็นยังไงบ้าง ธุรกิจไปได้ดีไหม?"'},
+        {t:'note',v:'คุยฐานะเพื่อน ไม่ใช่ผู้บังคับบัญชา'},
+        {t:'note',v:'ถามเรื่องส่วนตัว ครอบครัว ก่อนเข้าเรื่อง BNI'}
+      ]});
+      txt+='1. เปิดบทสนทนา\n   → "สวัสดีครับ '+nick+' ช่วงนี้เป็นยังไง?"\n\n';
+      // 2. ชมเชย (ถ้าทำได้ดี)
+      var praise=[];
+      if(delta!==null&&delta>0){praise.push({t:'script',v:'"คะแนนเพิ่มขึ้น +'+delta+' pt ดีมากเลยนะครับ ทำยังไงถึงเพิ่มได้?"'});praise.push({t:'note',v:'ชมให้จริงใจ บอกว่าสังเกตเห็น'});}
+      if(d.actual.rg>=5)praise.push({t:'script',v:'"Referral ให้ไป '+d.actual.rg+' ใบ ดีมากครับ ใครได้ไปบ้าง result เป็นยังไง?"'});
+      if(d.actual.visitor>=3)praise.push({t:'script',v:'"พา Visitor มา '+d.actual.visitor+' คน ดีมากครับ ช่วยแนะนำ Power Team ไหมครับ?"'});
+      if(tl==='green')praise.push({t:'script',v:'"Green Zone แล้วนะครับ 🟢 ทำต่อไปเลยครับ!"'});
+      if(praise.length){
+        steps.push({n:2,ico:'🏆',title:'ชมเชยสิ่งที่ทำได้ดี',time:'3 นาที',cls:'mentor-s',lines:praise});
+        txt+='2. ชมเชย\n';praise.forEach(function(p){txt+='   → '+p.v+'\n';});txt+='\n';
+      }
+      // 3. Priority coaching (from d.priorities)
+      if(d.priorities&&d.priorities.length){
+        var priL=d.priorities.slice(0,3).map(function(p){return{t:'note',v:p.title+': '+p.action.split('\n')[0]};});
+        priL.unshift({t:'script',v:'"มาดู Priority ของ '+nick+' ด้วยกันนะครับ ที่เร่งสุดคือ..."'});
+        steps.push({n:steps.length+1,ico:'🎯',title:'Priority Coaching',time:'8 นาที',cls:'mentor-s',lines:priL});
+        txt+=(steps.length)+'. Priority Coaching\n';d.priorities.slice(0,3).forEach(function(p){txt+='   → '+p.title+'\n';});txt+='\n';
+      }
+      // 4. Fast Track
+      if(d.fastTrack&&d.fastTrack.fastestActions&&d.fastTrack.fastestActions.length&&tl!=='green'){
+        var ftM=[{t:'script',v:'"ถ้าอยากขึ้น '+nextLabel+' เร็วที่สุด ทำ 3 อย่างนี้ก่อนนะครับ..."'}];
+        d.fastTrack.fastestActions.slice(0,3).forEach(function(a){ftM.push({t:'note',v:a.icon+' '+a.cat+' → '+a.action+' (+'+a.gain+' pts, ตอนนี้ '+a.curVal+'→เป้า '+a.tgtVal+')'});});
+        steps.push({n:steps.length+1,ico:'⚡',title:'Fast Track → '+nextLabel,time:'5 นาที',cls:'mentor-s',lines:ftM});
+        txt+=(steps.length)+'. Fast Track\n';d.fastTrack.fastestActions.slice(0,3).forEach(function(a){txt+='   → '+a.cat+': '+a.action+'\n';});txt+='\n';
+      }
+      // 5. Referral Strategy
+      var refL=[];
+      if(d.actual.oToOne<3)refL.push({t:'script',v:'"1-2-1 ยังน้อยอยู่ '+d.actual.oToOne+' ครั้ง — อยากให้ผม intro ให้ใครบ้างในทีมไหมครับ?"'});
+      if(d.actual.rr<d.actual.rg)refL.push({t:'note',v:'ให้ Referral มากกว่ารับ — ช่วยหา source ใหม่'});
+      refL.push({t:'script',v:'"มี Power Team คนไหนที่อยากทำ 1-2-1 เพิ่มบ้างครับ? ผมจะช่วย connect ให้"'});
+      steps.push({n:steps.length+1,ico:'🤝',title:'Referral & 1-2-1 Strategy',time:'5 นาที',cls:'mentor-s',lines:refL});
+      txt+=(steps.length)+'. Referral Strategy\n';refL.forEach(function(r){if(r.t==='script')txt+='   → '+r.v+'\n';});txt+='\n';
+      // 6. สิ่งที่จะช่วยกัน
+      var helpL=[];
+      helpL.push({t:'action',v:'☐ นัด 1-2-1 ครั้งต่อไป (ก่อนแยกกัน)'});
+      if(tl!=='green')helpL.push({t:'action',v:'☐ ตั้งเป้า BNI Score เดือนหน้า'});
+      helpL.push({t:'action',v:'☐ Mentor intro กับสมาชิก 1 คน ที่เหมาะกัน'});
+      if(d.actual.ceu<d.target.ceu)helpL.push({t:'action',v:'☐ ช่วยหา Training CEU ที่เหมาะสม'});
+      steps.push({n:steps.length+1,ico:'✅',title:'สิ่งที่จะช่วยกัน',time:'3 นาที',cls:'mentor-s',lines:helpL});
+      txt+=(steps.length)+'. สิ่งที่จะช่วยกัน\n';helpL.forEach(function(h){txt+='   '+h.v.replace('☐','□')+'\n';});txt+='\n';
+      // 7. ปิด
+      steps.push({n:steps.length+1,ico:'💛',title:'ปิดบทสนทนา',time:'2 นาที',cls:'mentor-s',lines:[
+        {t:'note',v:'สรุป action items ร่วมกัน'},
+        {t:'script',v:'"ขอบคุณครับ '+nick+' ยินดีเสมอที่จะช่วย ถ้ามีอะไรติดต่อมาได้เลยนะครับ 💛"'}
+      ]});
+      txt+=(steps.length)+'. ปิด — "ขอบคุณครับ '+nick+' 💛"\n\n🤖 BNI IDEAL Mentor TALK';
+    }
+    // Build HTML
+    var tlC={green:'#10B981',yellow:'#F59E0B',red:'#EF4444',black:'#94A3B8'}[tl]||'#94A3B8';
+    var summHtml='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">'
+      +'<span style="background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:6px;padding:3px 9px;font-size:.72rem;color:'+tlC+';font-weight:700;">'+tlLabel+' '+d.score+' pt</span>'
+      +'<span style="background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:6px;padding:3px 9px;font-size:.72rem;color:var(--gray2);">ขาด '+absent+' ครั้ง</span>'
+      +(delta!==null?'<span style="background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:6px;padding:3px 9px;font-size:.72rem;color:'+(delta>0?'#10B981':delta<0?'#EF4444':'#94A3B8')+';">'+(delta>0?'▲ +':delta<0?'▼ ':'→ ')+delta+' pt</span>':'')
+      +(d.renewal?'<span style="background:rgba(240,180,41,.1);border:1px solid rgba(240,180,41,.25);border-radius:6px;padding:3px 9px;font-size:.72rem;color:var(--gold);">⏰ Renewal</span>':'')
+      +'</div>';
+    var stepsHtml=steps.map(function(s){
+      return'<div class="talk-step '+(s.cls||'normal-s')+'">'
+        +'<div class="talk-shdr"><div class="talk-snum">'+s.n+'</div><span style="font-size:14px">'+s.ico+'</span><span class="talk-stitle">'+s.title+'</span><span class="talk-stime">'+s.time+'</span></div>'
+        +s.lines.map(function(l){
+          var ico=l.t==='script'?'💬':l.t==='action'?'':l.t==='note'?'→':'';
+          return'<div class="talk-line '+(l.t==='script'?'script':l.t==='action'?'action':'note')+'"><span class="talk-ico">'+ico+'</span><span>'+escHtml(l.v)+'</span></div>';
+        }).join('')
+        +'</div>';
+    }).join('');
+    _talkText=txt;
+    document.getElementById('talk-title').textContent=(talkRole==='mc'?'💬 MC TALK':'💬 Mentor TALK')+' — '+(d.nick||d.name.split(' ')[0]);
+    document.getElementById('talk-body').innerHTML=summHtml+stepsHtml;
+    document.getElementById('talkPanel').classList.add('on');
+  }catch(e){toast('Error: '+e.message);}
+}
+// ══════════════════════════════════════════════════
 
 function escHtml(s){
   if(!s)return '';
