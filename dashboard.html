@@ -1033,6 +1033,8 @@ body.light .gs-drop,body.light .mbox,body.light .bk-box,body.light #meeting{back
     <span class="badge" id="imd-zone" style="margin-left:4px"></span>
     <span style="font-size:22px;font-weight:800;margin-left:10px" id="imd-score"></span>
     <button class="bsm bac" onclick="openModal(imdCurrentName)" style="margin-left:8px;font-size:11px">⚡ Quick Actions</button>
+    <button class="bsm" onclick="openMCT(imdCurrentName)" style="font-size:11px;background:rgba(108,99,255,.18);color:#a78bfa;border-color:rgba(108,99,255,.3)">💬 MC TALK</button>
+    <button class="bsm" onclick="openMentorTalk(imdCurrentName)" style="font-size:11px;background:rgba(240,180,41,.12);color:#ffc14d;border-color:rgba(240,180,41,.3)">💛 Mentor TALK</button>
     <button class="imd-close" onclick="closeIMD()">✕ ปิด</button>
   </div>
   <div class="imd-tabs" id="imd-tabs"></div>
@@ -3861,6 +3863,129 @@ function openMCT(name){
 function copyMCT(){
   if(!_mctText){toast('ไม่มีข้อมูล','err');return;}
   navigator.clipboard.writeText(_mctText).then(function(){toast('Copy MC TALK แล้ว 📋','ok');}).catch(function(){toast('ไม่สามารถ Copy ได้','err');});
+}
+function openMentorTalk(name){
+  try{
+    var m=D.mem.find(function(x){return x.name===name;});
+    if(!m){toast('ไม่พบข้อมูล '+name,'err');return;}
+    var nick=m.nick||m.name;
+    var tl=m.bniTl||'none';
+    var score=m.bniScore||0;
+    var absent=m.absent||0;
+    var cats=m.cats||{};
+    var h=(m.hist||[]).map(Number).filter(function(n){return!isNaN(n)&&n>0;});
+    var delta=h.length>=2?h[h.length-1]-h[h.length-2]:null;
+    var ren=D.ren.find(function(r){return r.name===name;});
+    var today=new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
+    var nextTl=tl==='red'?'Yellow':tl==='yellow'?'Green':'Green';
+    var steps=[];var txt='💛 Mentor TALK — '+name+'\n'+today+'\nทีม: '+(m.mentor||'—')+'\n\n';
+
+    // 1. เปิด (ฐานะเพื่อน)
+    steps.push({n:1,ico:'🤝',title:'เปิดบทสนทนา',cls:'mentor',lines:[
+      {t:'s',v:'"สวัสดีครับ '+nick+' ช่วงนี้เป็นยังไงบ้าง ธุรกิจไปได้ดีไหม?"'},
+      {t:'n',v:'คุยฐานะเพื่อน ไม่ใช่ผู้บังคับบัญชา'},
+      {t:'n',v:'ถามเรื่องส่วนตัวก่อน — ครอบครัว โปรเจกต์ล่าสุด'},
+      {t:'n',v:'ตั้งใจฟัง ไม่รีบเข้าเรื่อง BNI ทันที'}
+    ],time:'3 นาที'});
+    txt+='1. เปิดบทสนทนา\n   → "สวัสดีครับ '+nick+' ช่วงนี้เป็นยังไง?"\n\n';
+
+    // 2. ชมเชย (ถ้ามี)
+    var praise=[];
+    if(delta!==null&&delta>0){praise.push({t:'s',v:'"คะแนนเพิ่มขึ้น +'+delta+' pt เดือนที่แล้ว ผมเห็นนะครับ ดีใจด้วยเลย!"'});praise.push({t:'n',v:'ชมให้จริงใจ — บอกว่าสังเกตเห็นการเปลี่ยนแปลง'});}
+    if(tl==='green'){praise.push({t:'s',v:'"Green Zone แล้วนะครับ 🟢 ทำต่อไปเลย อย่าหยุด!"'});}
+    if((cats.ref||0)>=3){praise.push({t:'s',v:'"Referral ให้ไป '+(cats.ref||0)+' ใบ เยี่ยมครับ result ที่ให้ไปเป็นยังไงบ้าง?"'});}
+    if((cats.visitors||0)>=2){praise.push({t:'s',v:'"พา Visitor มา '+(cats.visitors||0)+' คน — ดีมากครับ คนไหนน่า convert บ้าง?"'});}
+    if(praise.length){
+      steps.push({n:2,ico:'🏆',title:'ชมเชยสิ่งที่ทำได้ดี',cls:'mentor',lines:praise,time:'3 นาที'});
+      txt+='2. ชมเชย\n';praise.forEach(function(p){if(p.t==='s')txt+='   → '+p.v+'\n';});txt+='\n';
+    }
+
+    // 3. ประเด็นที่ต้องช่วย (ถ้ามี)
+    var help=[];
+    if(tl==='red'||tl==='black'){
+      help.push({t:'s',v:'"คะแนน BNI ตอนนี้ '+score+' pt — มีอะไรติดขัดอยู่ไหมครับ ผมจะช่วยได้ยังไงบ้าง?"'});
+      help.push({t:'n',v:'ฟังก่อน — หาสาเหตุร่วมกัน ไม่ตัดสิน'});
+    }
+    if(absent>=(riskThresh.absent||3)){
+      help.push({t:'s',v:'"ขาดประชุม '+absent+' ครั้ง ช่วงนี้มีอะไรทำให้ยุ่งหรือเปล่า? จะช่วยจัดการยังไงดีครับ?"'});
+    }
+    if((cats.ref||0)<2){
+      help.push({t:'s',v:'"Referral ยังน้อยอยู่ มีใครในทีมที่คิดว่า business ตรงกันบ้างไหม? ผมช่วย intro ให้ได้"'});
+      help.push({t:'n',v:'เสนอตัวช่วยเชื่อมต่อ Power Team ที่เหมาะสม'});
+    }
+    if(help.length){
+      steps.push({n:steps.length+1,ico:'🤲',title:'สิ่งที่จะช่วยกัน',cls:'mentor',lines:help,time:'8-10 นาที'});
+      txt+=(steps.length)+'. ช่วยกัน\n';help.forEach(function(h){if(h.t==='s')txt+='   → '+h.v+'\n';});txt+='\n';
+    }
+
+    // 4. Fast Track
+    var ftItems=[];
+    if(tl!=='green'){
+      var needed=tl==='red'?30-score:70-score;
+      if(needed>0&&cats){
+        if((cats.ref||0)<15)ftItems.push({t:'n',v:'🔄 Referral: ต้องการอีก '+(15-(cats.ref||0))+' ใบ → แนะนำ Power Team ที่เหมาะ'});
+        if((cats.one21||0)<15)ftItems.push({t:'n',v:'🤝 1-2-1: ต้องการอีก '+(15-(cats.one21||0))+' ครั้ง → Mentor ช่วย intro ได้'});
+        if((cats.training||0)<20)ftItems.push({t:'n',v:'📚 CEU: ต้องการอีก '+(20-(cats.training||0))+' → Training ใกล้ๆ มีไหม?'});
+        if((cats.visitors||0)<20)ftItems.push({t:'n',v:'👥 Visitor: ต้องการอีก '+(20-(cats.visitors||0))+' → ช่วยคิด potential visitor'});
+      }
+      if(ftItems.length){
+        ftItems.unshift({t:'s',v:'"อยากขึ้น '+nextTl+' Zone ด้วยกัน — มาดูว่าต้องทำอะไรบ้างนะครับ..."'});
+        steps.push({n:steps.length+1,ico:'⚡',title:'Fast Track → '+nextTl+' Zone',cls:'mentor',lines:ftItems,time:'5 นาที'});
+        txt+=(steps.length)+'. Fast Track → '+nextTl+'\n';ftItems.slice(1).forEach(function(f){txt+='   '+f.v+'\n';});txt+='\n';
+      }
+    }
+
+    // 5. สิ่งที่ Mentor จะทำให้
+    var doLines=[];
+    doLines.push({t:'a',v:'☐ นัด 1-2-1 ครั้งต่อไป (ก่อนแยกกัน)'});
+    if((cats.ref||0)<2)doLines.push({t:'a',v:'☐ Intro กับสมาชิก 1 คน ที่ธุรกิจตรงกัน'});
+    if(tl!=='green')doLines.push({t:'a',v:'☐ ตั้งเป้า BNI Score เดือนหน้าร่วมกัน'});
+    if((cats.training||0)<20)doLines.push({t:'a',v:'☐ แชร์ข้อมูล Training CEU ที่กำลังจะมี'});
+    doLines.push({t:'a',v:'☐ บอกให้รู้ว่าโทรหาได้ตลอด ถ้ามีปัญหา'});
+    steps.push({n:steps.length+1,ico:'✅',title:'Mentor จะช่วย',cls:'mentor',lines:doLines,time:'3 นาที'});
+    txt+=(steps.length)+'. Mentor จะทำ\n';doLines.forEach(function(d){txt+='   '+d.v.replace('☐','□')+'\n';});txt+='\n';
+
+    // 6. ปิด
+    steps.push({n:steps.length+1,ico:'💛',title:'ปิดบทสนทนา',cls:'mentor',lines:[
+      {t:'n',v:'สรุป action items ที่ตกลงกัน 1-2 ข้อ'},
+      {t:'s',v:'"ขอบคุณมากนะครับ '+nick+' ยินดีเสมอที่จะช่วย ถ้ามีอะไรติดต่อมาได้เลย 💛"'},
+      {t:'n',v:'ให้ความรู้สึกว่า mentor พร้อมช่วยเสมอ — ไม่ใช่แค่ประเมิน'}
+    ],time:'2 นาที'});
+    txt+=(steps.length)+'. ปิด — "ขอบคุณครับ '+nick+' 💛"\n\n🤖 BNI IDEAL Mentor TALK';
+
+    // Build HTML
+    var tlC=tl==='green'?'#00d4aa':tl==='yellow'?'#ffc14d':tl==='red'?'#ff6b6b':'#6b7280';
+    var tlL=tl==='green'?'🟢 GREEN':tl==='yellow'?'🟡 YELLOW':tl==='red'?'🔴 RED':'⚫';
+    var summHtml='<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px">'
+      +'<span class="badge" style="background:rgba(255,255,255,.07);color:'+tlC+';font-weight:700">'+tlL+' '+score+' pt</span>'
+      +(delta!==null?'<span class="badge" style="background:rgba(255,255,255,.07);color:'+(delta>0?'var(--gr)':delta<0?'var(--re)':'var(--sub)')+'">'+( delta>0?'▲ +':delta<0?'▼ ':'→ ')+delta+' pt</span>':'')
+      +'<span class="badge" style="background:rgba(255,255,255,.07)">ขาด '+absent+' ครั้ง</span>'
+      +(ren&&ren.diffDays<=60?'<span class="badge" style="background:rgba(255,193,77,.12);color:var(--ye)">⏰ Renewal '+ren.diffDays+' วัน</span>':'')
+      +'</div>';
+    var stepsHtml=steps.map(function(s){
+      var borderStyle=s.cls==='mentor'?'border-left:3px solid #ffc14d;background:rgba(255,193,77,.04)':'background:var(--sf2)';
+      return'<div style="border-radius:10px;padding:13px 15px;margin-bottom:10px;border:1px solid var(--bd);'+borderStyle+'">'
+        +'<div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">'
+          +'<div style="background:var(--ac);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">'+s.n+'</div>'
+          +'<span style="font-size:16px">'+s.ico+'</span>'
+          +'<span style="font-weight:700;font-size:14px;flex:1">'+s.title+'</span>'
+          +'<span style="font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);border-radius:4px;padding:2px 7px">'+s.time+'</span>'
+        +'</div>'
+        +s.lines.map(function(l){
+          var ico=l.t==='s'?'💬':l.t==='a'?'':l.t==='n'?'→':'';
+          var clr=l.t==='s'?'var(--tx)':l.t==='a'?'var(--tx)':'var(--sub)';
+          return'<div style="display:flex;gap:7px;align-items:flex-start;padding:3px 0;font-size:13px;color:'+clr+'">'
+            +'<span style="flex-shrink:0;font-size:11px;padding-top:2px;min-width:14px">'+ico+'</span>'
+            +'<span>'+esc(l.v)+'</span></div>';
+        }).join('')
+        +'</div>';
+    }).join('');
+    _mctText=txt;
+    document.getElementById('mct-title').textContent='💛 Mentor TALK — '+name;
+    document.getElementById('mct-sub').textContent=today+' · ทีม '+(m.mentor||'—')+' · มุมมอง Mentor';
+    document.getElementById('mct-body').innerHTML=summHtml+stepsHtml;
+    document.getElementById('mct-modal').style.display='flex';
+  }catch(e){toast('Mentor TALK Error: '+e.message,'err');}
 }
 // ── Tab Switching ─────────────────────────────────
 function sw(id,btn,group){
