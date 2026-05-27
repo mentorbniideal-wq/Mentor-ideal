@@ -2,8 +2,8 @@
 // BNI IDEAL — WebApp v2 : Complete Server
 // ============================================================
 
-var APP_VERSION = 'v3.0';
-var APP_VERSION_DATE = '20/05/2026';
+var APP_VERSION = 'v4.0';
+var APP_VERSION_DATE = '25/05/2026';
 
 var PINS = {
   'mc':      '6969',
@@ -19,13 +19,380 @@ var MENTOR_ROLE = {
   'toomtam':'TOOMTAM','aof':'Aof','draft':'Draft','phai':'PHAI','amp':'AMP'
 };
 
-var MONTH_LABELS = ['','','','','JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+// Index maps to column number: col5=FEB...col15=DEC, col16=JAN (BNI sheet layout)
+var MONTH_LABELS = ['','','','','','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC','JAN'];
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// BNI Traffic Light Scoring (6 categories, max 90 pts)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function _bniScoreAbsent(absent) {
+  if (absent === 0) return 15;
+  if (absent === 1) return 10;
+  if (absent === 2) return 5;
+  return 0;
+}
+function _bniEffectiveWeeks(bniDays) {
+  // BNI PALMS caps scoring window at 26 weeks (6 months) for long-tenure members.
+  // New members use actual tenure. This fixes scoring for 700+ day members.
+  return Math.max(1, Math.min(Math.floor(bniDays / 7), 26));
+}
+function _bniScoreRef(rg, bniDays) {
+  var w = _bniEffectiveWeeks(bniDays);
+  var r = rg / w;
+  if (r >= 1.7) return 15;
+  if (r >= 0.9) return 10;
+  if (r >= 0.44) return 5;   // 5pts tier confirmed from PALMS data
+  return 0;
+}
+function _bniScoreTYFB(tyfcb, bniDays) {
+  var w = _bniEffectiveWeeks(bniDays);
+  var r = tyfcb / w;
+  if (r >= 15000) return 15;
+  if (r >= 5000)  return 10;
+  if (r >= 1500)  return 5;
+  return 0;
+}
+function _bniScoreVisitor(vis) {
+  if (vis >= 4) return 20;   // 20pts tier: ≥4 visitors total (observed from PALMS)
+  if (vis >= 1) return 10;
+  return 0;
+}
+function _bniScore121(oToOne, bniDays) {
+  var w = _bniEffectiveWeeks(bniDays);
+  var r = oToOne / w;
+  if (r >= 1.7) return 15;
+  if (r >= 0.9) return 10;
+  if (r >= 0.44) return 5;
+  return 0;
+}
+function _bniScoreTraining(ceu, bniDays) {
+  var w = _bniEffectiveWeeks(bniDays);
+  var r = ceu / w;
+  if (r >= 0.15) return 20;
+  if (r >= 0.08) return 10;
+  if (r >= 0.04) return 5;
+  return 0;
+}
+
+function _bniBuildScore(actual) {
+  var d = actual.bniDays || 1;
+  var s = {
+    absent:   _bniScoreAbsent(actual.absent||0),
+    ref:      _bniScoreRef(actual.rg||0, d),
+    tyfcb:    _bniScoreTYFB(actual.tyfcb||0, d),
+    visitor:  _bniScoreVisitor(actual.visitor||0),
+    one21:    _bniScore121(actual.oToOne||0, d),
+    training: _bniScoreTraining(actual.ceu||0, d)
+  };
+  s.total = s.absent + s.ref + s.tyfcb + s.visitor + s.one21 + s.training;
+  s.max = 15 + 15 + 15 + 20 + 15 + 20; // 100 pts max (visitor now max 20)
+  s.tl = s.total >= 70 ? 'green' : s.total >= 50 ? 'yellow' : s.total >= 30 ? 'red' : 'blue';
+  return s;
+}
+
+function _bniFastTrack(actual) {
+  var d = actual.bniDays || 1;
+  var w = _bniEffectiveWeeks(d);
+  var score = _bniBuildScore(actual);
+  var gaps = [];
+
+  var absS = score.absent;
+  if (absS < 15) {
+    var nextAbsS = absS + 5;
+    var tgtAbs = absS === 10 ? 0 : absS === 5 ? 1 : 2;
+    gaps.push({ cat:'Attendance', icon:'🏛️', cur:absS, max:15, next:nextAbsS, gain:nextAbsS-absS,
+      action:'ลดการขาดเหลือ '+tgtAbs+' ครั้ง',
+      curVal:'ขาด '+(actual.absent||0)+' ครั้ง', tgtVal:'ขาด '+tgtAbs+' ครั้ง' });
+  }
+
+  var refS = score.ref;
+  if (refS < 15) {
+    var nextRefS = refS >= 10 ? 15 : refS >= 5 ? 10 : 5;
+    var tgtRefRate = refS >= 10 ? 1.7 : refS >= 5 ? 0.9 : 0.44;
+    var tgtRefCt = Math.ceil(tgtRefRate * w);
+    var needRef = Math.max(0, tgtRefCt - (actual.rg||0));
+    gaps.push({ cat:'Referral', icon:'💡', cur:refS, max:15, next:nextRefS, gain:nextRefS-refS,
+      action:'ให้ Referral เพิ่มอีก '+needRef+' ใบ',
+      curVal:(actual.rg||0)+' ใบ ('+((actual.rg||0)/w).toFixed(2)+'/wk)',
+      tgtVal:tgtRefCt+' ใบรวม ('+tgtRefRate.toFixed(1)+'/wk)' });
+  }
+
+  var tyfS = score.tyfcb;
+  if (tyfS < 15) {
+    var nextTyfS = tyfS === 10 ? 15 : tyfS === 5 ? 10 : 5;
+    var tgtTyfRate = tyfS === 10 ? 15000 : tyfS === 5 ? 5000 : 1500;
+    var tgtTyfTotal = Math.ceil(tgtTyfRate * w);
+    gaps.push({ cat:'TYFB', icon:'💰', cur:tyfS, max:15, next:nextTyfS, gain:nextTyfS-tyfS,
+      action:'รับธุรกิจรวม '+tgtTyfTotal.toLocaleString()+' บาท',
+      curVal:(actual.tyfcb||0).toLocaleString()+' บาท',
+      tgtVal:tgtTyfRate.toLocaleString()+' บาท/wk' });
+  }
+
+  var visS = score.visitor;
+  if (visS < 20) {
+    var nextVisS = visS >= 10 ? 20 : 10;
+    var tgtVisCt = visS >= 10 ? 4 : 1;
+    var needVis = Math.max(0, tgtVisCt - (actual.visitor||0));
+    gaps.push({ cat:'Visitor', icon:'👥', cur:visS, max:20, next:nextVisS, gain:nextVisS-visS,
+      action:'พา Visitor มาอีก '+needVis+' คน',
+      curVal:(actual.visitor||0)+' คน', tgtVal:'≥'+tgtVisCt+' คนรวม' });
+  }
+
+  var o21S = score.one21;
+  if (o21S < 15) {
+    var nextO21S = o21S >= 10 ? 15 : o21S >= 5 ? 10 : 5;
+    var tgtO21Rate = o21S >= 10 ? 1.7 : o21S >= 5 ? 0.9 : 0.44;
+    var tgtO21Ct = Math.ceil(tgtO21Rate * w);
+    var needO21 = Math.max(0, tgtO21Ct - (actual.oToOne||0));
+    gaps.push({ cat:'1-2-1', icon:'🤝', cur:o21S, max:15, next:nextO21S, gain:nextO21S-o21S,
+      action:'นัด 1-2-1 เพิ่มอีก '+needO21+' ครั้ง',
+      curVal:(actual.oToOne||0)+' ครั้ง ('+((actual.oToOne||0)/w).toFixed(2)+'/wk)',
+      tgtVal:tgtO21Ct+' ครั้งรวม ('+tgtO21Rate.toFixed(1)+'/wk)' });
+  }
+
+  var trS = score.training;
+  if (trS < 20) {
+    var nextTrS = trS === 10 ? 20 : trS === 5 ? 10 : 5;
+    var tgtTrRate = trS === 10 ? 0.15 : trS === 5 ? 0.08 : 0.04;
+    var tgtTrCt = Math.ceil(tgtTrRate * w);
+    var needTr = Math.max(0, tgtTrCt - (actual.ceu||0));
+    gaps.push({ cat:'CEU', icon:'📚', cur:trS, max:20, next:nextTrS, gain:nextTrS-trS,
+      action:'เรียน CEU เพิ่มอีก '+needTr+' แต้ม',
+      curVal:(actual.ceu||0)+' แต้ม ('+((actual.ceu||0)/w).toFixed(3)+'/wk)',
+      tgtVal:tgtTrCt+' แต้มรวม' });
+  }
+
+  gaps.sort(function(a,b){ return b.gain - a.gain; });
+
+  var nextTl = score.tl === 'green' ? 'green' : score.tl === 'yellow' ? 'green' : 'yellow';
+  var target = nextTl === 'green' ? 70 : 50;
+  var needed = Math.max(0, target - score.total);
+  var fastestActions = [];
+  var acc = 0;
+  for (var i=0; i<gaps.length; i++) {
+    if (acc >= needed) break;
+    fastestActions.push(gaps[i]);
+    acc += gaps[i].gain;
+  }
+
+  return { score:score, gaps:gaps, needed:needed, target:target, nextTl:nextTl, fastestActions:fastestActions };
+}
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// ── SETTINGS helpers ─────────────────────────────────────────
+function _getSettingsValue(key) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('⚙️ SETTINGS');
+  if (!sh || sh.getLastRow() < 1) return null;
+  var data = sh.getRange(1, 1, sh.getLastRow(), 2).getValues();
+  for (var i=0; i<data.length; i++) {
+    if (String(data[i][0]||'').trim() === key) return data[i][1];
+  }
+  return null;
+}
+function _setSettingsValue(key, value) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('⚙️ SETTINGS');
+  if (!sh) { sh = ss.insertSheet('⚙️ SETTINGS'); }
+  if (sh.getLastRow() >= 1) {
+    var data = sh.getRange(1, 1, sh.getLastRow(), 1).getValues();
+    for (var i=0; i<data.length; i++) {
+      if (String(data[i][0]||'').trim() === key) { sh.getRange(i+1, 2).setValue(value); return; }
+    }
+  }
+  sh.appendRow([key, value]);
+}
+
+// ── Archive helpers ───────────────────────────────────────────
+function _getArchivedNames(ss) {
+  var sh = ss.getSheetByName('📦 ARCHIVED');
+  var result = {};
+  if (!sh || sh.getLastRow() < 2) return result;
+  sh.getRange(2, 1, sh.getLastRow()-1, 1).getValues().forEach(function(r) {
+    var n = String(r[0]||'').trim();
+    if (n) result[n] = true;
+  });
+  return result;
+}
 
 function doGet(e) {
+  var view = (e && e.parameter && e.parameter.v) ? e.parameter.v : 'mobile';
+  if (view === 'desk') {
+    return HtmlService.createTemplateFromFile('dashboard').evaluate()
+      .setTitle('BNI IDEAL — Full Dashboard')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
   return HtmlService.createHtmlOutputFromFile('index')
     .setTitle('BNI IDEAL Mentor System')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport','width=device-width,initial-scale=1.0,maximum-scale=1.0');
+}
+
+// ── LINE Webhook (รับข้อความจาก Bot → ตอบกลับ User ID) ────────
+function doPost(e) {
+  try {
+    var body = JSON.parse(e.postData.contents);
+    var events = body.events || [];
+    events.forEach(function(ev) {
+      if (ev.type !== 'message' || ev.message.type !== 'text') return;
+      var userId = ev.source.userId;
+      var text   = (ev.message.text || '').trim().toLowerCase();
+      var reply  = '';
+
+      if (text === 'myid' || text === 'ไอดีของฉัน' || text === 'id') {
+        reply = '🆔 LINE User ID ของคุณ:\n' + userId + '\n\nส่งค่านี้ให้ MC หรือ Growth เพื่อตั้งค่าการแจ้งเตือนครับ';
+      } else {
+        reply = 'สวัสดีครับ 👋 BNI IDEAL Bot\n\nพิมพ์ "myid" เพื่อดู LINE ID ของคุณสำหรับตั้งค่าแจ้งเตือนครับ';
+      }
+
+      // ตอบกลับผ่าน Reply API
+      var token = _getLineToken();
+      if (token && ev.replyToken && reply) {
+        UrlFetchApp.fetch('https://api.line.me/v2/bot/message/reply', {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token },
+          payload: JSON.stringify({ replyToken: ev.replyToken, messages: [{ type:'text', text:reply }] }),
+          muteHttpExceptions: true
+        });
+      }
+    });
+  } catch(e2) { Logger.log('doPost error: ' + e2.message); }
+  return ContentService.createTextOutput('OK');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// LINE Notification Helpers
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// LINE_TOKEN เก็บใน Script Properties → Project Settings → Script Properties
+function _getLineToken() {
+  return PropertiesService.getScriptProperties().getProperty('LINE_TOKEN') || '';
+}
+
+// LINE IDs เก็บใน ⚙️ SETTINGS sheet ด้วย key LINE_ID_xxx
+var LINE_KEY_MAP = {
+  'mc':       'LINE_ID_MC',
+  'MC':       'LINE_ID_MC',
+  'TOOMTAM':  'LINE_ID_TOOMTAM',
+  'Aof':      'LINE_ID_AOF',
+  'Draft':    'LINE_ID_DRAFT',
+  'PHAI':     'LINE_ID_PHAI',
+  'AMP':      'LINE_ID_AMP',
+  'growth':   'LINE_ID_GROWTH'
+};
+
+function _getLineId(roleOrTeam) {
+  var key = LINE_KEY_MAP[roleOrTeam];
+  if (!key) return '';
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('⚙️ SETTINGS');
+  if (!sh) return '';
+  var data = sh.getDataRange().getValues();
+  for (var i = 0; i < data.length; i++) {
+    if (String(data[i][0]).trim() === key) return String(data[i][1] || '').trim();
+  }
+  return '';
+}
+
+function _sendLineMsg(userId, message) {
+  if (!userId || !message) return;
+  var token = _getLineToken();
+  if (!token) return;
+  try {
+    UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token },
+      payload: JSON.stringify({ to: userId, messages: [{ type:'text', text: message }] }),
+      muteHttpExceptions: true
+    });
+  } catch(err) { Logger.log('LINE push error: ' + err.message); }
+}
+
+// บันทึก LINE ID จาก webapp settings UI
+function apiSaveLineId(p) {
+  if (p.role !== 'mc' && p.role !== 'growth') return { ok:false, error:'Permission denied' };
+  var key = LINE_KEY_MAP[p.target];
+  if (!key) return { ok:false, error:'ไม่รู้จัก target: ' + p.target };
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = _getOrCreateSettings(ss);
+  var data = sh.getDataRange().getValues();
+  var rowIdx = -1;
+  for (var i = 0; i < data.length; i++) {
+    if (String(data[i][0]).trim() === key) { rowIdx = i + 1; break; }
+  }
+  var val = String(p.lineId || '').trim();
+  if (rowIdx === -1) sh.appendRow([key, val]);
+  else sh.getRange(rowIdx, 2).setValue(val);
+  return { ok:true };
+}
+
+// ดึง LINE IDs ทั้งหมดสำหรับแสดงใน settings UI
+function apiGetLineIds(p) {
+  if (p.role !== 'mc' && p.role !== 'growth') return { ok:false, error:'Permission denied' };
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('⚙️ SETTINGS');
+  var stored = {};
+  if (sh) {
+    var data = sh.getDataRange().getValues();
+    data.forEach(function(row) {
+      var k = String(row[0]||'').trim();
+      if (k.indexOf('LINE_ID_') === 0) stored[k] = String(row[1]||'').trim();
+    });
+  }
+  var ids = {};
+  Object.keys(LINE_KEY_MAP).forEach(function(role) {
+    ids[role] = stored[LINE_KEY_MAP[role]] || '';
+  });
+  var hasToken = !!_getLineToken();
+  return { ok:true, ids:ids, hasToken:hasToken };
+}
+
+// ── Member Notes ─────────────────────────────────────────────
+function _getOrCreateMemberNotesSheet(ss) {
+  var sh = ss.getSheetByName('📝 MEMBER NOTES');
+  if (!sh) {
+    sh = ss.insertSheet('📝 MEMBER NOTES');
+    sh.appendRow(['Member','Note','UpdatedAt','By']);
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+function apiSaveMemberNote(p) {
+  if (p.role !== 'mc' && !MENTOR_ROLE[p.role] && p.role !== 'growth')
+    return { ok:false, error:'Permission denied' };
+  var memberName = String(p.memberName||'').trim();
+  if (!memberName) return { ok:false, error:'ต้องระบุชื่อสมาชิก' };
+  var ss  = SpreadsheetApp.getActiveSpreadsheet();
+  var sh  = _getOrCreateMemberNotesSheet(ss);
+  var now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yy HH:mm');
+  var data = sh.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === memberName) {
+      sh.getRange(i+1,2).setValue(p.note||'');
+      sh.getRange(i+1,3).setValue(now);
+      sh.getRange(i+1,4).setValue(p.role);
+      return { ok:true, savedAt:now };
+    }
+  }
+  sh.appendRow([memberName, p.note||'', now, p.role]);
+  return { ok:true, savedAt:now };
+}
+
+function apiGetMemberNote(p) {
+  if (p.role !== 'mc' && !MENTOR_ROLE[p.role] && p.role !== 'growth')
+    return { ok:false, error:'Permission denied' };
+  var memberName = String(p.memberName||'').trim();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('📝 MEMBER NOTES');
+  if (!sh) return { ok:true, note:'', savedAt:'', savedBy:'' };
+  var data = sh.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === memberName) {
+      return { ok:true, note:String(data[i][1]||''), savedAt:String(data[i][2]||''), savedBy:String(data[i][3]||'') };
+    }
+  }
+  return { ok:true, note:'', savedAt:'', savedBy:'' };
 }
 
 // ── Router ────────────────────────────────────────────────────
@@ -57,7 +424,13 @@ function dispatch(payload) {
     if (a==='getNMChecklist')   return apiGetNMChecklist(payload);
     if (a==='saveNMCheckItem')  return apiSaveNMCheckItem(payload);
     if (a==='addNewMember')     return apiAddNewMember(payload);
-    if (a==='getPowerTeams')       return apiGetPowerTeams(payload);
+    if (a==='assignToTeam')     return apiAssignToTeam(payload);
+    if (a==='getPowerTeams')          return apiGetPowerTeams(payload);
+    if (a==='getGrowthPowerTeams')    return apiGetGrowthPowerTeams(payload);
+    if (a==='setPTMemberStatus')      return apiSetPTMemberStatus(payload);
+    if (a==='updatePTMember')         return apiUpdatePTMember(payload);
+    if (a==='movePTMember')           return apiMovePTMember(payload);
+    if (a==='moveSynMember')          return apiMoveSynMember(payload);
     if (a==='getMentorActivity')   return apiGetMentorActivity(payload);
     if (a==='getWeeklyActions')    return apiGetWeeklyActions(payload);
     if (a==='createGrowthTask')    return apiCreateGrowthTask(payload);
@@ -68,6 +441,7 @@ function dispatch(payload) {
     if (a==='getCoachingGuide')    return apiGetCoachingGuide(payload);
     if (a==='save121Log')          return apiSave121Log(payload);
     if (a==='get121Logs')          return apiGet121Logs(payload);
+    if (a==='getAll121Logs')       return apiGetAll121Logs(payload);
     if (a==='sendBroadcast')       return apiSendBroadcast(payload);
     if (a==='getBroadcasts')       return apiGetBroadcasts(payload);
     if (a==='getMentorPerformance')return apiGetMentorPerformance(payload);
@@ -81,6 +455,25 @@ function dispatch(payload) {
     if (a==='getMCAssignments')    return apiGetMCAssignments(payload);
     if (a==='getMentorAssignments')return apiGetMentorAssignments(payload);
     if (a==='ackAssignment')       return apiAckAssignment(payload);
+    if (a==='saveLineId')          return apiSaveLineId(payload);
+    if (a==='getLineIds')          return apiGetLineIds(payload);
+    if (a==='saveMemberNote')      return apiSaveMemberNote(payload);
+    if (a==='getMemberNote')       return apiGetMemberNote(payload);
+    if (a==='extendRenewal')       return apiExtendRenewal(payload);
+    if (a==='saveScore')           return apiSaveScore(payload);
+    if (a==='saveStatus')          return apiSaveStatus(payload);
+    if (a==='ensureSlot')          return apiEnsureSlot(payload);
+    if (a==='addNewMembersBatch')  return apiAddNewMembersBatch(payload);
+    if (a==='getChapterTrend')     return apiGetChapterTrend(payload);
+    if (a==='archiveMember')       return apiArchiveMember(payload);
+    if (a==='unarchiveMember')     return apiUnarchiveMember(payload);
+    if (a==='getArchivedMembers')  return apiGetArchivedMembers(payload);
+    if (a==='getCurrentMonth')     return apiGetCurrentMonth(payload);
+    if (a==='setCurrentMonth')     return apiSetCurrentMonth(payload);
+    if (a==='changePIN')           return apiChangePIN(payload);
+    if (a==='verifyScoring')          return apiVerifyScoring(payload);
+    if (a==='getMCCoaching')          return apiGetMCCoaching(payload);
+    if (a==='getDesktopDashboard')    return apiGetDesktopDashboard(payload);
 
     return { ok: false, error: 'unknown action' };
   } catch(e) {
@@ -93,7 +486,11 @@ function apiLogin(p) {
   var role = String(p.role||'').toLowerCase();
   var pin  = String(p.pin||'');
   if (!PINS[role]) return { ok:false, error:'ไม่พบ role นี้' };
-  if (PINS[role]!==pin) return { ok:false, error:'PIN ไม่ถูกต้อง' };
+  // Check SETTINGS for PIN override first
+  var overridePIN = _getSettingsValue('PIN_'+role.toUpperCase());
+  var correctPIN = (overridePIN !== null && String(overridePIN).trim() !== '')
+    ? String(overridePIN).trim() : PINS[role];
+  if (correctPIN !== pin) return { ok:false, error:'PIN ไม่ถูกต้อง' };
   var names = { mc:'ตูมตาม (MC)',toomtam:'TOOMTAM (ตูมตาม)',aof:'Aof (อ็อฟ)',draft:'Draft (ดราฟ)',phai:'PHAI (ไผ่)',amp:'AMP (แอมป์)',growth: 'Growth Coordinator', };
   return { ok:true, role:role, isMC:(role==='mc'), teamName:MENTOR_ROLE[role]||null, displayName:names[role]||role, version:APP_VERSION, versionDate:APP_VERSION_DATE };
 }
@@ -116,9 +513,10 @@ function apiGetDashboard(p) {
   }
 
   var members = [];
-  var summary = { green:0,yellow:0,red:0,black:0 };
+  var summary = { green:0,yellow:0,red:0,black:0,none:0 };
   var alerts  = [];
   var masterData = masterSh.getDataRange().getValues();
+  var archivedNames = _getArchivedNames(ss);
 
   for (var i=2; i<masterData.length; i++) {
     var row = masterData[i];
@@ -130,9 +528,10 @@ function apiGetDashboard(p) {
     var given  = parseFloat(row[6])||0;
     var recv   = parseFloat(row[7])||0;
     var balance= String(row[8]||'');
-    if (!name||score===0) continue;
+    if (!name) continue;
+    if (archivedNames[name]) continue;
 
-    var tlKey = score>=70?'green':score>=50?'yellow':score>=30?'red':'black';
+    var tlKey = score>0 ? (score>=70?'green':score>=50?'yellow':score>=30?'red':'black') : 'none';
     summary[tlKey]++;
 
     var r2y = r2yMap[name] || null;
@@ -141,9 +540,26 @@ function apiGetDashboard(p) {
     var tyfcb = r2y ? parseFloat(r2y[6])||0 : 0;
     var absent= r2y ? parseInt(r2y[10])||0 : 0;
 
+    // Compute BNI traffic light from R2Y raw data
+    var bniTl = 'none', bniScore = 0;
+    if (r2y) {
+      try {
+        var bniActual = {
+          rg:      parseInt(r2y[1])||0,  visitor: parseInt(r2y[3])||0,
+          oToOne:  parseInt(r2y[4])||0,  ceu:     parseInt(r2y[5])||0,
+          tyfcb:   parseFloat(r2y[6])||0, bniDays: parseInt(r2y[8])||0,
+          absent:  parseInt(r2y[10])||0
+        };
+        if (bniActual.bniDays > 0) {
+          var bniS = _bniBuildScore(bniActual);
+          bniTl = bniS.tl; bniScore = bniS.total;
+        }
+      } catch(e2) {}
+    }
+
     var m = { name:name,nick:nick,mentor:mentor,score:score,tl:tlKey,
               given:given,recv:recv,balance:balance,phone:phone,email:email,
-              tyfcb:tyfcb,absent:absent };
+              tyfcb:tyfcb,absent:absent,bniTl:bniTl,bniScore:bniScore };
     members.push(m);
 
     if (tlKey==='black'||absent>=3) alerts.push(m);
@@ -178,7 +594,10 @@ function apiGetMemberDetail(p) {
   }
 
   if (!masterRow) return { ok:false, error:'ไม่พบ "'+name+'" ใน รายชื่อทั้งหมด' };
-  if (!r2yRow)    return { ok:false, error:'ไม่พบ "'+name+'" ใน Reporting2You' };
+  if (!r2yRow) {
+    // New member — not yet in R2Y, use empty row
+    r2yRow = [name,0,0,0,0,0,0,0,0,0,0,0,0,0,'',''];
+  }
 
   var score  = parseFloat(masterRow[4])||0;
   var mentor = String(masterRow[3]||'—');
@@ -213,6 +632,7 @@ function apiGetMemberDetail(p) {
   var scoreHistory  = [];
   var coreIssueData = null;
   var mcReplyData   = '';
+  var renewalStr    = '';
   var mentorSheetName = _findMentorSheet(ss, name);
   if (mentorSheetName) {
     var msh = ss.getSheetByName(mentorSheetName);
@@ -232,6 +652,11 @@ function apiGetMemberDetail(p) {
         catch(e) { if (coreRaw) coreIssueData = { coreIssue: coreRaw }; }
         // MC Reply: col AA = index 24
         mcReplyData = String(shData[r][24]||'').trim();
+        // Renewal: col W = index 20
+        var renewalRaw = shData[r][20];
+        if (renewalRaw instanceof Date && !isNaN(renewalRaw.getTime())) {
+          renewalStr = Utilities.formatDate(renewalRaw, Session.getScriptTimeZone(), 'dd MMM yyyy');
+        } else if (renewalRaw) { renewalStr = String(renewalRaw).trim(); }
         break;
       }
     }
@@ -243,14 +668,20 @@ function apiGetMemberDetail(p) {
   // Priorities
   var priorities = _computePriorities(actual, target, weeks);
 
+  // BNI scoring & fast track
+  var fastTrack = null;
+  try { if (actual.bniDays > 0) fastTrack = _bniFastTrack(actual); } catch(fe) {}
+
   return {
     ok:true, name:name, nick:nick, mentor:mentor, score:score,
     given:given, recv:recv, balance:balance,
     actual:actual, target:target, weeks:weeks,
     scoreHistory:scoreHistory, attendRisk:attendRisk,
     priorities:priorities,
-    coreIssue: coreIssueData,   // ← เพิ่ม
-    mcReply:   mcReplyData      // ← เพิ่ม
+    fastTrack: fastTrack,
+    coreIssue: coreIssueData,
+    mcReply:   mcReplyData,
+    renewal:   renewalStr
   };
 }
 
@@ -259,8 +690,10 @@ function _findMentorSheet(ss, memberName) {
   for (var s=0;s<sheets.length;s++) {
     var sh = ss.getSheetByName(sheets[s]);
     if (!sh) continue;
-    for (var r=4;r<=11;r++) {
-      if (sh.getRange(r,3).getDisplayValue().trim()===memberName) return sheets[s];
+    var lastR = Math.max(sh.getLastRow(), 11);
+    var colC  = sh.getRange(4, 3, lastR - 3, 1).getValues();
+    for (var r=0;r<colC.length;r++) {
+      if (String(colC[r][0]||'').trim()===memberName) return sheets[s];
     }
   }
   return null;
@@ -268,53 +701,85 @@ function _findMentorSheet(ss, memberName) {
 
 // ── My Team ───────────────────────────────────────────────────
 function apiGetMyTeam(p) {
-  var teamName = MENTOR_ROLE[p.role];
+  var teamName = p.teamName || MENTOR_ROLE[p.role];
   if (!teamName) return { ok:false, error:'ไม่พบทีม' };
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(teamName);
   if (!sh) return { ok:false, error:'ไม่พบ Sheet '+teamName };
 
-  var r2ySh = ss.getSheetByName('Reporting2You');
+  // ── R2Y map (phone / email / absent) ──────────────────────────
   var r2yMap = {};
-  if (r2ySh) {
-    var r2yData = r2ySh.getDataRange().getValues();
-    for (var j=1;j<r2yData.length;j++) {
-      var rn = String(r2yData[j][0]).replace(/\s*\(BNI Ideal\)/i,'').trim();
-      if (rn) r2yMap[rn] = r2yData[j];
-    }
+  var r2ySh = ss.getSheetByName('Reporting2You');
+  if (r2ySh && r2ySh.getLastRow() > 1) {
+    var r2yData = r2ySh.getRange(2, 1, r2ySh.getLastRow()-1, 16).getValues();
+    r2yData.forEach(function(row) {
+      var rn = String(row[0]||'').replace(/\s*\(BNI Ideal\)/i,'').trim();
+      if (rn) r2yMap[rn] = row;
+    });
   }
 
-  // Batch read col C–Z (rows 4–11) ครั้งเดียว — col 3 ถึง 26 = 24 cols
-  var rawData = sh.getRange(4, 3, 8, 24).getValues();
+  // ── Mentor Sheet: rows 4+ (score history, core issue, etc.) ───
+  var lastDataRow = Math.max(sh.getLastRow(), 11);
+  var rawData = sh.getRange(4, 3, lastDataRow - 3, 24).getValues();
   var members = [];
+  var sheetNames = {};   // track names already loaded from Mentor Sheet
+
+  var archivedForTeam = _getArchivedNames(ss);
+
   for (var i = 0; i < rawData.length; i++) {
     var row  = rawData[i];
-    var name = String(row[0]||'').trim();   // col C
+    var name = String(row[0]||'').trim();
     if (!name) continue;
-    var nick = String(row[1]||'').trim();   // col D
+    if (archivedForTeam[name]) continue;
+    sheetNames[name] = true;
+    var nick = String(row[1]||'').trim();
     var scores = [];
-    for (var c = 2; c <= 13; c++) {         // col E–P = indices 2–13
+    for (var c = 2; c <= 13; c++) {
       scores.push({ month:MONTH_LABELS[c+3]||'', score:row[c]?parseFloat(row[c]):null });
     }
     var latest = null;
     for (var j = scores.length-1; j >= 0; j--) {
       if (scores[j].score !== null && scores[j].score > 0) { latest = scores[j].score; break; }
     }
-    var trend   = String(row[14]||'');  // col Q
-    var status  = String(row[15]||'');  // col R
-    var renewal = String(row[20]||'');  // col W
-    var core    = String(row[21]||'');  // col X
-    var mcMsg   = String(row[23]||'');  // col Z
+    var trend   = String(row[14]||'');
+    var status  = String(row[15]||'');
+    var core    = String(row[21]||'');
+    var mcMsg   = String(row[23]||'');
     var r2y     = r2yMap[name]||null;
-    var phone   = r2y?String(r2y[15]||''):'';
-    var email   = r2y?String(r2y[14]||''):'';
-    var absent  = r2y?parseInt(r2y[10])||0:0;
     var tl      = !latest?'none':latest>=70?'green':latest>=50?'yellow':latest>=30?'red':'black';
-
-    members.push({ row:i+4,name:name,nick:nick,scores:scores,latest:latest,
-      trend:trend,status:status,tl:tl,renewal:renewal,core:core,mcMsg:mcMsg,
-      phone:phone,email:email,absent:absent });
+    var renewalRaw = row[20];
+    var renewal = '', renewalSoon = false;
+    if (renewalRaw instanceof Date && !isNaN(renewalRaw)) {
+      renewal = Utilities.formatDate(renewalRaw, Session.getScriptTimeZone(), 'dd MMM yyyy');
+      renewalSoon = ((renewalRaw - new Date()) / 86400000) < 60;
+    } else if (renewalRaw) { renewal = String(renewalRaw).trim(); }
+    members.push({ row:i+4, name:name, nick:nick, scores:scores, latest:latest,
+      trend:trend, status:status, tl:tl, renewal:renewal, renewalSoon:renewalSoon,
+      core:core, mcMsg:mcMsg,
+      phone:r2y?String(r2y[15]||''):'', email:r2y?String(r2y[14]||''):'',
+      absent:r2y?parseInt(r2y[10])||0:0 });
   }
+
+  // ── รายชื่อทั้งหมด: เติมสมาชิกที่ยังไม่มีใน Mentor Sheet ──────
+  // (เช่น คนใหม่ที่ถูกเพิ่มแต่ Mentor Sheet เต็ม)
+  var masterSh = ss.getSheetByName('รายชื่อทั้งหมด');
+  if (masterSh && masterSh.getLastRow() > 2) {
+    var mData = masterSh.getRange(3, 1, masterSh.getLastRow()-2, 9).getValues();
+    mData.forEach(function(mRow) {
+      var mName   = String(mRow[1]||'').trim();
+      var mNick   = String(mRow[2]||'').trim();
+      var mMentor = String(mRow[3]||'').trim();
+      if (!mName || mMentor !== teamName || sheetNames[mName]) return;
+      if (archivedForTeam[mName]) return;
+      // สมาชิกทีมนี้ที่ไม่มีใน Mentor Sheet → โชว์เป็น ⭐ ใหม่
+      var r2y = r2yMap[mName]||null;
+      members.push({ row:null, name:mName, nick:mNick, scores:[], latest:null,
+        trend:'', status:'', tl:'none', renewal:'', core:'', mcMsg:'',
+        phone:r2y?String(r2y[15]||''):'', email:r2y?String(r2y[14]||''):'',
+        absent:r2y?parseInt(r2y[10])||0:0 });
+    });
+  }
+
   return { ok:true, teamName:teamName, members:members };
 }
 
@@ -351,8 +816,10 @@ function apiGetScorecard(p) {
     var sh = ss.getSheetByName(shName);
     if (!sh) return;
 
-    // Batch read rows 4–11, col C(3) ถึง Q(17) = 15 cols
-    var data = sh.getRange(4, 3, 8, 15).getValues();
+    // Batch read rows 4–lastRow, col C(3) ถึง Q(17) = 15 cols — ไม่จำกัด 8 คน
+    var shLastRow = Math.max(sh.getLastRow(), 4);
+    var numSRows  = shLastRow - 4 + 1;
+    var data = sh.getRange(4, 3, numSRows, 15).getValues();
     var tScores = [], pScores = [], rBlk = 0, div = 0;
 
     data.forEach(function(row) {
@@ -454,21 +921,72 @@ function apiGetRenewal(p) {
   if (!sh) return { ok:false, error:'ไม่พบ Sheet RENEWAL' };
   var today=new Date(); today.setHours(0,0,0,0);
   var items=[];
+  var arcR = _getArchivedNames(ss);
   for (var r=3;r<=sh.getLastRow();r++) {
     var name=sh.getRange(r,1).getDisplayValue().trim();
     var team=sh.getRange(r,2).getDisplayValue().trim();
     var expRaw=sh.getRange(r,3).getValue();
     if (!name||!expRaw) continue;
+    if (arcR[name]) continue;
     var expDate=new Date(expRaw); expDate.setHours(0,0,0,0);
     if (isNaN(expDate.getTime())) continue;
     var diff=Math.floor((expDate-today)/86400000);
     var status=diff<0?'late':diff<=30?'soon':diff<=90?'normal':'ok';
     if (p.role!=='mc'&&MENTOR_ROLE[p.role]&&team!==MENTOR_ROLE[p.role]) continue;
     items.push({ name:name,team:team,diffDays:diff,status:status,
-      expStr:Utilities.formatDate(expDate,Session.getScriptTimeZone(),'dd MMM yyyy') });
+      expStr:Utilities.formatDate(expDate,Session.getScriptTimeZone(),'dd MMM yyyy'), row:r });
   }
   items.sort(function(a,b){return a.diffDays-b.diffDays;});
   return { ok:true, items:items };
+}
+
+// ── Extend Renewal +1 Year ────────────────────────────────────
+function apiExtendRenewal(p) {
+  if (p.role !== 'mc') return { ok:false, error:'เฉพาะ MC เท่านั้น' };
+  if (!p.name) return { ok:false, error:'ต้องระบุชื่อสมาชิก' };
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('💳 RENEWAL');
+  if (!sh) return { ok:false, error:'ไม่พบ Sheet RENEWAL' };
+
+  // หาแถวที่ตรงกับชื่อ (ใช้ name lookup แทน row number เพื่อความปลอดภัย)
+  var targetRow = -1;
+  for (var r = 3; r <= sh.getLastRow(); r++) {
+    if (sh.getRange(r,1).getDisplayValue().trim() === p.name.trim()) {
+      targetRow = r; break;
+    }
+  }
+  if (targetRow === -1) return { ok:false, error:'ไม่พบ "'+p.name+'" ใน RENEWAL' };
+
+  var expRaw = sh.getRange(targetRow, 3).getValue();
+  var baseDate = (expRaw instanceof Date && !isNaN(expRaw.getTime())) ? expRaw : new Date();
+  // ถ้าหมดอายุแล้ว ให้นับจากวันนี้
+  var today = new Date(); today.setHours(0,0,0,0);
+  if (baseDate < today) baseDate = today;
+
+  var newExp = new Date(baseDate);
+  newExp.setFullYear(newExp.getFullYear() + 1);
+
+  var tz = Session.getScriptTimeZone();
+  var now = Utilities.formatDate(new Date(), tz, 'dd/MM/yy HH:mm');
+  sh.getRange(targetRow, 3).setValue(newExp);
+  // บันทึกวันที่ต่ออายุใน col D
+  sh.getRange(targetRow, 4).setValue('ต่ออายุ ' + now);
+
+  // อัปเดต col W ของ Mentor Sheet ด้วย
+  var teams = ['TOOMTAM','Aof','Draft','PHAI','AMP'];
+  teams.forEach(function(teamName) {
+    var msh = ss.getSheetByName(teamName);
+    if (!msh) return;
+    for (var mr = 4; mr <= 11; mr++) {
+      if (msh.getRange(mr,3).getDisplayValue().trim() === p.name.trim()) {
+        msh.getRange(mr,23).setValue(newExp); // col W = 23
+        return;
+      }
+    }
+  });
+
+  var newExpStr = Utilities.formatDate(newExp, tz, 'dd MMM yyyy');
+  return { ok:true, newExpStr:newExpStr, renewedAt:now };
 }
 
 // ── Messages ──────────────────────────────────────────────────
@@ -516,8 +1034,13 @@ function apiSaveCoreIssue(p) {
   var ss=SpreadsheetApp.getActiveSpreadsheet();
   var sh=ss.getSheetByName(teamName);
   if (!sh) return { ok:false, error:'ไม่พบ Sheet' };
-  var row=parseInt(p.row);
-  if (row<4||row>11) return { ok:false, error:'Row ไม่ถูกต้อง' };
+  var row = parseInt(p.row);
+  // row:null (⭐ ใหม่) → auto-create slot before saving
+  if (!p.row || isNaN(row) || row < 4) {
+    var slotRes = apiEnsureSlot({ role: p.role, memberName: String(p.memberName||'').trim(), nick: String(p.nick||'').trim() });
+    if (!slotRes.ok) return slotRes;
+    row = slotRes.row;
+  }
   var existing=sh.getRange(row,3).getDisplayValue().trim();
   if (existing!==p.memberName) return { ok:false, error:'ชื่อไม่ตรง' };
   var ts=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'dd/MM/yy HH:mm');
@@ -534,9 +1057,9 @@ function apiSaveCoreIssue(p) {
     }
   }
 
-  // Append new entry; keep max 10
+  // Append new entry; keep last 50
   history.push({ coreIssue: p.coreIssue||'', actionTaken: p.actionTaken||'', plan: p.plan||'', savedAt: ts });
-  if (history.length > 10) history = history.slice(-10);
+  if (history.length > 50) history = history.slice(-50);
 
   sh.getRange(row, 24).setValue(JSON.stringify(history));
   // Reset case status — new submission reopens the case
@@ -548,6 +1071,16 @@ function apiSaveCoreIssue(p) {
     var scoreBefore = parseFloat(sh.getRange(row, 17).getValue()) || 0;
     logAction(p.role, teamName, p.memberName, nick, scoreBefore, p.coreIssue, p.actionTaken, p.plan);
   } catch(e) { Logger.log('Log err: '+e.message); }
+  try {
+    var mcId = _getLineId('mc');
+    if (mcId) {
+      _sendLineMsg(mcId,
+        '🔔 [' + teamName + '] ส่ง Core Issue ใหม่\n' +
+        'สมาชิก: ' + p.memberName + '\n' +
+        'ปัญหา: ' + (p.coreIssue||'').substring(0,120) +
+        '\n\nตรวจสอบใน BNI IDEAL System ครับ');
+    }
+  } catch(le) { Logger.log('LINE notify err: '+le.message); }
   return { ok:true, message:'บันทึกเรียบร้อยแล้ว' };
 }
 
@@ -558,7 +1091,7 @@ function apiSaveMCMessage(p) {
   var sh=ss.getSheetByName(p.teamName);
   if (!sh) return { ok:false, error:'ไม่พบ Sheet' };
   var row=parseInt(p.row);
-  if (row<4||row>11) return { ok:false, error:'Row ไม่ถูกต้อง' };
+  if (row<4) return { ok:false, error:'Row ไม่ถูกต้อง' };
   sh.getRange(row,26).setValue(p.message||'');
   return { ok:true, message:'บันทึกข้อความแล้ว' };
 }
@@ -576,7 +1109,7 @@ function apiSaveReply(p) {
     if (!sh) return { ok: false, error: 'ไม่พบ Sheet: ' + p.teamName };
 
     var row = parseInt(p.row);
-    if (isNaN(row) || row < 4 || row > 11)
+    if (isNaN(row) || row < 4)
       return { ok: false, error: 'Row ไม่ถูกต้อง' };
 
     var now = Utilities.formatDate(
@@ -599,6 +1132,17 @@ function apiSaveReply(p) {
         new Date(), 'MC_REPLY', p.teamName, p.memberName || '', p.reply.toString().trim()
       ]);
     } catch(le) {}
+
+    try {
+      var mentorLineId = _getLineId(p.teamName);
+      if (mentorLineId) {
+        _sendLineMsg(mentorLineId,
+          '💬 MC ตอบ Core Issue\n' +
+          'ทีม: ' + p.teamName + (p.memberName ? '\nสมาชิก: ' + p.memberName : '') + '\n' +
+          'MC: ' + p.reply.toString().trim().substring(0,150) +
+          '\n\nตรวจสอบใน BNI IDEAL System ครับ');
+      }
+    } catch(le2) { Logger.log('LINE notify err: '+le2.message); }
 
     return { ok: true };
   } catch(e) {
@@ -785,6 +1329,10 @@ function apiGetNewMembers(p) {
         if (plain.indexOf('http') === 0) fileUrl = plain;
       }
 
+      // Normalize progress: Sheets stores % as decimal (0.75 = 75%)
+      var rawProg = parseFloat(row[7]) || 0;
+      var progress = (rawProg > 0 && rawProg <= 1) ? Math.round(rawProg * 100) : Math.round(rawProg);
+
       members.push({
         rowNum:    i + NM_DATA_ROW,
         seq:       row[0],
@@ -794,23 +1342,28 @@ function apiGetNewMembers(p) {
         startDate: startDate,
         w8Date:    w8Str,
         status:    String(row[6]||'').trim(),
-        progress:  parseFloat(row[7])||0,
+        progress:  progress,
         expDate:   expStr,
         fileUrl:   fileUrl
       });
     }
 
-    var debugInfo = 'role='+p.role+' total='+members.length;
+    // Dedup by name — keep first occurrence (in case sheet has duplicate rows)
+    var _seen = {};
+    members = members.filter(function(m) {
+      if (_seen[m.name]) return false;
+      _seen[m.name] = true;
+      return true;
+    });
+
     if (p.role !== 'mc') {
       var myTeam = (MENTOR_ROLE[p.role]||'').toLowerCase();
-      debugInfo += ' myTeam='+myTeam;
       members = members.filter(function(m) {
         return m.mentor.toLowerCase() === myTeam;
       });
-      debugInfo += ' afterFilter='+members.length;
     }
 
-    return { ok: true, members: members, debug: debugInfo };
+    return { ok: true, members: members };
   } catch(e) {
     return { ok: false, error: e.message };
   }
@@ -982,8 +1535,15 @@ function apiAddNewMember(p) {
     var nmSheet = mainSS.getSheetByName(NM_SHEET_NAME);
     if (!nmSheet) return { ok: false, error: 'ไม่พบ Sheet NEW MEMBERS' };
 
-    // หา row ว่างแรก
+    // ── ตรวจ duplicate ก่อน ────────────────────────────────────
     var lastRow = nmSheet.getLastRow();
+    if (lastRow >= NM_DATA_ROW) {
+      var existingNames = nmSheet.getRange(NM_DATA_ROW, 3, lastRow - NM_DATA_ROW + 1, 1).getValues();
+      var isDup = existingNames.some(function(r){ return String(r[0]||'').trim().toLowerCase() === p.name.trim().toLowerCase(); });
+      if (isDup) return { ok: false, error: 'มีชื่อ "'+p.name+'" ใน New Members อยู่แล้ว — กรุณาตรวจสอบ' };
+    }
+
+    // หา row ว่างแรก
     var newRow  = Math.max(lastRow + 1, NM_DATA_ROW);
 
     // หา seq ล่าสุด
@@ -1004,12 +1564,122 @@ function apiAddNewMember(p) {
     nmSheet.getRange(newRow, 10).setValue(expDate);         // col J
     nmSheet.getRange(newRow, 11).setValue(newFileUrl);      // col K
 
+    var warnings = [];
+
+    // 4. เพิ่มใน รายชื่อทั้งหมด
+    var masterSh = mainSS.getSheetByName('รายชื่อทั้งหมด');
+    if (masterSh) {
+      var mData = masterSh.getDataRange().getValues();
+      var mExists = mData.some(function(row){ return String(row[1]).trim()===p.name.trim(); });
+      if (!mExists) masterSh.appendRow(['', p.name, p.nick, p.mentor, 0, '', 0, 0, '']);
+    }
+
+    // 5. เพิ่มใน Mentor Sheet (ไม่จำกัดจำนวน)
+    var validTeams = ['TOOMTAM','Aof','Draft','PHAI','AMP'];
+    if (validTeams.indexOf(p.mentor) >= 0) {
+      var mentorSh = mainSS.getSheetByName(p.mentor);
+      if (mentorSh) {
+        // ตรวจ duplicate ก่อน
+        var mLast = mentorSh.getLastRow();
+        var alreadyInMentor = false;
+        if (mLast >= 4) {
+          var mNames = mentorSh.getRange(4, 3, mLast - 3, 1).getValues();
+          alreadyInMentor = mNames.some(function(r){ return String(r[0]||'').trim().toLowerCase() === p.name.trim().toLowerCase(); });
+        }
+        if (!alreadyInMentor) {
+          // หาแถวว่างแรก หรือ append ที่ท้าย
+          var slotRow = mLast + 1; // default: แถวถัดจาก lastRow
+          for (var mr = 4; mr <= mLast; mr++) {
+            if (!mentorSh.getRange(mr, 3).getValue()) { slotRow = mr; break; }
+          }
+          if (slotRow < 4) slotRow = 4;
+          mentorSh.getRange(slotRow, 3).setValue(p.name);
+          mentorSh.getRange(slotRow, 4).setValue(p.nick);
+        }
+      }
+    }
+
+    // 6. เพิ่มใน 💳 RENEWAL
+    var rnSh = mainSS.getSheetByName('💳 RENEWAL');
+    if (!rnSh) {
+      rnSh = mainSS.insertSheet('💳 RENEWAL');
+      rnSh.appendRow(['ชื่อ','ทีม','วันหมดอายุ']);
+      rnSh.setFrozenRows(1);
+    }
+    var rnData = rnSh.getDataRange().getValues();
+    var rnExists = rnData.some(function(row){ return String(row[0]).trim()===p.name.trim(); });
+    if (!rnExists) rnSh.appendRow([p.name, p.mentor, expDate]);
+
     return {
       ok:       true,
       name:     p.name,
       fileUrl:  newFileUrl,
-      fileName: newFileName
+      fileName: newFileName,
+      warnings: warnings
     };
+  } catch(e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// ── Assign NM to Team (sync Mentor Sheet + Master + Renewal) ──
+function apiAssignToTeam(p) {
+  try {
+    if (p.role !== 'mc') return { ok: false, error: 'Permission denied' };
+    if (!p.name || !p.mentor) return { ok: false, error: 'ข้อมูลไม่ครบ' };
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var validTeams = ['TOOMTAM','Aof','Draft','PHAI','AMP'];
+    var warnings = [];
+
+    // 1. เพิ่มใน Mentor Sheet
+    if (validTeams.indexOf(p.mentor) >= 0) {
+      var mentorSh = ss.getSheetByName(p.mentor);
+      if (mentorSh) {
+        var mLast2 = mentorSh.getLastRow();
+        var alreadyIn = false;
+        if (mLast2 >= 4) {
+          var mNamesA = mentorSh.getRange(4, 3, mLast2 - 3, 1).getValues();
+          alreadyIn = mNamesA.some(function(r){ return String(r[0]||'').trim().toLowerCase() === p.name.trim().toLowerCase(); });
+        }
+        if (!alreadyIn) {
+          var slotRow2 = mLast2 + 1;
+          for (var mr = 4; mr <= mLast2; mr++) {
+            if (!mentorSh.getRange(mr, 3).getValue()) { slotRow2 = mr; break; }
+          }
+          if (slotRow2 < 4) slotRow2 = 4;
+          mentorSh.getRange(slotRow2, 3).setValue(p.name);
+          mentorSh.getRange(slotRow2, 4).setValue(p.nick || p.name);
+        }
+      }
+    }
+
+    // 2. เพิ่มใน รายชื่อทั้งหมด
+    var masterSh = ss.getSheetByName('รายชื่อทั้งหมด');
+    if (masterSh) {
+      var mData = masterSh.getDataRange().getValues();
+      var mExists = mData.some(function(row) { return String(row[1]).trim() === p.name.trim(); });
+      if (!mExists) masterSh.appendRow(['', p.name, p.nick || p.name, p.mentor, 0, '', 0, 0, '']);
+    }
+
+    // 3. เพิ่มใน 💳 RENEWAL
+    if (p.expDate) {
+      var rnSh = ss.getSheetByName('💳 RENEWAL');
+      if (!rnSh) {
+        rnSh = ss.insertSheet('💳 RENEWAL');
+        rnSh.appendRow(['ชื่อ','ทีม','วันหมดอายุ']);
+        rnSh.setFrozenRows(1);
+      }
+      var rnData = rnSh.getDataRange().getValues();
+      var rnExists = rnData.some(function(row) { return String(row[0]).trim() === p.name.trim(); });
+      if (!rnExists) {
+        var ep = p.expDate.split('/');
+        var expD = new Date(2000 + parseInt(ep[2]), parseInt(ep[1]) - 1, parseInt(ep[0]));
+        rnSh.appendRow([p.name, p.mentor, expD]);
+      }
+    }
+
+    return { ok: true, warnings: warnings };
   } catch(e) {
     return { ok: false, error: e.message };
   }
@@ -1304,6 +1974,51 @@ function apiGetPowerTeams(p) {
       };
     });
 
+    // Apply PT_SYN_TEAM overrides from SETTINGS (rebucket members to different teams)
+    var settingsSh_syn = ss.getSheetByName('⚙️ SETTINGS');
+    if (settingsSh_syn) {
+      var sData_syn = settingsSh_syn.getDataRange().getValues();
+      var synOverrides = {};
+      for (var si = 0; si < sData_syn.length; si++) {
+        if (String(sData_syn[si][0]).trim() === 'PT_SYN_TEAM') {
+          try { var sto = JSON.parse(String(sData_syn[si][1]||'{}')); if (sto && typeof sto==='object') synOverrides = sto; } catch(e2) {}
+          break;
+        }
+      }
+      if (Object.keys(synOverrides).length > 0) {
+        var synTeamIds = teams.map(function(t){ return t.id; });
+        var synPool = [];
+        teams.forEach(function(t){ t.members.forEach(function(m){ synPool.push({member:m, origId:t.id}); }); });
+        var synBuckets = {};
+        synTeamIds.forEach(function(id){ synBuckets[id] = []; });
+        synPool.forEach(function(item){
+          // Try fullName first (stable key), fall back to nick for legacy entries
+          var keyName = item.member.name || '';
+          var keyNick = item.member.nick || '';
+          var overrideTeam = synOverrides[keyName] || synOverrides[keyNick] || '';
+          var dest = (overrideTeam && synBuckets.hasOwnProperty(overrideTeam)) ? overrideTeam : item.origId;
+          synBuckets[dest].push(item.member);
+        });
+        teams = teams.map(function(t){
+          var newMems = synBuckets[t.id] || [];
+          var suggs = [];
+          for (var a2=0; a2<newMems.length; a2++) {
+            for (var b2=a2+1; b2<newMems.length; b2++) {
+              var sc = _scorePair(newMems[a2], newMems[b2]);
+              if (sc.priority !== 'low') suggs.push({a:newMems[a2].nick,b:newMems[b2].nick,aScore:newMems[a2].score,bScore:newMems[b2].score,priority:sc.priority,reasons:sc.reasons});
+            }
+          }
+          suggs.sort(function(x,y){ return (x.priority==='high'?0:1)-(y.priority==='high'?0:1); });
+          return {id:t.id, icon:t.icon, name:t.name, members:newMems, count:newMems.length,
+            avgScore:newMems.length?Math.round(newMems.reduce(function(s,m){return s+m.score;},0)/newMems.length):0,
+            redBlack:newMems.filter(function(m){return m.tl==='red'||m.tl==='black';}).length,
+            totalGiven:newMems.reduce(function(s,m){return s+m.given;},0),
+            totalRecv:newMems.reduce(function(s,m){return s+m.recv;},0),
+            suggestions:suggs.slice(0,5), synergy:t.synergy};
+        });
+      }
+    }
+
     // Detect unassigned members (in master but not in any Power Team)
     var unassigned = Object.keys(nickMap).filter(function(n) { return !allAssigned[n]; });
     if (unassigned.length > 0) {
@@ -1324,6 +2039,288 @@ function apiGetPowerTeams(p) {
     }
 
     return { ok: true, teams: teams };
+  } catch(e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// ── Growth Power Teams Revenue View ──────────────────────────
+function apiGetGrowthPowerTeams(p) {
+  try {
+    if (p.role !== 'growth') return { ok: false, error: 'Permission denied' };
+
+    var teams = null;
+
+    // Primary: read from ⚡ POWER TEAMS sheet
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName('⚡ POWER TEAMS');
+    if (sh) {
+      var data = sh.getDataRange().getValues();
+      if (data.length > 1) {
+        var teamMap = {}, teamOrder = [];
+        for (var i = 1; i < data.length; i++) {
+          var row = data[i];
+          var tName = String(row[0]||'').trim();
+          if (!tName) continue;
+          if (!teamMap[tName]) { teamMap[tName] = []; teamOrder.push(tName); }
+          var bniGoal = parseFloat(row[6])||0;
+          var recv    = parseFloat(row[7])||0;
+          teamMap[tName].push({
+            firstName:  String(row[1]||'').trim(),
+            lastName:   String(row[2]||'').trim(),
+            nick:       String(row[3]||'').trim(),
+            profession: String(row[4]||'').trim(),
+            tl:         String(row[5]||'').trim(),
+            bniGoal:    bniGoal,
+            recv:       recv,
+            refPerWeek: parseFloat(row[8])||0,
+            goalPct:    bniGoal > 0 ? Math.round(recv / bniGoal * 1000) / 10 : 0
+          });
+        }
+        if (teamOrder.length > 0) {
+          teams = teamOrder.map(function(name) {
+            var members = teamMap[name];
+            var tGoal = members.reduce(function(s,m){ return s + m.bniGoal; }, 0);
+            var tRecv = members.reduce(function(s,m){ return s + m.recv; }, 0);
+            return { team: name, members: members, memberCount: members.length,
+              teamGoal: tGoal, teamRecv: tRecv,
+              teamPct: tGoal > 0 ? Math.round(tRecv / tGoal * 1000) / 10 : 0 };
+          });
+        }
+      }
+    }
+
+    // Fallback: static data from power_team_data.json
+    if (!teams) {
+      teams = [{"team":"Developer","members":[{"seq":1,"firstName":"Jirayu","lastName":"Boonlert","nick":"ฟอร์ด","profession":"ผ้าม่าน วอลเปเปอร์ พื้นSPC มุ้งจีบ","tl":"Y","given":533984,"bniGoal":4000000,"recv":304140,"goalPct":7.6,"avgDeal":60000,"conversion":0.5,"refPerWeek":2.67,"refIn":9,"refOut":12},{"seq":2,"firstName":"Kanpong","lastName":"Ritchainimit","nick":"หนึ่ง","profession":"เมทัลชีท","tl":"Y","given":684510,"bniGoal":10000000,"recv":1566630,"goalPct":15.7,"avgDeal":100000,"conversion":0.6,"refPerWeek":3.33,"refIn":14,"refOut":12},{"seq":3,"firstName":"Nantawat","lastName":"Mahaeknan","nick":"เน็ท","profession":"จำหน่ายเหล็กก่อสร้าง","tl":"R","given":121542,"bniGoal":3000000,"recv":1971083,"goalPct":65.7,"avgDeal":200000,"conversion":0.5,"refPerWeek":0.6,"refIn":20,"refOut":9},{"seq":4,"firstName":"Pariphon","lastName":"Jaroonthiravith","nick":"ปิงปอง","profession":"รับทำป้าย-ฟาดซาด","tl":"G","given":3074019,"bniGoal":5000000,"recv":563852,"goalPct":11.3,"avgDeal":100000,"conversion":0.8,"refPerWeek":1.25,"refIn":6,"refOut":22},{"seq":5,"firstName":"Ploypachcha","lastName":"Tararattanapawn","nick":"เม","profession":"ประตูม้วน ประตูอัตโนมัติ","tl":"Y","given":143747,"bniGoal":2000000,"recv":156315,"goalPct":7.8,"avgDeal":100000,"conversion":0.8,"refPerWeek":0.5,"refIn":6,"refOut":19},{"seq":6,"firstName":"Praputsorn","lastName":"Kongsarppaisal","nick":"แยม","profession":"กระจก อลูมิเนียม","tl":"G","given":473205,"bniGoal":3000000,"recv":1477198,"goalPct":49.2,"avgDeal":200000,"conversion":0.8,"refPerWeek":0.38,"refIn":11,"refOut":8},{"seq":7,"firstName":"Thanongsak","lastName":"Seriumnuay","nick":"โอ","profession":"ออกแบบและตกแต่งภายใน","tl":"R","given":678168,"bniGoal":3000000,"recv":244000,"goalPct":8.1,"avgDeal":600000,"conversion":0.7,"refPerWeek":0.14,"refIn":0,"refOut":2}],"teamGoal":30000000,"teamRecv":6283218,"teamPct":20.9,"memberCount":7},{"team":"Restaurant & Supermarket","members":[{"seq":1,"firstName":"Archara","lastName":"Pagarat","nick":"นุ่น","profession":"ไวน์อินทผลัม อินทผลัม และผลิตภัณฑ์แปรรูป","tl":"G","given":312702,"bniGoal":1000000,"recv":26440,"goalPct":2.6,"avgDeal":28800,"conversion":0.5,"refPerWeek":1.39,"refIn":8,"refOut":14},{"seq":2,"firstName":"Jakrapong","lastName":"Visetpanpong","nick":"อ้น","profession":"ผลิต แปรรูป จมูกข้าวออแกนิคและธัญพืช","tl":"G","given":45471,"bniGoal":2000000,"recv":35090,"goalPct":1.8,"avgDeal":40000,"conversion":0.6,"refPerWeek":1.67,"refIn":12,"refOut":15},{"seq":3,"firstName":"Korranat","lastName":"Worawongthep","nick":"แพร","profession":"Online Marketing","tl":"G","given":74508,"bniGoal":1920000,"recv":483000,"goalPct":25.2,"avgDeal":240000,"conversion":0.5,"refPerWeek":0.32,"refIn":6,"refOut":23},{"seq":4,"firstName":"Naruporn","lastName":"Supittayapornpong","nick":"เอ๋ย","profession":"ผลิต และจำหน่ายไอศกรีมซอฟต์เสิร์ฟ","tl":"Y","given":84900,"bniGoal":2000000,"recv":275069,"goalPct":13.8,"avgDeal":28000,"conversion":0.2,"refPerWeek":7.14,"refIn":9,"refOut":18},{"seq":5,"firstName":"Phitarn","lastName":"Sakulthanaphetch","nick":"ตูมตาม","profession":"Speciality Coffee","tl":"G","given":225436,"bniGoal":150000,"recv":22681,"goalPct":15.1,"avgDeal":8750,"conversion":0.5,"refPerWeek":0.69,"refIn":26,"refOut":18},{"seq":6,"firstName":"Prakorn","lastName":"Sirimars","nick":"ไผ่","profession":"สอนทำขนม","tl":"Y","given":120194,"bniGoal":1200000,"recv":27465,"goalPct":2.3,"avgDeal":600000,"conversion":0.5,"refPerWeek":0.08,"refIn":4,"refOut":4},{"seq":7,"firstName":"Preeda","lastName":"Noita","nick":"ตุ๋ย","profession":"ผลิตสร้างห้องเย็น รถห้องเย็น","tl":"G","given":1469463,"bniGoal":20000000,"recv":24436448,"goalPct":122.2,"avgDeal":2000000,"conversion":0.2,"refPerWeek":1.0,"refIn":0,"refOut":6},{"seq":8,"firstName":"Theerawut","lastName":"Piyaphinthu","nick":"เบส","profession":"จำหน่ายหมูสด","tl":"R","given":100829,"bniGoal":5000000,"recv":334918,"goalPct":6.7,"avgDeal":256000,"conversion":0.3,"refPerWeek":1.3,"refIn":9,"refOut":18},{"seq":9,"firstName":"Thitima","lastName":"Hemarak","nick":"ปุ๊ก","profession":"โรงงานแปรรูปสัตว์น้ำจืด ปลานิลและปลาดุก","tl":"G","given":29978284,"bniGoal":12000000,"recv":1949341,"goalPct":16.2,"avgDeal":630000,"conversion":0.5,"refPerWeek":0.76,"refIn":0,"refOut":8}],"teamGoal":45270000,"teamRecv":27590452,"teamPct":60.9,"memberCount":9},{"team":"Company&Government","members":[{"seq":1,"firstName":"Adisak","lastName":"Pankhot","nick":"ออฟ","profession":"รับสร้างบ้าน","tl":"Y","given":524056,"bniGoal":10000000,"recv":177050,"goalPct":1.8,"avgDeal":5000000,"conversion":0.5,"refPerWeek":0.08,"refIn":0,"refOut":2},{"seq":2,"firstName":"Chiranan","lastName":"Sathitsamphan","nick":"โอ","profession":"โรงแรมห้องพักราคาไม่เกิน 500","tl":"G","given":117613,"bniGoal":500000,"recv":1604,"goalPct":0.3,"avgDeal":10000,"conversion":0.8,"refPerWeek":1.25,"refIn":1,"refOut":11},{"seq":3,"firstName":"Gomen","lastName":"Khotsopa","nick":"แมน","profession":"เช่ารถ รถตู้พร้อมคนขับ รถสไลด์","tl":"R","given":209047,"bniGoal":480000,"recv":171510,"goalPct":35.7,"avgDeal":20000,"conversion":0.8,"refPerWeek":0.6,"refIn":1,"refOut":35},{"seq":4,"firstName":"Kittathat","lastName":"Jaruchaikul","nick":"วินโด้","profession":"ปรึกษา และ จำหน่าย อุปกรณ์ คอมพิวเตอร์ IT","tl":"Y","given":329246,"bniGoal":5000000,"recv":2700,"goalPct":0.1,"avgDeal":500000,"conversion":0.5,"refPerWeek":0.4,"refIn":9,"refOut":7},{"seq":5,"firstName":"Nipawee","lastName":"Supachaisakron","nick":"แพรว","profession":"โรงแรม","tl":"G","given":221233,"bniGoal":1152010,"recv":589394,"goalPct":51.2,"avgDeal":25000,"conversion":0.8,"refPerWeek":1.15,"refIn":23,"refOut":34},{"seq":6,"firstName":"Palat","lastName":"Thanasrivanichai","nick":"เลียว","profession":"ร้านขายสีทุกประเภท","tl":"G","given":648377,"bniGoal":10000000,"recv":345345,"goalPct":3.5,"avgDeal":500000,"conversion":0.5,"refPerWeek":0.8,"refIn":25,"refOut":20},{"seq":7,"firstName":"Phasuthon","lastName":"Taesuwan","nick":"อะตอม","profession":"ร้านก๋วยเตี๋ยว","tl":"","given":10808,"bniGoal":2000000,"recv":1795,"goalPct":0.1,"avgDeal":30000,"conversion":1.0,"refPerWeek":1.33,"refIn":3,"refOut":4},{"seq":8,"firstName":"Pongpat","lastName":"Chanthai","nick":"เขียว","profession":"รับทำเว็ปไซต์","tl":"G","given":243831,"bniGoal":150000,"recv":194310,"goalPct":129.5,"avgDeal":40000,"conversion":0.5,"refPerWeek":0.15,"refIn":5,"refOut":8},{"seq":9,"firstName":"Rewat","lastName":"Sanpet","nick":"แอม","profession":"บริการทำความสะอาด","tl":"Y","given":139408,"bniGoal":450000,"recv":170790,"goalPct":38.0,"avgDeal":10000,"conversion":0.8,"refPerWeek":1.12,"refIn":2,"refOut":15},{"seq":10,"firstName":"Samrit","lastName":"Pholjan","nick":"ดราฟ","profession":"ร้านตัดสูท","tl":"Y","given":105124,"bniGoal":900000,"recv":97300,"goalPct":10.8,"avgDeal":50000,"conversion":0.8,"refPerWeek":0.45,"refIn":10,"refOut":13},{"seq":11,"firstName":"Sophon","lastName":"Saenubol","nick":"พอล","profession":"นักพัฒนาอสังหาฯ","tl":"","given":53875,"bniGoal":500000,"recv":0,"goalPct":0.0,"avgDeal":200000,"conversion":0.8,"refPerWeek":0.06,"refIn":0,"refOut":1},{"seq":12,"firstName":"Thanyalak","lastName":"Samreeloy","nick":"ธัญญา","profession":"เต็นท์รถยนต์มือ 2","tl":"Y","given":242319,"bniGoal":0,"recv":146513,"goalPct":0,"avgDeal":0,"conversion":0.0,"refPerWeek":0.0,"refIn":1,"refOut":7},{"seq":13,"firstName":"Yosita","lastName":"Niyomrat","nick":"ยา","profession":"ขาย-ซ่อม โทรศัพท์มือถือ","tl":"Y","given":354187,"bniGoal":1200000,"recv":288241,"goalPct":24.0,"avgDeal":10000,"conversion":0.7,"refPerWeek":3.43,"refIn":4,"refOut":20}],"teamGoal":32332010,"teamRecv":2186552,"teamPct":6.8,"memberCount":13},{"team":"Privilege","members":[{"seq":1,"firstName":"Chananan","lastName":"Saengplao","nick":"แหม่ม","profession":"ประกันชีวิต","tl":"Y","given":96472,"bniGoal":2000000,"recv":863005,"goalPct":43.2,"avgDeal":116000,"conversion":0.9,"refPerWeek":0.38,"refIn":2,"refOut":10},{"seq":2,"firstName":"Phanupan","lastName":"Somsanook","nick":"โก้","profession":"Balloon decorate & Gift","tl":"Y","given":24600,"bniGoal":1400000,"recv":53790,"goalPct":3.8,"avgDeal":10000,"conversion":0.5,"refPerWeek":5.6,"refIn":4,"refOut":6},{"seq":3,"firstName":"Orapan","lastName":"Pougpralub","nick":"หมอตู่","profession":"คลินิกทันตกรรม","tl":"Y","given":206889,"bniGoal":2000000,"recv":183827,"goalPct":9.2,"avgDeal":100000,"conversion":0.7,"refPerWeek":0.57,"refIn":7,"refOut":29},{"seq":4,"firstName":"Ophat","lastName":"Taerattanachai","nick":"เปเล่","profession":"ร้านเพชรทอง","tl":"G","given":294357,"bniGoal":2000000,"recv":1720210,"goalPct":86.0,"avgDeal":100000,"conversion":0.7,"refPerWeek":0.57,"refIn":16,"refOut":14},{"seq":5,"firstName":"Phanuwat","lastName":"Promwong","nick":"ยศ","profession":"รับเหมาก่อสร้าง (มูลค่ามากกว่า 10 ล้านบาท)","tl":"G","given":1027148,"bniGoal":5000000,"recv":1909000,"goalPct":38.2,"avgDeal":5000000,"conversion":0.1,"refPerWeek":0.2,"refIn":0,"refOut":7},{"seq":6,"firstName":"Suporn","lastName":"Wongchompoo","nick":"พร","profession":"ผลไม้พร้อมทาน","tl":"G","given":258973,"bniGoal":600000,"recv":77432,"goalPct":12.9,"avgDeal":3000,"conversion":0.7,"refPerWeek":5.71,"refIn":24,"refOut":15}],"teamGoal":13000000,"teamRecv":4807264,"teamPct":37.0,"memberCount":6},{"team":"Showroom","members":[{"seq":1,"firstName":"Pemika","lastName":"Siriyotha","nick":"มิ้น","profession":"ACCOUNTANT","tl":"Y","given":128920,"bniGoal":500000,"recv":139890,"goalPct":28.0,"avgDeal":50000,"conversion":0.5,"refPerWeek":0.4,"refIn":4,"refOut":6},{"seq":2,"firstName":"Tanyaluck","lastName":"Treepornwasu","nick":"จ๊อบ","profession":"ประกันวินาศภัย","tl":"Y","given":76400,"bniGoal":3000000,"recv":109511,"goalPct":3.7,"avgDeal":200000,"conversion":0.4,"refPerWeek":0.75,"refIn":4,"refOut":7},{"seq":3,"firstName":"Wasawat","lastName":"Rattanakornpipat","nick":"ฤทธิ์","profession":"ประกันภัยรถยนต์","tl":"R","given":98682,"bniGoal":500000,"recv":183257,"goalPct":36.7,"avgDeal":549154,"conversion":0.5,"refPerWeek":0.04,"refIn":11,"refOut":19}],"teamGoal":4000000,"teamRecv":432658,"teamPct":10.8,"memberCount":3},{"team":"Event","members":[{"seq":1,"firstName":"Phannakorn","lastName":"Kittikool","nick":"ปิุ๊ก","profession":"Event Planner","tl":"R","given":93470,"bniGoal":1000000,"recv":205900,"goalPct":20.6,"avgDeal":100000,"conversion":0.35,"refPerWeek":0.57,"refIn":0,"refOut":15},{"seq":2,"firstName":"Thanakrit","lastName":"Wathport","nick":"บาย","profession":"ให้บริการ ระบบแสงสีเสียง และ จอLED","tl":"R","given":248672,"bniGoal":5000000,"recv":1350763,"goalPct":27.0,"avgDeal":120000,"conversion":0.9,"refPerWeek":0.93,"refIn":2,"refOut":10},{"seq":3,"firstName":"Wisnugorn","lastName":"Udornwong","nick":"แต้ม","profession":"รับผลิตสื่อ ภาพนิ่ง และ Vdo","tl":"Y","given":358455,"bniGoal":1000000,"recv":159655,"goalPct":16.0,"avgDeal":25000,"conversion":0.7,"refPerWeek":1.14,"refIn":0,"refOut":6},{"seq":4,"firstName":"Narin","lastName":"Lourujirakul","nick":"โต้ง","profession":"โรงก๊าซ","tl":"Y","given":126633,"bniGoal":2000000,"recv":168674,"goalPct":8.4,"avgDeal":0,"conversion":0.0,"refPerWeek":0.0,"refIn":16,"refOut":15},{"seq":5,"firstName":"Duangkamon","lastName":"Chanthaboon","nick":"เฟิร์น","profession":"ผับหมอลำ+เพื่อชีวิต","tl":"G","given":503345,"bniGoal":700000,"recv":17720,"goalPct":2.5,"avgDeal":0,"conversion":0.0,"refPerWeek":0.0,"refIn":6,"refOut":8},{"seq":6,"firstName":"Kanoknat","lastName":"Nakkhonthai","nick":"แนน","profession":"ประกันยูนิตลิงค์","tl":"G","given":1367146,"bniGoal":2000000,"recv":193576,"goalPct":9.7,"avgDeal":0,"conversion":0.0,"refPerWeek":0.0,"refIn":1,"refOut":2},{"seq":7,"firstName":"Itthipol","lastName":"Rattanapirote","nick":"ฟิว","profession":"เสื้อกีฬา","tl":"Y","given":187046,"bniGoal":1000000,"recv":159800,"goalPct":16.0,"avgDeal":0,"conversion":0.0,"refPerWeek":0.0,"refIn":8,"refOut":14},{"seq":8,"firstName":"Weerawat","lastName":"Suepadkon","nick":"หนุ่ม","profession":"แอร์","tl":"Y","given":99931,"bniGoal":1500000,"recv":158743,"goalPct":10.6,"avgDeal":0,"conversion":0.0,"refPerWeek":0.0,"refIn":14,"refOut":25},{"seq":9,"firstName":"Ekawat","lastName":"Suwannahong","nick":"ต้น","profession":"แอร์ชีลเลอร์","tl":"R","given":54850,"bniGoal":1500000,"recv":587900,"goalPct":39.2,"avgDeal":300000,"conversion":0.2,"refPerWeek":0.5,"refIn":2,"refOut":7},{"seq":10,"firstName":"Jetsada","lastName":"Sanudomchok","nick":"เจษ","profession":"สื่อโฆษณา","tl":"Y","given":124954,"bniGoal":200000,"recv":0,"goalPct":0.0,"avgDeal":0,"conversion":0.0,"refPerWeek":0.0,"refIn":1,"refOut":1},{"seq":11,"firstName":"Preyawal","lastName":"Vatcharachaithanin","nick":"เตย","profession":"ร้านอาหารไฟน์ไดนิ่ง","tl":"Y","given":59626,"bniGoal":0,"recv":32939,"goalPct":0,"avgDeal":0,"conversion":0.0,"refPerWeek":0.0,"refIn":5,"refOut":8},{"seq":12,"firstName":"Nilin","lastName":"Waroha","nick":"ควีน","profession":"ขนมเปี๊ย","tl":"Y","given":266660,"bniGoal":300000,"recv":62626,"goalPct":20.9,"avgDeal":0,"conversion":0.0,"refPerWeek":0.0,"refIn":9,"refOut":18},{"seq":13,"firstName":"Pisit","lastName":"Akarapanichayakul","nick":"กร","profession":"หมู่บ้านจัดสรรค์","tl":"G","given":115728,"bniGoal":5000000,"recv":0,"goalPct":0.0,"avgDeal":0,"conversion":0.0,"refPerWeek":0.0,"refIn":0,"refOut":4},{"seq":14,"firstName":"Katanchalee","lastName":"Sithiprom","nick":"ตุ้ย","profession":"นายหน้าอสังหา","tl":"","given":13777,"bniGoal":1000000,"recv":0,"goalPct":0.0,"avgDeal":0,"conversion":0.0,"refPerWeek":0.0,"refIn":0,"refOut":1},{"seq":15,"firstName":"Krisada","lastName":"Kotama","nick":"ต้า","profession":"","tl":"Y","given":6900,"bniGoal":0,"recv":0,"goalPct":0,"avgDeal":0,"conversion":0.0,"refPerWeek":0.0,"refIn":2,"refOut":9},{"seq":16,"firstName":"Nattawut","lastName":"Amsri","nick":"ปลาย","profession":"","tl":"R","given":17406,"bniGoal":1500000,"recv":32500,"goalPct":2.2,"avgDeal":1500000,"conversion":0.5,"refPerWeek":0.04,"refIn":0,"refOut":3},{"seq":17,"firstName":"Sirimon","lastName":"Sanoi","nick":"มาย","profession":"","tl":"G","given":23321,"bniGoal":0,"recv":79349,"goalPct":0,"avgDeal":0,"conversion":0.0,"refPerWeek":0.0,"refIn":12,"refOut":9},{"seq":18,"firstName":"Atthachai","lastName":"Somboon","nick":"อั้น","profession":"","tl":"Y","given":34291,"bniGoal":0,"recv":0,"goalPct":0,"avgDeal":0,"conversion":0.0,"refPerWeek":0.0,"refIn":0,"refOut":1},{"seq":19,"firstName":"Ittipon","lastName":"Setthawattananon","nick":"โม","profession":"","tl":"R","given":48940,"bniGoal":0,"recv":12990,"goalPct":0,"avgDeal":0,"conversion":0.0,"refPerWeek":0.0,"refIn":0,"refOut":6}],"teamGoal":23700000,"teamRecv":6525205,"teamPct":27.5,"memberCount":19}];
+    }
+
+    // ── Apply all PT overrides from SETTINGS ──
+    var ptStatus = {}, ptTeam = {}, ptRecv = {}, ptGoal = {};
+    var settingsSh = ss.getSheetByName('⚙️ SETTINGS');
+    if (settingsSh) {
+      var sData = settingsSh.getDataRange().getValues();
+      for (var si = 0; si < sData.length; si++) {
+        var sKey = String(sData[si][0]).trim();
+        var sVal = String(sData[si][1] || '');
+        try {
+          if (sKey === 'PT_STATUS') { var ptSArr = JSON.parse(sVal); if (Array.isArray(ptSArr)) ptSArr.forEach(function(n){if(n)ptStatus[n]=true;}); }
+          else if (sKey === 'PT_TEAM') { var ptTO = JSON.parse(sVal); if (ptTO && typeof ptTO==='object') ptTeam = ptTO; }
+          else if (sKey === 'PT_RECV') { var ptRO = JSON.parse(sVal); if (ptRO && typeof ptRO==='object') ptRecv = ptRO; }
+          else if (sKey === 'PT_GOAL') { var ptGO = JSON.parse(sVal); if (ptGO && typeof ptGO==='object') ptGoal = ptGO; }
+        } catch(e) {}
+      }
+    }
+
+    // Apply recv/goal overrides and collect member pool for re-bucketing
+    var teamNames = teams.map(function(t){ return t.team; });
+    var memberPool = [];
+    teams.forEach(function(t) {
+      t.members.forEach(function(m) {
+        var nick = m.nick || '';
+        if (ptRecv[nick] != null) m.recv = ptRecv[nick];
+        if (ptGoal[nick] != null) m.bniGoal = ptGoal[nick];
+        m.goalPct = m.bniGoal > 0 ? Math.round(m.recv / m.bniGoal * 1000) / 10 : 0;
+        memberPool.push({ member: m, origTeam: t.team });
+      });
+    });
+
+    // Re-bucket by team override
+    var newTeamMap = {};
+    teamNames.forEach(function(name){ newTeamMap[name] = []; });
+    memberPool.forEach(function(item) {
+      var nick = item.member.nick || '';
+      var dest = (ptTeam[nick] && newTeamMap.hasOwnProperty(ptTeam[nick])) ? ptTeam[nick] : item.origTeam;
+      newTeamMap[dest].push(item.member);
+    });
+
+    // Rebuild teams with recalculated totals
+    teams = teamNames.map(function(name) {
+      var members = newTeamMap[name];
+      var tGoal = members.reduce(function(s,m){ return s + m.bniGoal; }, 0);
+      var tRecv = members.reduce(function(s,m){ return s + m.recv; }, 0);
+      return { team: name, members: members, memberCount: members.length,
+        teamGoal: tGoal, teamRecv: tRecv,
+        teamPct: tGoal > 0 ? Math.round(tRecv / tGoal * 1000) / 10 : 0 };
+    });
+
+    // Tag active/departed
+    teams.forEach(function(t) {
+      var activeCount = 0, departedCount = 0;
+      t.members.forEach(function(m) {
+        var nick = m.nick || '';
+        m.active = !(nick && nick !== 'nan' && ptStatus[nick]);
+        if (m.active) activeCount++; else departedCount++;
+      });
+      t.activeCount   = activeCount;
+      t.departedCount = departedCount;
+    });
+
+    var totalGoal = 0, totalRecv = 0, memberCount = 0, activeTotal = 0, departedTotal = 0;
+    teams.forEach(function(t) {
+      totalGoal     += t.teamGoal;
+      totalRecv     += t.teamRecv;
+      memberCount   += t.memberCount;
+      activeTotal   += t.activeCount;
+      departedTotal += t.departedCount;
+    });
+
+    return {
+      ok: true,
+      teams: teams,
+      summary: {
+        totalGoal:     totalGoal,
+        totalRecv:     totalRecv,
+        overallPct:    totalGoal > 0 ? Math.round(totalRecv / totalGoal * 1000) / 10 : 0,
+        memberCount:   memberCount,
+        activeTotal:   activeTotal,
+        departedTotal: departedTotal
+      }
+    };
+  } catch(e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// ── Helper: get or create SETTINGS sheet ──────────────────────
+function _getOrCreateSettings(ss) {
+  var sh = ss.getSheetByName('⚙️ SETTINGS');
+  if (!sh) {
+    sh = ss.insertSheet('⚙️ SETTINGS');
+    sh.getRange(1, 1, 1, 2).setValues([['key', 'value']]);
+  }
+  return sh;
+}
+
+// ── Set PT Member Status (growth only) ────────────────────────
+function apiSetPTMemberStatus(p) {
+  try {
+    if (p.role !== 'growth') return { ok: false, error: 'Permission denied' };
+    var nick = String(p.nick || '').trim();
+    var status = String(p.status || '').trim();
+    if (!nick || nick === 'nan') return { ok: false, error: 'Invalid nick' };
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var settingsSh = _getOrCreateSettings(ss);
+    var departedArr = [];
+    var rowIdx = -1;
+    var data = settingsSh.getDataRange().getValues();
+    for (var i = 0; i < data.length; i++) {
+      if (String(data[i][0]).trim() === 'PT_STATUS') {
+        try { departedArr = JSON.parse(String(data[i][1])) || []; } catch(e) { departedArr = []; }
+        rowIdx = i + 1;
+        break;
+      }
+    }
+    var idx = departedArr.indexOf(nick);
+    if (status === 'departed' && idx === -1) departedArr.push(nick);
+    else if (status === 'active' && idx !== -1) departedArr.splice(idx, 1);
+    var jsonVal = JSON.stringify(departedArr);
+    if (rowIdx === -1) settingsSh.appendRow(['PT_STATUS', jsonVal]);
+    else settingsSh.getRange(rowIdx, 2).setValue(jsonVal);
+    return { ok: true, departedNicks: departedArr };
+  } catch(e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// ── Update PT Member Goal/Recv (growth only) ───────────────────
+function apiUpdatePTMember(p) {
+  try {
+    if (p.role !== 'growth') return { ok: false, error: 'Permission denied' };
+    var nick = String(p.nick || '').trim();
+    if (!nick || nick === 'nan') return { ok: false, error: 'Invalid nick' };
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    // Try ⚡ POWER TEAMS sheet first
+    var sh = ss.getSheetByName('⚡ POWER TEAMS');
+    if (sh) {
+      var shData = sh.getDataRange().getValues();
+      for (var i = 1; i < shData.length; i++) {
+        if (String(shData[i][3]||'').trim() === nick) {
+          if (p.bniGoal != null) sh.getRange(i+1, 7).setValue(parseFloat(p.bniGoal)||0);
+          if (p.recv != null)    sh.getRange(i+1, 8).setValue(parseFloat(p.recv)||0);
+          return { ok: true };
+        }
+      }
+    }
+    // Fallback: store override in SETTINGS (works with static JSON too)
+    var settingsSh = _getOrCreateSettings(ss);
+    var keysToUpdate = [];
+    if (p.recv != null)    keysToUpdate.push({ key: 'PT_RECV', val: parseFloat(p.recv)||0 });
+    if (p.bniGoal != null) keysToUpdate.push({ key: 'PT_GOAL', val: parseFloat(p.bniGoal)||0 });
+    keysToUpdate.forEach(function(kv) {
+      var rows = settingsSh.getDataRange().getValues();
+      var obj = {}, rowIdx = -1;
+      for (var j = 0; j < rows.length; j++) {
+        if (String(rows[j][0]).trim() === kv.key) {
+          try { obj = JSON.parse(String(rows[j][1])) || {}; } catch(e2) { obj = {}; }
+          rowIdx = j + 1;
+          break;
+        }
+      }
+      obj[nick] = kv.val;
+      var jv = JSON.stringify(obj);
+      if (rowIdx === -1) settingsSh.appendRow([kv.key, jv]);
+      else settingsSh.getRange(rowIdx, 2).setValue(jv);
+    });
+    return { ok: true };
+  } catch(e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// ── Move PT Member to another team (growth only) ───────────────
+function apiMovePTMember(p) {
+  try {
+    if (p.role !== 'growth') return { ok: false, error: 'Permission denied' };
+    var nick = String(p.nick || '').trim();
+    if (!nick || nick === 'nan') return { ok: false, error: 'Invalid nick' };
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var settingsSh = _getOrCreateSettings(ss);
+    var ptTeam = {}, rowIdx = -1;
+    var rows = settingsSh.getDataRange().getValues();
+    for (var i = 0; i < rows.length; i++) {
+      if (String(rows[i][0]).trim() === 'PT_TEAM') {
+        try { ptTeam = JSON.parse(String(rows[i][1])) || {}; } catch(e2) { ptTeam = {}; }
+        rowIdx = i + 1;
+        break;
+      }
+    }
+    var newTeam = String(p.newTeam || '').trim();
+    if (newTeam) ptTeam[nick] = newTeam;
+    else delete ptTeam[nick];
+    var jv = JSON.stringify(ptTeam);
+    if (rowIdx === -1) settingsSh.appendRow(['PT_TEAM', jv]);
+    else settingsSh.getRange(rowIdx, 2).setValue(jv);
+    return { ok: true };
+  } catch(e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+function apiMoveSynMember(p) {
+  try {
+    if (p.role !== 'growth') return { ok: false, error: 'Permission denied' };
+    // Prefer fullName as stable key; fall back to nick for backward compat
+    var key = String(p.name || p.nick || '').trim();
+    if (!key) return { ok: false, error: 'Invalid member identifier' };
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var settingsSh = _getOrCreateSettings(ss);
+    var synTeam = {}, rowIdx = -1;
+    var rows = settingsSh.getDataRange().getValues();
+    for (var i = 0; i < rows.length; i++) {
+      if (String(rows[i][0]).trim() === 'PT_SYN_TEAM') {
+        try { synTeam = JSON.parse(String(rows[i][1])) || {}; } catch(e2) { synTeam = {}; }
+        rowIdx = i + 1;
+        break;
+      }
+    }
+    var newTeamId = String(p.newTeamId || '').trim();
+    if (newTeamId) synTeam[key] = newTeamId;
+    else delete synTeam[key];
+    var jv = JSON.stringify(synTeam);
+    if (rowIdx === -1) settingsSh.appendRow(['PT_SYN_TEAM', jv]);
+    else settingsSh.getRange(rowIdx, 2).setValue(jv);
+    return { ok: true };
   } catch(e) {
     return { ok: false, error: e.message };
   }
@@ -1557,7 +2554,7 @@ function apiGetWeeklyActions(p) {
 
 // ── Risk Monitor: สมาชิกคะแนนลดต่อเนื่อง ──────────────────────
 function apiGetRiskMembers(p) {
-  if (p.role !== 'mc') return { ok:false, error:'Permission denied' };
+  if (p.role !== 'mc' && p.role !== 'growth') return { ok:false, error:'Permission denied' };
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var teams = Object.values(MENTOR_ROLE); // ['TOOMTAM','Aof','Draft','PHAI','AMP']
   var risks = [];
@@ -1841,6 +2838,13 @@ function apiSendBroadcast(p) {
   var sh  = _getOrCreateBroadcastSheet(ss);
   var now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yy HH:mm');
   sh.appendRow([String(new Date().getTime()), p.message.trim(), now]);
+  try {
+    var bMsg = '📢 MC Broadcast\n' + p.message.trim().substring(0, 300);
+    ['TOOMTAM','Aof','Draft','PHAI','AMP'].forEach(function(m) {
+      var mid = _getLineId(m); if (mid) _sendLineMsg(mid, bMsg);
+    });
+    var gid = _getLineId('growth'); if (gid) _sendLineMsg(gid, bMsg);
+  } catch(le) { Logger.log('LINE broadcast err: '+le.message); }
   return { ok:true, sentAt:now };
 }
 function apiGetBroadcasts(p) {
@@ -2139,18 +3143,24 @@ function apiGetMemberDirectory() {
     var data = sh.getRange(3, 2, lastRow - 2, 4).getValues();
     var members = [];
 
+    var arcDir = _getArchivedNames(ss);
     data.forEach(function(row) {
-      var name = String(row[0]||'').trim(); // col B
+      var name   = String(row[0]||'').trim(); // col B
       if (!name || name.length < 2) return;
-      var score = parseFloat(row[3]||0) || 0; // col E
+      if (arcDir[name]) return;
+      var nick   = String(row[1]||'').trim(); // col C
+      var mentor = String(row[2]||'').trim(); // col D
+      var score  = parseFloat(row[3]||0) || 0; // col E
       var tl = score >= 70 ? 'green' : score >= 50 ? 'yellow' : score >= 30 ? 'red' : score > 0 ? 'black' : 'none';
       var contact = contactMap[name.toLowerCase()] || {};
       members.push({
-        name:  name,
-        email: contact.email || '',
-        phone: contact.phone || '',
-        score: score,
-        tl:    tl
+        name:   name,
+        nick:   nick,
+        mentor: mentor,
+        email:  contact.email || '',
+        phone:  contact.phone || '',
+        score:  score,
+        tl:     tl
       });
     });
 
@@ -2293,6 +3303,14 @@ function apiGetCoachingGuide(p) {
     if (status === 'warning') status = 'warning';
     if (status === 'critical') status = 'critical';
 
+    var ftData = null;
+    if (r2y) {
+      try {
+        ftData = _bniFastTrack({ bniDays:bniDays, absent:absent, rg:rg, tyfcb:tyfcb,
+          visitor:vis, oToOne:oToOne, ceu:ceu });
+      } catch(fe) {}
+    }
+
     guides.push({
       name:   name,
       nick:   nick,
@@ -2300,7 +3318,8 @@ function apiGetCoachingGuide(p) {
       score:  latest,
       status: status,
       points: points,
-      wins:   wins
+      wins:   wins,
+      fastTrack: ftData
     });
   });
 
@@ -2346,6 +3365,177 @@ function apiSave121Log(p) {
   }
 }
 
+// ── Get 1-2-1 Log Summary (chapter-wide, MC/Growth) ──────────
+function apiGetAll121Logs(p) {
+  try {
+    if (p.role !== 'mc' && p.role !== 'growth') return { ok:false, error:'Permission denied' };
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName('📝 1-2-1 LOGS');
+    if (!sh || sh.getLastRow() < 2) return { ok:true, total:0, byTeam:{}, recent:[] };
+
+    var data = sh.getRange(2,1,sh.getLastRow()-1,7).getValues();
+    var byTeam = {}, recent = [];
+    data.forEach(function(row) {
+      var teamName = String(row[1]||'').trim();
+      var memberName = String(row[2]||'').trim();
+      var note = String(row[3]||'').trim();
+      var loggedAt = String(row[5]||'').trim();
+      if (!memberName) return;
+      if (!byTeam[teamName]) byTeam[teamName] = 0;
+      byTeam[teamName]++;
+      recent.push({ team:teamName, member:memberName, note:note.slice(0,60), loggedAt:loggedAt });
+    });
+    recent.sort(function(a,b){ return b.loggedAt < a.loggedAt ? -1 : 1; });
+    return { ok:true, total:data.length, byTeam:byTeam, recent:recent.slice(0,8) };
+  } catch(e) {
+    return { ok:false, error:e.message };
+  }
+}
+
+// ── Save Score (MC เท่านั้น — lookup by teamName+memberName) ──
+function apiSaveScore(p) {
+  if (p.role !== 'mc') return { ok:false, error:'เฉพาะ MC เท่านั้น' };
+  var teamName   = String(p.teamName||'').trim();
+  var memberName = String(p.memberName||'').trim();
+  if (!teamName || !memberName) return { ok:false, error:'ต้องระบุ teamName และ memberName' };
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(teamName);
+  if (!sh) return { ok:false, error:'ไม่พบ Sheet '+teamName };
+  var score = parseFloat(p.score);
+  if (isNaN(score) || score < 0 || score > 100) return { ok:false, error:'คะแนนต้องเป็น 0-100' };
+  var month = parseInt(p.month);
+  if (isNaN(month) || month < 0 || month > 11) return { ok:false, error:'Month ไม่ถูกต้อง (0-11)' };
+  // Find row by scanning col C
+  var lastRow = sh.getLastRow();
+  var targetRow = -1;
+  if (lastRow >= 4) {
+    var names = sh.getRange(4, 3, lastRow-3, 1).getValues();
+    for (var i=0; i<names.length; i++) {
+      if (String(names[i][0]||'').trim() === memberName) { targetRow = i+4; break; }
+    }
+  }
+  if (targetRow === -1) return { ok:false, error:'ไม่พบ "'+memberName+'" ใน '+teamName };
+  var col = (month === 0) ? 16 : month + 4;
+  sh.getRange(targetRow, col).setValue(score);
+  // Sync saved score to master sheet immediately
+  try {
+    var masterSh = ss.getSheetByName('รายชื่อทั้งหมด');
+    if (masterSh && masterSh.getLastRow() > 2) {
+      var mData = masterSh.getRange(3, 2, masterSh.getLastRow()-2, 1).getValues();
+      for (var mi=0; mi<mData.length; mi++) {
+        if (String(mData[mi][0]||'').trim() === memberName) { masterSh.getRange(mi+3, 5).setValue(score); break; }
+      }
+    }
+  } catch(se) { Logger.log('master sync err: '+se.message); }
+  var monthNames = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  return { ok:true, message:'บันทึกคะแนน '+score+' เดือน '+monthNames[month]+' แล้ว' };
+}
+
+// ── Save Member Status (Mentor แก้ไข Status ใน Mentor Sheet col R) ──
+function apiSaveStatus(p) {
+  var teamName = MENTOR_ROLE[p.role];
+  if (!teamName) return { ok:false, error:'Permission denied' };
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(teamName);
+  if (!sh) return { ok:false, error:'ไม่พบ Sheet '+teamName };
+  var row = parseInt(p.row);
+  if (isNaN(row) || row < 4) return { ok:false, error:'Row ไม่ถูกต้อง' };
+  var existing = sh.getRange(row, 3).getDisplayValue().trim();
+  if (existing !== String(p.memberName||'').trim()) return { ok:false, error:'ชื่อไม่ตรง' };
+  sh.getRange(row, 18).setValue(String(p.status||'').trim()); // col R = 18
+  return { ok:true };
+}
+
+// ── Ensure Slot (Promote ⭐ ใหม่ → ได้แถวใน Mentor Sheet) ─────
+function apiEnsureSlot(p) {
+  var teamName = MENTOR_ROLE[p.role];
+  if (!teamName) return { ok:false, error:'Permission denied' };
+  var memberName = String(p.memberName||'').trim();
+  var nick = String(p.nick||'').trim();
+  if (!memberName) return { ok:false, error:'ต้องระบุชื่อ' };
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(teamName);
+  if (!sh) return { ok:false, error:'ไม่พบ Sheet '+teamName };
+  var mLast = sh.getLastRow();
+  if (mLast >= 4) {
+    var existing = sh.getRange(4, 3, mLast - 3, 2).getValues();
+    for (var i = 0; i < existing.length; i++) {
+      if (String(existing[i][0]||'').trim() === memberName) {
+        return { ok:true, row: i + 4, existed: true };
+      }
+    }
+  }
+  var slotRow = mLast + 1;
+  for (var r = 4; r <= mLast; r++) {
+    if (!sh.getRange(r, 3).getValue()) { slotRow = r; break; }
+  }
+  if (slotRow < 4) slotRow = 4;
+  sh.getRange(slotRow, 3).setValue(memberName);
+  sh.getRange(slotRow, 4).setValue(nick);
+  return { ok:true, row: slotRow, existed: false };
+}
+
+// ── Batch Import (เพิ่มสมาชิกหลายคนพร้อมกัน) ─────────────────
+function apiAddNewMembersBatch(p) {
+  if (p.role !== 'mc') return { ok:false, error:'Permission denied' };
+  if (!Array.isArray(p.members) || p.members.length === 0)
+    return { ok:false, error:'ต้องส่ง members array' };
+  var results = [];
+  p.members.forEach(function(m) {
+    try {
+      var res = apiAddNewMember({
+        role: 'mc', name: m.name, nick: m.nick,
+        mentor: m.mentor, startDate: m.startDate, business: m.business||''
+      });
+      results.push({ name: m.name, ok: res.ok, error: res.error||'', warnings: res.warnings||[] });
+    } catch(e) {
+      results.push({ name: m.name, ok: false, error: e.message });
+    }
+  });
+  var successCount = results.filter(function(r){ return r.ok; }).length;
+  return { ok: successCount > 0, results: results, successCount: successCount, total: results.length };
+}
+
+// ── Chapter Trend (ประวัติ TL distribution รายเดือน) ──────────
+function apiGetChapterTrend(p) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var TEAMS = ['TOOMTAM','Aof','Draft','PHAI','AMP'];
+  // Cols E(5)..P(16) = 12 months: FEB..DEC + JAN(col16)
+  var monthCols  = [5,6,7,8,9,10,11,12,13,14,15,16];
+  var monthNames = ['FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC','JAN'];
+  var trend = monthCols.map(function(col, idx) {
+    return { month: monthNames[idx], col: col, green:0,yellow:0,red:0,black:0,none:0, total:0, sum:0 };
+  });
+
+  TEAMS.forEach(function(shName) {
+    var sh = ss.getSheetByName(shName);
+    if (!sh) return;
+    var lastR = Math.max(sh.getLastRow(), 4);
+    // Range: col C(3) to col P(16) = 14 cols
+    var data = sh.getRange(4, 3, lastR - 3, 14).getValues();
+    data.forEach(function(row) {
+      if (!String(row[0]||'').trim()) return;
+      monthCols.forEach(function(col, idx) {
+        var s = parseFloat(row[col - 3]) || 0; // offset: col C = index 0
+        var bucket = trend[idx];
+        bucket.total++;
+        if (s <= 0) { bucket.none++; return; }
+        bucket.sum += s;
+        if (s >= 70)      bucket.green++;
+        else if (s >= 50) bucket.yellow++;
+        else if (s >= 30) bucket.red++;
+        else              bucket.black++;
+      });
+    });
+  });
+
+  trend.forEach(function(t) {
+    var scored = t.green + t.yellow + t.red + t.black;
+    t.avg = scored ? Math.round(t.sum / scored * 10) / 10 : 0;
+  });
+  return { ok:true, trend: trend };
+}
+
 // ── Get 1-2-1 Logs for a member ──────────────────────────────
 function apiGet121Logs(p) {
   try {
@@ -2374,4 +3564,337 @@ function apiGet121Logs(p) {
   } catch(e) {
     return { ok:false, error:e.message };
   }
+}
+
+// ── Archive Member (MC only) ──────────────────────────────────
+function apiArchiveMember(p) {
+  if (p.role !== 'mc') return { ok:false, error:'Permission denied' };
+  var name = String(p.memberName||'').trim();
+  if (!name) return { ok:false, error:'ต้องระบุชื่อ' };
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('📦 ARCHIVED');
+  if (!sh) { sh = ss.insertSheet('📦 ARCHIVED'); sh.getRange(1,1,1,2).setValues([['Name','ArchivedAt']]); }
+  if (sh.getLastRow() >= 2) {
+    var ex = sh.getRange(2, 1, sh.getLastRow()-1, 1).getValues();
+    for (var i=0; i<ex.length; i++) { if (String(ex[i][0]||'').trim()===name) return { ok:true, message:'Archive ไปแล้ว' }; }
+  }
+  var now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
+  sh.appendRow([name, now]);
+  return { ok:true, message:'Archive "'+name+'" แล้ว' };
+}
+
+// ── Unarchive Member (MC only) ────────────────────────────────
+function apiUnarchiveMember(p) {
+  if (p.role !== 'mc') return { ok:false, error:'Permission denied' };
+  var name = String(p.memberName||'').trim();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('📦 ARCHIVED');
+  if (!sh || sh.getLastRow() < 2) return { ok:false, error:'ไม่พบ Archive' };
+  var data = sh.getRange(2, 1, sh.getLastRow()-1, 1).getValues();
+  for (var i=0; i<data.length; i++) {
+    if (String(data[i][0]||'').trim()===name) { sh.deleteRow(i+2); return { ok:true }; }
+  }
+  return { ok:false, error:'ไม่พบ "'+name+'" ใน Archive' };
+}
+
+// ── Get Archived Members (MC only) ───────────────────────────
+function apiGetArchivedMembers(p) {
+  if (p.role !== 'mc') return { ok:false, error:'Permission denied' };
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('📦 ARCHIVED');
+  var members = [];
+  if (sh && sh.getLastRow() >= 2) {
+    sh.getRange(2, 1, sh.getLastRow()-1, 2).getValues().forEach(function(r) {
+      var n = String(r[0]||'').trim();
+      if (n) members.push({ name:n, archivedAt:String(r[1]||'') });
+    });
+  }
+  return { ok:true, members:members };
+}
+
+// ── Current Month Setting ─────────────────────────────────────
+function apiGetCurrentMonth(p) {
+  var v = _getSettingsValue('CURRENT_MONTH');
+  var m = (v !== null) ? parseInt(v) : new Date().getMonth();
+  return { ok:true, month: isNaN(m) ? new Date().getMonth() : m };
+}
+function apiSetCurrentMonth(p) {
+  if (p.role !== 'mc') return { ok:false, error:'Permission denied' };
+  var m = parseInt(p.month);
+  if (isNaN(m) || m < 0 || m > 11) return { ok:false, error:'Month ไม่ถูกต้อง (0-11)' };
+  _setSettingsValue('CURRENT_MONTH', m);
+  return { ok:true };
+}
+
+// ── Change PIN (MC only) ──────────────────────────────────────
+function apiChangePIN(p) {
+  if (p.role !== 'mc') return { ok:false, error:'Permission denied' };
+  var target = String(p.target||'').toLowerCase();
+  var newPin  = String(p.newPin||'').trim();
+  if (!PINS[target]) return { ok:false, error:'ไม่พบ role: '+target };
+  if (!/^\d{4,8}$/.test(newPin)) return { ok:false, error:'PIN ต้องเป็นตัวเลข 4-8 หลัก' };
+  _setSettingsValue('PIN_'+target.toUpperCase(), newPin);
+  return { ok:true, message:'เปลี่ยน PIN ของ '+target+' แล้ว' };
+}
+
+// ── MC Coaching Overview (cross-team BNI + Fast Track) ───────
+function apiGetMCCoaching(p) {
+  if (p.role !== 'mc') return { ok:false, error:'Permission denied' };
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var r2ySh    = ss.getSheetByName('Reporting2You');
+  var masterSh = ss.getSheetByName('รายชื่อทั้งหมด');
+  if (!r2ySh || !masterSh) return { ok:false, error:'ไม่พบ Sheet' };
+
+  var r2yMap = {};
+  var r2yData = r2ySh.getDataRange().getValues();
+  for (var j=1; j<r2yData.length; j++) {
+    var rn = String(r2yData[j][0]).replace(/\s*\(BNI Ideal\)/i,'').trim();
+    if (rn) r2yMap[rn] = r2yData[j];
+  }
+
+  var archivedNames = _getArchivedNames(ss);
+  var guides = [];
+  var masterData = masterSh.getDataRange().getValues();
+
+  for (var i=2; i<masterData.length; i++) {
+    var mrow   = masterData[i];
+    var name   = String(mrow[1]||'').trim();
+    var nick   = String(mrow[2]||'').trim();
+    var mentor = String(mrow[3]||'').trim();
+    if (!name) continue;
+    if (archivedNames[name]) continue;
+
+    var r2y = r2yMap[name];
+    if (!r2y) { guides.push({ name:name, nick:nick, mentor:mentor, noData:true }); continue; }
+
+    var actual = {
+      rg:      parseInt(r2y[1])||0,  visitor: parseInt(r2y[3])||0,
+      oToOne:  parseInt(r2y[4])||0,  ceu:     parseInt(r2y[5])||0,
+      tyfcb:   parseFloat(r2y[6])||0, bniDays: parseInt(r2y[8])||0,
+      absent:  parseInt(r2y[10])||0
+    };
+    if (actual.bniDays < 1) { guides.push({ name:name, nick:nick, mentor:mentor, noData:true }); continue; }
+
+    var ft = _bniFastTrack(actual);
+    guides.push({ name:name, nick:nick, mentor:mentor, fastTrack:ft, noData:false });
+  }
+
+  // Sort: worst BNI score first; no-data last
+  guides.sort(function(a,b){
+    if (a.noData && b.noData) return 0;
+    if (a.noData) return 1;
+    if (b.noData) return -1;
+    return a.fastTrack.score.total - b.fastTrack.score.total;
+  });
+
+  return { ok:true, guides:guides };
+}
+
+// ── Verify Scoring vs PALMS (MC only) ────────────────────────
+// Reads every member from R2Y + master sheet, runs _bniBuildScore,
+// compares result vs actual PALMS score stored in master col E.
+function apiVerifyScoring(p) {
+  if (p.role !== 'mc') return { ok:false, error:'Permission denied' };
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var masterSh = ss.getSheetByName('รายชื่อทั้งหมด');
+  var r2ySh    = ss.getSheetByName('Reporting2You');
+  if (!masterSh || !r2ySh) return { ok:false, error:'ไม่พบ Sheet' };
+
+  // Build R2Y map by name
+  var r2yMap = {};
+  var r2yData = r2ySh.getDataRange().getValues();
+  for (var j=1; j<r2yData.length; j++) {
+    var rn = String(r2yData[j][0]).replace(/\s*\(BNI Ideal\)/i,'').trim();
+    if (rn) r2yMap[rn] = r2yData[j];
+  }
+
+  var rows = [];
+  var masterData = masterSh.getDataRange().getValues();
+  for (var i=2; i<masterData.length; i++) {
+    var mrow = masterData[i];
+    var name = String(mrow[1]||'').trim();
+    if (!name) continue;
+    var palmsScore = parseFloat(mrow[4])||0;
+    if (!palmsScore) continue; // skip unscored members (not yet in PALMS)
+    var palmsTl    = palmsScore >= 70 ? 'green' : palmsScore >= 50 ? 'yellow' : palmsScore >= 30 ? 'red' : 'blue';
+
+    var r2y = r2yMap[name];
+    if (!r2y) {
+      rows.push({ name:name, palmsScore:palmsScore, palmsTl:palmsTl,
+        ourScore:null, ourTl:null, diff:null, match:false, noData:true,
+        cats:{}, bniDays:0, weeks:0 });
+      continue;
+    }
+
+    var actual = {
+      rg:      parseInt(r2y[1])||0,
+      visitor: parseInt(r2y[3])||0,
+      oToOne:  parseInt(r2y[4])||0,
+      ceu:     parseInt(r2y[5])||0,
+      tyfcb:   parseFloat(r2y[6])||0,
+      bniDays: parseInt(r2y[8])||0,
+      absent:  parseInt(r2y[10])||0
+    };
+    var s = _bniBuildScore(actual);
+    var diff = s.total - palmsScore;
+    rows.push({
+      name:       name,
+      palmsScore: palmsScore,
+      palmsTl:    palmsTl,
+      ourScore:   s.total,
+      ourTl:      s.tl,
+      diff:       diff,
+      match:      s.tl === palmsTl,
+      noData:     false,
+      bniDays:    actual.bniDays,
+      weeks:      _bniEffectiveWeeks(actual.bniDays),
+      cats: {
+        absent:   s.absent,
+        ref:      s.ref,
+        tyfcb:    s.tyfcb,
+        visitor:  s.visitor,
+        one21:    s.one21,
+        training: s.training
+      }
+    });
+  }
+
+  // Sort by abs(diff) desc so biggest mismatches appear first
+  rows.sort(function(a,b){
+    var da = a.diff===null ? 0 : Math.abs(a.diff);
+    var db = b.diff===null ? 0 : Math.abs(b.diff);
+    return db - da;
+  });
+
+  var matched   = rows.filter(function(r){ return !r.noData && r.match; }).length;
+  var mismatched= rows.filter(function(r){ return !r.noData && !r.match; }).length;
+  var noData    = rows.filter(function(r){ return r.noData; }).length;
+
+  return { ok:true, rows:rows, summary:{ matched:matched, mismatched:mismatched, noData:noData, total:rows.length } };
+}
+
+// ── Desktop Dashboard — one-call comprehensive API (any role) ──
+function apiGetDesktopDashboard(p) {
+  // No auth required for desktop dashboard
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var r2ySh    = ss.getSheetByName('Reporting2You');
+  var masterSh = ss.getSheetByName('รายชื่อทั้งหมด');
+  var renewalSh= ss.getSheetByName('💳 RENEWAL');
+  if (!masterSh || !r2ySh) return { ok:false, error:'ไม่พบ Sheet หลัก' };
+
+  // R2Y lookup map
+  var r2yMap = {};
+  var r2yData = r2ySh.getDataRange().getValues();
+  for (var j=1; j<r2yData.length; j++) {
+    var rn = String(r2yData[j][0]).replace(/\s*\(BNI Ideal\)/i,'').trim();
+    if (rn) r2yMap[rn] = r2yData[j];
+  }
+
+  // Score history lookup from each mentor sheet
+  var histMap = {};
+  var teamSheets = ['TOOMTAM','Aof','Draft','PHAI','AMP'];
+  teamSheets.forEach(function(tn) {
+    var sh = ss.getSheetByName(tn);
+    if (!sh) return;
+    var d = sh.getRange(4, 3, 8, 14).getValues(); // col C–P = name + 12 score cols
+    d.forEach(function(row) {
+      var nm = String(row[0]||'').trim();
+      if (!nm) return;
+      var hist = [];
+      for (var c=1; c<=12; c++) { hist.push(parseFloat(row[c])||0); }
+      histMap[nm] = hist; // indices 0-11 = col E-P (FEB-JAN)
+    });
+  });
+
+  var archivedNames = _getArchivedNames(ss);
+  var members = [];
+  var masterData = masterSh.getDataRange().getValues();
+  var summary = { total:0, green:0, yellow:0, red:0, blue:0, noData:0 };
+
+  for (var i=2; i<masterData.length; i++) {
+    var mrow   = masterData[i];
+    var name   = String(mrow[1]||'').trim();
+    var nick   = String(mrow[2]||'').trim();
+    var mentor = String(mrow[3]||'').trim();
+    var palmsScore = parseFloat(mrow[4])||0;
+    if (!name) continue;
+    if (archivedNames[name]) continue;
+
+    summary.total++;
+    var r2y = r2yMap[name] || null;
+    var absent = r2y ? parseInt(r2y[10])||0 : 0;
+
+    var m = { name:name, nick:nick, mentor:mentor,
+              palmsScore:palmsScore, absent:absent,
+              bniTl:'none', bniScore:0, cats:null,
+              fastTrack:null, hist: histMap[name]||[] };
+
+    if (r2y) {
+      var actual = {
+        rg:      parseInt(r2y[1])||0,  visitor: parseInt(r2y[3])||0,
+        oToOne:  parseInt(r2y[4])||0,  ceu:     parseInt(r2y[5])||0,
+        tyfcb:   parseFloat(r2y[6])||0, bniDays: parseInt(r2y[8])||0,
+        absent:  absent
+      };
+      if (actual.bniDays > 0) {
+        try {
+          var s = _bniBuildScore(actual);
+          m.bniTl = s.tl; m.bniScore = s.total;
+          m.cats = { absent:s.absent, ref:s.ref, tyfcb:s.tyfcb,
+                     visitor:s.visitor, one21:s.one21, training:s.training };
+          if (s.tl !== 'green') { var _ft=_bniFastTrack(actual); m.fastTrack=_ft?(_ft.fastestActions||[]).map(function(g){return{cat:g.cat,action:g.action,gain:g.gain,curVal:g.curVal,tgtVal:g.tgtVal,icon:g.icon};}):[];}
+        } catch(e2) {}
+      }
+    }
+    summary[m.bniTl === 'none' ? 'noData' : m.bniTl]++;
+    members.push(m);
+  }
+
+  // Renewal (batch read)
+  var renewalItems = [];
+  if (renewalSh) {
+    var today = new Date(); today.setHours(0,0,0,0);
+    var rnData = renewalSh.getDataRange().getValues();
+    for (var ri=2; ri<rnData.length; ri++) {
+      var rname = String(rnData[ri][0]||'').trim();
+      var rteam = String(rnData[ri][1]||'').trim();
+      var rdate = rnData[ri][2];
+      if (!rname || !rdate || archivedNames[rname]) continue;
+      var expDate;
+      if (rdate instanceof Date) { expDate = new Date(rdate); }
+      else if (typeof rdate === 'number' && rdate > 1000) { expDate = new Date(Math.round((rdate-25569)*86400000)); }
+      else { expDate = new Date(rdate); }
+      expDate.setHours(0,0,0,0);
+      if (isNaN(expDate.getTime())) continue;
+      var diff = Math.floor((expDate - today) / 86400000);
+      if (diff <= 120) {
+        renewalItems.push({ name:rname, team:rteam, diffDays:diff,
+          status: diff<0?'late': diff<=30?'soon': diff<=90?'normal':'ok',
+          expStr: Utilities.formatDate(expDate, Session.getScriptTimeZone(), 'dd/MM/yyyy') });
+      }
+    }
+    renewalItems.sort(function(a,b){ return a.diffDays - b.diffDays; });
+  }
+
+  // Mentor aggregates
+  var teamStats = {};
+  members.forEach(function(m) {
+    var t = m.mentor || 'ไม่มีทีม';
+    if (!teamStats[t]) teamStats[t] = { team:t, count:0, bniScores:[], green:0, yellow:0, red:0, blue:0, noData:0, absentTotal:0 };
+    teamStats[t].count++;
+    teamStats[t].absentTotal += m.absent;
+    if (m.bniTl !== 'none') { teamStats[t].bniScores.push(m.bniScore); teamStats[t][m.bniTl]++; }
+    else teamStats[t].noData++;
+  });
+  var teams = Object.keys(teamStats).map(function(t) {
+    var ts = teamStats[t];
+    var avg = ts.bniScores.length ? Math.round(ts.bniScores.reduce(function(a,b){return a+b;},0)/ts.bniScores.length) : 0;
+    return { team:t, count:ts.count, avg:avg, green:ts.green, yellow:ts.yellow,
+             red:ts.red, blue:ts.blue, noData:ts.noData, absentTotal:ts.absentTotal };
+  }).filter(function(t){ return t.team !== 'ไม่มีทีม' && teamSheets.indexOf(t.team) !== -1; });
+  teams.sort(function(a,b){ return b.avg - a.avg; });
+
+  return { ok:true, members:members, renewal:renewalItems, summary:summary, teams:teams,
+           updatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm') };
 }
