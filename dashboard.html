@@ -541,6 +541,21 @@ body.light .gs-drop,body.light .mbox,body.light .bk-box,body.light #meeting{back
 
 /* ══ MEETING PREP ══ */
 #mp-modal{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:1700;display:none;align-items:center;justify-content:center;padding:20px}
+#mct-modal{position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:1800;display:none;align-items:center;justify-content:center;padding:16px}
+.mct-box{background:var(--sf);border:1px solid var(--bd);border-radius:16px;width:100%;max-width:700px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden}
+.mct-hdr{padding:16px 20px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;flex-shrink:0}
+.mct-body{flex:1;overflow-y:auto;padding:18px 20px}
+.mct-step{border-radius:10px;padding:13px 15px;margin-bottom:10px;border:1px solid var(--bd)}
+.mct-step.urgent{border-left:3px solid var(--re);background:rgba(255,107,107,.05)}
+.mct-step.normal{background:var(--sf2)}
+.mct-step-hdr{display:flex;align-items:center;gap:7px;margin-bottom:8px}
+.mct-step-num{background:var(--ac);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+.mct-step-title{font-weight:700;font-size:14px;flex:1}
+.mct-step-time{font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);border-radius:4px;padding:2px 7px}
+.mct-line{display:flex;gap:8px;align-items:flex-start;padding:3px 0;font-size:13px;color:var(--sub)}
+.mct-line.script{color:var(--tx)}
+.mct-line.action{color:var(--tx)}
+.mct-line-ico{flex-shrink:0;font-size:11px;padding-top:2px;min-width:14px}
 .mp-box{background:var(--sf);border:1px solid var(--bd);border-radius:16px;padding:24px;width:100%;max-width:760px;max-height:90vh;overflow-y:auto}
 .mp-section{background:var(--sf2);border-radius:10px;padding:14px;margin-bottom:12px}
 .mp-section h3{font-size:10px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
@@ -1086,6 +1101,22 @@ body.light .gs-drop,body.light .mbox,body.light .bk-box,body.light #meeting{back
 <!-- ── Meeting Prep Modal ── -->
 <div id="mp-modal" onclick="if(event.target===this)document.getElementById('mp-modal').style.display='none'">
   <div class="mp-box" id="mp-box"></div>
+</div>
+
+<!-- ── MC TALK Modal ── -->
+<div id="mct-modal" onclick="if(event.target===this)closeMCT()">
+  <div class="mct-box">
+    <div class="mct-hdr">
+      <span style="font-size:20px">💬</span>
+      <div style="flex:1">
+        <div style="font-size:15px;font-weight:700" id="mct-title">MC TALK</div>
+        <div style="font-size:11px;color:var(--sub)" id="mct-sub"></div>
+      </div>
+      <button class="bsm bac" onclick="copyMCT()" style="font-size:11px">📋 Copy</button>
+      <button class="imd-close" onclick="closeMCT()" style="margin-left:6px">✕ ปิด</button>
+    </div>
+    <div class="mct-body" id="mct-body"></div>
+  </div>
 </div>
 
 <!-- ── Toast Container ── -->
@@ -2267,6 +2298,7 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Escape'){
     if(document.getElementById('cmd-pal').style.display==='flex'){closeCmdPal();return;}
     if(document.getElementById('cmp-modal').style.display==='flex'){closeCmp();return;}
+    if(document.getElementById('mct-modal').style.display==='flex'){closeMCT();return;}
     if(document.getElementById('tmd').style.display==='flex'){closeTMD();return;}
     if(document.getElementById('imd').style.display==='flex'){closeIMD();return;}
     if(document.getElementById('modal').style.display==='flex'){closeModal();return;}
@@ -2645,6 +2677,7 @@ function buildTMDMembers(mems){
         '<td style="'+(m.absent>=(riskThresh.absent||3)?'color:var(--re);font-weight:700':'')+'">'+m.absent+'</td>'+
         '<td>'+_cBadge(m.name)+'</td>'+
         '<td style="white-space:nowrap">'+
+          '<button class="bsm" onclick="openMCT(\''+esc(m.name)+'\')" style="background:rgba(108,99,255,.18);color:#a78bfa;border-color:rgba(108,99,255,.3)">💬 TALK</button> '+
           '<button class="bsm" onclick="closeTMD();openCM(\''+esc(m.name)+'\')">📞</button> '+
           '<button class="bsm" onclick="closeTMD();openIMD(\''+esc(m.name)+'\')">📊</button></td>'+
       '</tr>';
@@ -2670,7 +2703,8 @@ function buildTMDRecommend(mems){
           '</div>'+
         '</div>'+
         '<div style="display:flex;gap:5px;flex-shrink:0;padding-top:2px">'+
-          '<button class="bsm" onclick="closeTMD();openCM(\''+esc(m.name)+'\')">📞 ติดต่อ</button>'+
+          '<button class="bsm" onclick="openMCT(\''+esc(m.name)+'\')" style="background:rgba(108,99,255,.18);color:#a78bfa;border-color:rgba(108,99,255,.3)">💬 TALK</button>'+
+          '<button class="bsm" onclick="closeTMD();openCM(\''+esc(m.name)+'\')">📞</button>'+
           '<button class="bsm" onclick="closeTMD();openIMD(\''+esc(m.name)+'\')">📊</button>'+
         '</div>'+
       '</div>'+
@@ -3677,6 +3711,157 @@ function copyMP(){
   navigator.clipboard.writeText(txt).then(function(){toast('Copy แล้ว 📋','ok');}).catch(function(){toast('ไม่สามารถ Copy ได้','err');});
 }
 
+// ══ MC TALK Generator ════════════════════════════
+var _mctText='';
+function closeMCT(){document.getElementById('mct-modal').style.display='none';}
+function openMCT(name){
+  try{
+    var m=D.mem.find(function(x){return x.name===name;});
+    if(!m){toast('ไม่พบข้อมูล '+name,'err');return;}
+    var pri=_calcPri(m);
+    var cd=_cDays(name);
+    var ren=D.ren.find(function(r){return r.name===name;});
+    var openRep=D.reps.find(function(r){return r.memberName===name&&(!r.status||r.status==='reopened');});
+    var contact=_contacts[name]||{};
+    var h=(m.hist||[]).map(Number).filter(function(n){return!isNaN(n)&&n>0;});
+    var delta=h.length>=2?h[h.length-1]-h[h.length-2]:null;
+    var cats=m.cats||{};
+    var nick=m.nick||m.name;
+    var today=new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
+    var steps=[];
+    var txt='💬 MC TALK — '+name+'\n'+today+'\nทีม: '+(m.mentor||'—')+'\n\n';
+
+    // ── Step 1: เปิดบทสนทนา ─────────────────────────
+    steps.push({n:1,ico:'🔓',title:'เปิดบทสนทนา',time:'2 นาที',urgent:false,lines:[
+      {t:'script',v:'"สวัสดีครับ '+nick+' เป็นยังไงบ้างช่วงนี้?"'},
+      {t:'note',v:'ถามเรื่องธุรกิจล่าสุด หรือข่าวสารทั่วไปก่อน'},
+      {t:'note',v:'สร้างบรรยากาศ relaxed ก่อนเข้าเรื่องสำคัญ'}
+    ]});
+    txt+='1. เปิดบทสนทนา\n   → "สวัสดีครับ '+nick+' เป็นยังไงบ้าง?"\n   → ถามธุรกิจล่าสุด\n\n';
+
+    // ── Step 2: ประเด็นเร่งด่วน (ถ้ามี) ──────────────
+    var urgLines=[],urgTxt='';
+    if(m.bniTl==='red'){
+      urgLines.push({t:'script',v:'"คะแนน BNI ตอนนี้ '+m.bniScore+' pt อยู่ใน Red Zone ต้องการความช่วยเหลืออะไรบ้างครับ?"'});
+      urgLines.push({t:'note',v:'ฟังก่อน อย่าเพิ่งสั่ง — หาสาเหตุที่แท้จริง'});
+      urgTxt+='   → ถาม Red Zone: BNI '+m.bniScore+' pt\n';
+    }
+    if(m.absent>=(riskThresh.absent||3)){
+      urgLines.push({t:'script',v:'"ช่วงนี้ขาดประชุม '+m.absent+' ครั้ง มีติดขัดอะไรไหม? จะช่วยจัดการยังไงได้บ้าง?"'});
+      urgTxt+='   → ขาดประชุม '+m.absent+' ครั้ง\n';
+    }
+    if(ren&&ren.diffDays<=30){
+      urgLines.push({t:'script',v:'"Renewal เหลืออีก '+ren.diffDays+' วัน วางแผนต่ออายุยังไงบ้างครับ?"'});
+      urgLines.push({t:'note',v:'ถ้าลังเล → หาเหตุผล / เสนอ payment plan'});
+      urgTxt+='   → Renewal อีก '+ren.diffDays+' วัน\n';
+    }
+    if(openRep){
+      urgLines.push({t:'script',v:'"มี Report ค้างอยู่ รบกวนช่วยอัปเดตสถานการณ์ล่าสุดด้วยครับ — '+esc((openRep.coreIssue||'').substring(0,40))+'"'});
+      urgTxt+='   → Report ค้าง: '+(openRep.coreIssue||'').substring(0,30)+'\n';
+    }
+    if(cd===null||cd>30){
+      urgLines.push({t:'note',v:'ยังไม่ได้ติดต่อมานาน — ถามว่า "มีอะไรอัปเดตไหมครับ?"'});
+    }
+    if(urgLines.length){
+      steps.push({n:2,ico:'⚡',title:'ประเด็นเร่งด่วน',time:'10-15 นาที',urgent:true,lines:urgLines});
+      txt+='2. ประเด็นเร่งด่วน\n'+urgTxt+'\n';
+    }
+
+    // ── Step 3: Performance Review ───────────────────
+    var perfLines=[],perfTxt='';
+    perfLines.push({t:'note',v:'BNI Score: '+m.bniScore+' pt — '+tlL(m.bniTl)});
+    if(delta!==null){
+      if(delta>0){
+        perfLines.push({t:'script',v:'"คะแนนเพิ่มขึ้น +'+delta+' pt ดีมากครับ ทำยังไงถึงเพิ่มได้?"'});
+        perfTxt+='   → ชม: +'+delta+' pt\n';
+      } else if(delta<0){
+        perfLines.push({t:'script',v:'"เดือนที่แล้วลดลง '+Math.abs(delta)+' pt รู้สึกยังไงบ้างครับ มีอะไรที่เราช่วยได้ไหม?"'});
+        perfTxt+='   → ลดลง '+Math.abs(delta)+' pt — ถามสาเหตุ\n';
+      } else {
+        perfLines.push({t:'script',v:'"คะแนนทรงตัวที่ '+m.bniScore+' pt มีแผนจะ push ขึ้นไปถึง '+(m.bniTl==='red'?30:m.bniTl==='yellow'?70:m.bniScore+10)+' ไหมครับ?"'});
+      }
+    } else {
+      perfLines.push({t:'script',v:'"มีเป้าหมาย BNI Score เดือนหน้าไว้ที่เท่าไหร่ครับ?"'});
+    }
+    if(cats.ref!==undefined){
+      perfLines.push({t:'note',v:'Referral: '+(cats.ref||0)+' ใบ | 1-2-1: '+(cats.one21||0)+' ครั้ง | CEU: '+(cats.training||0)});
+      if((cats.ref||0)<3)perfLines.push({t:'script',v:'"Referral ยังน้อยอยู่ มี Power Team ไหนที่อยากทำ 1-2-1 เพิ่มบ้างครับ?"'});
+      if((cats.training||0)<5)perfLines.push({t:'script',v:'"Training CEU ยังขาดอยู่ มีแผนเข้า training ไหมครับ?"'});
+    }
+    steps.push({n:steps.length+1,ico:'📊',title:'ทบทวน Performance',time:'5-8 นาที',urgent:false,lines:perfLines});
+    txt+=(steps.length)+'. ทบทวน Performance\n   → BNI '+m.bniScore+' pt'+perfTxt+'\n';
+
+    // ── Step 4: แผนต่อไป ─────────────────────────────
+    var planLines=[],planTxt='';
+    planLines.push({t:'script',v:'"เดือนหน้าเราจะช่วยกัน focus ที่อะไร? มีเป้าหมายไหมครับ?"'});
+    if(m.bniTl==='red'||m.bniTl==='yellow'){
+      var target=m.bniTl==='red'?30:70;
+      planLines.push({t:'note',v:'เสนอ: ตั้งเป้า BNI '+target+' pt ภายใน 1 เดือน'});
+      planTxt+='   → Target: '+target+' pt\n';
+    }
+    planLines.push({t:'script',v:'"จะทำ 1-2-1 กับใครบ้างเดือนหน้า? นัดกันได้เลยไหม?"'});
+    steps.push({n:steps.length+1,ico:'🎯',title:'วางแผนเดือนหน้า',time:'5 นาที',urgent:false,lines:planLines});
+    txt+=(steps.length)+'. วางแผนเดือนหน้า\n'+planTxt+'\n';
+
+    // ── Step 5: Action Items ─────────────────────────
+    var actions=[],actTxt='';
+    if(delta!==null&&delta>0)actions.push({t:'action',v:'☑ ชมเชยผลงานที่ดีขึ้น — บันทึกไว้'});
+    actions.push({t:'action',v:'☐ นัด 1-2-1 ครั้งต่อไปก่อนจบการคุย'});
+    if(m.bniTl==='red'||m.bniTl==='yellow')actions.push({t:'action',v:'☐ ตั้งเป้า BNI Score เดือนหน้า และ commit กัน'});
+    if(m.absent>=(riskThresh.absent||3))actions.push({t:'action',v:'☐ หาทางแก้ปัญหาการขาดประชุม — บันทึก action'});
+    if(ren&&ren.diffDays<=60)actions.push({t:'action',v:'☐ ยืนยันแผน Renewal ภายใน '+ren.diffDays+' วัน'});
+    if(openRep)actions.push({t:'action',v:'☐ อัปเดต Report ที่ค้างอยู่ก่อน 3 วัน'});
+    if((cats.ref||0)<3)actions.push({t:'action',v:'☐ ช่วย connect กับ Power Team ที่เหมาะสม'});
+    actions.push({t:'action',v:'☐ บันทึกการติดต่อ (กด 📞) หลังคุยเสร็จ'});
+    steps.push({n:steps.length+1,ico:'✅',title:'Action Items — ก่อนแยกกัน',time:'3 นาที',urgent:false,lines:actions});
+    actions.forEach(function(a){actTxt+='   '+a.v.replace('☐','□').replace('☑','✓')+'\n';});
+    txt+=(steps.length)+'. Action Items\n'+actTxt+'\n';
+
+    // ── Step 6: ปิดบทสนทนา ──────────────────────────
+    steps.push({n:steps.length+1,ico:'🔒',title:'ปิดบทสนทนา',time:'2 นาที',urgent:false,lines:[
+      {t:'note',v:'สรุป action items ที่ตกลงกันทั้งหมด'},
+      {t:'script',v:'"ขอบคุณมากครับ '+nick+' ฝากธุรกิจด้วยนะครับ ถ้ามีอะไรที่ต้องการให้ช่วยติดต่อมาได้เลย 🙏"'},
+      {t:'note',v:'นัดติดตามผลครั้งต่อไป'}
+    ]});
+    txt+=(steps.length)+'. ปิดบทสนทนา\n   → สรุป + ขอบคุณ\n\n🤖 BNI IDEAL MC TALK';
+
+    // ── Build HTML ───────────────────────────────────
+    var zoneIco={green:'🟢',yellow:'🟡',red:'🔴',blue:'🔵',none:'⚪'};
+    var summHtml='<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px">'+
+      '<span class="badge b-'+tlK(m.bniTl)+'">'+zoneIco[m.bniTl||'none']+' BNI '+m.bniScore+' pt</span>'+
+      '<span class="badge" style="background:rgba(255,255,255,.07)">ขาด '+m.absent+' ครั้ง</span>'+
+      (cd!==null?'<span class="badge" style="background:rgba(255,255,255,.07)">ติดต่อ '+cd+' วันที่แล้ว</span>':'<span class="badge" style="background:rgba(255,107,107,.12);color:var(--re)">ยังไม่ได้ติดต่อ</span>')+
+      (ren&&ren.diffDays<=60?'<span class="badge" style="background:rgba(255,193,77,.12);color:var(--ye)">⏰ Renewal '+ren.diffDays+' วัน</span>':'')+
+      (openRep?'<span class="badge" style="background:rgba(255,107,107,.12);color:var(--re)">📋 Report ค้าง</span>':'')+
+      (pri.score>0?'<span class="badge" style="background:rgba(108,99,255,.15);color:#a78bfa">Priority '+pri.score+'</span>':'')+
+    '</div>';
+    var stepsHtml=steps.map(function(s){
+      return'<div class="mct-step '+(s.urgent?'urgent':'normal')+'">'+
+        '<div class="mct-step-hdr">'+
+          '<div class="mct-step-num">'+s.n+'</div>'+
+          '<span style="font-size:16px">'+s.ico+'</span>'+
+          '<span class="mct-step-title">'+s.title+'</span>'+
+          '<span class="mct-step-time">'+s.time+'</span>'+
+        '</div>'+
+        s.lines.map(function(l){
+          var ico=l.t==='script'?'💬':l.t==='action'?'':l.t==='note'?'→':'';
+          var cls='mct-line'+(l.t==='script'?' script':l.t==='action'?' action':'');
+          return'<div class="'+cls+'"><span class="mct-line-ico">'+ico+'</span><span>'+esc(l.v)+'</span></div>';
+        }).join('')+
+      '</div>';
+    }).join('');
+
+    _mctText=txt;
+    document.getElementById('mct-title').textContent='💬 MC TALK — '+name;
+    document.getElementById('mct-sub').textContent=today+' · ทีม '+(m.mentor||'—')+' · '+tlL(m.bniTl)+' Zone';
+    document.getElementById('mct-body').innerHTML=summHtml+stepsHtml;
+    document.getElementById('mct-modal').style.display='flex';
+  }catch(e){toast('MCT Error: '+e.message,'err');}
+}
+function copyMCT(){
+  if(!_mctText){toast('ไม่มีข้อมูล','err');return;}
+  navigator.clipboard.writeText(_mctText).then(function(){toast('Copy MC TALK แล้ว 📋','ok');}).catch(function(){toast('ไม่สามารถ Copy ได้','err');});
+}
 // ── Tab Switching ─────────────────────────────────
 function sw(id,btn,group){
   document.querySelectorAll('.sec').forEach(function(s){s.classList.remove('on');});
