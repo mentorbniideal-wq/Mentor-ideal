@@ -1372,9 +1372,10 @@ function renderMTTeams(){
     var clr=t.avg>=70?'#00d4aa':t.avg>=50?'#ffc14d':t.avg>=30?'#ff6b6b':'#60a5fa';
     var tot=t.count||1;
     var gPct=Math.round((t.green||0)/tot*100);
-    return'<tr style="cursor:pointer" onclick="openTeamDash(\''+esc(t.team)+'\')">'+
+    var tn=esc(t.team);
+    return'<tr>'+
       '<td style="text-align:center">'+rb+'</td>'+
-      '<td style="font-weight:700;font-size:14px">'+esc(t.team)+' <span style="font-size:10px;color:var(--sub)">→</span></td>'+
+      '<td><button class="bx" onclick="openTeamDash(\''+tn+'\')" style="font-weight:700;font-size:13px;padding:5px 11px">'+tn+' 📊</button></td>'+
       '<td style="text-align:center;font-weight:700">'+t.count+'</td>'+
       '<td><span style="font-size:17px;font-weight:700;color:'+clr+'">'+t.avg+'</span></td>'+
       '<td><div style="display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:var(--gr);font-weight:700;min-width:30px">'+gPct+'%</span><div class="prog-mini"><div class="prog-mini-f" style="width:'+gPct+'%;background:var(--gr)"></div></div></div></td>'+
@@ -2569,22 +2570,29 @@ function tmdSw(idx,btn){
   btn.classList.add('on');var s=document.getElementById('tmd-s'+idx);if(s)s.classList.add('on');
 }
 function openTeamDash(teamName){
-  var mems=D.mem.filter(function(m){return m.mentor===teamName;});
-  var team=D.teams.find(function(t){return t.team===teamName;})||{};
-  document.getElementById('tmd-name').textContent='👥 ทีม '+teamName;
-  var cnt=mems.length||1;
-  var avg=team.avg||Math.round(mems.reduce(function(a,m){return a+(m.bniScore||0);},0)/cnt);
-  var gPct=Math.round((team.green||mems.filter(function(m){return m.bniTl==='green';}).length)/cnt*100);
-  document.getElementById('tmd-sub').textContent=cnt+' สมาชิก · Avg '+avg+' pt · '+gPct+'% Green';
-  var tabs=['📊 ภาพรวม','👥 สมาชิก','💡 แนะนำ'];
-  var secs=[buildTMDOverview(mems,team,avg,gPct),buildTMDMembers(mems),buildTMDRecommend(mems)];
-  document.getElementById('tmd-tabs').innerHTML=tabs.map(function(t,i){
-    return'<button class="tb'+(i===0?' on':'')+'" onclick="tmdSw('+i+',this)">'+esc(t)+'</button>';
-  }).join('');
-  document.getElementById('tmd-body').innerHTML=secs.map(function(s,i){
-    return'<div class="imd-sec'+(i===0?' on':'')+'" id="tmd-s'+i+'">'+s+'</div>';
-  }).join('');
-  document.getElementById('tmd').style.display='flex';
+  try{
+    var mems=D.mem.filter(function(m){return m.mentor===teamName;});
+    var team=D.teams.find(function(t){return t.team===teamName;})||{};
+    var cnt=mems.length||1;
+    var avg=team.avg||Math.round(mems.reduce(function(a,m){return a+(m.bniScore||0);},0)/cnt);
+    var green=team.green!=null?team.green:mems.filter(function(m){return m.bniTl==='green';}).length;
+    var gPct=Math.round(green/cnt*100);
+    document.getElementById('tmd-name').textContent='👥 ทีม '+teamName;
+    document.getElementById('tmd-sub').textContent=cnt+' สมาชิก · Avg '+avg+' pt · '+gPct+'% Green';
+    var tabs=['📊 ภาพรวม','👥 สมาชิก','💡 แนะนำ'];
+    var ovHtml='',memHtml='',recHtml='';
+    try{ovHtml=buildTMDOverview(mems,team,avg,gPct);}catch(e){ovHtml='<div class="es">Error: '+e.message+'</div>';}
+    try{memHtml=buildTMDMembers(mems);}catch(e){memHtml='<div class="es">Error: '+e.message+'</div>';}
+    try{recHtml=buildTMDRecommend(mems);}catch(e){recHtml='<div class="es">Error: '+e.message+'</div>';}
+    document.getElementById('tmd-tabs').innerHTML=tabs.map(function(t,i){
+      return'<button class="tb'+(i===0?' on':'')+'" onclick="tmdSw('+i+',this)">'+esc(t)+'</button>';
+    }).join('');
+    document.getElementById('tmd-body').innerHTML=
+      '<div class="imd-sec on" id="tmd-s0">'+ovHtml+'</div>'+
+      '<div class="imd-sec" id="tmd-s1">'+memHtml+'</div>'+
+      '<div class="imd-sec" id="tmd-s2">'+recHtml+'</div>';
+    document.getElementById('tmd').style.display='flex';
+  }catch(e){toast('Team Dash Error: '+e.message,'err');}
 }
 function buildTMDOverview(mems,team,avg,gPct){
   var cnt=mems.length||1;
