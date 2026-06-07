@@ -208,7 +208,9 @@ function apiGetAIMatching(p) {
     var apiKey = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
     if (!apiKey) return { ok:false, error:'ไม่พบ ANTHROPIC_API_KEY ใน Script Properties' };
 
-    var response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+    var model = _getAnthropicModel();
+    Logger.log('apiGetAIMatching: model=' + model + ', memberCount=' + realMembers.length);
+    var response = _fetchAnthropicWithRetry('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type':      'application/json',
@@ -216,29 +218,83 @@ function apiGetAIMatching(p) {
         'anthropic-version': '2023-06-01'
       },
       payload: JSON.stringify({
-        model:      'claude-sonnet-4-6',
+        model:      model,
         max_tokens: 2000,
         messages:   [{ role:'user', content:prompt }]
       }),
       muteHttpExceptions: true
-    });
+    }, 3);
 
     var code = response.getResponseCode();
+    var textResponse = response.getContentText();
+    Logger.log('apiGetAIMatching response code=' + code + ', body=' + textResponse.slice(0,500));
     if (code !== 200) {
-      return { ok:false, error:'API error: ' + code + ' — ' + response.getContentText().slice(0,200) };
+      if (_isAnthropicUsageCreditError(textResponse) && model !== 'claude-3.5-mini') {
+        Logger.log('apiGetAIMatching: usage credit error detected, retrying with claude-3.5-mini');
+        response = _fetchAnthropicWithRetry('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type':      'application/json',
+            'x-api-key':         apiKey,
+            'anthropic-version': '2023-06-01'
+          },
+          payload: JSON.stringify({
+            model:      'claude-3.5-mini',
+            max_tokens: 2000,
+            messages:   [{ role:'user', content:prompt }]
+          }),
+          muteHttpExceptions: true
+        }, 3);
+        code = response.getResponseCode();
+        textResponse = response.getContentText();
+        Logger.log('apiGetAIMatching fallback response code=' + code + ', body=' + textResponse.slice(0,500));
+      }
+      if (code !== 200) {
+        return { ok:false, error:'AI API error (' + code + '): ' + textResponse.slice(0,200) };
+      }
     }
 
-    var result    = JSON.parse(response.getContentText());
-    var text      = result.content[0].text;
-    var jsonMatch = text.match(/\{[\s\S]*\}/);
+    var result = JSON.parse(textResponse);
+    var text = result.content && result.content[0] && result.content[0].text;
+    var jsonMatch = text && text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return { ok:false, error:'AI ตอบกลับในรูปแบบที่ไม่ถูกต้อง' };
 
     var parsed = JSON.parse(jsonMatch[0]);
     return { ok:true, matches:parsed.matches || [], summary:parsed.summary || '' };
 
   } catch(e) {
-    return { ok:false, error:e.message };
+    return { ok:false, error:'AI request failed: ' + (e.message || String(e)) };
   }
+}
+
+function _getAnthropicModel() {
+  var model = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_MODEL');
+  if (model && model.trim()) {
+    return model.trim();
+  }
+  return 'claude-haiku-4-5-20251001';
+}
+
+function _isAnthropicUsageCreditError(text) {
+  if (!text) return false;
+  return text.indexOf('Usage credits required for 1M context') >= 0 || text.indexOf('use --model to switch to standard context') >= 0;
+}
+
+function _fetchAnthropicWithRetry(url, options, retries) {
+  var attempt = 0;
+  while (attempt < retries) {
+    try {
+      return UrlFetchApp.fetch(url, options);
+    } catch (e) {
+      attempt += 1;
+      if (attempt >= retries) {
+        throw e;
+      }
+      var sleepMs = 500 * Math.pow(2, attempt - 1);
+      Utilities.sleep(sleepMs);
+    }
+  }
+  throw new Error('Failed to fetch Anthropic API after ' + retries + ' attempts');
 }
 
 // ── Helper: คำนวณ week label ─────────────────────────────────

@@ -14,7 +14,6 @@ var MENTEE_MAP = {
   'Ophat Taerattanachai':        { sheet:'TOOMTAM', row:4 },
   'Jirayu Boonlert':             { sheet:'TOOMTAM', row:5 },
   'Ittipon Setthawattananon':    { sheet:'TOOMTAM', row:6 },
-  'Ittipon setthawattananon':    { sheet:'TOOMTAM', row:6 },
   'Theerawut Piyaphinthu':       { sheet:'TOOMTAM', row:7 },
   'Jetsada Sanudomchok':         { sheet:'TOOMTAM', row:8 },
   'Duangkamon Chanthaboon':      { sheet:'TOOMTAM', row:9 },
@@ -38,7 +37,7 @@ var MENTEE_MAP = {
   'Naruporn Supittayapornpong':  { sheet:'Draft', row:7 },
   'Nilin Waroha':                { sheet:'Draft', row:8 },
   'Phannakorn Kittikool':        { sheet:'Draft', row:9 },
-  'Yosita Niyomrat':             { sheet:'Draft', row:10 },
+  'Yosita Niyomrat':             { sheet:'PHAI',  row:9  },
   'Sirimon Sanoi':               { sheet:'Draft', row:11 },
 
   // PHAI (Prakorn's team)
@@ -47,7 +46,7 @@ var MENTEE_MAP = {
   'Orapan Pougpralub':           { sheet:'PHAI', row:6 },
   'Pemika Siriyotha':            { sheet:'PHAI', row:7 },
   'Rewat Sanpet':                { sheet:'PHAI', row:8 },
-  'Thanyalak Samreeloy':         { sheet:'PHAI', row:9 },
+  'Thanyalak Samreeloy':         { sheet:'Draft', row:10 },
   'Nattawut Amsri':              { sheet:'PHAI', row:10 },
   'Weerawat Suepadkon':          { sheet:'PHAI', row:11 },
 
@@ -70,7 +69,16 @@ var MENTEE_MAP = {
   'Preeda Noita':                { sheet:'NONE', row:-1 },
   'Suporn Wongchompoo':          { sheet:'NONE', row:-1 },
   'Phanupan Somsanook':          { sheet:'NONE', row:-1 },
-  'Thitima Hemarak':             { sheet:'NONE', row:-1 }
+  'Thitima Hemarak':             { sheet:'NONE', row:-1 },
+
+  // Unassigned / pending team placement
+  'Prakorn Sirimars':            { sheet:'NONE', row:-1 },
+  'Praputsorn Kongsarppaisal':   { sheet:'NONE', row:-1 },
+  'Samrit Pholjan':              { sheet:'NONE', row:-1 },
+  'Adisak Pankhot':              { sheet:'NONE', row:-1 },
+  'Pisit Akarapanichayakul':     { sheet:'NONE', row:-1 },
+  'Sophon Saenubol':             { sheet:'NONE', row:-1 },
+  'Phasuthon Taesuwan':          { sheet:'NONE', row:-1 }
 };
 
 function cleanName(raw) {
@@ -178,6 +186,19 @@ function syncScoresFromCSV() {
     if (sh) mentorSheets[name] = sh;
   });
 
+  // Build DYNAMIC map from actual mentor sheets (supplements static MENTEE_MAP)
+  // This ensures new members added via webapp are found automatically — no manual B.js edit needed
+  var dynamicMap = {};
+  Object.keys(mentorSheets).forEach(function(shName) {
+    var sh = mentorSheets[shName];
+    var lastR = sh.getLastRow();
+    if (lastR < 4) return;
+    sh.getRange(4, 3, lastR - 3, 1).getValues().forEach(function(row, i) {
+      var name = String(row[0]||'').trim();
+      if (name && !dynamicMap[name]) dynamicMap[name] = { sheet: shName, row: i + 4 };
+    });
+  });
+
   // Load master list sheet
   var masterSheet = ss.getSheetByName('รายชื่อทั้งหมด');
 
@@ -194,7 +215,8 @@ function syncScoresFromCSV() {
     var cleanedName = cleanName(row[0]);
     if (!cleanedName) return;
 
-    var entry = MENTEE_MAP[cleanedName];
+    // MENTEE_MAP first (handles NONE/non-mentor), then dynamic sheet lookup for new members
+    var entry = MENTEE_MAP[cleanedName] || dynamicMap[cleanedName];
     if (!entry) {
       skipped.push(cleanedName);
       return;

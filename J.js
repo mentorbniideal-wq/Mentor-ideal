@@ -131,7 +131,15 @@ function getImportDialogHTML() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // runFullImport — เรียกจาก Dialog
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function runFullImport(tlCsvString, r2yCsvString) {
+function _clearAllCaches() {
+  try {
+    var cache = CacheService.getScriptCache();
+    cache.removeAll(['desk_dash_v2','risk_members','growth_data','nm_list']);
+  } catch(e) { Logger.log('cache clear: '+e.message); }
+}
+
+function runFullImport(tlCsvString, r2yCsvString, memberTLCsvString) {
+  _clearAllCaches(); // invalidate cache เมื่อ import ข้อมูลใหม่
   var result = {
     ok: false,
     nonMentorOk: false,
@@ -139,7 +147,8 @@ function runFullImport(tlCsvString, r2yCsvString) {
     r2yOk:       false,
     r2ySyncOk:   false,
     renewalOk:   false,
-    grOk:        false
+    grOk:        false,
+    mtlOk:       false
   };
 
   try {
@@ -175,6 +184,11 @@ function runFullImport(tlCsvString, r2yCsvString) {
       result.r2yOk = true; // ไม่ได้ส่งมา = ผ่าน
     }
 
+    // ── Step 5b: Restore NM placeholders ──────────────────────
+    // _importR2Y ล้าง sheet ทั้งหมด → สมาชิกใหม่ที่ยังไม่มีข้อมูลใน BNI จะหายไป
+    // เติม placeholder กลับสำหรับทุกคนใน NEW MEMBERS ที่ยังไม่มีใน R2Y
+    try { _restoreNMPlaceholders(ss); } catch(e) { Logger.log('NM restore: '+e.message); }
+
     // ── Step 6: Sync Reporting2You → REPORTING2YOU_SYNC ───────
     try { _syncR2YSilent(ss); result.r2ySyncOk = true; } catch(e) { Logger.log('R2Y sync: '+e.message); }
 
@@ -184,14 +198,27 @@ function runFullImport(tlCsvString, r2yCsvString) {
       result.renewalOk = true;
     } catch(e) { Logger.log('Renewal: '+e.message); }
 
-    // ── Step 8: Extract Given/Received จาก TL file เดิม ───────
-    // ไฟล์ Traffic Lights มีคอลัมน์ "Value of Business Given (Baht)" อยู่แล้ว
+    // ── Step 8: Extract Given/Received ────────────────────────
+    // ใช้ Member Traffic Light CSV (ไฟล์ 3) ที่มีคอลัมน์ Given/Received ครบ
+    // ถ้าไม่ได้ส่งมา → ลองจาก TL Evolution (มักจะไม่มีคอลัมน์นี้ → ข้ามไป)
+    var grRows = memberTLCsvString ? _parseCsv(memberTLCsvString) : tlRows;
     try {
-      _importGivenReceived(ss, tlRows);
+      _importGivenReceived(ss, grRows);
       result.grOk = true;
     } catch(e) {
       Logger.log('G/R: '+e.message);
       result.grError = e.message;
+    }
+
+    // ── Step 9 (NEW): Update Reporting2You Points from Member TL ─
+    // หาก Member TL ให้มา → อัพเดท r2y[7] (Points) และคะแนนย่อยให้ตรงกับ Official
+    if (memberTLCsvString) {
+      try {
+        _importR2YFromMemberTL(ss, _parseCsv(memberTLCsvString));
+        result.mtlOk = true;
+      } catch(e) { Logger.log('MemberTL R2Y update: '+e.message); }
+    } else {
+      result.mtlOk = true;
     }
 
     // Timestamp
@@ -263,6 +290,14 @@ function _importR2Y(ss, csvString) {
       return String(c||'').toLowerCase() === h.toLowerCase();
     });
     if (idx >= 0) colMap[h] = idx;
+  });
+
+  // Fallback: BNI Connect exports R2Y with blank header for Visitor column (index 3)
+  // Map any R2Y_HEADER not found by name to its positional index as fallback
+  R2Y_HEADERS.forEach(function(h, pos) {
+    if (colMap[h] === undefined && pos < headerRow.length) {
+      colMap[h] = pos;
+    }
   });
 
   var lastRow = sh.getLastRow();
@@ -522,4 +557,145 @@ function oneClickSyncFromPaste() {
   var msg = '🚀 1-Click Sync เสร็จแล้ว!\n\n' + steps.join('\n');
   if (errors.length > 0) msg += '\n\n' + errors.join('\n');
   Browser.msgBox(msg);
+}
+
+// ── Update Reporting2You from Member Traffic Light CSV ────────
+// อัพเดท R2Y ด้วยข้อมูลที่ถูกต้องจาก Member Traffic Light:
+// Points (official score), RG, RR, V, 1-2-1, CEU, TYFCB, P, A, L, M, S
+function _importR2YFromMemberTL(ss, rows) {
+  if (!rows || rows.length < 3) return;
+
+  // Find header row (has "Total Score" and "Traffic Light")
+  var hdrIdx = -1, hdrs = [];
+  for (var r = 0; r < Math.min(5, rows.length); r++) {
+    var check = rows[r].map(function(c){ return String(c||'').toLowerCase().trim(); });
+    if (check.indexOf('total score') >= 0 && check.indexOf('traffic light') >= 0) {
+      hdrIdx = r; hdrs = check; break;
+    }
+  }
+  if (hdrIdx < 0) return;
+
+  // Map header names to column indices
+  var CI = {};
+  hdrs.forEach(function(h, i) {
+    if (h === 'name -surname' || h === 'name-surname' || h === 'name') CI.name = i;
+    if (h === 'p')               CI.p    = i;
+    if (h === 'a')               CI.a    = i;
+    if (h === 'l')               CI.l    = i;
+    if (h === 'm')               CI.m    = i;
+    if (h === 's')               CI.s    = i;
+    if (h === 'rri')             CI.rri  = i;
+    if (h === 'rro')             CI.rro  = i;
+    if (h === 'v')               CI.v    = i;
+    if (h === '121')             CI.oto  = i;
+    if (h.indexOf('value of business given') >= 0) CI.given = i;
+    if (h === 'training')        CI.ceu  = i;
+    if (h === 'referral')        CI.rg   = i;
+    if (h === 'total score')     CI.score = i;
+  });
+  if (CI.name === undefined || CI.score === undefined) return;
+
+  // Build member map from Member TL rows
+  var mtlMap = {};
+  for (var r2 = hdrIdx + 1; r2 < rows.length; r2++) {
+    var row = rows[r2];
+    var no  = String(row[0]||'').trim();
+    if (!no || isNaN(parseInt(no))) continue;
+    var rawName = String(CI.name !== undefined ? (row[CI.name]||'') : '').trim();
+    var name = rawName.replace(/\s*\(BNI Ideal\)\s*/gi,'').trim();
+    if (!name || name.length < 2 || name === 'BNI' || name === 'Visitors') continue;
+    var rri = CI.rri !== undefined ? _parseNum(row[CI.rri]) : 0;
+    var rro = CI.rro !== undefined ? _parseNum(row[CI.rro]) : 0;
+    mtlMap[name] = {
+      rg:    CI.rg    !== undefined ? _parseNum(row[CI.rg])    : 0,
+      rr:    rri + rro,
+      v:     CI.v     !== undefined ? _parseNum(row[CI.v])     : 0,
+      oto:   CI.oto   !== undefined ? _parseNum(row[CI.oto])   : 0,
+      ceu:   CI.ceu   !== undefined ? _parseNum(row[CI.ceu])   : 0,
+      given: CI.given !== undefined ? _parseNum(row[CI.given]) : 0,
+      score: CI.score !== undefined ? _parseNum(row[CI.score]) : 0,
+      p:     CI.p     !== undefined ? _parseNum(row[CI.p])     : 0,
+      a:     CI.a     !== undefined ? _parseNum(row[CI.a])     : 0,
+      l:     CI.l     !== undefined ? _parseNum(row[CI.l])     : 0,
+      m2:    CI.m     !== undefined ? _parseNum(row[CI.m])     : 0,
+      s2:    CI.s     !== undefined ? _parseNum(row[CI.s])     : 0
+    };
+  }
+
+  if (Object.keys(mtlMap).length === 0) return;
+
+  // Batch update Reporting2You (keep BNI Days, Email, Phone)
+  var r2ySh = ss.getSheetByName('Reporting2You');
+  if (!r2ySh || r2ySh.getLastRow() < 2) return;
+  var rng  = r2ySh.getRange(2, 1, r2ySh.getLastRow()-1, 16);
+  var data = rng.getValues();
+  data.forEach(function(row) {
+    var rn = String(row[0]||'').replace(/\s*\(BNI Ideal\)\s*/gi,'').trim();
+    var m = mtlMap[rn];
+    if (!m) return;
+    row[1]  = m.rg;    // RG
+    row[2]  = m.rr;    // RR
+    row[3]  = m.v;     // Visi.
+    row[4]  = m.oto;   // 121
+    row[5]  = m.ceu;   // CEU
+    row[6]  = m.given; // TYFCB (= Value of Business Given)
+    row[7]  = m.score; // Points (official)
+    // row[8] = BNI Days → preserve
+    row[9]  = m.p;     // P
+    row[10] = m.a;     // A
+    row[11] = m.l;     // L
+    row[12] = m.m2;    // M
+    row[13] = m.s2;    // S
+    // row[14,15] = Email, Phone → preserve
+  });
+  rng.setValues(data);
+
+  // Also sync official score → รายชื่อทั้งหมด col E so mobile app uses same score as desktop
+  var masterSh = ss.getSheetByName('รายชื่อทั้งหมด');
+  if (masterSh && masterSh.getLastRow() > 2) {
+    var mRng  = masterSh.getRange(3, 1, masterSh.getLastRow()-2, 6); // cols A-F
+    var mData = mRng.getValues();
+    mData.forEach(function(row) {
+      var name = String(row[1]||'').trim(); // col B = name (index 1 from A)
+      var m    = mtlMap[name];
+      if (!m || m.score <= 0) return;
+      row[4] = m.score; // col E (index 4 from A) = official score
+    });
+    mRng.setValues(mData);
+  }
+}
+
+// ── Restore placeholder rows for new members after R2Y import ─
+// _importR2Y clears the entire sheet — new members who haven't appeared
+// in BNI Connect yet would be deleted. This restores them.
+function _restoreNMPlaceholders(ss) {
+  var nmSh  = ss.getSheetByName('🆕 NEW MEMBERS');
+  var r2ySh = ss.getSheetByName('Reporting2You');
+  if (!nmSh || !r2ySh || nmSh.getLastRow() < 12) return;
+
+  // Build set of names already in R2Y
+  var r2yNames = {};
+  var r2yLast = r2ySh.getLastRow();
+  if (r2yLast > 1) {
+    r2ySh.getRange(2, 1, r2yLast - 1, 1).getValues().forEach(function(row) {
+      var n = String(row[0]||'').replace(/\s*\(BNI Ideal\)\s*/gi,'').trim().toLowerCase();
+      if (n) r2yNames[n] = true;
+    });
+  }
+
+  // Scan NEW MEMBERS for anyone missing from R2Y
+  var nmLast = nmSh.getLastRow();
+  if (nmLast < 12) return;
+  var nmData = nmSh.getRange(12, 3, nmLast - 11, 2).getValues(); // col C=name, col D=nick
+  var added = 0;
+  nmData.forEach(function(row) {
+    var name = String(row[0]||'').trim();
+    if (!name || name.length < 2) return;
+    if (r2yNames[name.toLowerCase()]) return;
+    // Restore placeholder: Member,RG,RR,Visi.,121,CEU,TYFCB,Points,BNI Days,P,A,L,M,S,Email,Phone
+    r2ySh.appendRow([name + ' (BNI Ideal)', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '', '']);
+    r2yNames[name.toLowerCase()] = true;
+    added++;
+  });
+  if (added > 0) Logger.log('Restored ' + added + ' NM placeholders in Reporting2You');
 }

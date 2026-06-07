@@ -110,19 +110,24 @@ function apiGetGrowthData(p) {
     var recv   = parseFloat(row[7]) || 0;  // col 8 → index 7
     var balance= String(row[8] || '');
 
-    if (!name || score === 0) continue;
+    if (!name) continue;
 
     // ดึงจาก R2Y
     var r2y    = r2yMap[name] || null;
-    var rgCount  = r2y ? (parseFloat(r2y[1])  || 0) : 0;  // RG col 2
-    var rrCount  = r2y ? (parseFloat(r2y[2])  || 0) : 0;  // RR col 3
-    var visitors = r2y ? (parseFloat(r2y[3])  || 0) : 0;  // Visi col 4
-    var r121     = r2y ? (parseFloat(r2y[4])  || 0) : 0;  // 1-2-1 col 5
-    var ceu      = r2y ? (parseFloat(r2y[5])  || 0) : 0;  // CEU col 6
-    var tyfcb    = r2y ? (parseFloat(r2y[6])  || 0) : 0;  // TYFCB col 7
-    var bniDays  = r2y ? (parseInt(r2y[8])    || 0) : 0;  // BNI Days col 9
-    var attend   = r2y ? (parseInt(r2y[9])    || 0) : 0;  // P col 10
-    var absent   = r2y ? (parseInt(r2y[10])   || 0) : 0;  // A col 11
+    var rgCount  = r2y ? (parseFloat(r2y[1])  || 0) : 0;
+    var rrCount  = r2y ? (parseFloat(r2y[2])  || 0) : 0;
+    var visitors = r2y ? (parseFloat(r2y[3])  || 0) : 0;
+    var r121     = r2y ? (parseFloat(r2y[4])  || 0) : 0;
+    var ceu      = r2y ? (parseFloat(r2y[5])  || 0) : 0;
+    var tyfcb    = r2y ? (_parseR2YNum(r2y[6])) : 0;
+    var bniDays  = r2y ? (parseInt(r2y[8])    || 0) : 0;
+    var attend   = r2y ? (parseInt(r2y[9])    || 0) : 0;
+    var absent   = r2y ? (parseInt(r2y[10])   || 0) : 0;
+
+    // Use official BNI Points (R2Y col 8) as primary score — same as desktop
+    var officialPtsG = r2y ? (parseInt(r2y[7]) || 0) : 0;
+    if (officialPtsG > 0) score = officialPtsG;
+    if (score === 0 && officialPtsG === 0) continue; // skip only if truly no data
 
     // ── Justice Index ─────────────────────────────────────────
     // เปรียบ RG (จำนวนใบที่ให้) vs RR (จำนวนใบที่รับ)
@@ -151,8 +156,8 @@ function apiGetGrowthData(p) {
     // ── TYFCB ROI — ยอดธุรกิจต่อวันที่อยู่ใน BNI ────────────
     var tyfcbPerDay = bniDays > 0 ? Math.round(tyfcb / bniDays) : 0;
 
-    // ── Score TL key ──────────────────────────────────────────
-    var tl = score >= 70 ? 'green' : score >= 50 ? 'yellow' : score >= 30 ? 'red' : 'black';
+    // ── Score TL key (uses official score from R2Y when available) ──
+    var tl = score >= 70 ? 'green' : score >= 50 ? 'yellow' : score >= 30 ? 'red' : score > 0 ? 'black' : 'none';
 
     var member = {
       name:    name,
