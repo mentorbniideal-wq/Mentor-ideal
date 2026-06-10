@@ -1,5 +1,4 @@
 // Auth handler — login + changePIN
-// DEV MODE: PIN check bypassed
 import { getServiceClient, jsonResponse } from '../../_shared/db.ts';
 import { verifyPin } from '../../_shared/auth.ts';
 
@@ -9,10 +8,14 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
 
   // ── login ────────────────────────────────────────────────────
   if (action === 'login') {
-    const role = String(p.role || '').toLowerCase() || 'mc';
+    const role = String(p.role || '').toLowerCase();
+    const pin = String(p.pin || '');
 
-    // DEV MODE: accept any role without PIN verification
-    const auth = await verifyPin(db, role, '');
+    if (!role) {
+      return jsonResponse({ ok: false, error: 'Role is required' });
+    }
+
+    const auth = await verifyPin(db, role, pin);
     if (!auth.ok) return jsonResponse({ ok: false, error: auth.error });
 
     const { data: ver } = await db

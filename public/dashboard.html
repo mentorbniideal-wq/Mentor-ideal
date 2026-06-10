@@ -2455,6 +2455,13 @@ function login(){
     document.getElementById(S.role==='mc'?'mc-tabs':'gr-tabs').style.display='flex';
     document.getElementById('btn-meeting').style.display=S.role==='mc'?'':'none';
     document.getElementById('btn-monthly-sync').style.display=S.role==='mc'?'':'none';
+    // Reset section visibility and activate the role's first section
+    document.querySelectorAll('.sec').forEach(function(s){s.classList.remove('on');});
+    document.querySelectorAll('#mc-tabs .tb,#gr-tabs .tb').forEach(function(b){b.classList.remove('on');});
+    var defSec=S.role==='mc'?'mc-ov':'gr-ov';
+    document.getElementById(defSec).classList.add('on');
+    var firstTab=document.querySelector('#'+(S.role==='mc'?'mc':'gr')+'-tabs .tb');
+    if(firstTab)firstTab.classList.add('on');
     loadFilters();
     startAR();
     reload();

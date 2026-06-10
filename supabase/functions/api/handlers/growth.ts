@@ -555,21 +555,39 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         return errResponse('ไม่พบสมาชิกในระบบ');
       }
 
+      let nonMentorOk = true, counterOk = true, r2yOk = true, r2ySyncOk = true;
+      let renewalOk = true, grOk = true, mtlOk = true;
+      let importedScores = 0, importedR2Y = 0, updatedGR = 0;
+      const stepErrors: string[] = [];
+
+      // Steps 3+4: upsert monthly scores from TL CSV or MTL CSV
       const scoreRows = tlRows.length ? parseMonthlyScores(tlRows, memberMap) : [];
       const fallbackScoreRows = scoreRows.length ? scoreRows : parseMonthlyScores(mtlRows, memberMap);
-      let importedScores = 0;
       if (fallbackScoreRows.length) {
-        importedScores = await upsertMonthlyScores(db, fallbackScoreRows);
+        try {
+          importedScores = await upsertMonthlyScores(db, fallbackScoreRows);
+        } catch (e) {
+          nonMentorOk = false; counterOk = false;
+          stepErrors.push(`scores: ${(e as Error).message}`);
+        }
       }
 
-      let importedR2Y = 0;
+      // Steps 5+6: upsert R2Y stats from R2Y CSV
       if (r2yRows.length) {
         const r2yParsed = parseR2YRows(r2yRows, memberMap);
-        if (r2yParsed.length) importedR2Y += await upsertR2YStats(db, r2yParsed);
+        if (r2yParsed.length) {
+          try {
+            importedR2Y += await upsertR2YStats(db, r2yParsed);
+          } catch (e) {
+            r2yOk = false; r2ySyncOk = false;
+            stepErrors.push(`r2y: ${(e as Error).message}`);
+          }
+        }
       }
 
+      // Steps 7+8+9: MTL data → given/received + R2Y stats
       const mtlData = parseMemberTLStats(mtlRows);
-      let updatedGR = 0;
+      let updatedGRCount = 0;
       if (Object.keys(mtlData).length) {
         const grMap: Record<string, { given: number; received: number }> = {};
         const r2yUpserts: Array<Record<string, unknown>> = [];
@@ -579,41 +597,37 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           grMap[name] = { given: item.given, received: item.received };
           r2yUpserts.push({
             member_id: memberId,
-            rg: item.rg,
-            rr: item.rr,
-            visitors: item.visitors,
-            one_to_one: item.one_to_one,
-            ceu: item.ceu,
-            tyfcb_thb: item.given,
-            official_pts: item.score,
-            attend: item.p,
-            absent: item.a,
-            late: item.l,
-            medical: item.m,
-            sub: item.s,
+            rg: item.rg, rr: item.rr, visitors: item.visitors,
+            one_to_one: item.one_to_one, ceu: item.ceu, tyfcb_thb: item.given,
+            official_pts: item.score, attend: item.p, absent: item.a,
+            late: item.l, medical: item.m, sub: item.s,
             synced_at: new Date().toISOString(),
           });
         }
         if (Object.keys(grMap).length) {
-          updatedGR = await updateMembersGivenReceived(db, grMap, memberMap);
+          try {
+            updatedGRCount = await updateMembersGivenReceived(db, grMap, memberMap);
+            updatedGR = updatedGRCount;
+          } catch (e) {
+            grOk = false;
+            stepErrors.push(`gr: ${(e as Error).message}`);
+          }
         }
         if (r2yUpserts.length) {
-          importedR2Y += await upsertR2YStats(db, r2yUpserts);
+          try {
+            importedR2Y += await upsertR2YStats(db, r2yUpserts);
+          } catch (e) {
+            mtlOk = false;
+            stepErrors.push(`mtl-r2y: ${(e as Error).message}`);
+          }
         }
       }
 
       return jsonResponse({
         ok: true,
-        nonMentorOk: true,
-        counterOk: true,
-        r2yOk: true,
-        r2ySyncOk: true,
-        renewalOk: true,
-        grOk: true,
-        mtlOk: true,
-        importedScores,
-        importedR2Y,
-        updatedGivenReceived: updatedGR,
+        nonMentorOk, counterOk, r2yOk, r2ySyncOk, renewalOk, grOk, mtlOk,
+        importedScores, importedR2Y, updatedGivenReceived: updatedGR,
+        ...(stepErrors.length ? { errors: stepErrors } : {}),
       });
     }
 
