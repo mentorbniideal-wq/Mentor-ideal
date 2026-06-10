@@ -2148,7 +2148,7 @@ function mentorMemberRow(m,clickFn){
     +'</div>';
 }
 var roleNames={mc:'ตูมตาม (MC)',toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP',growth:'Growth Coordinator'};
-function openPin(role){S.pending=role;S.pin='0000';doLogin();}
+function openPin(role){S.pending=role;S.pin='';updDots();document.getElementById('pinErr').textContent='';document.getElementById('pinTitle').textContent='ใส่ PIN: '+(roleNames[role]||role);document.getElementById('pinModal').classList.add('on');}
 function closePinOverlay(e){if(e.target===document.getElementById('pinModal'))document.getElementById('pinModal').classList.remove('on');}
 function pi(d){if(S.pin.length>=4)return;S.pin+=d;updDots();if(S.pin.length===4)setTimeout(doLogin,120);}
 function pd(){S.pin=S.pin.slice(0,-1);updDots();document.getElementById('pinErr').textContent='';}
