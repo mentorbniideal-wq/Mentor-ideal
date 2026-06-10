@@ -6,16 +6,27 @@ import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts
 // ── LINE Push helper — no-op when token is absent (dev mode) ──
 const LINE_TOKEN = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || '';
 
-async function sendLineMsg(userId: string, text: string): Promise<void> {
-  if (!LINE_TOKEN) return; // no-op in dev mode
-  await fetch('https://api.line.me/v2/bot/message/push', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${LINE_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ to: userId, messages: [{ type: 'text', text }] }),
-  }).catch(() => {});
+async function sendLineMsg(userId: string, text: string): Promise<boolean> {
+  if (!LINE_TOKEN) return false;
+  try {
+    const res = await fetch('https://api.line.me/v2/bot/message/push', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${LINE_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ to: userId, messages: [{ type: 'text', text }] }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      console.error(`[sendLineMsg] LINE API error ${res.status}: ${body}`);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('[sendLineMsg] fetch error:', e);
+    return false;
+  }
 }
 
 // ── Resolve member_id by name (case-insensitive) ──────────────
@@ -180,8 +191,23 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const lineUserId = String(p.lineUserId || '').trim();
-      if (!lineUserId) return errResponse('lineUserId required');
+      // Accept either lineUserId directly or memberName (look up from line_members)
+      let lineUserId = String(p.lineUserId || '').trim();
+      let resolvedName = '';
+
+      if (!lineUserId && p.memberName) {
+        const memberName = String(p.memberName).trim();
+        const mid = await findMemberId(db, memberName);
+        if (!mid) return errResponse(`ไม่พบสมาชิก: ${memberName}`);
+        const { data: lm } = await db
+          .from('line_members').select('line_user_id')
+          .eq('member_id', mid).maybeSingle();
+        if (!lm) return errResponse(`${memberName} ยังไม่ได้ลงทะเบียน LINE Bot ครับ`);
+        lineUserId = String((lm as Record<string, unknown>).line_user_id || '');
+        resolvedName = memberName;
+      }
+
+      if (!lineUserId) return errResponse('lineUserId หรือ memberName required');
 
       const { error } = await db.from('settings').upsert(
         { key: 'MC_LINE_ID', value: lineUserId },
@@ -189,7 +215,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       );
       if (error) return errResponse(error.message);
 
-      return jsonResponse({ ok: true });
+      return jsonResponse({ ok: true, name: resolvedName });
     }
 
     // ── SEND: push a custom message to one member (MC only) ───
@@ -214,7 +240,8 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       if (!auth.ok) return errResponse(auth.error!);
 
       const message    = String(p.message || '').trim();
-      const targetRole = p.targetRole ? String(p.targetRole).trim() : null;
+      // Accept teamName (from LINE activity panel) or targetRole (legacy)
+      const targetRole = (p.teamName ? String(p.teamName) : p.targetRole ? String(p.targetRole) : '').trim() || null;
       if (!message) return errResponse('message required');
 
       const { data, error } = await db
@@ -236,28 +263,53 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         if (uid) { await sendLineMsg(uid, message); sentCount++; }
       }
 
-      return jsonResponse({ ok: true, sentCount });
+      return jsonResponse({ ok: true, sent: sentCount, sentCount });
     }
 
-    // ── INTRO: send a standard welcome message to a member ────
+    // ── INTRO: send 1-2-1 introduction between 2 members ─────
     case 'sendLineIntro': {
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const memberName = String(p.memberName || '').trim();
-      if (!memberName) return errResponse('memberName required');
+      const name1 = String(p.name1 || p.memberName || '').trim();
+      const name2 = String(p.name2 || '').trim();
+      if (!name1) return errResponse('name1 required');
 
-      const userId = await findLineUserId(db, memberName);
-      if (!userId) return jsonResponse({ ok: true, sent: false });
+      // Single member intro (legacy) or 2-person mutual intro
+      if (!name2) {
+        const userId = await findLineUserId(db, name1);
+        if (!userId) return jsonResponse({ ok: true, sent: false, sentTo: [] });
+        const introText = `🌟 ยินดีต้อนรับสู่ BNI IDEAL Chapter!\n\nสวัสดีคุณ ${name1} 👋\n\nระบบนี้จะช่วยติดตามคะแนน PALMS, แจ้งเตือนประชุม, และสื่อสารกับ Mentor ของคุณ\n\nพิมพ์ "สถานะ" เพื่อดูคะแนนปัจจุบัน`;
+        await sendLineMsg(userId, introText);
+        return jsonResponse({ ok: true, sent: true, sentTo: [name1] });
+      }
 
-      const introText =
-        `🌟 ยินดีต้อนรับสู่ BNI IDEAL Chapter!\n\n` +
-        `สวัสดีคุณ ${memberName} 👋\n\n` +
-        `ระบบนี้จะช่วยติดตามคะแนน PALMS, แจ้งเตือนประชุม, และสื่อสารกับ Mentor ของคุณ\n\n` +
-        `พิมพ์ "สถานะ" เพื่อดูคะแนนปัจจุบัน`;
+      // 2-person mutual intro
+      const [uid1, uid2] = await Promise.all([
+        findLineUserId(db, name1),
+        findLineUserId(db, name2),
+      ]);
 
-      await sendLineMsg(userId, introText);
-      return jsonResponse({ ok: true, sent: true });
+      // Get nicknames
+      const { data: m1Row } = await db.from('members').select('nickname').ilike('name', name1).maybeSingle();
+      const { data: m2Row } = await db.from('members').select('nickname').ilike('name', name2).maybeSingle();
+      const nick1 = String((m1Row as Record<string, unknown> | null)?.nickname || name1.split(' ')[0]);
+      const nick2 = String((m2Row as Record<string, unknown> | null)?.nickname || name2.split(' ')[0]);
+
+      const sentTo: string[] = [];
+      if (uid1) {
+        await sendLineMsg(uid1,
+          `🤝 BNI IDEAL — แนะนำให้รู้จัก!\n\nสวัสดีคุณ${nick1} 👋\n\nอยากแนะนำให้รู้จักกับ คุณ${nick2} (${name2}) จาก BNI IDEAL Chapter ของเรานะครับ\n\nลองนัด 1-2-1 คุยกันดูครับ! 😊`);
+        sentTo.push(nick1);
+      }
+      if (uid2) {
+        await sendLineMsg(uid2,
+          `🤝 BNI IDEAL — แนะนำให้รู้จัก!\n\nสวัสดีคุณ${nick2} 👋\n\nอยากแนะนำให้รู้จักกับ คุณ${nick1} (${name1}) จาก BNI IDEAL Chapter ของเรานะครับ\n\nลองนัด 1-2-1 คุยกันดูครับ! 😊`);
+        sentTo.push(nick2);
+      }
+
+      if (sentTo.length === 0) return jsonResponse({ ok: true, sent: false, sentTo: [] });
+      return jsonResponse({ ok: true, sent: true, sentTo });
     }
 
     // ── GET: absence log (last 50) ────────────────────────────

@@ -8420,12 +8420,13 @@ function doDeskSendLine() {
     gsr('sendLineBroadcast',{role:S.role,teamName:t.teamName,message:text},function(r){
       btn.disabled=false; btn.textContent='📤 ส่ง LINE';
       if (!r.ok){toast(r.error||'ส่งไม่สำเร็จ','err');return;}
-      toast('📢 ส่งถึง '+r.sent+' คน ✅','ok'); closeDeskLine();
+      toast('📢 ส่งถึง '+(r.sentCount||r.sent||0)+' คน ✅','ok'); closeDeskLine();
     });
   } else {
     gsr('sendLineMessage',{role:S.role,memberName:t.name,message:text},function(r){
       btn.disabled=false; btn.textContent='📤 ส่ง LINE';
       if (!r.ok){toast(r.error||'ส่งไม่สำเร็จ','err');return;}
+      if (!r.sent){toast('⚠️ '+t.name+' ยังไม่ได้ลงทะเบียน LINE Bot ครับ','err');return;}
       toast('📲 ส่งสำเร็จ ✅','ok'); closeDeskLine();
     });
   }
@@ -8466,6 +8467,7 @@ function deskSendDM() {
   if (!text)   { toast('พิมพ์ข้อความก่อนครับ','err'); return; }
   gsr('sendLineMessage',{role:S.role,memberName:member,message:text},function(r){
     if (!r.ok) { toast(r.error||'ส่งไม่สำเร็จ','err'); return; }
+    if (!r.sent) { toast('⚠️ '+member+' ยังไม่ได้ลงทะเบียน LINE Bot ครับ','err'); return; }
     toast('📲 ส่งถึง '+member+' แล้ว ✅','ok');
     document.getElementById('line-dm-text').value='';
   });
@@ -8479,7 +8481,7 @@ function deskSendBroadcast() {
   if (!confirm('ส่ง Broadcast ถึง ' + label + '?')) return;
   gsr('sendLineBroadcast',{role:S.role,teamName:team||null,message:text},function(r){
     if (!r.ok) { toast(r.error||'ส่งไม่สำเร็จ','err'); return; }
-    toast('📢 ส่งถึง '+r.sent+' คน ✅','ok');
+    toast('📢 ส่งถึง '+(r.sentCount||r.sent||0)+' คน ✅','ok');
     document.getElementById('line-bc-text').value='';
   });
 }
@@ -8491,7 +8493,8 @@ function deskSendIntro() {
   if (m1===m2) { toast('ต้องเลือกคนละคนครับ','err'); return; }
   gsr('sendLineIntro',{role:S.role,name1:m1,name2:m2},function(r){
     if (!r.ok) { toast(r.error||'ส่งไม่สำเร็จ','err'); return; }
-    toast('🤝 แนะนำ '+r.sentTo.join(' & ')+' แล้ว ✅','ok');
+    if (!r.sent) { toast('⚠️ ไม่พบ LINE ID ของสมาชิกทั้งคู่ครับ','err'); return; }
+    toast('🤝 แนะนำ '+(r.sentTo||[]).join(' & ')+' แล้ว ✅','ok');
   });
 }
 
@@ -8681,7 +8684,7 @@ function deskSetupAllTriggers() {
 function deskTriggerWeeklyScore() {
   if (!confirm('ส่ง Weekly Score Card ถึงสมาชิกทุกคนตอนนี้เลยไหมครับ?')) return;
   gsr('triggerWeeklyScorePush',{role:S.role},function(r){
-    if (r&&r.ok) toast('📊 Score Card ส่งแล้ว '+r.sent+' คน ✅','ok');
+    if (r&&r.ok) toast('📊 Score Card ส่งแล้ว '+(r.sentCount||0)+' คน ✅','ok');
     else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');
   });
 }
@@ -8719,7 +8722,7 @@ function deskMentorBroadcast() {
   if (!confirm(confirmTxt)) return;
   gsr('mentorBroadcast',{role:S.role,message:msg},function(r){
     if (r&&r.ok) {
-      toast('📢 ส่งแล้ว '+r.sent+'/'+r.total+' คน ✅','ok');
+      toast('📢 ส่งแล้ว '+(r.sentCount||0)+' คน ✅','ok');
       document.getElementById('mentor-broadcast-msg').value='';
     } else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');
   });
