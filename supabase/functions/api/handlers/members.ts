@@ -201,6 +201,282 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       return jsonResponse({ ok: true });
     }
 
+    // ── ENSURE slot: look up or create a member row ───────────
+    case 'ensureSlot': {
+      const memberName = String(p.memberName || '').trim();
+      const nick       = p.nick ? String(p.nick).trim() : '';
+      if (!memberName) return errResponse('memberName required');
+
+      // Try to find existing member
+      const { data: existing, error: findErr } = await db
+        .from('members')
+        .select('id')
+        .eq('name', memberName)
+        .limit(1)
+        .maybeSingle();
+      if (findErr) return errResponse(findErr.message);
+
+      if (existing) {
+        return jsonResponse({ ok: true, existed: true, memberId: existing.id });
+      }
+
+      // Not found — insert
+      const { data: inserted, error: insErr } = await db
+        .from('members')
+        .insert({ name: memberName, nickname: nick, is_new_member: true, is_archived: false })
+        .select('id')
+        .single();
+      if (insErr) return errResponse(insErr.message);
+      return jsonResponse({ ok: true, existed: false, memberId: inserted.id });
+    }
+
+    // ── GET archived members ──────────────────────────────────
+    case 'getArchivedMembers': {
+      const { data, error } = await db
+        .from('members')
+        .select('id, name, nickname, mentor_team')
+        .eq('is_archived', true)
+        .order('name');
+      if (error) return errResponse(error.message);
+      const members = (data || []).map((m: Record<string, unknown>) => ({
+        id: m.id,
+        name: m.name,
+        nick: m.nickname,
+        mentorTeam: m.mentor_team,
+      }));
+      return jsonResponse({ ok: true, members });
+    }
+
+    // ── SAVE member note (upsert within 24 h) ─────────────────
+    case 'saveMemberNote': {
+      const memberName = String(p.memberName || '').trim();
+      const note       = String(p.note ?? '');
+      if (!memberName) return errResponse('memberName required');
+
+      // Resolve member id
+      const { data: member, error: mErr } = await db
+        .from('members')
+        .select('id')
+        .eq('name', memberName)
+        .limit(1)
+        .maybeSingle();
+      if (mErr) return errResponse(mErr.message);
+      if (!member) return errResponse(`Member not found: ${memberName}`);
+      const memberId = member.id as string;
+
+      // Check for an existing note updated within the last 24 h
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { data: existing, error: nErr } = await db
+        .from('member_notes')
+        .select('id')
+        .eq('member_id', memberId)
+        .gte('updated_at', cutoff)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (nErr) return errResponse(nErr.message);
+
+      if (existing) {
+        const { error: upErr } = await db
+          .from('member_notes')
+          .update({ note, updated_at: new Date().toISOString() })
+          .eq('id', existing.id);
+        if (upErr) return errResponse(upErr.message);
+      } else {
+        const { error: insErr } = await db
+          .from('member_notes')
+          .insert({ member_id: memberId, note, author_role: String(p.role || '') });
+        if (insErr) return errResponse(insErr.message);
+      }
+
+      return jsonResponse({ ok: true });
+    }
+
+    // ── GET latest member note ────────────────────────────────
+    case 'getMemberNote': {
+      const memberName = String(p.memberName || '').trim();
+      if (!memberName) return errResponse('memberName required');
+
+      const { data: member, error: mErr } = await db
+        .from('members')
+        .select('id')
+        .eq('name', memberName)
+        .limit(1)
+        .maybeSingle();
+      if (mErr) return errResponse(mErr.message);
+      if (!member) return jsonResponse({ ok: true, note: '' });
+      const memberId = member.id as string;
+
+      const { data, error } = await db
+        .from('member_notes')
+        .select('note')
+        .eq('member_id', memberId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) return errResponse(error.message);
+      return jsonResponse({ ok: true, note: (data?.note as string) || '' });
+    }
+
+    // ── SAVE new-member checklist item ────────────────────────
+    case 'saveNMCheckItem': {
+      const memberName = String(p.memberName || '').trim();
+      const itemKey    = String(p.itemKey || '').trim();
+      const isDone     = Boolean(p.isDone);
+      if (!memberName || !itemKey) return errResponse('memberName and itemKey required');
+
+      const { data: member, error: mErr } = await db
+        .from('members')
+        .select('id')
+        .eq('name', memberName)
+        .limit(1)
+        .maybeSingle();
+      if (mErr) return errResponse(mErr.message);
+      if (!member) return errResponse(`Member not found: ${memberName}`);
+      const memberId = member.id as string;
+
+      const now = new Date().toISOString();
+      const { error } = await db
+        .from('new_member_checklist')
+        .upsert({
+          member_id:  memberId,
+          item_key:   itemKey,
+          is_done:    isDone,
+          done_at:    isDone ? now : null,
+          updated_at: now,
+        }, { onConflict: 'member_id,item_key' });
+      if (error) return errResponse(error.message);
+      return jsonResponse({ ok: true });
+    }
+
+    // ── GET new-member checklist ──────────────────────────────
+    case 'getNMChecklist': {
+      const memberName = String(p.memberName || '').trim();
+      if (!memberName) return errResponse('memberName required');
+
+      const { data: member, error: mErr } = await db
+        .from('members')
+        .select('id')
+        .eq('name', memberName)
+        .limit(1)
+        .maybeSingle();
+      if (mErr) return errResponse(mErr.message);
+      if (!member) return jsonResponse({ ok: true, checklist: [] });
+      const memberId = member.id as string;
+
+      const { data, error } = await db
+        .from('new_member_checklist')
+        .select('item_key, is_done, done_at, updated_at')
+        .eq('member_id', memberId);
+      if (error) return errResponse(error.message);
+      const checklist = (data || []).map((r: Record<string, unknown>) => ({
+        itemKey:   r.item_key,
+        isDone:    r.is_done,
+        doneAt:    r.done_at,
+        updatedAt: r.updated_at,
+      }));
+      return jsonResponse({ ok: true, checklist });
+    }
+
+    // ── BATCH add new members (MC only) ──────────────────────
+    case 'addNewMembersBatch': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const rawMembers = Array.isArray(p.members) ? p.members as Record<string, unknown>[] : [];
+      if (!rawMembers.length) return errResponse('members array required');
+
+      const rows = rawMembers.map((m) => ({
+        name:        String(m.name || '').trim(),
+        nickname:    String(m.nick || m.nickname || '').trim(),
+        mentor_team: m.mentorTeam ? String(m.mentorTeam) : null,
+        is_new_member: true,
+        is_archived:   false,
+      })).filter((m) => m.name);
+
+      const { error } = await db
+        .from('members')
+        .upsert(rows, { onConflict: 'name', ignoreDuplicates: false });
+      if (error) return errResponse(error.message);
+      return jsonResponse({ ok: true, count: rows.length });
+    }
+
+    // ── GET new members with checklist progress + latest note ─
+    case 'getNewMembers': {
+      const { data: members, error: mErr } = await db
+        .from('members')
+        .select('id, name, nickname, mentor_team')
+        .eq('is_new_member', true)
+        .eq('is_archived', false)
+        .order('name');
+      if (mErr) return errResponse(mErr.message);
+      if (!members || members.length === 0) return jsonResponse({ ok: true, members: [] });
+
+      const memberIds = (members as Record<string, unknown>[]).map((m) => m.id as string);
+
+      // Fetch checklist rows for all these members
+      const { data: clRows, error: clErr } = await db
+        .from('new_member_checklist')
+        .select('member_id, is_done')
+        .in('member_id', memberIds);
+      if (clErr) return errResponse(clErr.message);
+
+      // Fetch latest notes for all these members
+      const { data: noteRows, error: noteErr } = await db
+        .from('member_notes')
+        .select('member_id, note, updated_at')
+        .in('member_id', memberIds)
+        .order('updated_at', { ascending: false });
+      if (noteErr) return errResponse(noteErr.message);
+
+      // Build lookup maps
+      type ClRow = { member_id: string; is_done: boolean };
+      type NoteRow = { member_id: string; note: string };
+
+      const clByMember: Record<string, ClRow[]> = {};
+      for (const r of (clRows || []) as ClRow[]) {
+        (clByMember[r.member_id] ??= []).push(r);
+      }
+      const latestNoteByMember: Record<string, string> = {};
+      for (const r of (noteRows || []) as NoteRow[]) {
+        if (!(r.member_id in latestNoteByMember)) {
+          latestNoteByMember[r.member_id] = r.note;
+        }
+      }
+
+      const enriched = (members as Record<string, unknown>[]).map((m) => {
+        const id = m.id as string;
+        const items = clByMember[id] || [];
+        return {
+          id,
+          name:          m.name,
+          nick:          m.nickname,
+          mentorTeam:    m.mentor_team,
+          checklistDone:  items.filter((r) => r.is_done).length,
+          checklistTotal: items.length,
+          latestNote:     latestNoteByMember[id] || '',
+        };
+      });
+
+      return jsonResponse({ ok: true, members: enriched });
+    }
+
+    // ── REMOVE new-member flag (MC only) ─────────────────────
+    case 'removeNewMember': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const memberName = String(p.memberName || '').trim();
+      if (!memberName) return errResponse('memberName required');
+
+      const { error } = await db
+        .from('members')
+        .update({ is_new_member: false, updated_at: new Date().toISOString() })
+        .eq('name', memberName);
+      if (error) return errResponse(error.message);
+      return jsonResponse({ ok: true });
+    }
+
     default:
       return errResponse(`Unknown members action: ${action}`);
   }
