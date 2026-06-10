@@ -2061,11 +2061,13 @@ var GS={members:[],curFilter:'all',loaded:false,taskFilter:'all',lastSummary:nul
 var CI_WEEK_DATA=[];
 
 var SUPABASE_API='https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
+var SUPABASE_ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
+var API_HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_ANON};
 function call(action,params,cb){
   var p=Object.assign({},params||{});
   p.action=action;
   p.role=S.role;
-  fetch(SUPABASE_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)}).then(function(r){return r.json();}).then(function(r){cb(null,r);}).catch(function(e){cb(e,null);});
+  fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify(p)}).then(function(r){return r.json();}).then(function(r){cb(null,r);}).catch(function(e){cb(e,null);});
 }
 // DEV MODE: gsr = alias for call() with single-arg callback
 function gsr(action,params,cb){call(action,params,function(err,r){cb(r||{ok:false,error:err?err.message:'error'});});}
@@ -2153,7 +2155,7 @@ function pd(){S.pin=S.pin.slice(0,-1);updDots();document.getElementById('pinErr'
 function updDots(){for(var i=0;i<4;i++)document.getElementById('d'+i).className='dot'+(i<S.pin.length?' on':'');}
 function doLogin(){
   showLoad();
-  fetch(SUPABASE_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'login',role:S.pending,pin:S.pin})})
+  fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'login',role:S.pending,pin:S.pin})})
     .then(function(r){return r.json();})
     .then(function(r){hideLoad();if(r.ok){document.getElementById('pinModal').classList.remove('on');enterApp(r);}else{S.pin='';updDots();document.getElementById('pinErr').textContent='❌ '+r.error;}})
     .catch(function(e){hideLoad();S.pin='';updDots();document.getElementById('pinErr').textContent='❌ เกิดข้อผิดพลาด';});
@@ -2162,7 +2164,7 @@ function doLogin(){
 function enterApp(r){
   S.role=r.role;S.isMC=r.isMC;S.teamName=r.teamName;S.displayName=r.displayName;
   // Log usage — direct dispatch, avoid call() overwriting role with S.role
-  try{fetch(SUPABASE_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'logUsage',role:r.role,team:r.teamName||r.role,platform:'mobile',logAction:'login',detail:r.displayName||r.role})}).catch(function(){});}catch(e){}
+  try{fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'logUsage',role:r.role,team:r.teamName||r.role,platform:'mobile',logAction:'login',detail:r.displayName||r.role})}).catch(function(){});}catch(e){}
   // แสดง Version ทุก role
   if(r.version){
     document.getElementById('verNum').textContent=r.version;
@@ -4044,7 +4046,7 @@ window.onload=function(){
 };
 
 function loadNotifBadges(){
-  fetch(SUPABASE_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'getUnreadCounts',role:'system'})})
+  fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'getUnreadCounts',role:'system'})})
     .then(function(res){return res.json();})
     .then(function(r){
       if(!r||!r.ok) return;

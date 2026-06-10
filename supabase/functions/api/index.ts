@@ -134,7 +134,7 @@ const ROUTES: Record<string, string> = {
   'getAbsenceLog': 'line-admin', 'getLineIssues': 'line-admin',
   'enrollOnboarding': 'line-admin', 'removeOnboarding': 'line-admin',
   'sendOnboardingWeek': 'line-admin', 'getOnboardingStatus': 'line-admin',
-  'getOnboardingMessages': 'line-admin', 'saveOnboardingMessage': 'line-admin',
+  'getOnboardingMessages': 'line-admin', 'saveOnboardingMessage': 'line-admin', 'getOnboardingPreview': 'line-admin',
   'mentorBroadcast': 'line-admin', 'setupRichMenu': 'line-admin',
   'setupAllTriggers': 'line-admin',
   'triggerScoreAlert': 'line-admin', 'triggerAnniversary': 'line-admin',

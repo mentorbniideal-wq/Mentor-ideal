@@ -148,11 +148,16 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
     }
 
     case 'get90DayReviews': {
-      const auth = await requireAuth(db, p, ['mc']);
+      const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
-      const { data, error } = await db.from('ninety_day_reviews')
+      // Mentors see only their team's reviews; MC sees all
+      let query = db.from('ninety_day_reviews')
         .select('id, member_id, mentor_team, review_date, content, members(name, nickname)')
         .order('review_date', { ascending: false }).limit(50);
+      if (auth.isMentor && auth.teamName) {
+        query = query.eq('mentor_team', auth.teamName);
+      }
+      const { data, error } = await query;
       if (error) return errResponse(error.message);
       return jsonResponse({ ok: true, reviews: data || [] });
     }

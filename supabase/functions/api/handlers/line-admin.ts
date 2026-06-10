@@ -263,8 +263,8 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
       const { data, error } = await db
         .from('line_absence_log')
-        .select('id, logged_at, absence_date, notes, members(name, nickname)')
-        .order('logged_at', { ascending: false })
+        .select('id, created_at, week_date, absence_type, sub_name, reason, members(name, nickname)')
+        .order('created_at', { ascending: false })
         .limit(50);
       if (error) return errResponse(error.message);
 
@@ -273,9 +273,11 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         return {
           memberName:   String(m.name || ''),
           nick:         String(m.nickname || ''),
-          absenceDate:  String(row.absence_date || ''),
-          notes:        String(row.notes || ''),
-          loggedAt:     String(row.logged_at || ''),
+          absenceDate:  String(row.week_date || ''),
+          absenceType:  String(row.absence_type || ''),
+          subName:      String(row.sub_name || ''),
+          notes:        String(row.reason || ''),
+          loggedAt:     String(row.created_at || ''),
         };
       });
 
@@ -289,8 +291,8 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
       const { data, error } = await db
         .from('line_absence_log')
-        .select('id, logged_at, absence_date, notes, members(name, nickname)')
-        .order('logged_at', { ascending: false })
+        .select('id, created_at, week_date, absence_type, sub_name, reason, members(name, nickname)')
+        .order('created_at', { ascending: false })
         .limit(10);
       if (error) return errResponse(error.message);
 
@@ -299,9 +301,11 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         return {
           memberName:  String(m.name || ''),
           nick:        String(m.nickname || ''),
-          absenceDate: String(row.absence_date || ''),
-          notes:       String(row.notes || ''),
-          loggedAt:    String(row.logged_at || ''),
+          absenceDate: String(row.week_date || ''),
+          absenceType: String(row.absence_type || ''),
+          subName:     String(row.sub_name || ''),
+          notes:       String(row.reason || ''),
+          loggedAt:    String(row.created_at || ''),
         };
       });
 
@@ -345,10 +349,9 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       const memberId = await findMemberId(db, memberName);
       if (!memberId) return errResponse(`ไม่พบสมาชิก: ${memberName}`);
 
-      // Use week_num=0 as the "enrolled" marker
-      const { error } = await db.from('onboarding_sends').upsert(
-        { member_id: memberId, week_num: 0, sent_at: new Date().toISOString() },
-        { onConflict: 'member_id,week_num' },
+      const { error } = await db.from('onboarding_schedule').upsert(
+        { member_id: memberId, enrolled_at: new Date().toISOString(), removed_at: null },
+        { onConflict: 'member_id' },
       );
       if (error) return errResponse(error.message);
 
@@ -367,9 +370,10 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       if (!memberId) return errResponse(`ไม่พบสมาชิก: ${memberName}`);
 
       const { error } = await db
-        .from('onboarding_sends')
-        .delete()
-        .eq('member_id', memberId);
+        .from('onboarding_schedule')
+        .update({ removed_at: new Date().toISOString() })
+        .eq('member_id', memberId)
+        .is('removed_at', null);
       if (error) return errResponse(error.message);
 
       return jsonResponse({ ok: true });
@@ -380,11 +384,11 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
 
-      // Find all members who have week_num=0 (enrolled marker)
+      // Find active enrolled members (removed_at is null)
       const { data: enrolledRows, error: enrErr } = await db
-        .from('onboarding_sends')
-        .select('member_id')
-        .eq('week_num', 0);
+        .from('onboarding_schedule')
+        .select('member_id, enrolled_at, members(name, nickname)')
+        .is('removed_at', null);
       if (enrErr) return errResponse(enrErr.message);
 
       const enrolledIds = ((enrolledRows || []) as Record<string, unknown>[])
@@ -392,12 +396,11 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
       if (enrolledIds.length === 0) return jsonResponse({ ok: true, enrolled: [] });
 
-      // For each enrolled member, count weeks completed (week_num > 0)
+      // Count weeks completed per member
       const { data: sendRows, error: sendErr } = await db
         .from('onboarding_sends')
-        .select('member_id, week_num')
-        .in('member_id', enrolledIds)
-        .gt('week_num', 0);
+        .select('member_id, week_number')
+        .in('member_id', enrolledIds);
       if (sendErr) return errResponse(sendErr.message);
 
       const weekCounts: Record<string, number> = {};
@@ -406,17 +409,15 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         weekCounts[mid] = (weekCounts[mid] || 0) + 1;
       }
 
-      // Fetch member names
-      const { data: memberRows } = await db
-        .from('members')
-        .select('id, name, nickname')
-        .in('id', enrolledIds);
-
-      const enrolled = ((memberRows || []) as Record<string, unknown>[]).map(m => ({
-        memberName:     String(m.name || ''),
-        nick:           String(m.nickname || ''),
-        weeksCompleted: weekCounts[String(m.id)] || 0,
-      }));
+      const enrolled = ((enrolledRows || []) as Record<string, unknown>[]).map(r => {
+        const m = (r.members || {}) as Record<string, unknown>;
+        return {
+          memberName:     String(m.name || ''),
+          nick:           String(m.nickname || ''),
+          weeksCompleted: weekCounts[String(r.member_id)] || 0,
+          enrolledAt:     String(r.enrolled_at || ''),
+        };
+      });
 
       return jsonResponse({ ok: true, enrolled });
     }
@@ -428,17 +429,35 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
       const { data, error } = await db
         .from('onboarding_messages')
-        .select('id, week_num, message_text')
-        .order('week_num', { ascending: true });
+        .select('week_number, message_text, updated_at')
+        .order('week_number', { ascending: true });
       if (error) return errResponse(error.message);
 
       const messages = ((data || []) as Record<string, unknown>[]).map(r => ({
-        id:          String(r.id || ''),
-        weekNum:     Number(r.week_num) || 0,
+        weekNum:     Number(r.week_number) || 0,
         messageText: String(r.message_text || ''),
       }));
 
       return jsonResponse({ ok: true, messages });
+    }
+
+    // ── GET: preview a specific onboarding week message ───────
+    case 'getOnboardingPreview': {
+      const auth = await requireAuth(db, p);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const weekNum = Number(p.weekNum || 1);
+      const { data: msgRow } = await db
+        .from('onboarding_messages')
+        .select('message_text')
+        .eq('week_number', weekNum)
+        .maybeSingle();
+
+      const preview = msgRow
+        ? String((msgRow as Record<string, unknown>).message_text || '')
+        : `[Week ${weekNum} — ยังไม่มีข้อความ]`;
+
+      return jsonResponse({ ok: true, weekNum, preview });
     }
 
     // ── SAVE: upsert an onboarding message template (MC only) ─
@@ -451,8 +470,8 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       if (!weekNum || !messageText) return errResponse('weekNum and messageText required');
 
       const { error } = await db.from('onboarding_messages').upsert(
-        { week_num: weekNum, message_text: messageText },
-        { onConflict: 'week_num' },
+        { week_number: weekNum, message_text: messageText, updated_at: new Date().toISOString() },
+        { onConflict: 'week_number' },
       );
       if (error) return errResponse(error.message);
 
@@ -475,7 +494,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       const { data: msgRow } = await db
         .from('onboarding_messages')
         .select('message_text')
-        .eq('week_num', weekNum)
+        .eq('week_number', weekNum)
         .maybeSingle();
 
       const msgText = msgRow
@@ -499,8 +518,8 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
       // Record in onboarding_sends regardless of delivery
       await db.from('onboarding_sends').upsert(
-        { member_id: memberId, week_num: weekNum, sent_at: new Date().toISOString() },
-        { onConflict: 'member_id,week_num' },
+        { member_id: memberId, week_number: weekNum, sent_at: new Date().toISOString() },
+        { onConflict: 'member_id,week_number' },
       );
 
       return jsonResponse({ ok: true, sent });

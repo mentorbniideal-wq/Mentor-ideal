@@ -2420,8 +2420,10 @@ var arTimer=null,arCount=300,arActive=true;  // auto-refresh
 var _m360={name:'',mentor:'',repRow:0,repTeam:''};  // current modal member
 
 var SUPABASE_API='https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
+var SUPABASE_ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
+var API_HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_ANON};
 function gsr(a,p,cb){
-  fetch(SUPABASE_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({action:a},p))}).then(function(r){return r.json();}).then(function(r){cb(r);}).catch(function(e){cb({ok:false,error:e.message});});
+  fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify(Object.assign({action:a},p))}).then(function(r){return r.json();}).then(function(r){cb(r);}).catch(function(e){cb({ok:false,error:e.message});});
 }
 function ld(v){document.getElementById('ov').style.display=v?'flex':'none';}
 

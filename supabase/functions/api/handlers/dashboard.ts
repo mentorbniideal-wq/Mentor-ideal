@@ -200,7 +200,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     }
 
     case 'getMentorPerformance': {
-      const auth = await requireAuth(db, p, ['mc']);
+      const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
       const teams = await getMentorActivityData(db);
       for (const t of teams) {
