@@ -2,6 +2,7 @@
 // Always uses service_role key → bypasses RLS for server-side API calls.
 // Public endpoints that want RLS enforcement should use the anon client variant.
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { corsHeaders } from './cors.ts';
 
 let _serviceClient: SupabaseClient | null = null;
 let _anonClient: SupabaseClient | null = null;
@@ -32,11 +33,11 @@ export function getAnonClient(): SupabaseClient {
   return _anonClient;
 }
 
-/** Standard JSON response helper. */
+/** Standard JSON response helper — includes CORS headers on every response. */
 export function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 }
 
