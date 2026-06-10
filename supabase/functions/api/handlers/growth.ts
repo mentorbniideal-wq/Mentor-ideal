@@ -259,23 +259,17 @@ function parseR2YRows(rows: string[][], memberMap: Record<string, string>): Arra
 }
 
 async function updateMembersGivenReceived(db: ReturnType<typeof getServiceClient>, data: Record<string, { given: number; received: number }>, memberMap: Record<string, string>): Promise<number> {
-  const rows = [] as Array<Record<string, unknown>>;
-  for (const [name, item] of Object.entries(data)) {
-    const memberId = memberMap[name];
-    if (!memberId) continue;
-    rows.push({ id: memberId, given_thb: item.given, received_thb: item.received, updated_at: new Date().toISOString() });
-  }
-  if (!rows.length) return 0;
-  const BATCH = 100;
+  const entries = Object.entries(data).filter(([name]) => memberMap[name]);
+  if (!entries.length) return 0;
+  const ts = new Date().toISOString();
   let updated = 0;
-  for (let i = 0; i < rows.length; i += BATCH) {
-    const batch = rows.slice(i, i + BATCH);
-    const { error } = await db.from('members').upsert(batch, {
-      onConflict: 'id',
-      ignoreDuplicates: false,
-    });
+  // Use UPDATE (not upsert) to avoid NOT NULL constraint on members.name during INSERT phase
+  for (const [name, item] of entries) {
+    const { error } = await db.from('members')
+      .update({ given_thb: item.given, received_thb: item.received, updated_at: ts })
+      .eq('id', memberMap[name]);
     if (error) throw new Error(error.message);
-    updated += batch.length;
+    updated++;
   }
   return updated;
 }
@@ -389,11 +383,12 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
 
         const m = memberById[mid];
         if (!m) continue;
-        const latest = scores[0];
-        const peak   = scores[streak]; // highest before the streak
+        const latest       = scores[0];
+        const peak         = scores[streak]; // highest monthly score before streak
+        const displayScore = Number(m.display_score) || latest; // GREATEST(monthly, r2y official)
         risks.push({
           name: m.name, nick: m.nickname, team: m.mentor_team,
-          score: latest, tl: String(m.traffic_light || 'none'),
+          score: displayScore, tl: String(m.traffic_light || 'none'),
           streak: streak + 1, decline: Math.round(peak - latest),
           recentScores: scores.slice(0, 5).reverse(),
         });
