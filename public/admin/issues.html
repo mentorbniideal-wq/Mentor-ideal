@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Issues — Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="_auth.js"></script>
+<style>
+  :root{--bg:#0a1628;--card:#0e2040;--mint:#d7fefa;--accent:#3dd6f5;--text:#e8f4f8;--muted:#7a9bb5;--red:#ff6b6b;--yellow:#ffd166;--green:#06d6a0}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Poppins',sans-serif;min-height:100vh}
+  nav{background:var(--card);border-bottom:1px solid #1a3a5c;padding:12px 24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  nav h1{font-size:18px;color:var(--mint);flex:1}
+  nav a{color:var(--muted);text-decoration:none;font-size:13px;padding:6px 12px;border-radius:6px}
+  nav a:hover,nav a.active{background:#1a3a5c;color:var(--mint)}
+  nav span{color:var(--muted);font-size:13px;margin-right:8px}
+  nav button.logout{background:transparent;border:1px solid #2a4a6c;color:var(--muted);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px}
+  nav button.logout:hover{color:var(--red)}
+  main{padding:24px}
+  .tabs{display:flex;gap:8px;margin-bottom:20px}
+  .tab{background:var(--card);border:1px solid #1a3a5c;color:var(--muted);padding:7px 16px;border-radius:6px;cursor:pointer;font-size:13px}
+  .tab.active{background:#1a3a5c;color:var(--mint);border-color:var(--accent)}
+  h2{font-size:16px;color:var(--mint);margin-bottom:14px}
+  table{width:100%;border-collapse:collapse;background:var(--card);border-radius:10px;overflow:hidden}
+  th,td{padding:9px 12px;text-align:left;font-size:13px;border-bottom:1px solid #1a3a5c}
+  th{color:var(--muted);font-weight:500}
+  tr:last-child td{border-bottom:none}
+  .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:4px;font-weight:600}
+  .badge-open{background:#ff6b6b22;color:var(--red);border:1px solid var(--red)}
+  .badge-resolved{background:#06d6a022;color:var(--green);border:1px solid var(--green)}
+  .btn-sm{background:transparent;border:1px solid currentColor;padding:3px 9px;border-radius:5px;cursor:pointer;font-size:11px}
+  .btn-close{color:var(--yellow)}.btn-reopen{color:var(--accent)}
+  .section-sep{margin:28px 0 16px;font-size:16px;color:var(--mint)}
+  .add-form{background:var(--card);border-radius:10px;padding:18px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px}
+  .add-form label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+  .add-form input,.add-form textarea{width:100%;background:#1a3a5c;border:1px solid #2a4a6c;color:var(--text);padding:7px;border-radius:6px;font-size:13px}
+  .add-form textarea{height:60px;resize:vertical;grid-column:1/-1}
+  .add-form .btn-add{background:var(--accent);color:#000;border:none;padding:9px 20px;border-radius:6px;cursor:pointer;font-weight:600;grid-column:1/-1}
+  .loading{color:var(--muted);text-align:center;padding:40px}
+  .msg{font-size:12px;color:var(--green);min-height:18px;grid-column:1/-1}
+</style>
+</head>
+<body>
+<nav>
+  <h1>⚙️ BNI Admin</h1>
+  <a href="index.html">Dashboard</a>
+  <a href="members.html">Members</a>
+  <a href="issues.html" class="active">Issues</a>
+  <a href="checkin.html">Check-in</a>
+  <a href="revenue.html">Revenue</a>
+  <a href="broadcast.html">Broadcast</a>
+  <a href="settings.html">Settings</a>
+  <span id="adminName">...</span>
+  <button class="logout" onclick="adminLogout()">Logout</button>
+</nav>
+<main>
+  <h2>Core Issues</h2>
+  <div class="tabs">
+    <div class="tab active" onclick="setStatusFilter('open',this)">Open</div>
+    <div class="tab" onclick="setStatusFilter('resolved',this)">Resolved</div>
+    <div class="tab" onclick="setStatusFilter('all',this)">ทั้งหมด</div>
+  </div>
+  <div id="issuesLoading" class="loading">กำลังโหลด...</div>
+  <table id="issuesTable" style="display:none">
+    <thead><tr><th>สมาชิก</th><th>ทีม</th><th>ปัญหา</th><th>สถานะ</th><th>วันที่เปิด</th><th>แก้ไข</th></tr></thead>
+    <tbody id="issuesTbody"></tbody>
+  </table>
+
+  <div class="section-sep">📋 บันทึก Action Log</div>
+  <div class="add-form">
+    <div>
+      <label>ชื่อสมาชิก</label>
+      <input id="logMember" type="text" placeholder="ชื่อเต็ม">
+    </div>
+    <div>
+      <label>ทีม Mentor</label>
+      <input id="logTeam" type="text" placeholder="TOOMTAM / Aof / ...">
+    </div>
+    <div>
+      <label>วันที่</label>
+      <input id="logDate" type="date">
+    </div>
+    <div>
+      <label>ชื่อผู้บันทึก</label>
+      <input id="logBy" type="text" placeholder="MC">
+    </div>
+    <div style="grid-column:1/-1">
+      <label>Action ที่ดำเนินการ</label>
+      <textarea id="logText" placeholder="เช่น โทรพูดคุย เรื่อง..."></textarea>
+    </div>
+    <button class="btn-add" onclick="addLog()">+ บันทึก Action</button>
+    <div class="msg" id="logMsg"></div>
+  </div>
+
+  <h2>Action Logs</h2>
+  <div id="logsLoading" class="loading">กำลังโหลด...</div>
+  <table id="logsTable" style="display:none">
+    <thead><tr><th>วันที่</th><th>สมาชิก</th><th>ทีม</th><th>Action</th><th>โดย</th></tr></thead>
+    <tbody id="logsTbody"></tbody>
+  </table>
+</main>
+<script>
+let currentStatus = 'open';
+
+function setStatusFilter(s, el) {
+  currentStatus = s;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  loadIssues();
+}
+
+async function loadIssues() {
+  document.getElementById('issuesLoading').style.display = '';
+  document.getElementById('issuesTable').style.display = 'none';
+  const r = await adminCall({ action: 'getAdminIssues', status: currentStatus });
+  document.getElementById('issuesLoading').style.display = 'none';
+  if (!r || !r.ok) { document.getElementById('issuesLoading').style.display=''; document.getElementById('issuesLoading').textContent = '❌ ' + (r?.error||'ข้อผิดพลาด'); return; }
+  document.getElementById('issuesTbody').innerHTML = (r.issues||[]).map(i => `
+    <tr>
+      <td>${i.memberNick||''} ${i.memberName}</td>
+      <td>${i.team}</td>
+      <td style="max-width:260px">${i.issueText}</td>
+      <td><span class="badge badge-${i.status}">${i.status}</span></td>
+      <td>${fmt.date(i.createdAt)}</td>
+      <td>${i.status==='open'
+        ? `<button class="btn-sm btn-close" onclick="setStatus('${i.id}','resolved')">ปิด Issue</button>`
+        : `<button class="btn-sm btn-reopen" onclick="setStatus('${i.id}','open')">เปิดใหม่</button>`
+      }</td>
+    </tr>`).join('');
+  document.getElementById('issuesTable').style.display = '';
+}
+
+async function setStatus(id, status) {
+  const r = await adminCall({ action: 'updateIssueStatus', id, status });
+  if (r && r.ok) loadIssues();
+}
+
+async function loadLogs() {
+  const r = await adminCall({ action: 'getActionLogs' });
+  document.getElementById('logsLoading').style.display = 'none';
+  if (!r || !r.ok) return;
+  document.getElementById('logsTbody').innerHTML = (r.logs||[]).map(l => `
+    <tr>
+      <td>${fmt.date(l.date)}</td>
+      <td>${l.memberNick||''} ${l.memberName}</td>
+      <td>${l.team}</td>
+      <td>${l.actionText}</td>
+      <td>${l.actionBy}</td>
+    </tr>`).join('');
+  document.getElementById('logsTable').style.display = '';
+}
+
+async function addLog() {
+  const memberName = document.getElementById('logMember').value.trim();
+  const actionText = document.getElementById('logText').value.trim();
+  const team       = document.getElementById('logTeam').value.trim();
+  const actionBy   = document.getElementById('logBy').value.trim() || 'MC';
+  const actionDate = document.getElementById('logDate').value || new Date().toISOString().split('T')[0];
+
+  if (!memberName || !actionText) { document.getElementById('logMsg').style.color='var(--red)'; document.getElementById('logMsg').textContent='กรุณากรอกชื่อสมาชิกและ action'; return; }
+
+  const r = await adminCall({ action: 'addActionLog', memberName, actionText, team, actionBy, actionDate });
+  if (!r || !r.ok) { document.getElementById('logMsg').style.color='var(--red)'; document.getElementById('logMsg').textContent='❌ ' + (r?.error||'บันทึกไม่สำเร็จ'); return; }
+  document.getElementById('logMsg').style.color='var(--green)';
+  document.getElementById('logMsg').textContent='✅ บันทึกแล้ว';
+  document.getElementById('logText').value = '';
+  document.getElementById('logMember').value = '';
+  loadLogs();
+}
+
+async function init() {
+  await checkAdminAuth();
+  document.getElementById('logDate').value = new Date().toISOString().split('T')[0];
+  loadIssues();
+  loadLogs();
+}
+init();
+</script>
+</body>
+</html>

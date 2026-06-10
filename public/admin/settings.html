@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Settings — Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="_auth.js"></script>
+<style>
+  :root{--bg:#0a1628;--card:#0e2040;--mint:#d7fefa;--accent:#3dd6f5;--text:#e8f4f8;--muted:#7a9bb5;--red:#ff6b6b;--yellow:#ffd166;--green:#06d6a0}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Poppins',sans-serif;min-height:100vh}
+  nav{background:var(--card);border-bottom:1px solid #1a3a5c;padding:12px 24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  nav h1{font-size:18px;color:var(--mint);flex:1}
+  nav a{color:var(--muted);text-decoration:none;font-size:13px;padding:6px 12px;border-radius:6px}
+  nav a:hover,nav a.active{background:#1a3a5c;color:var(--mint)}
+  nav span{color:var(--muted);font-size:13px;margin-right:8px}
+  nav button.logout{background:transparent;border:1px solid #2a4a6c;color:var(--muted);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px}
+  nav button.logout:hover{color:var(--red)}
+  main{padding:24px;max-width:800px}
+  h2{font-size:16px;color:var(--mint);margin-bottom:14px}
+  .status-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:28px}
+  .scard{background:var(--card);border-radius:10px;padding:16px}
+  .scard .label{font-size:12px;color:var(--muted);margin-bottom:6px}
+  .scard .value{font-size:15px;font-weight:600}
+  .ok{color:var(--green)}.warn{color:var(--yellow)}
+  .section{background:var(--card);border-radius:10px;padding:18px;margin-bottom:24px}
+  .section h3{font-size:14px;color:var(--accent);margin-bottom:14px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:8px 10px;text-align:left;font-size:13px;border-bottom:1px solid #1a3a5c}
+  th{color:var(--muted);font-weight:500}
+  tr:last-child td{border-bottom:none}
+  .btn-del{background:transparent;border:1px solid var(--red);color:var(--red);padding:3px 9px;border-radius:5px;cursor:pointer;font-size:11px}
+  .btn-del:hover{background:var(--red);color:#fff}
+  .add-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid #1a3a5c;align-items:end}
+  .add-form label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}
+  .add-form input,.add-form select{width:100%;background:#1a3a5c;border:1px solid #2a4a6c;color:var(--text);padding:7px;border-radius:6px;font-size:12px}
+  .btn-add{background:var(--accent);color:#000;border:none;padding:8px;border-radius:6px;cursor:pointer;font-weight:600;font-size:12px}
+  .form-msg{font-size:12px;min-height:18px;grid-column:1/-1}
+  .check-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .check-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent)}
+  .check-row label{font-size:13px;color:var(--text)}
+  .loading{color:var(--muted);text-align:center;padding:24px}
+</style>
+</head>
+<body>
+<nav>
+  <h1>⚙️ BNI Admin</h1>
+  <a href="index.html">Dashboard</a>
+  <a href="members.html">Members</a>
+  <a href="issues.html">Issues</a>
+  <a href="checkin.html">Check-in</a>
+  <a href="revenue.html">Revenue</a>
+  <a href="broadcast.html">Broadcast</a>
+  <a href="settings.html" class="active">Settings</a>
+  <span id="adminName">...</span>
+  <button class="logout" onclick="adminLogout()">Logout</button>
+</nav>
+<main>
+  <h2>System Status</h2>
+  <div class="status-cards" id="statusCards">
+    <div class="loading" style="grid-column:1/-1">กำลังโหลด...</div>
+  </div>
+
+  <div class="section">
+    <h3>Role Assignments (Google OAuth → Role)</h3>
+    <div id="raLoading" class="loading">กำลังโหลด...</div>
+    <table id="raTable" style="display:none">
+      <thead><tr><th>Email</th><th>Role</th><th>ชื่อ</th><th>ทีม</th><th>MC</th><th>Mentor</th><th></th></tr></thead>
+      <tbody id="raTbody"></tbody>
+    </table>
+
+    <div class="add-form">
+      <div>
+        <label>Email (Google)</label>
+        <input id="raEmail" type="email" placeholder="user@gmail.com">
+      </div>
+      <div>
+        <label>Role</label>
+        <select id="raRole">
+          <option value="mc">mc</option>
+          <option value="toomtam">toomtam</option>
+          <option value="aof">aof</option>
+          <option value="draft">draft</option>
+          <option value="phai">phai</option>
+          <option value="amp">amp</option>
+          <option value="growth">growth</option>
+        </select>
+      </div>
+      <div>
+        <label>Display Name</label>
+        <input id="raDisplay" type="text" placeholder="ชื่อที่แสดง">
+      </div>
+      <div>
+        <label>Team Name</label>
+        <input id="raTeam" type="text" placeholder="TOOMTAM / Aof / ...">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="check-row"><input type="checkbox" id="raIsMC"><label for="raIsMC">is_mc</label></div>
+        <div class="check-row"><input type="checkbox" id="raIsMentor"><label for="raIsMentor">is_mentor</label></div>
+      </div>
+      <div>
+        <label>&nbsp;</label>
+        <button class="btn-add" onclick="addRA()">+ เพิ่ม / อัพเดต</button>
+      </div>
+      <div class="form-msg" id="raMsg"></div>
+    </div>
+  </div>
+</main>
+<script>
+async function loadStatus() {
+  const r = await adminCall({ action: 'getConnectionStatus' });
+  if (!r) return;
+  document.getElementById('statusCards').innerHTML = `
+    <div class="scard"><div class="label">Supabase DB</div><div class="value ${r.supabase?'ok':'warn'}">${r.supabase?'✅ Connected':'❌ Error'}</div></div>
+    <div class="scard"><div class="label">LINE Bot Token</div><div class="value ${r.lineConfigured?'ok':'warn'}">${r.lineConfigured?'✅ Set':'⚠️ Not set'}</div></div>
+    <div class="scard"><div class="label">App Version</div><div class="value">${r.appVersion}</div></div>
+    <div class="scard"><div class="label">MC LINE ID</div><div class="value" style="font-size:11px;word-break:break-all">${r.mcLineId}</div></div>`;
+}
+
+async function loadRA() {
+  const r = await adminCall({ action: 'getRoleAssignments' });
+  document.getElementById('raLoading').style.display = 'none';
+  if (!r || !r.ok) return;
+  document.getElementById('raTbody').innerHTML = (r.assignments||[]).map(a => `
+    <tr>
+      <td style="font-size:12px">${a.email}</td>
+      <td>${a.role}</td>
+      <td>${a.display_name||''}</td>
+      <td>${a.team_name||'—'}</td>
+      <td>${a.is_mc?'✅':''}</td>
+      <td>${a.is_mentor?'✅':''}</td>
+      <td><button class="btn-del" onclick="removeRA('${a.email}')">ลบ</button></td>
+    </tr>`).join('');
+  document.getElementById('raTable').style.display = '';
+}
+
+async function addRA() {
+  const email       = document.getElementById('raEmail').value.toLowerCase().trim();
+  const role        = document.getElementById('raRole').value;
+  const displayName = document.getElementById('raDisplay').value.trim() || role;
+  const teamName    = document.getElementById('raTeam').value.trim() || null;
+  const isMC        = document.getElementById('raIsMC').checked;
+  const isMentor    = document.getElementById('raIsMentor').checked;
+
+  if (!email) { setRAMsg('กรุณาใส่ email', 'var(--red)'); return; }
+
+  const r = await adminCall({ action: 'addRoleAssignment', email, role, displayName, teamName, isMC, isMentor });
+  if (!r || !r.ok) { setRAMsg('❌ ' + r?.error, 'var(--red)'); return; }
+  setRAMsg('✅ บันทึกแล้ว', 'var(--green)');
+  document.getElementById('raEmail').value   = '';
+  document.getElementById('raDisplay').value = '';
+  document.getElementById('raTeam').value    = '';
+  document.getElementById('raIsMC').checked  = false;
+  document.getElementById('raIsMentor').checked = false;
+  loadRA();
+}
+
+async function removeRA(email) {
+  if (!confirm(`ลบ ${email} ออกจาก role assignments?`)) return;
+  const r = await adminCall({ action: 'removeRoleAssignment', email });
+  if (r?.ok) loadRA();
+}
+
+function setRAMsg(txt, color) {
+  const el = document.getElementById('raMsg');
+  el.textContent = txt; el.style.color = color;
+}
+
+async function init() {
+  await checkAdminAuth();
+  loadStatus();
+  loadRA();
+}
+init();
+</script>
+</body>
+</html>

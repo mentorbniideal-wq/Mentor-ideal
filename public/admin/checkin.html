@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Check-in — Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="_auth.js"></script>
+<style>
+  :root{--bg:#0a1628;--card:#0e2040;--mint:#d7fefa;--accent:#3dd6f5;--text:#e8f4f8;--muted:#7a9bb5;--red:#ff6b6b;--yellow:#ffd166;--green:#06d6a0}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Poppins',sans-serif;min-height:100vh}
+  nav{background:var(--card);border-bottom:1px solid #1a3a5c;padding:12px 24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  nav h1{font-size:18px;color:var(--mint);flex:1}
+  nav a{color:var(--muted);text-decoration:none;font-size:13px;padding:6px 12px;border-radius:6px}
+  nav a:hover,nav a.active{background:#1a3a5c;color:var(--mint)}
+  nav span{color:var(--muted);font-size:13px;margin-right:8px}
+  nav button{background:transparent;border:1px solid #2a4a6c;color:var(--muted);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px}
+  nav button:hover{color:var(--red)}
+  main{padding:24px;display:grid;grid-template-columns:280px 1fr;gap:20px;align-items:start}
+  @media(max-width:700px){main{grid-template-columns:1fr}}
+  h2{font-size:16px;color:var(--mint);margin-bottom:14px}
+  .sessions-panel{background:var(--card);border-radius:10px;padding:16px}
+  .session-item{padding:9px 10px;border-radius:7px;cursor:pointer;border:1px solid transparent;margin-bottom:6px;font-size:13px}
+  .session-item:hover{background:#1a3a5c}
+  .session-item.active{background:#1a3a5c;border-color:var(--accent)}
+  .session-date{font-size:11px;color:var(--muted);margin-top:2px}
+  .session-count{float:right;background:#1a3a5c;color:var(--accent);font-size:11px;padding:1px 7px;border-radius:10px;margin-top:2px}
+  .detail-panel{background:var(--card);border-radius:10px;padding:16px}
+  .stats-row{display:flex;gap:14px;margin-bottom:16px}
+  .stat{background:#1a3a5c;border-radius:7px;padding:10px 16px;text-align:center;flex:1}
+  .stat .num{font-size:22px;font-weight:700;color:var(--accent)}
+  .stat .lbl{font-size:11px;color:var(--muted);margin-top:2px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:7px 10px;text-align:left;font-size:12px;border-bottom:1px solid #1a3a5c}
+  th{color:var(--muted);font-weight:500}
+  .badge{display:inline-block;font-size:11px;padding:1px 7px;border-radius:4px}
+  .badge-member{background:#1a4a2c;color:var(--green)}
+  .badge-sub{background:#3a2a00;color:var(--yellow)}
+  .badge-visitor{background:#2a1a4c;color:#c4b5fd}
+  .loading{color:var(--muted);text-align:center;padding:40px}
+  .placeholder{color:var(--muted);text-align:center;padding:40px;font-size:14px}
+</style>
+</head>
+<body>
+<nav>
+  <h1>⚙️ BNI Admin</h1>
+  <a href="index.html">Dashboard</a>
+  <a href="members.html">Members</a>
+  <a href="issues.html">Issues</a>
+  <a href="checkin.html" class="active">Check-in</a>
+  <a href="revenue.html">Revenue</a>
+  <a href="broadcast.html">Broadcast</a>
+  <a href="settings.html">Settings</a>
+  <span id="adminName">...</span>
+  <button onclick="adminLogout()">Logout</button>
+</nav>
+<main>
+  <div class="sessions-panel">
+    <h2>Sessions</h2>
+    <div id="sessionsLoading" class="loading" style="padding:20px">กำลังโหลด...</div>
+    <div id="sessionsList"></div>
+  </div>
+  <div class="detail-panel">
+    <div id="detailPlaceholder" class="placeholder">← เลือก session เพื่อดูรายละเอียด</div>
+    <div id="detailContent" style="display:none">
+      <h2 id="detailTitle">—</h2>
+      <div class="stats-row" id="statsRow"></div>
+      <table>
+        <thead><tr><th>#</th><th>ชื่อ</th><th>สถานะ</th><th>แทน</th><th>ทีม</th></tr></thead>
+        <tbody id="detailTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+<script>
+const STATUS_BADGE = {
+  'สมาชิก':   '<span class="badge badge-member">สมาชิก</span>',
+  'ตัวแทน':   '<span class="badge badge-sub">ตัวแทน</span>',
+  'ผู้เยี่ยมชม':'<span class="badge badge-visitor">ผู้เยี่ยมชม</span>',
+};
+
+async function load() {
+  await checkAdminAuth();
+  const r = await adminCall({ action: 'getAdminCheckinSessions' });
+  document.getElementById('sessionsLoading').style.display = 'none';
+  if (!r || !r.ok) return;
+  const list = r.sessions || [];
+  document.getElementById('sessionsList').innerHTML = list.map(s => `
+    <div class="session-item" onclick="loadEntries('${s.id}',this,'${s.weekLabel}','${s.meetingDate}')">
+      <span class="session-count">${s.count}</span>
+      <div>${s.weekLabel||'—'}</div>
+      <div class="session-date">${fmt.date(s.meetingDate)}</div>
+    </div>`).join('');
+}
+
+async function loadEntries(id, el, weekLabel, meetingDate) {
+  document.querySelectorAll('.session-item').forEach(e => e.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('detailPlaceholder').style.display = 'none';
+  document.getElementById('detailContent').style.display = '';
+  document.getElementById('detailTitle').textContent = `${weekLabel} — ${fmt.date(meetingDate)}`;
+  document.getElementById('detailTbody').innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center">กำลังโหลด...</td></tr>';
+
+  const r = await adminCall({ action: 'getAdminCheckinEntries', sessionId: id });
+  if (!r || !r.ok) { document.getElementById('detailTbody').innerHTML = `<tr><td colspan="5" style="color:var(--red)">❌ ${r?.error||'ข้อผิดพลาด'}</td></tr>`; return; }
+
+  const { entries, stats } = r;
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat"><div class="num">${stats.present}</div><div class="lbl">สมาชิก</div></div>
+    <div class="stat"><div class="num">${stats.sub}</div><div class="lbl">ตัวแทน</div></div>
+    <div class="stat"><div class="num">${stats.visitor}</div><div class="lbl">ผู้เยี่ยมชม</div></div>
+    <div class="stat"><div class="num">${stats.total}</div><div class="lbl">ทั้งหมด</div></div>`;
+  document.getElementById('detailTbody').innerHTML = (entries||[]).map(e => `
+    <tr>
+      <td>${e.seq_no||''}</td>
+      <td>${e.raw_name}</td>
+      <td>${STATUS_BADGE[e.status]||e.status}</td>
+      <td>${e.sub_for||''}</td>
+      <td>${e.mentor_team||''}</td>
+    </tr>`).join('');
+}
+
+load();
+</script>
+</body>
+</html>

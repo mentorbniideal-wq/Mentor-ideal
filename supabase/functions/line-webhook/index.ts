@@ -21,6 +21,14 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
 
+  const allowSupabaseLine = Deno.env.get('LINE_WEBHOOK_ENABLED') === 'true';
+  if (!allowSupabaseLine) {
+    return new Response(
+      'Supabase LINE webhook is currently disabled. Use the legacy GAS WebApp LINE webhook URL until Supabase is ready.',
+      { status: 503, headers: { ...corsHeaders, 'Content-Type': 'text/plain' } },
+    );
+  }
+
   const rawBody = await req.text();
 
   // Verify LINE webhook signature (security — reject forged requests)

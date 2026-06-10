@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>BNI IDEAL — Desktop</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
@@ -28,7 +29,7 @@ body{background:var(--bg);color:var(--tx);font-family:'Poppins',system-ui,sans-s
 @keyframes sp{to{transform:rotate(360deg)}}
 
 /* Login */
-#login{display:flex;align-items:center;justify-content:center;min-height:100vh;background:radial-gradient(ellipse at 30% 20%,#1e1b4b,#0f1117 60%)}
+#login{display:none;align-items:center;justify-content:center;min-height:100vh;background:radial-gradient(ellipse at 30% 20%,#1e1b4b,#0f1117 60%)}
 .lbox{background:var(--sf);border:1px solid var(--bd);border-radius:20px;padding:44px;width:400px;text-align:center;box-shadow:0 4px 40px rgba(0,0,0,.5)}
 .llogo{font-size:40px;margin-bottom:8px}
 .ltitle{font-size:21px;font-weight:700;margin-bottom:4px}
@@ -904,7 +905,7 @@ body.light .gs-drop,body.light .mbox,body.light .bk-box,body.light #meeting{back
 ::-webkit-scrollbar-thumb{background:rgba(215,254,250,.15);border-radius:4px}
 
 /* Login — card redesign */
-#login{background:var(--bg);display:flex;align-items:center;justify-content:center;min-height:100vh;position:relative;overflow:hidden}
+#login{background:var(--bg);display:none;align-items:center;justify-content:center;min-height:100vh;position:relative;overflow:hidden}
 #login::before{content:'';position:absolute;width:600px;height:600px;background:radial-gradient(circle,rgba(215,254,250,.04) 0%,transparent 65%);top:-100px;left:-100px;pointer-events:none}
 #login::after{content:'';position:absolute;width:400px;height:400px;background:radial-gradient(circle,rgba(215,254,250,.03) 0%,transparent 65%);bottom:-80px;right:-80px;pointer-events:none}
 .lbox{background:var(--sf);border:1px solid var(--bd);border-radius:24px;padding:40px 36px;width:420px;text-align:center;box-shadow:0 0 0 1px rgba(215,254,250,.04),0 20px 60px rgba(0,0,0,.6)}
@@ -1076,14 +1077,12 @@ tbody tr:hover{background:rgba(215,254,250,.025)}
   <div class="lbox">
     <div class="llogo">🏆</div>
     <div class="ltitle">BNI <span>IDEAL</span></div>
-    <div class="lsub">Mentor Management System</div>
-    <div class="rbtn-row">
-      <button class="rbtn" onclick="sel('mc',this)"><span class="ri">👑</span>Mentor Coordinator<br><small>MC · Reports · Analytics</small></button>
-      <button class="rbtn" onclick="sel('growth',this)"><span class="ri">📈</span>Growth<br><small>Referral · Chapter Overview</small></button>
-    </div>
-    <div class="pin-row"><input type="password" id="pin" placeholder="PIN" maxlength="10" onkeydown="if(event.key==='Enter')login()"></div>
-    <button class="btn-login" id="lbtn" onclick="login()" disabled>เข้าสู่ระบบ</button>
-    <div id="lerr"></div>
+    <div class="lsub">Mentor Management System · Desktop</div>
+    <button onclick="signInWithGoogle()" id="google-login-btn" style="display:flex;align-items:center;gap:10px;background:#fff;color:#1f1f1f;border:none;border-radius:10px;padding:12px 24px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.3);transition:all .2s;margin:1.5rem auto .5rem;width:100%;justify-content:center;">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.08 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-3.59-13.46-8.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      Sign in with Google
+    </button>
+    <div id="lerr" style="color:#EF4444;font-size:13px;text-align:center;min-height:1.2em;"></div>
   </div>
 </div>
 
@@ -2410,7 +2409,7 @@ tbody tr:hover{background:rgba(215,254,250,.025)}
 <script>
 var D={mem:[],ren:[],sm:{},teams:[],msgs:[],reps:[],health:{}};
 var G={mem:[],sm:{},tasks:[],nm:[],dec:[]};
-var S={role:'',pin:'',sr:''};
+var S={role:'',token:null,sr:''};
 var mzf='all',ftf='all',rff='all',gzf='all',tsf='all';
 var memCache=[];
 var dc=null,bc=null,jc=null,mdc=null;
@@ -2421,55 +2420,79 @@ var _m360={name:'',mentor:'',repRow:0,repTeam:''};  // current modal member
 
 var SUPABASE_API='https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
 var SUPABASE_ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
+var SUPABASE_URL_AUTH='https://itwyjhlfemxsfbimshby.supabase.co';
 var API_HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_ANON};
+var _sbAuth=null;
+function getSbAuth(){if(!_sbAuth&&window.supabase){_sbAuth=window.supabase.createClient(SUPABASE_URL_AUTH,SUPABASE_ANON,{auth:{autoRefreshToken:true,persistSession:true}});}return _sbAuth;}
+function signInWithGoogle(){
+  var sb=getSbAuth();
+  if(!sb){document.getElementById('lerr').textContent='กรุณารอสักครู่แล้วลองใหม่';return;}
+  var btn=document.getElementById('google-login-btn');
+  if(btn){btn.disabled=true;btn.style.opacity='.6';}
+  sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin+window.location.pathname}});
+}
+function checkSession(){
+  var sb=getSbAuth();
+  if(!sb){document.getElementById('login').style.display='flex';return;}
+  sb.auth.getSession().then(function(res){
+    var session=res&&res.data&&res.data.session;
+    if(session&&session.access_token){
+      S.token=session.access_token;
+      ld(true);
+      gsr('getMyRole',{token:S.token},function(r){
+        ld(false);
+        if(r.ok){enterApp(r);}
+        else{document.getElementById('lerr').textContent='❌ '+(r.error||'ไม่มีสิทธิ์');document.getElementById('login').style.display='flex';}
+      });
+    }else{
+      document.getElementById('login').style.display='flex';
+    }
+  }).catch(function(){document.getElementById('login').style.display='flex';});
+  sb.auth.onAuthStateChange(function(event,session){
+    if(event==='SIGNED_IN'&&session&&session.access_token&&!S.role){
+      S.token=session.access_token;
+      ld(true);
+      gsr('getMyRole',{token:S.token},function(r){
+        ld(false);
+        if(r.ok){document.getElementById('login').style.display='none';enterApp(r);}
+        else{document.getElementById('lerr').textContent='❌ '+(r.error||'ไม่มีสิทธิ์');document.getElementById('login').style.display='flex';}
+      });
+    }
+  });
+}
 function gsr(a,p,cb){
-  fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify(Object.assign({action:a},p))}).then(function(r){return r.json();}).then(function(r){cb(r);}).catch(function(e){cb({ok:false,error:e.message});});
+  var payload=Object.assign({action:a},p||{});
+  if(S&&S.token)payload.token=S.token;
+  fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify(payload)}).then(function(r){return r.json();}).then(function(r){cb(r);}).catch(function(e){cb({ok:false,error:e.message});});
 }
 function ld(v){document.getElementById('ov').style.display=v?'flex':'none';}
 
-// ── Login ─────────────────────────────────────────
-function sel(r,el){
-  S.sr=r;
-  document.querySelectorAll('.rbtn').forEach(function(b){b.classList.remove('sel');});
-  el.classList.add('sel');
-  document.getElementById('lbtn').disabled=false;
-  // DEV MODE: auto-login on role select
-  login();
-}
-function login(){
-  // DEV MODE: skip PIN — use dummy
-  var pin='0000';
-  document.getElementById('lerr').textContent='';
-  if(!S.sr){document.getElementById('lerr').textContent='เลือก Role ก่อน';return;}
-  ld(true);
-  gsr('login',{role:S.sr,pin:pin},function(r){
-    ld(false);
-    if(!r.ok){document.getElementById('lerr').textContent=r.error||'PIN ไม่ถูกต้อง';return;}
-    S.role=S.sr;S.pin=pin;
-    // Log usage
-    gsr('logUsage',{role:S.role,team:r.teamName||S.role,platform:'desktop',logAction:'login',detail:r.displayName||S.role},function(){});
-    var nm={mc:'👑 Mentor Co',growth:'📈 Growth Committee'};
-    document.getElementById('hrole').textContent=nm[S.role]||S.role;
-    document.getElementById('login').style.display='none';
-    document.getElementById('app').style.display='flex';
-    document.getElementById(S.role==='mc'?'mc-tabs':'gr-tabs').style.display='flex';
-    document.getElementById('btn-meeting').style.display=S.role==='mc'?'':'none';
-    document.getElementById('btn-monthly-sync').style.display=S.role==='mc'?'':'none';
-    // Reset section visibility and activate the role's first section
-    document.querySelectorAll('.sec').forEach(function(s){s.classList.remove('on');});
-    document.querySelectorAll('#mc-tabs .tb,#gr-tabs .tb').forEach(function(b){b.classList.remove('on');});
-    var defSec=S.role==='mc'?'mc-ov':'gr-ov';
-    document.getElementById(defSec).classList.add('on');
-    var firstTab=document.querySelector('#'+(S.role==='mc'?'mc':'gr')+'-tabs .tb');
-    if(firstTab)firstTab.classList.add('on');
-    loadFilters();
-    startAR();
-    reload();
-  });
+// ── Login: now handled by Google OAuth ────────────────────────
+function enterApp(r){
+  S.role=r.role;S.isMC=r.isMC;S.teamName=r.teamName;S.displayName=r.displayName;
+  gsr('logUsage',{role:S.role,team:r.teamName||S.role,platform:'desktop',logAction:'login',detail:r.displayName||S.role},function(){});
+  var nm={mc:'👑 Mentor Co',growth:'📈 Growth Committee'};
+  document.getElementById('hrole').textContent=nm[S.role]||S.role;
+  document.getElementById('login').style.display='none';
+  document.getElementById('app').style.display='flex';
+  document.getElementById(S.role==='mc'?'mc-tabs':'gr-tabs').style.display='flex';
+  document.getElementById('btn-meeting').style.display=S.role==='mc'?'':'none';
+  document.getElementById('btn-monthly-sync').style.display=S.role==='mc'?'':'none';
+  document.querySelectorAll('.sec').forEach(function(s){s.classList.remove('on');});
+  document.querySelectorAll('#mc-tabs .tb,#gr-tabs .tb').forEach(function(b){b.classList.remove('on');});
+  var defSec=S.role==='mc'?'mc-ov':'gr-ov';
+  document.getElementById(defSec).classList.add('on');
+  var firstTab=document.querySelector('#'+(S.role==='mc'?'mc':'gr')+'-tabs .tb');
+  if(firstTab)firstTab.classList.add('on');
+  loadFilters();
+  startAR();
+  reload();
 }
 function logout(){
+  var sb=getSbAuth();
+  if(sb)sb.auth.signOut();
   clearInterval(arTimer);arTimer=null;
-  S={role:'',pin:'',sr:''};
+  S={role:'',token:null,sr:''};
   D={mem:[],ren:[],sm:{},teams:[],msgs:[],reps:[]};
   G={mem:[],sm:{},tasks:[],nm:[],dec:[]};
   bulkSel={};updateBulkBar();
@@ -2478,10 +2501,7 @@ function logout(){
   ['mc-tabs','gr-tabs'].forEach(function(id){document.getElementById(id).style.display='none';});
   document.getElementById('login').style.display='flex';
   document.getElementById('app').style.display='none';
-  document.getElementById('pin').value='';
   document.getElementById('lerr').textContent='';
-  document.querySelectorAll('.rbtn').forEach(function(b){b.classList.remove('sel');});
-  document.getElementById('lbtn').disabled=true;
 }
 
 // ── Load ─────────────────────────────────────────
@@ -2534,7 +2554,7 @@ function startMonthlySync(){
     var r2yFile=document.getElementById('sync-r2y-file').files[0];
     readFile(r2yFile,function(r2yCsv){
       readFile(mtlFile,function(mtlCsv){
-        gsr('monthlySync',{role:S.role,pin:S.pin,tlCsv:tlCsv||null,r2yCsv:r2yCsv||null,memberTLCsv:mtlCsv||null},function(r){
+        gsr('monthlySync',{role:S.role,tlCsv:tlCsv||null,r2yCsv:r2yCsv||null,memberTLCsv:mtlCsv||null},function(r){
           if(!r||!r.ok){
             _setSyncStep(2,'error');
             btn.textContent='❌ '+(r&&r.error||'Sync ไม่สำเร็จ');
@@ -2565,7 +2585,7 @@ function loadMC(forceRefresh){
   loadDeskLineMembers();
   var done=0;
   function chk(){done++;if(done===3){ld(false);updateBadges();}}
-  gsr('getDesktopDashboard',{role:S.role,pin:S.pin,forceRefresh:!!forceRefresh},function(r){
+  gsr('getDesktopDashboard',{role:S.role,forceRefresh:!!forceRefresh},function(r){
     if(r.ok){D.mem=r.members||[];D.ren=r.renewal||[];D.sm=r.summary||{};D.teams=r.teams||[];D.health=r.health||{};
       if(r.nmList&&r.nmList.length){G.nm=r.nmList;}
       var upLabel='อัพเดท: '+(r.updatedAt||'—')+(r.fromCache?' ⚡ cached':'');
@@ -2573,16 +2593,16 @@ function loadMC(forceRefresh){
       buildMCFilters();renderMCAll();}
     chk();
   });
-  gsr('getMessages',{role:'mc',pin:S.pin},function(r){
+  gsr('getMessages',{role:'mc'},function(r){
     if(r.ok){D.msgs=r.messages||[];}
-    gsr('getMemberList',{role:'mc',pin:S.pin},function(r2){if(r2.ok)memCache=r2.members||[];});
+    gsr('getMemberList',{role:'mc'},function(r2){if(r2.ok)memCache=r2.members||[];});
     chk();
-    gsr('getReadMsgKeys',{role:'mc',pin:S.pin},function(rk){
+    gsr('getReadMsgKeys',{role:'mc'},function(rk){
       if(rk&&rk.ok&&rk.keys){rk.keys.forEach(function(k){_readMsgs[k]=1;});try{localStorage.setItem('bni_readmsgs',JSON.stringify(_readMsgs));}catch(e){}}
       renderMsgs();updateBadges();
     });
   });
-  gsr('getReports',{role:'mc',pin:S.pin},function(r){
+  gsr('getReports',{role:'mc'},function(r){
     if(r.ok){D.reps=r.reports||[];renderRep();}
     chk();
   });
@@ -2592,19 +2612,19 @@ function loadGrowth(){
   ld(true);
   var done=0;
   function chk(){done++;if(done===3){ld(false);updateBadges();}}
-  gsr('getGrowthData',{role:'growth',pin:S.pin},function(r){
+  gsr('getGrowthData',{role:'growth'},function(r){
     if(r.ok){G.mem=r.members||[];G.sm=r.summary||{};
       document.getElementById('hup').textContent='อัพเดท: '+new Date().toLocaleTimeString('th');
       buildGrowthFilters();renderGrowthAll();}
     chk();
   });
-  gsr('getGrowthTasks',{role:'growth',pin:S.pin,statusFilter:'all'},function(r){
+  gsr('getGrowthTasks',{role:'growth',statusFilter:'all'},function(r){
     if(r.ok){G.tasks=r.tasks||[];renderTasks();}
     chk();
   });
-  gsr('getNewMembers',{role:'mc',pin:S.pin},function(r){
+  gsr('getNewMembers',{role:'mc'},function(r){
     if(r.ok){G.nm=r.members||[];renderNM();renderChapterPulse();}
-    gsr('getRiskMembers',{role:'growth',pin:S.pin},function(r2){
+    gsr('getRiskMembers',{role:'growth'},function(r2){
       if(r2.ok){G.dec=r2.risks||[];renderDec();}
     });
     chk();
@@ -2667,7 +2687,7 @@ function renderSeatMap(){
   _seatMapLoaded=true;
   el.innerHTML='<div class="sh"><h2 style="font-size:13px">💺 Seat Map — Profession & Contact Sphere</h2></div>'
     +'<div style="font-size:11px;color:var(--sub);margin-bottom:10px">กำลังโหลด...</div>';
-  gsr('getSeatMap',{role:'mc',pin:S.pin},function(r){
+  gsr('getSeatMap',{role:'mc'},function(r){
     if(!r.ok||!r.members.length){
       el.innerHTML='<div class="sh"><h2 style="font-size:13px">💺 Seat Map</h2></div>'
         +'<div style="font-size:12px;color:var(--sub);padding:16px">ไม่มีข้อมูล — ต้องมี Sheet "⚡ POWER TEAMS" (Col A=Team, D=Nick, E=Profession)</div>';
@@ -2703,7 +2723,7 @@ var _visLoaded=false;var _visData=[];
 function loadVisitorLog(force){
   if(_visLoaded&&!force)return;
   _visLoaded=true;
-  gsr('getVisitorLog',{role:'mc',pin:S.pin},function(r){
+  gsr('getVisitorLog',{role:'mc'},function(r){
     if(!r.ok){toast('❌ '+(r.error||'โหลดไม่ได้'),'err');return;}
     _visData=r.visitors||[];
     renderVisitorFunnel();renderVisitorTable();
@@ -2773,7 +2793,7 @@ function visSave(){
   var d=document.getElementById('vis-in-date').value;
   var parts=d.split('-');var thDate=parts[2]+'/'+parts[1]+'/'+parts[0];
   document.getElementById('vis-add-modal').style.display='none';
-  gsr('addVisitor',{role:'mc',pin:S.pin,date:thDate,name:name,
+  gsr('addVisitor',{role:'mc',date:thDate,name:name,
     profession:document.getElementById('vis-in-prof').value.trim(),
     invitedBy:document.getElementById('vis-in-invby').value.trim(),
     status:document.getElementById('vis-in-status').value,
@@ -2785,7 +2805,7 @@ function visSave(){
   });
 }
 function visUpdateStatus(row,val){
-  gsr('updateVisitor',{role:'mc',pin:S.pin,row:row,field:'status',value:val},function(r){
+  gsr('updateVisitor',{role:'mc',row:row,field:'status',value:val},function(r){
     if(!r.ok){toast('❌ อัปเดตไม่สำเร็จ','err');return;}
     var v=_visData.find(function(x){return x.row===row;});
     if(v)v.status=val;
@@ -2794,7 +2814,7 @@ function visUpdateStatus(row,val){
   });
 }
 function visDelete(row){
-  gsr('updateVisitor',{role:'mc',pin:S.pin,row:row,field:'delete'},function(r){
+  gsr('updateVisitor',{role:'mc',row:row,field:'delete'},function(r){
     if(!r.ok){toast('❌ ลบไม่สำเร็จ','err');return;}
     toast('✅ ลบแล้ว','ok');
     _visLoaded=false;loadVisitorLog(true);
@@ -3263,7 +3283,7 @@ function actSw(tab,btn){
 function loadUsageLog(force){
   if(_usageLoaded&&!force)return;
   document.getElementById('usage-log-wrap').innerHTML='<div style="color:var(--sub);font-size:13px;text-align:center;padding:30px">⏳ กำลังโหลด...</div>';
-  gsr('getUsageLog',{role:'mc',pin:S.pin},function(r){
+  gsr('getUsageLog',{role:'mc'},function(r){
     _usageLoaded=true;
     if(!r.ok){document.getElementById('usage-log-wrap').innerHTML='<div style="color:var(--re);padding:20px">❌ '+(r.error||'')+'</div>';return;}
     _usageData=r;
@@ -3387,7 +3407,7 @@ function deskCiSave(){
   if(!DCI.parsed.length){toast('❌ ยังไม่มีข้อมูล');return;}
   var btn=document.getElementById('dci-save-btn');
   btn.textContent='⏳ กำลังบันทึก...';btn.disabled=true;
-  gsr('saveCheckin',{role:S.role,pin:S.pin,members:DCI.parsed,date:DCI.date,week:DCI.week},function(r){
+  gsr('saveCheckin',{role:S.role,members:DCI.parsed,date:DCI.date,week:DCI.week},function(r){
     btn.textContent='💾 บันทึกลง Sheet';btn.disabled=false;
     if(r&&r.ok){toast('✅ บันทึก '+r.saved+' คน สัปดาห์ '+r.week);deskCiReset();_dciHistLoaded=false;deskCiLoadHistory();}
     else toast('❌ '+(r&&r.error||'error'));
@@ -3397,7 +3417,7 @@ var _dciHistLoaded=false;
 function deskCiLoadHistory(){
   if(_dciHistLoaded)return;
   _dciHistLoaded=true;
-  gsr('getCheckinLog',{role:S.role,pin:S.pin},function(r){
+  gsr('getCheckinLog',{role:S.role},function(r){
     if(!r||!r.ok||!r.weeks||!r.weeks.length)return;
     var sel=document.getElementById('dci-week-sel');
     sel.innerHTML=r.weeks.slice().reverse().map(function(w){return '<option value="'+esc(w.week)+'"'+(w.week===r.currentWeek?' selected':'')+'>สัปดาห์ '+esc(w.week)+' ('+w.count+' คน)</option>';}).join('');
@@ -3408,7 +3428,7 @@ function deskCiLoadHistory(){
 function deskCiLoadWeek(week){
   if(!week)return;
   document.getElementById('dci-week-list').innerHTML='<div style="color:var(--sub);font-size:12px;padding:12px">⏳ กำลังโหลด...</div>';
-  gsr('getCheckinLog',{role:S.role,pin:S.pin,week:week},function(r){
+  gsr('getCheckinLog',{role:S.role,week:week},function(r){
     if(!r||!r.ok){document.getElementById('dci-week-list').innerHTML='';return;}
     var real=r.members.filter(function(m){return m.status==='สมาชิก';}).length;
     var sub=r.members.filter(function(m){return m.status==='ตัวแทน';}).length;
@@ -3429,7 +3449,7 @@ var _onboardLoaded=false;
 function loadOnboardingStatus(force){
   if(_onboardLoaded&&!force)return;
   document.getElementById('onboard-wrap').innerHTML='<div style="color:var(--sub);font-size:12px;text-align:center;padding:20px">⏳ กำลังโหลด...</div>';
-  gsr('getOnboardingStatus',{role:S.role,pin:S.pin},function(r){
+  gsr('getOnboardingStatus',{role:S.role},function(r){
     _onboardLoaded=true;
     var wrap=document.getElementById('onboard-wrap');
     var cntEl=document.getElementById('onboard-count');
@@ -3465,7 +3485,7 @@ function loadOnboardEditor(){
   if(OE.loaded)return;
   OE.loaded=true;
   document.getElementById('oe-editor').value='⏳ กำลังโหลด...';
-  gsr('getOnboardingMessages',{role:S.role,pin:S.pin},function(r){
+  gsr('getOnboardingMessages',{role:S.role},function(r){
     if(!r||!r.ok){toast('❌ '+(r&&r.error||'error'));return;}
     OE.msgs=r.messages||{};
     OE.defaults=r.defaults||{};
@@ -3497,7 +3517,7 @@ function oeSave(){
   if(!text){toast('❌ ข้อความว่างเปล่า');return;}
   var btn=document.getElementById('oe-save-btn');
   btn.textContent='⏳ กำลังบันทึก...';btn.disabled=true;
-  gsr('saveOnboardingMessage',{role:S.role,pin:S.pin,week:OE.week,message:text},function(r){
+  gsr('saveOnboardingMessage',{role:S.role,week:OE.week,message:text},function(r){
     btn.textContent='💾 บันทึก Week นี้';btn.disabled=false;
     if(r&&r.ok){
       OE.msgs[OE.week]=text;
@@ -3512,7 +3532,7 @@ function oeResetWeek(){
   if(!confirm('รีเซ็ต Week '+OE.week+' กลับเป็นข้อความเริ่มต้น?'))return;
   var btn=document.getElementById('oe-save-btn');
   btn.textContent='⏳ กำลังรีเซ็ต...';btn.disabled=true;
-  gsr('saveOnboardingMessage',{role:S.role,pin:S.pin,week:OE.week,message:'__DEFAULT__'},function(r){
+  gsr('saveOnboardingMessage',{role:S.role,week:OE.week,message:'__DEFAULT__'},function(r){
     btn.textContent='💾 บันทึก Week นี้';btn.disabled=false;
     if(r&&r.ok){
       delete OE.msgs[OE.week];
@@ -3528,7 +3548,7 @@ function deskOnboardPreview(){
   var nick=prompt('ใส่ชื่อเล่นตัวอย่าง (เช่น Pete):','Pete');
   if(nick===null)return;
   if(!nick.trim())nick='ชื่อ';
-  gsr('getOnboardingPreview',{role:S.role,pin:S.pin,nick:nick.trim()},function(r){
+  gsr('getOnboardingPreview',{role:S.role,nick:nick.trim()},function(r){
     if(!r||!r.ok){toast('❌ '+(r&&r.error||'error'));return;}
     var weeks=r.weeks||{};
     var modal=document.createElement('div');
@@ -3569,7 +3589,7 @@ function deskOnboardPreview(){
 }
 function deskEnrollOnboard(name,skipConfirm){
   if(!skipConfirm&&!confirm('Re-enroll "'+name+'" ใหม่?\n(จะรีเซ็ตและส่ง Week 1 ทันที)'))return;
-  gsr('enrollOnboarding',{role:S.role,pin:S.pin,memberName:name},function(r){
+  gsr('enrollOnboarding',{role:S.role,memberName:name},function(r){
     if(r&&r.ok){
       toast('✅ '+(r.message||'Enrolled แล้ว'));
       loadOnboardingStatus(true);
@@ -3583,7 +3603,7 @@ function deskEnrollOnboard(name,skipConfirm){
 }
 function deskRemoveOnboard(name){
   if(!confirm('เอา "'+name+'" ออกจาก 8-week program?\n(จะหยุดส่งข้อความทันที)'))return;
-  gsr('removeOnboarding',{role:S.role,pin:S.pin,memberName:name},function(r){
+  gsr('removeOnboarding',{role:S.role,memberName:name},function(r){
     if(r&&r.ok){toast('✅ เอาออกแล้ว — หยุดส่งข้อความทันที');loadOnboardingStatus(true);}
     else toast('❌ '+(r&&r.error||'error'));
   });
@@ -3600,7 +3620,7 @@ function deskSendOnboardWeek(name, currentWeek){
     +'<select id="_ob_week_sel" style="width:100%;padding:8px;background:#1a1a2e;color:#e2e8f0;border:1px solid var(--bd);border-radius:8px;font-size:13px;margin-bottom:12px">'+opts+'</select>'
     +'<div style="display:flex;gap:8px;justify-content:flex-end">'
     +'<button class="bsm" onclick="this.closest(\'div[style*=fixed]\').remove()">ยกเลิก</button>'
-    +'<button class="bsm" style="background:rgba(245,158,11,.2);border-color:rgba(245,158,11,.4);color:#fbbf24" onclick="(function(){var w=parseInt(document.getElementById(\'_ob_week_sel\').value);document.querySelector(\'div[style*=fixed][style*=9999]\').remove();gsr(\'sendOnboardingWeek\',{role:S.role,pin:S.pin,memberName:\''+esc(name.replace(/'/g,"\\'"))+'\',week:w},function(r){if(r&&r.ok){toast(\'✅ \'+r.message);loadOnboardingStatus(true);}else toast(\'❌ \'+(r&&r.error||\'error\'));});})()">📤 ส่งเลย</button>'
+    +'<button class="bsm" style="background:rgba(245,158,11,.2);border-color:rgba(245,158,11,.4);color:#fbbf24" onclick="(function(){var w=parseInt(document.getElementById(\'_ob_week_sel\').value);document.querySelector(\'div[style*=fixed][style*=9999]\').remove();gsr(\'sendOnboardingWeek\',{role:S.role,memberName:\''+esc(name.replace(/'/g,"\\'"))+'\',week:w},function(r){if(r&&r.ok){toast(\'✅ \'+r.message);loadOnboardingStatus(true);}else toast(\'❌ \'+(r&&r.error||\'error\'));});})()">📤 ส่งเลย</button>'
     +'</div></div>';
   document.body.appendChild(modal);
 }
@@ -3633,7 +3653,7 @@ function deskEnrollNewOnboard(){
 function loadLineMembersActivity(force){
   if(_lineMembersLoaded&&!force)return;
   document.getElementById('line-members-wrap').innerHTML='<div style="color:var(--sub);font-size:12px;text-align:center;padding:20px">⏳ กำลังโหลด...</div>';
-  gsr('getLineMembersDetail',{role:S.role,pin:S.pin},function(r){
+  gsr('getLineMembersDetail',{role:S.role},function(r){
     _lineMembersLoaded=true;
     if(r&&r.ok&&r.list) {
       var m={}; r.list.forEach(function(i){m[i.name]=i.userId;}); D.lineMembers=m;
@@ -3779,7 +3799,7 @@ function nmSave(){
   if(btn.disabled)return;
   btn.disabled=true;btn.textContent='⏳ กำลังสร้างไฟล์ใน Drive...';
   var res=document.getElementById('nm-result');res.style.display='none';
-  gsr('addNewMember',{role:'mc',pin:S.pin,name:name,nick:nick,business:biz,mentor:mentor,startDate:date,email:email,phone:phone},function(r){
+  gsr('addNewMember',{role:'mc',name:name,nick:nick,business:biz,mentor:mentor,startDate:date,email:email,phone:phone},function(r){
     btn.disabled=false;btn.textContent='✅ สร้างและเพิ่มสมาชิก';
     if(!r||!r.ok){
       res.style.display='block';res.style.color='var(--re)';
@@ -3796,7 +3816,7 @@ function nmSave(){
     setTimeout(function(){
       nmClose();
       // Trigger full reload
-      gsr('getDesktopDashboard',{role:'mc',pin:S.pin},function(r2){
+      gsr('getDesktopDashboard',{role:'mc'},function(r2){
         if(r2.ok){D.mem=r2.members;D.sm=r2.summary;D.teams=r2.teams;D.ren=r2.renewal||[];}
         renderMCAll();
         _8wLoaded=false;load8WProgress();
@@ -3860,22 +3880,22 @@ function sendMsg(){
   if(!tm||!mn||!msg){res.style.color='var(--re)';res.textContent='กรุณาเลือกทีม สมาชิก และใส่ข้อความ';return;}
   document.getElementById('bsnd').disabled=true;
   res.style.color='var(--sub)';res.textContent='กำลังส่ง...';
-  gsr('getMyTeam',{role:S.role,pin:S.pin,teamName:tm},function(r){
+  gsr('getMyTeam',{role:S.role,teamName:tm},function(r){
     var row=0;
     if(r.ok&&r.members)r.members.forEach(function(m,i){if(m.name===mn)row=i+4;});
     if(!row){document.getElementById('bsnd').disabled=false;res.style.color='var(--re)';res.textContent='ไม่พบ row ของสมาชิก';return;}
-    gsr('saveMCMessage',{role:'mc',pin:S.pin,teamName:tm,row:row,message:msg},function(r2){
+    gsr('saveMCMessage',{role:'mc',teamName:tm,row:row,message:msg},function(r2){
       document.getElementById('bsnd').disabled=false;
       if(r2.ok){res.style.color='var(--gr)';res.textContent='✓ ส่งแล้ว';document.getElementById('msgTxt').value='';
-        gsr('getMessages',{role:'mc',pin:S.pin},function(r3){if(r3.ok){D.msgs=r3.messages||[];renderMsgs();}});
+        gsr('getMessages',{role:'mc'},function(r3){if(r3.ok){D.msgs=r3.messages||[];renderMsgs();}});
       }else{res.style.color='var(--re)';res.textContent='ผิดพลาด: '+(r2.error||'');}
     });
   });
 }
 var _readMsgs=(function(){try{return JSON.parse(localStorage.getItem('bni_readmsgs')||'{}');}catch(e){return{};}})();
 var _showReadMsgs=false;
-function _msgKey(m){return m.team+'|'+m.row+'|'+m.name;}
-function markMsgRead(i){var m=D.msgs[i];if(!m)return;var k=_msgKey(m);_readMsgs[k]=1;try{localStorage.setItem('bni_readmsgs',JSON.stringify(_readMsgs));}catch(e){}gsr('setMsgRead',{role:'mc',pin:S.pin,key:k},function(){});renderMsgs();updateBadges();}
+function _msgKey(m){return m.id||m.key||m.team+'|'+m.name;}
+function markMsgRead(i){var m=D.msgs[i];if(!m)return;var k=_msgKey(m);_readMsgs[k]=1;try{localStorage.setItem('bni_readmsgs',JSON.stringify(_readMsgs));}catch(e){}gsr('setMsgRead',{role:'mc',key:k},function(){});renderMsgs();updateBadges();}
 function toggleShowRead(){_showReadMsgs=!_showReadMsgs;renderMsgs();}
 function renderMsgs(){
   var msgs=D.msgs;
@@ -3899,19 +3919,19 @@ function renderMsgs(){
       '<div style="display:flex;gap:6px;margin-top:7px;flex-wrap:wrap">'+
         (!isRead?'<button class="bx pr" onclick="markMsgRead('+realIdx+')">✓ อ่านแล้ว</button>':'')+
         '<button class="bx" onclick="toggleEdit('+realIdx+')">✏️ แก้ไข</button>'+
-        '<button class="bx da" onclick="delMsg('+realIdx+',\''+esc(m.team)+'\','+m.row+')">🗑️ ลบ</button>'+
+        '<button class="bx da" onclick="delMsg('+realIdx+',\''+esc(m.id||'')+'\')">🗑️ ลบ</button>'+
       '</div>'+
       '<div class="mea" id="mea'+realIdx+'">'+
         '<textarea id="meatxt'+realIdx+'" rows="2">'+esc(m.msg)+'</textarea>'+
         '<div style="display:flex;gap:5px;margin-top:5px">'+
-          '<button class="bx pr" onclick="saveEdit('+realIdx+',\''+esc(m.team)+'\','+m.row+')">บันทึก</button>'+
+          '<button class="bx pr" onclick="saveEdit('+realIdx+',\''+esc(m.id||'')+'\')">บันทึก</button>'+
           '<button class="bx" onclick="toggleEdit('+realIdx+')">ยกเลิก</button>'+
         '</div></div></div>';
   }).join(''):'<div class="es">ไม่มีข้อความ'+(! _showReadMsgs&&msgs.length>0?' — <span onclick="toggleShowRead()" style="cursor:pointer;text-decoration:underline;color:var(--ac)">แสดงที่อ่านแล้ว</span>':'')+'</div>');
 }
 function toggleEdit(i){var el=document.getElementById('mea'+i);el.style.display=el.style.display==='block'?'none':'block';}
-function saveEdit(i,tm,row){var v=document.getElementById('meatxt'+i).value.trim();if(!v)return;gsr('saveMCMessage',{role:'mc',pin:S.pin,teamName:tm,row:row,message:v},function(r){if(r.ok){gsr('getMessages',{role:'mc',pin:S.pin},function(r2){if(r2.ok){D.msgs=r2.messages||[];renderMsgs();}});}else alert('ผิดพลาด: '+(r.error||''));});}
-function delMsg(i,tm,row){if(!confirm('ลบข้อความนี้?'))return;gsr('saveMCMessage',{role:'mc',pin:S.pin,teamName:tm,row:row,message:''},function(r){if(r.ok){gsr('getMessages',{role:'mc',pin:S.pin},function(r2){if(r2.ok){D.msgs=r2.messages||[];renderMsgs();}});}else alert('ผิดพลาด: '+(r.error||''));});}
+function saveEdit(i,id){var v=document.getElementById('meatxt'+i).value.trim();if(!v)return;gsr('updateMCMessage',{role:'mc',id:id,message:v},function(r){if(r.ok){gsr('getMessages',{role:'mc'},function(r2){if(r2.ok){D.msgs=r2.messages||[];renderMsgs();}});}else alert('ผิดพลาด: '+(r.error||''));});}
+function delMsg(i,id){if(!confirm('ลบข้อความนี้?'))return;gsr('deleteMCMessage',{role:'mc',id:id},function(r){if(r.ok){gsr('getMessages',{role:'mc'},function(r2){if(r2.ok){D.msgs=r2.messages||[];renderMsgs();}});}else alert('ผิดพลาด: '+(r.error||''));});}
 
 // ── Reports ──────────────────────────────────────
 function srf(s,el){rff=s;document.querySelectorAll('.sp2').forEach(function(b){b.classList.remove('on');});el.classList.add('on');renderRep();}
@@ -3921,9 +3941,9 @@ function bulkCloseRep(){
   if(!confirm('ปิดเคส '+pending.length+' รายการ?'))return;
   var done2=0;
   pending.forEach(function(r){
-    gsr('setReportStatus',{role:'mc',pin:S.pin,teamName:r.team,row:r.row,status:'done'},function(){
+    gsr('setReportStatus',{role:'mc',teamName:r.team,row:r.row,status:'done'},function(){
       done2++;
-      if(done2===pending.length){gsr('getReports',{role:'mc',pin:S.pin},function(r2){if(r2.ok){D.reps=r2.reports||[];renderRep();updateBadges();}});}
+      if(done2===pending.length){gsr('getReports',{role:'mc'},function(r2){if(r2.ok){D.reps=r2.reports||[];renderRep();updateBadges();}});}
     });
   });
 }
@@ -3965,10 +3985,10 @@ function renderRep(){
         '</div></div></div>';
   }).join(''):'<div class="es">ไม่มี Report ในกลุ่มนี้</div>';
 }
-function repDone(tm,row,i){gsr('setReportStatus',{role:'mc',pin:S.pin,teamName:tm,row:row,status:'done'},function(r){if(r.ok){gsr('getReports',{role:'mc',pin:S.pin},function(r2){if(r2.ok){D.reps=r2.reports||[];renderRep();}});}else alert('ผิดพลาด: '+(r.error||''));});}
-function repReopen(tm,row,i){gsr('setReportStatus',{role:'mc',pin:S.pin,teamName:tm,row:row,status:'reopened'},function(r){if(r.ok){gsr('getReports',{role:'mc',pin:S.pin},function(r2){if(r2.ok){D.reps=r2.reports||[];renderRep();}});}else alert('ผิดพลาด: '+(r.error||''));});}
+function repDone(tm,row,i){gsr('setReportStatus',{role:'mc',teamName:tm,row:row,status:'done'},function(r){if(r.ok){gsr('getReports',{role:'mc'},function(r2){if(r2.ok){D.reps=r2.reports||[];renderRep();}});}else alert('ผิดพลาด: '+(r.error||''));});}
+function repReopen(tm,row,i){gsr('setReportStatus',{role:'mc',teamName:tm,row:row,status:'reopened'},function(r){if(r.ok){gsr('getReports',{role:'mc'},function(r2){if(r2.ok){D.reps=r2.reports||[];renderRep();}});}else alert('ผิดพลาด: '+(r.error||''));});}
 function togRepR(i){var el=document.getElementById('rrf'+i);el.style.display=el.style.display==='block'?'none':'block';if(el.style.display==='block')document.getElementById('rrftxt'+i).focus();}
-function sendRepR(tm,row,i,mn){var txt=document.getElementById('rrftxt'+i).value.trim();if(!txt)return;gsr('saveReply',{role:'mc',pin:S.pin,teamName:tm,row:row,memberName:mn,reply:txt},function(r){if(r.ok){togRepR(i);gsr('getReports',{role:'mc',pin:S.pin},function(r2){if(r2.ok){D.reps=r2.reports||[];renderRep();}});}else alert('ผิดพลาด: '+(r.error||''));});}
+function sendRepR(tm,row,i,mn){var txt=document.getElementById('rrftxt'+i).value.trim();if(!txt)return;gsr('saveReply',{role:'mc',teamName:tm,row:row,memberName:mn,reply:txt},function(r){if(r.ok){togRepR(i);gsr('getReports',{role:'mc'},function(r2){if(r2.ok){D.reps=r2.reports||[];renderRep();}});}else alert('ผิดพลาด: '+(r.error||''));});}
 
 // ════ SCORECARD ═══════════════════════════════════
 var _scLoaded=false;
@@ -3978,7 +3998,7 @@ function loadDesktopScorecard(){
   _scLoaded=true;
   var el=document.getElementById('mc-sc-body');
   el.innerHTML='<div style="color:var(--sub);font-size:13px;text-align:center;padding:30px">⏳ กำลังโหลด...</div>';
-  gsr('getScorecard',{role:'mc',pin:S.pin},function(r){
+  gsr('getScorecard',{role:'mc'},function(r){
     if(!r.ok){el.innerHTML='<div style="color:var(--re);padding:20px">❌ '+(r.error||'')+'</div>';_scLoaded=false;return;}
     _scData=r;
     var sumBtn=document.getElementById('btn-lt-summary');
@@ -4076,7 +4096,7 @@ function load8WProgress(force){
   if(_8wLoaded&&!force)return;
   var el=document.getElementById('mc-8w-list');
   el.innerHTML='<div style="color:var(--sub);font-size:13px;text-align:center;padding:30px">⏳ กำลังโหลด...</div>';
-  gsr('getNewMembers',{role:'mc',pin:S.pin},function(r){
+  gsr('getNewMembers',{role:'mc'},function(r){
     if(!r.ok){el.innerHTML='<div style="color:var(--re);padding:20px">❌ '+(r.error||'')+'</div>';return;}
     _8wLoaded=true;
     render8WProgress(r.members||[]);
@@ -4089,13 +4109,13 @@ function w8Remove(rowNum,memberName){
   modal.style.display='flex';
   function doDelete(alsoMaster){
     modal.style.display='none';
-    gsr('removeNewMember',{role:S.role,pin:S.pin,rowNum:rowNum,memberName:memberName,alsoMaster:alsoMaster},function(r){
+    gsr('removeNewMember',{role:S.role,rowNum:rowNum,memberName:memberName,alsoMaster:alsoMaster},function(r){
       if(!r.ok){toast('❌ '+(r.error||'เกิดข้อผิดพลาด'),'err');return;}
       var places=r.removed&&r.removed.length?r.removed.join(', '):'NEW MEMBERS';
       toast('✅ ลบ "'+memberName+'" ออกจาก: '+places,'ok');
       _8wLoaded=false;load8WProgress();
-      gsr('getNewMembers',{role:S.role,pin:S.pin},function(r3){if(r3.ok){G.nm=r3.members||[];renderNM();}});
-      if(alsoMaster){gsr('getDesktopDashboard',{role:'mc',pin:S.pin},function(r2){if(r2.ok){D.mem=r2.members;D.sm=r2.summary;D.teams=r2.teams;D.ren=r2.renewal||[];}renderMem();renderMTTeams();});}
+      gsr('getNewMembers',{role:S.role},function(r3){if(r3.ok){G.nm=r3.members||[];renderNM();}});
+      if(alsoMaster){gsr('getDesktopDashboard',{role:'mc'},function(r2){if(r2.ok){D.mem=r2.members;D.sm=r2.summary;D.teams=r2.teams;D.ren=r2.renewal||[];}renderMem();renderMTTeams();});}
     });
   }
   document.getElementById('w8-del-nm-only').onclick=function(){doDelete(false);};
@@ -4264,7 +4284,7 @@ var _rdYN={pp:null,po:null,gr:null,ex:null};
 function rdLoad(force){
   if(_rdLoaded&&!force)return;
   document.getElementById('rd-list').innerHTML='<div style="color:var(--sub);font-size:13px;text-align:center;padding:30px">⏳ กำลังโหลด...</div>';
-  gsr('get90DayReviews',{role:'mc',pin:S.pin},function(r){
+  gsr('get90DayReviews',{role:'mc'},function(r){
     _rdLoaded=true;
     if(!r.ok){document.getElementById('rd-list').innerHTML='<div style="color:var(--re);padding:20px">❌ '+(r.error||'')+'</div>';return;}
     _rdData=r.reviews||[];
@@ -4359,7 +4379,7 @@ function rdSave(){
   var btn=document.querySelector('#rd-modal .rd-msave');
   btn.disabled=true;btn.textContent='⏳ กำลังบันทึก...';
   var payload={
-    role:'mc',pin:S.pin,
+    role:'mc',
     menteeName:menteeName,
     mentorName:document.getElementById('rd-mentor').value.trim(),
     team:document.getElementById('rd-team').value.trim(),
@@ -4393,7 +4413,7 @@ function mlLoad(force){
   var tfSel=document.getElementById('ml-filter-team');
   var teams=MENTOR_TEAMS;
   if(tfSel.options.length<=1){teams.forEach(function(t){var o=document.createElement('option');o.value=t.toLowerCase();o.textContent=t;tfSel.appendChild(o);});}
-  gsr('getMentorLogs',{role:'mc',pin:S.pin},function(r){
+  gsr('getMentorLogs',{role:'mc'},function(r){
     _mlLoaded=true;
     if(!r.ok){document.getElementById('ml-list').innerHTML='<div style="color:var(--re);padding:20px">❌ '+(r.error||'')+'</div>';return;}
     _mlData=r.logs||[];
@@ -4469,7 +4489,7 @@ function mlSave(){
   var btn=document.querySelector('#ml-modal .ml-msave');
   btn.disabled=true;btn.textContent='⏳ กำลังบันทึก...';
   gsr('saveMentorLog',{
-    role:'mc',pin:S.pin,
+    role:'mc',
     mentorName:mentorName,
     menteeName:menteeName,
     team:document.getElementById('ml-team').value.trim(),
@@ -4877,10 +4897,10 @@ function createTask(){
   var res=document.getElementById('tf-res');
   if(!tm||!mn){res.style.color='var(--re)';res.textContent='กรุณาเลือกทีมและใส่ชื่อสมาชิก';return;}
   res.style.color='var(--sub)';res.textContent='กำลังส่ง...';
-  gsr('createGrowthTask',{role:'growth',pin:S.pin,teamName:tm,memberName:mn,taskType:tp,priority:pr,note:nt},function(r){
+  gsr('createGrowthTask',{role:'growth',teamName:tm,memberName:mn,taskType:tp,priority:pr,note:nt},function(r){
     if(r.ok){res.style.color='var(--gr)';res.textContent='✓ สร้าง Task แล้ว';
       document.getElementById('tf-member').value='';document.getElementById('tf-note').value='';
-      gsr('getGrowthTasks',{role:'growth',pin:S.pin,statusFilter:'all'},function(r2){if(r2.ok){G.tasks=r2.tasks||[];renderTasks();}});
+      gsr('getGrowthTasks',{role:'growth',statusFilter:'all'},function(r2){if(r2.ok){G.tasks=r2.tasks||[];renderTasks();}});
     }else{res.style.color='var(--re)';res.textContent='ผิดพลาด: '+(r.error||'');}
   });
 }
@@ -5239,7 +5259,7 @@ function p360LoadOD(type,name){
   if(activeBtn)activeBtn.classList.add('active');
   body.innerHTML='<div style="color:var(--sub);font-size:12px;padding:12px 0">⏳ กำลังโหลด...</div>';
   if(type==='90d'){
-    gsr('get90DayReviews',{role:'mc',pin:S.pin,menteeName:name},function(r){
+    gsr('get90DayReviews',{role:'mc',menteeName:name},function(r){
       if(!r.ok){body.innerHTML='<div style="color:var(--re);font-size:12px">❌ '+(r.error||'')+'</div>';return;}
       var reviews=r.reviews||[];
       if(!reviews.length){body.innerHTML='<div style="color:var(--sub);font-size:12px;padding:8px 0">ยังไม่มี 90-Day Review — <button class="bsm" style="font-size:11px" onclick="rdOpenNew()">+ สร้างใหม่ (ใน 8W Tab)</button></div>';return;}
@@ -5257,7 +5277,7 @@ function p360LoadOD(type,name){
       }).join('');
     });
   } else {
-    gsr('getMentorLogs',{role:'mc',pin:S.pin,menteeName:name},function(r){
+    gsr('getMentorLogs',{role:'mc',menteeName:name},function(r){
       if(!r.ok){body.innerHTML='<div style="color:var(--re);font-size:12px">❌ '+(r.error||'')+'</div>';return;}
       var logs=r.logs||[];
       if(!logs.length){body.innerHTML='<div style="color:var(--sub);font-size:12px;padding:8px 0">Mentor ยังไม่มี Activity Log สำหรับสมาชิกนี้</div>';return;}
@@ -5282,14 +5302,14 @@ function m360SendMsg(){
   var res=document.getElementById('m360-msg-res');
   if(!msg){res.style.color='var(--re)';res.textContent='ใส่ข้อความก่อน';return;}
   res.style.color='var(--sub)';res.textContent='กำลังส่ง...';
-  gsr('getMyTeam',{role:'mc',pin:S.pin,teamName:_m360.mentor},function(r){
+  gsr('getMyTeam',{role:'mc',teamName:_m360.mentor},function(r){
     var row=0;if(r.ok&&r.members)r.members.forEach(function(m,i){if(m.name===_m360.name)row=i+4;});
     if(!row){res.style.color='var(--re)';res.textContent='ไม่พบ row';return;}
-    gsr('saveMCMessage',{role:'mc',pin:S.pin,teamName:_m360.mentor,row:row,message:msg},function(r2){
+    gsr('saveMCMessage',{role:'mc',teamName:_m360.mentor,row:row,message:msg},function(r2){
       if(r2.ok){
         res.style.color='var(--gr)';res.textContent='✓ ส่งแล้ว';
         document.getElementById('m360-msg-txt').value='';
-        gsr('getMessages',{role:'mc',pin:S.pin},function(r3){if(r3.ok){D.msgs=r3.messages||[];renderMsgs();updateBadges();}});
+        gsr('getMessages',{role:'mc'},function(r3){if(r3.ok){D.msgs=r3.messages||[];renderMsgs();updateBadges();}});
       }else{res.style.color='var(--re)';res.textContent='ผิดพลาด: '+(r2.error||'');}
     });
   });
@@ -5299,24 +5319,24 @@ function m360SendReply(){
   var res=document.getElementById('m360-rep-res');
   if(!txt){res.style.color='var(--re)';res.textContent='ใส่ข้อความก่อน';return;}
   res.style.color='var(--sub)';res.textContent='กำลังส่ง...';
-  gsr('saveReply',{role:'mc',pin:S.pin,teamName:_m360.repTeam,row:_m360.repRow,memberName:_m360.name,reply:txt},function(r){
+  gsr('saveReply',{role:'mc',teamName:_m360.repTeam,row:_m360.repRow,memberName:_m360.name,reply:txt},function(r){
     if(r.ok){
       res.style.color='var(--gr)';res.textContent='✓ ตอบแล้ว';
-      gsr('getReports',{role:'mc',pin:S.pin},function(r2){if(r2.ok){D.reps=r2.reports||[];renderRep();updateBadges();}});
+      gsr('getReports',{role:'mc'},function(r2){if(r2.ok){D.reps=r2.reports||[];renderRep();updateBadges();}});
     }else{res.style.color='var(--re)';res.textContent='ผิดพลาด: '+(r.error||'');}
   });
 }
 function m360Close(){
   if(!confirm('ปิดเคสของ '+_m360.name+'?'))return;
-  gsr('setReportStatus',{role:'mc',pin:S.pin,teamName:_m360.repTeam,row:_m360.repRow,status:'done'},function(r){
-    if(r.ok){closeModal();gsr('getReports',{role:'mc',pin:S.pin},function(r2){if(r2.ok){D.reps=r2.reports||[];renderRep();updateBadges();}});}
+  gsr('setReportStatus',{role:'mc',teamName:_m360.repTeam,row:_m360.repRow,status:'done'},function(r){
+    if(r.ok){closeModal();gsr('getReports',{role:'mc'},function(r2){if(r2.ok){D.reps=r2.reports||[];renderRep();updateBadges();}});}
     else alert('ผิดพลาด: '+(r.error||''));
   });
 }
 function m360Reopen(){
   if(!confirm('Reopen เคสของ '+_m360.name+'?'))return;
-  gsr('setReportStatus',{role:'mc',pin:S.pin,teamName:_m360.repTeam,row:_m360.repRow,status:'reopened'},function(r){
-    if(r.ok){closeModal();gsr('getReports',{role:'mc',pin:S.pin},function(r2){if(r2.ok){D.reps=r2.reports||[];renderRep();updateBadges();}});}
+  gsr('setReportStatus',{role:'mc',teamName:_m360.repTeam,row:_m360.repRow,status:'reopened'},function(r){
+    if(r.ok){closeModal();gsr('getReports',{role:'mc'},function(r2){if(r2.ok){D.reps=r2.reports||[];renderRep();updateBadges();}});}
     else alert('ผิดพลาด: '+(r.error||''));
   });
 }
@@ -5326,11 +5346,11 @@ function m360SendTask(){
   var nt=document.getElementById('m360-task-note').value.trim();
   var res=document.getElementById('m360-task-res');
   res.style.color='var(--sub)';res.textContent='กำลังส่ง...';
-  gsr('createGrowthTask',{role:'growth',pin:S.pin,teamName:_m360.mentor,memberName:_m360.name,taskType:tp,priority:pr,note:nt},function(r){
+  gsr('createGrowthTask',{role:'growth',teamName:_m360.mentor,memberName:_m360.name,taskType:tp,priority:pr,note:nt},function(r){
     if(r.ok){
       res.style.color='var(--gr)';res.textContent='✓ สร้าง Task แล้ว';
       document.getElementById('m360-task-note').value='';
-      gsr('getGrowthTasks',{role:'growth',pin:S.pin,statusFilter:'all'},function(r2){if(r2.ok){G.tasks=r2.tasks||[];renderTasks();updateBadges();}});
+      gsr('getGrowthTasks',{role:'growth',statusFilter:'all'},function(r2){if(r2.ok){G.tasks=r2.tasks||[];renderTasks();updateBadges();}});
     }else{res.style.color='var(--re)';res.textContent='ผิดพลาด: '+(r.error||'');}
   });
 }
@@ -5395,14 +5415,14 @@ function sendBulkMsg(){
   var done=0,total=targets.length;
   res.style.color='var(--sub)';res.textContent='กำลังส่ง 0/'+total+'...';
   targets.forEach(function(t){
-    gsr('getMyTeam',{role:'mc',pin:S.pin,teamName:t.mentor},function(r){
+    gsr('getMyTeam',{role:'mc',teamName:t.mentor},function(r){
       var row=0;
       if(r.ok&&r.members)r.members.forEach(function(m,i){if(m.name===t.name)row=i+4;});
       if(!row){done++;res.textContent='ส่งแล้ว '+done+'/'+total;return;}
-      gsr('saveMCMessage',{role:'mc',pin:S.pin,teamName:t.mentor,row:row,message:msg},function(){
+      gsr('saveMCMessage',{role:'mc',teamName:t.mentor,row:row,message:msg},function(){
         done++;res.textContent='ส่งแล้ว '+done+'/'+total;
         if(done===total){res.style.color='var(--gr)';res.textContent='✓ ส่งครบ '+total+' คน';clearBulk();
-          setTimeout(closeBulkMsg,1500);gsr('getMessages',{role:'mc',pin:S.pin},function(r2){if(r2.ok){D.msgs=r2.messages||[];renderMsgs();updateBadges();}});}
+          setTimeout(closeBulkMsg,1500);gsr('getMessages',{role:'mc'},function(r2){if(r2.ok){D.msgs=r2.messages||[];renderMsgs();updateBadges();}});}
       });
     });
   });
@@ -5845,14 +5865,14 @@ function saveCoNote(name,mentor,i){
   function tryNext(){
     if(idx>=ordered.length){res.style.color='var(--re)';res.textContent='ไม่พบสมาชิกในระบบ';toast('ไม่พบ row สมาชิก','err');return;}
     var tm=ordered[idx++];
-    gsr('getMyTeam',{role:'mc',pin:S.pin,teamName:tm},function(r){
+    gsr('getMyTeam',{role:'mc',teamName:tm},function(r){
       if(!r.ok||!r.members){tryNext();return;}
       var row=0;
       r.members.forEach(function(m,j){if(String(m.name).trim()===String(name).trim())row=j+4;});
       if(!row){tryNext();return;}
-      gsr('saveMCMessage',{role:'mc',pin:S.pin,teamName:tm,row:row,message:v},function(r2){
+      gsr('saveMCMessage',{role:'mc',teamName:tm,row:row,message:v},function(r2){
         if(r2.ok){res.style.color='var(--gr)';res.textContent='✓ บันทึกแล้ว';toast('บันทึก Coaching Note แล้ว','ok');
-          gsr('getMessages',{role:'mc',pin:S.pin},function(r3){if(r3.ok){D.msgs=r3.messages||[];renderMsgs();updateBadges();}});
+          gsr('getMessages',{role:'mc'},function(r3){if(r3.ok){D.msgs=r3.messages||[];renderMsgs();updateBadges();}});
         }else{res.style.color='var(--re)';res.textContent='ผิดพลาด: '+(r2.error||'');toast('บันทึกไม่สำเร็จ','err');}
       });
     });
@@ -6307,7 +6327,7 @@ function buildIMDGrowthData(m){
 function imdGrowthLoad(name,secIdx){
   var sec=document.getElementById('imd-s'+secIdx);
   if(sec)sec.innerHTML='<div style="text-align:center;padding:30px;color:var(--sub)">⏳ โหลด Growth Data...</div>';
-  gsr('getGrowthSheetData',{role:S.role,pin:S.pin},function(r){
+  gsr('getGrowthSheetData',{role:S.role},function(r){
     if(!r||!r.ok){
       if(sec)sec.innerHTML='<div style="color:var(--re);padding:20px;text-align:center">❌ '+(r&&r.error||'โหลดไม่ได้')+'</div>';
       return;
@@ -7429,7 +7449,7 @@ function rvLoad(){
   if(_rvLoaded)return;
   document.getElementById('rv-loading').style.display='block';
   document.getElementById('rv-content').style.display='none';
-  gsr('getGrowthSheetData',{role:S.role,pin:S.pin},function(r){
+  gsr('getGrowthSheetData',{role:S.role},function(r){
     if(!r||!r.ok){
       document.getElementById('rv-loading').innerHTML='<span style="color:var(--re)">❌ '+(r&&r.error||'โหลดไม่ได้')+'</span>';
       return;
@@ -7651,7 +7671,7 @@ function cmdLoad(force){
   if(_cmdLoaded&&!force)return;
   _cmdLoaded=true;
   document.getElementById('cmd-content').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div>';
-  gsr('getChapterRevenue',{role:S.role,pin:S.pin},function(r){
+  gsr('getChapterRevenue',{role:S.role},function(r){
     if(!r.ok){document.getElementById('cmd-content').innerHTML='<div style="color:var(--re);padding:20px">❌ '+(r.error||'')+'</div>';return;}
     _cmdData=r;
     if(r.chapterGoal) document.getElementById('cmd-goal-input').value=r.chapterGoal;
@@ -7661,7 +7681,7 @@ function cmdLoad(force){
 function cmdSetGoal(){
   var g=parseFloat(document.getElementById('cmd-goal-input').value)||0;
   if(!g){toast('❌ ใส่เป้าหมาย','err');return;}
-  gsr('setChapterGoal',{role:S.role,pin:S.pin,goal:g},function(r){
+  gsr('setChapterGoal',{role:S.role,goal:g},function(r){
     if(!r.ok){toast('❌ '+(r.error||''),'err');return;}
     toast('✅ ตั้งเป้า '+fmtBig(g)+' แล้ว','ok');
     _cmdLoaded=false;cmdLoad();
@@ -7747,7 +7767,7 @@ var _crossData=null,_crossLoaded=false;
 function crossLoad(force){
   if(_crossLoaded&&!force)return; _crossLoaded=true;
   document.getElementById('cross-content').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div>';
-  gsr('getCrossTeamSynergy',{role:S.role,pin:S.pin},function(r){
+  gsr('getCrossTeamSynergy',{role:S.role},function(r){
     if(!r.ok){document.getElementById('cross-content').innerHTML='<div style="color:var(--re);padding:20px">❌ '+(r.error||'')+'</div>';return;}
     _crossData=r; renderCross(r);
   });
@@ -7798,20 +7818,20 @@ function renderCross(r){
     +recHTML+'</div>';
 }
 function crossAssign(n1,n2,t1,t2){
-  gsr('saveCrossTeamPair',{role:S.role,pin:S.pin,nick1:n1,nick2:n2,team1:t1,team2:t2},function(r){
+  gsr('saveCrossTeamPair',{role:S.role,nick1:n1,nick2:n2,team1:t1,team2:t2},function(r){
     if(!r.ok){toast('❌ '+(r.error||''),'err');return;}
     toast('✅ Assign '+n1+' ↔ '+n2+' แล้ว','ok');
     _crossLoaded=false;crossLoad();
   });
 }
 function crossUpdateStatus(row,val){
-  gsr('saveCrossTeamPair',{role:S.role,pin:S.pin,row:row,field:'status',value:val},function(r){
+  gsr('saveCrossTeamPair',{role:S.role,row:row,field:'status',value:val},function(r){
     if(!r.ok){toast('❌ '+(r.error||''),'err');return;}
     _crossLoaded=false;crossLoad();
   });
 }
 function crossDelete(row){
-  gsr('saveCrossTeamPair',{role:S.role,pin:S.pin,row:row,field:'delete'},function(r){
+  gsr('saveCrossTeamPair',{role:S.role,row:row,field:'delete'},function(r){
     if(!r.ok){toast('❌ '+(r.error||''),'err');return;}
     toast('✅ ลบแล้ว','ok'); _crossLoaded=false;crossLoad();
   });
@@ -7822,7 +7842,7 @@ var _sprintData=null,_sprintLoaded=false;
 function sprintLoad(force){
   if(_sprintLoaded&&!force)return; _sprintLoaded=true;
   document.getElementById('sprint-content').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div>';
-  gsr('getSprintBoard',{role:S.role,pin:S.pin},function(r){
+  gsr('getSprintBoard',{role:S.role},function(r){
     if(!r.ok){document.getElementById('sprint-content').innerHTML='<div style="color:var(--re);padding:20px">❌ '+(r.error||'')+'</div>';return;}
     _sprintData=r; renderSprint(r);
   });
@@ -7843,7 +7863,7 @@ function renderSprint(r){
       +(cur.target>0?'<div style="font-size:12px;margin-bottom:4px">🎯 เป้า: <b>฿'+fmtBig(cur.target)+'</b></div>':'')
       +(cur.focus?'<div style="font-size:11px;color:var(--sub);margin-bottom:4px">👤 Focus: '+esc(cur.focus)+'</div>':'')
       +(cur.pairs?'<div style="font-size:11px;color:var(--sub);margin-bottom:8px">🔗 1-2-1: '+esc(cur.pairs)+'</div>':'')
-      +'<select onchange="sprintUpdateStatus('+cur.row+',this.value)" style="background:transparent;border:1px solid '+(stClr2[cur.status]||'var(--bd)')+';color:'+(stClr2[cur.status]||'var(--tx)')+';border-radius:6px;padding:4px 8px;font-size:11px;outline:none">'
+      +'<select onchange="sprintUpdateStatus(\''+cur.row+'\',this.value)" style="background:transparent;border:1px solid '+(stClr2[cur.status]||'var(--bd)')+';color:'+(stClr2[cur.status]||'var(--tx)')+';border-radius:6px;padding:4px 8px;font-size:11px;outline:none">'
       +['pending','in-progress','done'].map(function(s){return '<option value="'+s+'"'+(cur.status===s?' selected':'')+'>'+stLbl2[s]+'</option>';}).join('')
       +'</select></div>';
   } else {
@@ -7861,7 +7881,7 @@ function renderSprint(r){
       +'<span style="font-size:11px;color:var(--tx)">'+esc(s.team||'ทุกทีม')+'</span>'
       +(s.target>0?'<span style="font-size:11px;color:var(--ac)">฿'+fmtBig(s.target)+'</span>':'')
       +'<span style="font-size:10px;font-weight:700;color:'+sc+';margin-left:auto">'+stLbl2[s.status||'pending']+'</span>'
-      +'<button onclick="sprintDelete('+s.row+')" style="background:none;border:none;color:var(--sub);cursor:pointer;font-size:13px;padding:0 4px">🗑️</button>'
+      +'<button onclick="sprintDelete(\''+s.row+'\')" style="background:none;border:none;color:var(--sub);cursor:pointer;font-size:13px;padding:0 4px">🗑️</button>'
       +'</div>'
       +(s.focus?'<div style="font-size:10px;color:var(--sub);margin-top:4px">👤 '+esc(s.focus)+'</div>':'')
       +'</div>';
@@ -7878,19 +7898,19 @@ function sprintOpenAdd(){
   var target=parseFloat(prompt('เป้ารายเดือน (฿):','0')||'0');
   var focus=prompt('สมาชิก Focus (ชื่อ, คั่นด้วย ,):','')||'';
   var pairs=prompt('คู่ 1-2-1 (เช่น นุ่น↔ไผ่):','')||'';
-  gsr('saveSprintPlan',{role:S.role,pin:S.pin,year:y,month:m,team:name||'ทุกทีม',target:target,focus:focus,pairs:pairs},function(r){
+  gsr('saveSprintPlan',{role:S.role,year:y,month:m,team:name||'ทุกทีม',target:target,focus:focus,pairs:pairs},function(r){
     if(!r.ok){toast('❌ '+(r.error||''),'err');return;}
     toast('✅ สร้าง Sprint แล้ว','ok'); _sprintLoaded=false;sprintLoad();
   });
 }
 function sprintUpdateStatus(row,val){
-  gsr('saveSprintPlan',{role:S.role,pin:S.pin,row:row,field:'status',value:val},function(r){
+  gsr('saveSprintPlan',{role:S.role,row:row,field:'status',value:val},function(r){
     if(!r.ok){toast('❌ '+(r.error||''),'err');return;}
     _sprintLoaded=false;sprintLoad();
   });
 }
 function sprintDelete(row){
-  gsr('saveSprintPlan',{role:S.role,pin:S.pin,row:row,field:'delete'},function(r){
+  gsr('saveSprintPlan',{role:S.role,row:row,field:'delete'},function(r){
     if(!r.ok){toast('❌ '+(r.error||''),'err');return;}
     toast('✅ ลบแล้ว','ok'); _sprintLoaded=false;sprintLoad();
   });
@@ -7901,7 +7921,7 @@ var _flowData=null,_flowLoaded=false;
 function flowLoad(force){
   if(_flowLoaded&&!force)return; _flowLoaded=true;
   document.getElementById('flow-content').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div>';
-  gsr('getReferralFlow',{role:S.role,pin:S.pin},function(r){
+  gsr('getReferralFlow',{role:S.role},function(r){
     if(!r.ok){document.getElementById('flow-content').innerHTML='<div style="color:var(--re);padding:20px">❌ '+(r.error||'')+'</div>';return;}
     _flowData=r; renderFlow(r);
   });
@@ -7956,7 +7976,7 @@ var _ptMgrData=null,_ptMgrLoaded=false;
 function ptLoad(force){
   if(_ptMgrLoaded&&!force)return; _ptMgrLoaded=true;
   document.getElementById('pt-mgr-content').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div>';
-  gsr('getPTMembers',{role:S.role,pin:S.pin},function(r){
+  gsr('getPTMembers',{role:S.role},function(r){
     if(!r.ok){document.getElementById('pt-mgr-content').innerHTML='<div style="color:var(--re);padding:20px">❌ '+(r.error||'')+'</div>';return;}
     _ptMgrData=r; renderPTMgr(r);
   });
@@ -8012,7 +8032,7 @@ function ptOpenAdd(teamName){
   var tl=prompt('TL (G/Y/R):','')||'';
   var goal=parseFloat(prompt('เป้าหมาย (฿):','0')||'0');
   var recv=parseFloat(prompt('รับจริง (฿):','0')||'0');
-  gsr('savePTMember',{role:S.role,pin:S.pin,team:t,firstName:firstName,lastName:lastName,nick:nick,profession:prof,tl:tl.toUpperCase(),bniGoal:goal,recv:recv},function(r){
+  gsr('savePTMember',{role:S.role,team:t,firstName:firstName,lastName:lastName,nick:nick,profession:prof,tl:tl.toUpperCase(),bniGoal:goal,recv:recv},function(r){
     if(!r.ok){toast('❌ '+(r.error||''),'err');return;}
     toast('✅ เพิ่ม '+nick+' แล้ว','ok'); _ptMgrLoaded=false;ptLoad();
   });
@@ -8025,20 +8045,20 @@ function ptOpenEdit(row,team){
   var tl=prompt('TL (G/Y/R):','')||'';
   var goal=parseFloat(prompt('เป้าหมาย (฿):','0')||'0');
   var recv=parseFloat(prompt('รับจริง (฿):','0')||'0');
-  gsr('savePTMember',{role:S.role,pin:S.pin,row:row,team:t,firstName:firstName,nick:nick,profession:prof,tl:tl.toUpperCase(),bniGoal:goal,recv:recv},function(r){
+  gsr('savePTMember',{role:S.role,row:row,team:t,firstName:firstName,nick:nick,profession:prof,tl:tl.toUpperCase(),bniGoal:goal,recv:recv},function(r){
     if(!r.ok){toast('❌ '+(r.error||''),'err');return;}
     toast('✅ แก้ไขแล้ว','ok'); _ptMgrLoaded=false;ptLoad();
   });
 }
 function ptOpenMove(row,nick){
   var newTeam=prompt('ย้าย '+nick+' ไปทีม:','');if(!newTeam)return;
-  gsr('movePTMember',{role:S.role,pin:S.pin,row:row,newTeam:newTeam},function(r){
+  gsr('movePTMember',{role:S.role,row:row,newTeam:newTeam},function(r){
     if(!r.ok){toast('❌ '+(r.error||''),'err');return;}
     toast('✅ ย้าย '+nick+' → '+newTeam+' แล้ว','ok'); _ptMgrLoaded=false;ptLoad();
   });
 }
 function ptDelete(row,nick){
-  gsr('deletePTMember',{role:S.role,pin:S.pin,row:row},function(r){
+  gsr('deletePTMember',{role:S.role,row:row},function(r){
     if(!r.ok){toast('❌ '+(r.error||''),'err');return;}
     toast('✅ ลบ '+nick+' แล้ว','ok'); _ptMgrLoaded=false;ptLoad();
   });
@@ -8051,7 +8071,7 @@ function gshLoad(){
   if(_gshLoaded)return;
   document.getElementById('gsh-loading').style.display='block';
   document.getElementById('gsh-content').style.display='none';
-  gsr('getGrowthSheetData',{role:S.role,pin:S.pin},function(r){
+  gsr('getGrowthSheetData',{role:S.role},function(r){
     if(!r||!r.ok){
       document.getElementById('gsh-loading').innerHTML='<span style="color:var(--re)">❌ '+(r&&r.error||'โหลดไม่ได้')+'</span>';
       return;
@@ -8282,7 +8302,7 @@ function gshSaveEdit(gi,sheetRow,fields,data,origGroupName){
 
   function doFieldSave(afterCb){
     if(!updates.length){afterCb();return;}
-    gsr('updateGrowthMember',{role:S.role,pin:S.pin,sheetRow:sheetRow,updates:updates},function(r){
+    gsr('updateGrowthMember',{role:S.role,sheetRow:sheetRow,updates:updates},function(r){
       if(!r||!r.ok){btn.textContent='💾 บันทึก';btn.disabled=false;alert('❌ '+(r&&r.error||'บันทึกไม่ได้'));return;}
       afterCb();
     });
@@ -8290,7 +8310,7 @@ function gshSaveEdit(gi,sheetRow,fields,data,origGroupName){
 
   function doTeamMove(afterCb){
     if(!teamChanged){afterCb();return;}
-    gsr('moveGrowthMember',{role:S.role,pin:S.pin,sheetRow:sheetRow,targetGroup:newTeam},function(r){
+    gsr('moveGrowthMember',{role:S.role,sheetRow:sheetRow,targetGroup:newTeam},function(r){
       if(!r||!r.ok){btn.textContent='💾 บันทึก';btn.disabled=false;alert('❌ '+(r&&r.error||'ย้ายทีมไม่ได้'));return;}
       afterCb();
     });
@@ -8331,7 +8351,7 @@ function gshAddMember(gi){
   var groupName=_gshData.groups[gi].name;
   var btn=document.getElementById('gsh-msave');
   btn.textContent='⏳...';btn.disabled=true;
-  gsr('addGrowthMember',{role:S.role,pin:S.pin,name:name,nick:nick,target:target,groupName:groupName},function(r){
+  gsr('addGrowthMember',{role:S.role,name:name,nick:nick,target:target,groupName:groupName},function(r){
     btn.textContent='➕ เพิ่ม';btn.disabled=false;
     if(!r||!r.ok){alert('❌ '+(r&&r.error||'เพิ่มไม่ได้'));return;}
     gshCloseModal();
@@ -8397,13 +8417,13 @@ function doDeskSendLine() {
   var btn = document.getElementById('desk-line-send-btn');
   btn.disabled=true; btn.textContent='⏳ กำลังส่ง...';
   if (t.broadcast) {
-    gsr('sendLineBroadcast',{role:S.role,pin:S.pin,teamName:t.teamName,message:text},function(r){
+    gsr('sendLineBroadcast',{role:S.role,teamName:t.teamName,message:text},function(r){
       btn.disabled=false; btn.textContent='📤 ส่ง LINE';
       if (!r.ok){toast(r.error||'ส่งไม่สำเร็จ','err');return;}
       toast('📢 ส่งถึง '+r.sent+' คน ✅','ok'); closeDeskLine();
     });
   } else {
-    gsr('sendLineMessage',{role:S.role,pin:S.pin,memberName:t.name,message:text},function(r){
+    gsr('sendLineMessage',{role:S.role,memberName:t.name,message:text},function(r){
       btn.disabled=false; btn.textContent='📤 ส่ง LINE';
       if (!r.ok){toast(r.error||'ส่งไม่สำเร็จ','err');return;}
       toast('📲 ส่งสำเร็จ ✅','ok'); closeDeskLine();
@@ -8412,9 +8432,12 @@ function doDeskSendLine() {
 }
 
 function loadDeskLineMembers() {
-  gsr('getLineMembers',{role:S.role,pin:S.pin},function(r){
+  gsr('getLineMembers',{role:S.role},function(r){
     if(r&&r.ok) {
-      D.lineMembers=r.members||{};
+      // API returns array [{lineUserId, name, ...}] — convert to {name: lineUserId} map
+      var m={};
+      (r.members||[]).forEach(function(i){if(i.name)m[i.name]=i.lineUserId;});
+      D.lineMembers=m;
       _populateLineMemberSelects();
     }
   });
@@ -8441,7 +8464,7 @@ function deskSendDM() {
   var text   = (document.getElementById('line-dm-text').value||'').trim();
   if (!member) { toast('เลือกสมาชิกก่อนครับ','err'); return; }
   if (!text)   { toast('พิมพ์ข้อความก่อนครับ','err'); return; }
-  gsr('sendLineMessage',{role:S.role,pin:S.pin,memberName:member,message:text},function(r){
+  gsr('sendLineMessage',{role:S.role,memberName:member,message:text},function(r){
     if (!r.ok) { toast(r.error||'ส่งไม่สำเร็จ','err'); return; }
     toast('📲 ส่งถึง '+member+' แล้ว ✅','ok');
     document.getElementById('line-dm-text').value='';
@@ -8454,7 +8477,7 @@ function deskSendBroadcast() {
   if (!text) { toast('พิมพ์ข้อความก่อนครับ','err'); return; }
   var label = team || 'ทุกคน';
   if (!confirm('ส่ง Broadcast ถึง ' + label + '?')) return;
-  gsr('sendLineBroadcast',{role:S.role,pin:S.pin,teamName:team||null,message:text},function(r){
+  gsr('sendLineBroadcast',{role:S.role,teamName:team||null,message:text},function(r){
     if (!r.ok) { toast(r.error||'ส่งไม่สำเร็จ','err'); return; }
     toast('📢 ส่งถึง '+r.sent+' คน ✅','ok');
     document.getElementById('line-bc-text').value='';
@@ -8466,7 +8489,7 @@ function deskSendIntro() {
   var m2 = (document.getElementById('line-intro-m2').value||'').trim();
   if (!m1 || !m2) { toast('เลือกสมาชิก 2 คนก่อนครับ','err'); return; }
   if (m1===m2) { toast('ต้องเลือกคนละคนครับ','err'); return; }
-  gsr('sendLineIntro',{role:S.role,pin:S.pin,name1:m1,name2:m2},function(r){
+  gsr('sendLineIntro',{role:S.role,name1:m1,name2:m2},function(r){
     if (!r.ok) { toast(r.error||'ส่งไม่สำเร็จ','err'); return; }
     toast('🤝 แนะนำ '+r.sentTo.join(' & ')+' แล้ว ✅','ok');
   });
@@ -8474,7 +8497,7 @@ function deskSendIntro() {
 
 function deskTriggerCheckinReminder() {
   if (!confirm('ส่ง Check-In Reminder ถึงสมาชิกทุกคนตอนนี้เลยไหมครับ?')) return;
-  gsr('triggerCheckinReminder',{role:S.role,pin:S.pin},function(r){
+  gsr('triggerCheckinReminder',{role:S.role},function(r){
     if (r&&r.ok) toast('📅 ส่ง Reminder แล้ว ✅','ok');
     else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');
   });
@@ -8482,7 +8505,7 @@ function deskTriggerCheckinReminder() {
 
 function deskTriggerScoreAlert() {
   if (!confirm('ส่ง Low Score Alert ถึงสมาชิกที่คะแนนลด 2 เดือนติดต่อกันตอนนี้ไหมครับ?')) return;
-  gsr('triggerScoreAlert',{role:S.role,pin:S.pin},function(r){
+  gsr('triggerScoreAlert',{role:S.role},function(r){
     if (r&&r.ok) toast('⚠️ Alert ส่งแล้ว '+r.alerted+' คน ✅','ok');
     else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');
   });
@@ -8490,7 +8513,7 @@ function deskTriggerScoreAlert() {
 
 function deskTriggerAnniversary() {
   if (!confirm('ส่ง BNI Anniversary แจ้งเตือนสมาชิกที่ครบรอบใน 30 วันตอนนี้ไหมครับ?')) return;
-  gsr('triggerAnniversary',{role:S.role,pin:S.pin},function(r){
+  gsr('triggerAnniversary',{role:S.role},function(r){
     if (r&&r.ok) toast('🎂 Anniversary Alert ส่งแล้ว '+r.sent+' คน ✅','ok');
     else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');
   });
@@ -8499,7 +8522,7 @@ function deskTriggerAnniversary() {
 var _absenceLoaded = false;
 function loadAbsenceLog(force) {
   if (_absenceLoaded && !force) return;
-  gsr('getAbsenceLog',{role:S.role,pin:S.pin},function(r){
+  gsr('getAbsenceLog',{role:S.role},function(r){
     _absenceLoaded = true;
     var wrap = document.getElementById('absence-wrap');
     var cntEl = document.getElementById('absence-count');
@@ -8533,7 +8556,7 @@ function loadAbsenceLog(force) {
 function deskSetMCLineId() {
   var name = (document.getElementById('mc-line-id-member').value||'').trim();
   if (!name) { toast('เลือกชื่อก่อนครับ','err'); return; }
-  gsr('setMCLineId',{role:S.role,pin:S.pin,memberName:name},function(r){
+  gsr('setMCLineId',{role:S.role,memberName:name},function(r){
     if (!r||!r.ok) { toast(r&&r.error||'ไม่สำเร็จ','err'); return; }
     toast('✅ บันทึก LINE ID ของ '+r.name+' เป็น MC แล้ว','ok');
   });
@@ -8541,7 +8564,7 @@ function deskSetMCLineId() {
 
 function deskTriggerChapterPulse() {
   if (!confirm('ส่ง Chapter Pulse สรุปภาพรวม Chapter ให้ MC ตอนนี้เลยไหมครับ?')) return;
-  gsr('triggerChapterPulse',{role:S.role,pin:S.pin},function(r){
+  gsr('triggerChapterPulse',{role:S.role},function(r){
     if (r&&r.ok) toast('🏆 Chapter Pulse ส่งให้ MC แล้ว ✅','ok');
     else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');
   });
@@ -8551,7 +8574,7 @@ var _tracker121Loaded = false;
 function load121Tracker(force) {
   if (_tracker121Loaded && !force) return;
   document.getElementById('tracker-121-wrap').innerHTML='<div style="color:var(--sub);font-size:12px;text-align:center;padding:20px">⏳ กำลังโหลด...</div>';
-  gsr('get121Tracker',{role:S.role,pin:S.pin},function(r){
+  gsr('get121Tracker',{role:S.role},function(r){
     _tracker121Loaded = true;
     var wrap  = document.getElementById('tracker-121-wrap');
     var cntEl = document.getElementById('tracker-121-count');
@@ -8594,7 +8617,7 @@ function load121Tracker(force) {
 
 function deskTriggerLeaderboard() {
   if (!confirm('ส่ง Team Leaderboard ให้สมาชิกทุกคนตอนนี้เลยไหมครับ?')) return;
-  gsr('triggerTeamLeaderboard',{role:S.role,pin:S.pin},function(r){
+  gsr('triggerTeamLeaderboard',{role:S.role},function(r){
     if (r&&r.ok) toast('🏆 Team Leaderboard ส่งแล้ว ✅','ok');
     else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');
   });
@@ -8604,7 +8627,7 @@ var _lineIssuesLoaded = false;
 function loadLineIssues(force) {
   if (_lineIssuesLoaded && !force) return;
   document.getElementById('line-issues-wrap').innerHTML='<div style="color:var(--sub);font-size:12px;text-align:center;padding:20px">⏳ กำลังโหลด...</div>';
-  gsr('getLineIssues',{role:S.role,pin:S.pin},function(r){
+  gsr('getLineIssues',{role:S.role},function(r){
     _lineIssuesLoaded = true;
     var wrap = document.getElementById('line-issues-wrap');
     var cntEl = document.getElementById('line-issues-count');
@@ -8631,7 +8654,7 @@ function loadLineIssues(force) {
 
 function deskTriggerPostMeeting() {
   if (!confirm('ส่ง Post-Meeting Prompt หลังประชุมให้สมาชิกทุกคนตอนนี้เลยไหมครับ?')) return;
-  gsr('triggerPostMeetingPrompt',{role:S.role,pin:S.pin},function(r){
+  gsr('triggerPostMeetingPrompt',{role:S.role},function(r){
     if (r&&r.ok) toast('📋 Post-Meeting Prompt ส่งแล้ว ✅','ok');
     else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');
   });
@@ -8639,7 +8662,7 @@ function deskTriggerPostMeeting() {
 
 function deskTriggerWednesdayNudge() {
   if (!confirm('ส่ง Wednesday Nudge ให้สมาชิกที่ขาด metric ตอนนี้เลยไหมครับ?')) return;
-  gsr('triggerWednesdayNudge',{role:S.role,pin:S.pin},function(r){
+  gsr('triggerWednesdayNudge',{role:S.role},function(r){
     if (r&&r.ok) toast('⏰ Wednesday Nudge ส่งแล้ว ✅','ok');
     else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');
   });
@@ -8647,7 +8670,7 @@ function deskTriggerWednesdayNudge() {
 
 function deskSetupAllTriggers() {
   if (!confirm('ตั้งค่า Auto Trigger ทั้งหมดให้ถูกต้อง?\n(จะลบ Trigger เก่าและสร้างใหม่)')) return;
-  gsr('setupAllTriggers',{role:S.role,pin:S.pin},function(r){
+  gsr('setupAllTriggers',{role:S.role},function(r){
     if (!r||!r.ok) { toast((r&&r.error)||'เกิดข้อผิดพลาด','err'); return; }
     var msg = (r.results||[]).join('\n');
     alert('ผลการตั้งค่า Trigger:\n\n' + msg);
@@ -8657,7 +8680,7 @@ function deskSetupAllTriggers() {
 
 function deskTriggerWeeklyScore() {
   if (!confirm('ส่ง Weekly Score Card ถึงสมาชิกทุกคนตอนนี้เลยไหมครับ?')) return;
-  gsr('triggerWeeklyScorePush',{role:S.role,pin:S.pin},function(r){
+  gsr('triggerWeeklyScorePush',{role:S.role},function(r){
     if (r&&r.ok) toast('📊 Score Card ส่งแล้ว '+r.sent+' คน ✅','ok');
     else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');
   });
@@ -8665,7 +8688,7 @@ function deskTriggerWeeklyScore() {
 
 function deskTriggerMondayBrief() {
   if (!confirm('ส่ง Monday Morning Brief ให้สมาชิกทุกคนตอนนี้เลยไหมครับ?')) return;
-  gsr('triggerMondayBrief',{role:S.role,pin:S.pin},function(r){
+  gsr('triggerMondayBrief',{role:S.role},function(r){
     if (r&&r.ok) toast('🌅 Monday Brief ส่งแล้ว ✅','ok');
     else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');
   });
@@ -8673,7 +8696,7 @@ function deskTriggerMondayBrief() {
 
 function deskTriggerMonthlyRecap() {
   if (!confirm('ส่ง Monthly Recap ให้สมาชิกทุกคนตอนนี้เลย?\n(ปกติส่งอัตโนมัติจันทร์แรกของเดือน)')) return;
-  gsr('triggerMonthlyRecap',{role:S.role,pin:S.pin},function(r){
+  gsr('triggerMonthlyRecap',{role:S.role},function(r){
     if (r&&r.ok) toast('📊 Monthly Recap ส่งแล้ว ✅','ok');
     else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');
   });
@@ -8681,7 +8704,7 @@ function deskTriggerMonthlyRecap() {
 
 function deskTrigger121Reminder() {
   if (!confirm('ส่ง 1-2-1 Auto-Reminder ให้คนที่มีนัดค้างอยู่ตอนนี้เลยไหมครับ?')) return;
-  gsr('trigger121Reminder',{role:S.role,pin:S.pin},function(r){
+  gsr('trigger121Reminder',{role:S.role},function(r){
     if (r&&r.ok) toast('⏰ 1-2-1 Reminder ส่งแล้ว ✅','ok');
     else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');
   });
@@ -8694,7 +8717,7 @@ function deskMentorBroadcast() {
     ? 'ส่งข้อความนี้ไปยังสมาชิกทุกคน ('+msg.slice(0,40)+(msg.length>40?'…':'')+') ใช่ไหมครับ?'
     : 'ส่งข้อความนี้ไปยังทีม '+S.role+' ('+msg.slice(0,40)+(msg.length>40?'…':'')+') ใช่ไหมครับ?';
   if (!confirm(confirmTxt)) return;
-  gsr('mentorBroadcast',{role:S.role,pin:S.pin,message:msg},function(r){
+  gsr('mentorBroadcast',{role:S.role,message:msg},function(r){
     if (r&&r.ok) {
       toast('📢 ส่งแล้ว '+r.sent+'/'+r.total+' คน ✅','ok');
       document.getElementById('mentor-broadcast-msg').value='';
@@ -8704,7 +8727,7 @@ function deskMentorBroadcast() {
 
 function deskSetupRichMenu() {
   if (!confirm('ตั้งค่า LINE Rich Menu (เมนูถาวรที่ด้านล่าง chat)?\nต้องอัพโหลด image ผ่าน LINE OA Manager ด้วย')) return;
-  gsr('setupRichMenu',{role:S.role,pin:S.pin},function(r){
+  gsr('setupRichMenu',{role:S.role},function(r){
     if (r&&r.ok) alert('✅ Rich Menu ตั้งค่าแล้ว!\n\n'+r.note);
     else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');
   });
@@ -8802,6 +8825,7 @@ function deskSetupRichMenu() {
     }
   },500);
 })();
+window.onload=function(){checkSession();};
 </script>
 </body>
 </html>

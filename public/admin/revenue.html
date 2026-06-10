@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Revenue Goals — Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="_auth.js"></script>
+<style>
+  :root{--bg:#0a1628;--card:#0e2040;--mint:#d7fefa;--accent:#3dd6f5;--text:#e8f4f8;--muted:#7a9bb5;--red:#ff6b6b;--yellow:#ffd166;--green:#06d6a0}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Poppins',sans-serif;min-height:100vh}
+  nav{background:var(--card);border-bottom:1px solid #1a3a5c;padding:12px 24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  nav h1{font-size:18px;color:var(--mint);flex:1}
+  nav a{color:var(--muted);text-decoration:none;font-size:13px;padding:6px 12px;border-radius:6px}
+  nav a:hover,nav a.active{background:#1a3a5c;color:var(--mint)}
+  nav span{color:var(--muted);font-size:13px;margin-right:8px}
+  nav button{background:transparent;border:1px solid #2a4a6c;color:var(--muted);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px}
+  nav button:hover{color:var(--red)}
+  main{padding:24px;max-width:900px}
+  h2{font-size:16px;color:var(--mint);margin-bottom:14px}
+  .add-form{background:var(--card);border-radius:10px;padding:18px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:24px;align-items:end}
+  @media(max-width:700px){.add-form{grid-template-columns:1fr 1fr}}
+  .add-form label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+  .add-form select,.add-form input{width:100%;background:#1a3a5c;border:1px solid #2a4a6c;color:var(--text);padding:8px;border-radius:6px;font-size:13px}
+  .add-form .btn-add{background:var(--accent);color:#000;border:none;padding:9px;border-radius:6px;cursor:pointer;font-weight:600;height:36px}
+  .msg{font-size:12px;color:var(--green);min-height:18px;grid-column:1/-1}
+  table{width:100%;border-collapse:collapse;background:var(--card);border-radius:10px;overflow:hidden}
+  th,td{padding:9px 12px;text-align:left;font-size:13px;border-bottom:1px solid #1a3a5c}
+  th{color:var(--muted);font-weight:500}
+  tr:last-child td{border-bottom:none}
+  .btn-del{background:transparent;border:1px solid var(--red);color:var(--red);padding:3px 9px;border-radius:5px;cursor:pointer;font-size:11px}
+  .btn-del:hover{background:var(--red);color:#fff}
+  .loading{color:var(--muted);text-align:center;padding:40px}
+</style>
+</head>
+<body>
+<nav>
+  <h1>⚙️ BNI Admin</h1>
+  <a href="index.html">Dashboard</a>
+  <a href="members.html">Members</a>
+  <a href="issues.html">Issues</a>
+  <a href="checkin.html">Check-in</a>
+  <a href="revenue.html" class="active">Revenue</a>
+  <a href="broadcast.html">Broadcast</a>
+  <a href="settings.html">Settings</a>
+  <span id="adminName">...</span>
+  <button onclick="adminLogout()">Logout</button>
+</nav>
+<main>
+  <h2>Revenue Goals รายเดือน</h2>
+  <div class="add-form">
+    <div>
+      <label>ปี (CE)</label>
+      <input id="rYear" type="number" min="2024" max="2030">
+    </div>
+    <div>
+      <label>เดือน</label>
+      <select id="rMonth">
+        <option value="1">ม.ค.</option><option value="2">ก.พ.</option><option value="3">มี.ค.</option>
+        <option value="4">เม.ย.</option><option value="5">พ.ค.</option><option value="6">มิ.ย.</option>
+        <option value="7">ก.ค.</option><option value="8">ส.ค.</option><option value="9">ก.ย.</option>
+        <option value="10">ต.ค.</option><option value="11">พ.ย.</option><option value="12">ธ.ค.</option>
+      </select>
+    </div>
+    <div>
+      <label>เป้าหมาย (฿)</label>
+      <input id="rGoal" type="number" min="0" step="100000" placeholder="1000000">
+    </div>
+    <div>
+      <label>&nbsp;</label>
+      <button class="btn-add" onclick="saveGoal()">+ บันทึก</button>
+    </div>
+    <div style="grid-column:1/-1">
+      <label>หมายเหตุ</label>
+      <input id="rNote" type="text" placeholder="(ไม่บังคับ)">
+    </div>
+    <div class="msg" id="saveMsg"></div>
+  </div>
+
+  <div id="loading" class="loading">กำลังโหลด...</div>
+  <table id="goalsTable" style="display:none">
+    <thead><tr><th>ปี</th><th>เดือน</th><th>เป้าหมาย (฿)</th><th>หมายเหตุ</th><th>บันทึกเมื่อ</th><th></th></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</main>
+<script>
+let goals = [];
+
+async function load() {
+  await checkAdminAuth();
+  // Default form to current month
+  const now = new Date();
+  document.getElementById('rYear').value  = now.getFullYear();
+  document.getElementById('rMonth').value = now.getMonth() + 1;
+  const r = await adminCall({ action: 'getAdminRevenue' });
+  document.getElementById('loading').style.display = 'none';
+  if (!r || !r.ok) { document.getElementById('loading').style.display=''; document.getElementById('loading').textContent='❌ '+r?.error; return; }
+  goals = r.goals || [];
+  renderTable();
+}
+
+function renderTable() {
+  document.getElementById('tbody').innerHTML = goals.map(g => `
+    <tr>
+      <td>${g.year}</td>
+      <td>${g.monthLabel} (${g.month})</td>
+      <td>${fmt.thb(g.goalThb)}</td>
+      <td>${g.note||'—'}</td>
+      <td>${fmt.date(g.createdAt)}</td>
+      <td><button class="btn-del" onclick="deleteGoal('${g.id}')">ลบ</button></td>
+    </tr>`).join('');
+  document.getElementById('goalsTable').style.display = '';
+}
+
+async function saveGoal() {
+  const year    = Number(document.getElementById('rYear').value);
+  const month   = Number(document.getElementById('rMonth').value);
+  const goalThb = Number(document.getElementById('rGoal').value);
+  const note    = document.getElementById('rNote').value.trim();
+  if (!year || !month || !goalThb) { document.getElementById('saveMsg').style.color='var(--red)'; document.getElementById('saveMsg').textContent='กรุณากรอกข้อมูลให้ครบ'; return; }
+  const r = await adminCall({ action: 'saveAdminRevenue', year, month, goalThb, note });
+  if (!r || !r.ok) { document.getElementById('saveMsg').style.color='var(--red)'; document.getElementById('saveMsg').textContent='❌ '+r?.error; return; }
+  document.getElementById('saveMsg').style.color='var(--green)';
+  document.getElementById('saveMsg').textContent='✅ บันทึกแล้ว';
+  document.getElementById('rGoal').value = '';
+  document.getElementById('rNote').value = '';
+  // Reload
+  const r2 = await adminCall({ action: 'getAdminRevenue' });
+  if (r2?.ok) { goals = r2.goals||[]; renderTable(); }
+}
+
+async function deleteGoal(id) {
+  if (!confirm('ลบเป้าหมายนี้?')) return;
+  const r = await adminCall({ action: 'deleteAdminRevenue', id });
+  if (r?.ok) { goals = goals.filter(g => g.id !== id); renderTable(); }
+}
+
+load();
+</script>
+</body>
+</html>

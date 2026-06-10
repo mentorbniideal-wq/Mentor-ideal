@@ -132,7 +132,8 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
       const { data: lineRows, error } = await db
         .from('line_members')
-        .select('line_user_id, members(id, name, nickname, mentor_team)');
+        .select('line_user_id, registered_at, members(id, name, nickname, mentor_team)')
+        .order('registered_at', { ascending: false });
       if (error) return errResponse(error.message);
 
       const memberIds = ((lineRows || []) as Record<string, unknown>[]).map(r => {
@@ -154,21 +155,24 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         }
       }
 
-      const members = ((lineRows || []) as Record<string, unknown>[]).map(row => {
+      // Frontend expects: list key, userId (not lineUserId), lastScore, registeredAt
+      const list = ((lineRows || []) as Record<string, unknown>[]).map(row => {
         const m  = (row.members || {}) as Record<string, unknown>;
         const id = String(m.id || '');
         const sd = scoreMap[id] || { score: 0, tl: 'none' };
+        const regAt = row.registered_at ? new Date(String(row.registered_at)).toLocaleDateString('th-TH') : '—';
         return {
-          lineUserId: String(row.line_user_id || ''),
-          name:       String(m.name || ''),
-          nick:       String(m.nickname || ''),
-          team:       String(m.mentor_team || ''),
-          score:      sd.score,
-          tl:         sd.tl,
+          userId:       String(row.line_user_id || ''),
+          name:         String(m.name || ''),
+          nick:         String(m.nickname || ''),
+          team:         String(m.mentor_team || ''),
+          lastScore:    sd.score || null,
+          tl:           sd.tl,
+          registeredAt: regAt,
         };
       });
 
-      return jsonResponse({ ok: true, members });
+      return jsonResponse({ ok: true, list });
     }
 
     // ── SET: store MC's own LINE ID in settings ───────────────
@@ -263,25 +267,26 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
       const { data, error } = await db
         .from('line_absence_log')
-        .select('id, created_at, week_date, absence_type, sub_name, reason, members(name, nickname)')
+        .select('id, created_at, week_date, absence_type, sub_name, reason, members(name, nickname, mentor_team)')
         .order('created_at', { ascending: false })
         .limit(50);
       if (error) return errResponse(error.message);
 
-      const log = ((data || []) as Record<string, unknown>[]).map(row => {
+      const list = ((data || []) as Record<string, unknown>[]).map(row => {
         const m = (row.members || {}) as Record<string, unknown>;
+        const isSub = String(row.absence_type || '') === 'ส่ง sub';
         return {
-          memberName:   String(m.name || ''),
-          nick:         String(m.nickname || ''),
-          absenceDate:  String(row.week_date || ''),
-          absenceType:  String(row.absence_type || ''),
-          subName:      String(row.sub_name || ''),
-          notes:        String(row.reason || ''),
-          loggedAt:     String(row.created_at || ''),
+          name:       String(m.name || ''),
+          nick:       String(m.nickname || ''),
+          team:       String(m.mentor_team || ''),
+          type:       isSub ? 'ส่ง sub' : 'ลา',
+          reportedAt: String(row.created_at || '').slice(0, 16).replace('T', ' '),
+          absDate:    String(row.week_date || ''),
+          detail:     isSub ? `sub: ${row.sub_name || ''}` : String(row.reason || ''),
         };
       });
 
-      return jsonResponse({ ok: true, log });
+      return jsonResponse({ ok: true, list });
     }
 
     // ── GET: absence log (last 10) ────────────────────────────
@@ -291,25 +296,26 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
       const { data, error } = await db
         .from('line_absence_log')
-        .select('id, created_at, week_date, absence_type, sub_name, reason, members(name, nickname)')
+        .select('id, created_at, week_date, absence_type, sub_name, reason, members(name, nickname, mentor_team)')
         .order('created_at', { ascending: false })
         .limit(10);
       if (error) return errResponse(error.message);
 
-      const log = ((data || []) as Record<string, unknown>[]).map(row => {
+      const list = ((data || []) as Record<string, unknown>[]).map(row => {
         const m = (row.members || {}) as Record<string, unknown>;
+        const isSub = String(row.absence_type || '') === 'ส่ง sub';
         return {
-          memberName:  String(m.name || ''),
-          nick:        String(m.nickname || ''),
-          absenceDate: String(row.week_date || ''),
-          absenceType: String(row.absence_type || ''),
-          subName:     String(row.sub_name || ''),
-          notes:       String(row.reason || ''),
-          loggedAt:    String(row.created_at || ''),
+          name:       String(m.name || ''),
+          nick:       String(m.nickname || ''),
+          team:       String(m.mentor_team || ''),
+          type:       isSub ? 'ส่ง sub' : 'ลา',
+          reportedAt: String(row.created_at || '').slice(0, 16).replace('T', ' '),
+          absDate:    String(row.week_date || ''),
+          detail:     isSub ? `sub: ${row.sub_name || ''}` : String(row.reason || ''),
         };
       });
 
-      return jsonResponse({ ok: true, log });
+      return jsonResponse({ ok: true, list });
     }
 
     // ── GET: LINE issue reports (last 30) ─────────────────────
@@ -319,23 +325,26 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
       const { data, error } = await db
         .from('line_issues')
-        .select('id, reported_at, issue_text, status, members(name)')
+        .select('id, reported_at, resolved_at, issue_text, members(name, nickname, mentor_team)')
         .order('reported_at', { ascending: false })
         .limit(30);
       if (error) return errResponse(error.message);
 
-      const issues = ((data || []) as Record<string, unknown>[]).map(row => {
+      const list = ((data || []) as Record<string, unknown>[]).map(row => {
         const m = (row.members || {}) as Record<string, unknown>;
+        const isOpen = row.resolved_at == null;
         return {
-          id:         String(row.id || ''),
-          memberName: String(m.name || ''),
-          issueText:  String(row.issue_text || ''),
-          status:     String(row.status || ''),
-          reportedAt: String(row.reported_at || ''),
+          id:     String(row.id || ''),
+          name:   String(m.name || ''),
+          nick:   String(m.nickname || ''),
+          team:   String(m.mentor_team || ''),
+          status: isOpen ? 'รอดำเนินการ' : 'เสร็จสิ้น',
+          detail: String(row.issue_text || ''),
+          date:   String(row.reported_at || '').slice(0, 10),
         };
       });
 
-      return jsonResponse({ ok: true, issues });
+      return jsonResponse({ ok: true, list });
     }
 
     // ── ENROLL: mark member as enrolled in onboarding ─────────

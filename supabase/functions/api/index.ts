@@ -44,8 +44,9 @@ const PUBLIC_ACTIONS = new Set([
 // Mirrors dispatch() in WEBAPP.js lines 3400-3551
 const ROUTES: Record<string, string> = {
   // Auth
-  'login':    'auth',
+  'login':     'auth',
   'changePIN': 'auth',
+  'getMyRole': 'auth',
 
   // Dashboard & scores
   'getDashboard': 'dashboard', 'getDesktopDashboard': 'dashboard',
@@ -88,7 +89,7 @@ const ROUTES: Record<string, string> = {
   // Growth System
   'getGrowthData': 'growth', 'getGrowthSheetData': 'growth',
   'updateGrowthMember': 'growth', 'addGrowthMember': 'growth',
-  'moveGrowthMember': 'growth', 'getGrowthPowerTeams': 'growth',
+  'moveGrowthMember': 'growth', 'getGrowthPowerTeams': 'power-teams',
   'getRiskMembers': 'growth', 'getMentorPerformance': 'growth',
   'getMentorActivity': 'growth', 'getWeeklyActions': 'growth',
   'createGrowthTask': 'growth', 'getGrowthTasks': 'growth',
@@ -124,6 +125,7 @@ const ROUTES: Record<string, string> = {
   'createMCAssignment': 'comms', 'getMCAssignments': 'comms',
   'getMentorAssignments': 'comms', 'ackAssignment': 'comms',
   'getMessages': 'comms', 'saveMCMessage': 'comms',
+  'deleteMCMessage': 'comms', 'updateMCMessage': 'comms',
   'getReadMsgKeys': 'comms', 'setMsgRead': 'comms',
 
   // LINE Admin

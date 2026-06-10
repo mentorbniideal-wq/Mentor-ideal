@@ -81,7 +81,8 @@ export async function handleComms(p: Record<string, unknown>): Promise<Response>
       if (!auth.ok) return errResponse(auth.error!);
 
       const message    = String(p.message    || '').trim();
-      const targetRole = String(p.targetRole || 'all').trim();
+      // Frontend sends teamName; also accept targetRole as fallback
+      const targetRole = String(p.teamName || p.targetRole || 'all').trim();
 
       if (!message) return errResponse('message required');
 
@@ -91,6 +92,30 @@ export async function handleComms(p: Record<string, unknown>): Promise<Response>
       });
       if (error) return errResponse(error.message);
 
+      return jsonResponse({ ok: true });
+    }
+
+    // ── deleteMCMessage ───────────────────────────────────────
+    case 'deleteMCMessage': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const id = String(p.id || '').trim();
+      if (!id) return errResponse('id required');
+      const { error } = await db.from('mc_messages').delete().eq('id', id);
+      if (error) return errResponse(error.message);
+      return jsonResponse({ ok: true });
+    }
+
+    // ── updateMCMessage ───────────────────────────────────────
+    case 'updateMCMessage': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const id      = String(p.id      || '').trim();
+      const message = String(p.message || '').trim();
+      if (!id)      return errResponse('id required');
+      if (!message) return errResponse('message required');
+      const { error } = await db.from('mc_messages').update({ message }).eq('id', id);
+      if (error) return errResponse(error.message);
       return jsonResponse({ ok: true });
     }
 
@@ -120,10 +145,15 @@ export async function handleComms(p: Record<string, unknown>): Promise<Response>
       type MsgRow = { id: string; message: string; target_role: string; created_at: string };
       const messages = ((data || []) as MsgRow[]).map((row) => ({
         id:         row.id,
-        message:    row.message,
-        targetRole: row.target_role,
-        createdAt:  row.created_at,
         key:        row.id,            // key = id for read-tracking
+        // Frontend (index.html) reads: m.msg, m.team, m.name, m.nick
+        msg:        row.message,
+        message:    row.message,       // keep for backward compat
+        team:       row.target_role,
+        targetRole: row.target_role,   // keep for backward compat
+        name:       'MC',
+        nick:       '',
+        createdAt:  row.created_at,
       }));
 
       return jsonResponse({ ok: true, messages });
@@ -243,14 +273,17 @@ export async function handleComms(p: Record<string, unknown>): Promise<Response>
       };
 
       const assignments = ((data || []) as AssignRow[]).map((row) => ({
-        id:             row.id,
-        mentorTeam:     row.mentor_team     ?? '',
-        text:           row.assignment_text,
-        dueDate:        row.due_date        ?? null,
+        id:         row.id,
+        row:        row.id,   // frontend uses a.row for ackAssignment onclick
+        mentor:     row.mentor_team ?? '',
+        message:    row.assignment_text,
+        dueDate:    row.due_date ?? null,
+        doneAt:     row.acknowledged_at ?? null,
         acknowledgedAt: row.acknowledged_at ?? null,
-        createdAt:      row.created_at,
-        memberName:     row.member?.name    ?? null,
-        memberNick:     row.member?.nickname ?? null,
+        status:     row.acknowledged_at ? 'done' : 'pending',
+        createdAt:  row.created_at,
+        memberName: row.member?.name   ?? null,
+        memberNick: row.member?.nickname ?? null,
       }));
 
       return jsonResponse({ ok: true, assignments });
@@ -295,14 +328,17 @@ export async function handleComms(p: Record<string, unknown>): Promise<Response>
       };
 
       const assignments = ((data || []) as AssignRow[]).map((row) => ({
-        id:             row.id,
-        mentorTeam:     row.mentor_team     ?? '',
-        text:           row.assignment_text,
-        dueDate:        row.due_date        ?? null,
+        id:         row.id,
+        row:        row.id,   // frontend uses a.row for ackAssignment onclick
+        mentor:     row.mentor_team ?? '',
+        message:    row.assignment_text,
+        dueDate:    row.due_date ?? null,
+        doneAt:     row.acknowledged_at ?? null,
         acknowledgedAt: row.acknowledged_at ?? null,
-        createdAt:      row.created_at,
-        memberName:     row.member?.name    ?? null,
-        memberNick:     row.member?.nickname ?? null,
+        status:     row.acknowledged_at ? 'done' : 'pending',
+        createdAt:  row.created_at,
+        memberName: row.member?.name   ?? null,
+        memberNick: row.member?.nickname ?? null,
       }));
 
       return jsonResponse({ ok: true, assignments });
@@ -314,7 +350,7 @@ export async function handleComms(p: Record<string, unknown>): Promise<Response>
       const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const assignmentId = String(p.assignmentId || p.id || '').trim();
+      const assignmentId = String(p.row || p.assignmentId || p.id || '').trim();
       if (!assignmentId) return errResponse('assignmentId required');
 
       const { error } = await db

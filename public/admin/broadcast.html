@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Broadcast — Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="_auth.js"></script>
+<style>
+  :root{--bg:#0a1628;--card:#0e2040;--mint:#d7fefa;--accent:#3dd6f5;--text:#e8f4f8;--muted:#7a9bb5;--red:#ff6b6b;--yellow:#ffd166;--green:#06d6a0}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Poppins',sans-serif;min-height:100vh}
+  nav{background:var(--card);border-bottom:1px solid #1a3a5c;padding:12px 24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  nav h1{font-size:18px;color:var(--mint);flex:1}
+  nav a{color:var(--muted);text-decoration:none;font-size:13px;padding:6px 12px;border-radius:6px}
+  nav a:hover,nav a.active{background:#1a3a5c;color:var(--mint)}
+  nav span{color:var(--muted);font-size:13px;margin-right:8px}
+  nav button{background:transparent;border:1px solid #2a4a6c;color:var(--muted);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px}
+  nav button:hover{color:var(--red)}
+  main{padding:24px;max-width:900px}
+  h2{font-size:16px;color:var(--mint);margin-bottom:14px}
+  .compose{background:var(--card);border-radius:10px;padding:20px;margin-bottom:24px}
+  .compose label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;margin-top:14px}
+  .compose label:first-child{margin-top:0}
+  .compose input,.compose textarea,.compose select{width:100%;background:#1a3a5c;border:1px solid #2a4a6c;color:var(--text);padding:9px;border-radius:6px;font-size:13px}
+  .compose textarea{height:120px;resize:vertical}
+  .char-count{text-align:right;font-size:11px;color:var(--muted);margin-top:3px}
+  .compose-btns{display:flex;gap:10px;margin-top:16px;align-items:center}
+  .btn-send{background:var(--accent);color:#000;border:none;padding:10px 24px;border-radius:7px;cursor:pointer;font-weight:700;font-size:14px}
+  .btn-send:disabled{opacity:.5;cursor:not-allowed}
+  .send-msg{font-size:13px;min-height:20px}
+  table{width:100%;border-collapse:collapse;background:var(--card);border-radius:10px;overflow:hidden}
+  th,td{padding:9px 12px;text-align:left;font-size:12px;border-bottom:1px solid #1a3a5c}
+  th{color:var(--muted);font-weight:500}
+  tr:last-child td{border-bottom:none}
+  .badge-sent{color:var(--green);font-size:11px}
+  .badge-fail{color:var(--red);font-size:11px}
+  .msg-preview{max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+  .loading{color:var(--muted);text-align:center;padding:40px}
+</style>
+</head>
+<body>
+<nav>
+  <h1>⚙️ BNI Admin</h1>
+  <a href="index.html">Dashboard</a>
+  <a href="members.html">Members</a>
+  <a href="issues.html">Issues</a>
+  <a href="checkin.html">Check-in</a>
+  <a href="revenue.html">Revenue</a>
+  <a href="broadcast.html" class="active">Broadcast</a>
+  <a href="settings.html">Settings</a>
+  <span id="adminName">...</span>
+  <button onclick="adminLogout()">Logout</button>
+</nav>
+<main>
+  <h2>ส่งข้อความ LINE</h2>
+  <div class="compose">
+    <label>หัวข้อ (ไม่บังคับ)</label>
+    <input id="bTitle" type="text" placeholder="เช่น 📢 แจ้งข่าวประจำสัปดาห์">
+    <label>ข้อความ</label>
+    <textarea id="bMsg" oninput="updateChar()" placeholder="พิมพ์ข้อความที่จะส่ง..."></textarea>
+    <div class="char-count"><span id="charCount">0</span>/500 ตัวอักษร</div>
+    <label>กลุ่มเป้าหมาย</label>
+    <select id="bScope">
+      <option value="all">ทุกคน (Broadcast)</option>
+      <option value="member">สมาชิก</option>
+      <option value="mentor">Mentors</option>
+      <option value="specific">ระบุ User ID</option>
+    </select>
+    <div id="userIdRow" style="display:none;margin-top:10px">
+      <label>LINE User ID</label>
+      <input id="bUserId" type="text" placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+    </div>
+    <div class="compose-btns">
+      <button class="btn-send" id="sendBtn" onclick="sendBroadcast()">📤 ส่งข้อความ</button>
+      <div class="send-msg" id="sendMsg"></div>
+    </div>
+  </div>
+
+  <h2>ประวัติการส่ง</h2>
+  <div id="loading" class="loading">กำลังโหลด...</div>
+  <table id="logTable" style="display:none">
+    <thead><tr><th>เวลา</th><th>หัวข้อ</th><th>ข้อความ</th><th>กลุ่ม</th><th>LINE</th></tr></thead>
+    <tbody id="logTbody"></tbody>
+  </table>
+</main>
+<script>
+function updateChar() {
+  const n = document.getElementById('bMsg').value.length;
+  document.getElementById('charCount').textContent = n;
+  document.getElementById('charCount').style.color = n > 450 ? 'var(--red)' : 'var(--muted)';
+}
+
+document.getElementById('bScope').addEventListener('change', function() {
+  document.getElementById('userIdRow').style.display = this.value === 'specific' ? '' : 'none';
+});
+
+async function sendBroadcast() {
+  const message     = document.getElementById('bMsg').value.trim();
+  const title       = document.getElementById('bTitle').value.trim();
+  const targetScope = document.getElementById('bScope').value;
+  const targetUserId= targetScope === 'specific' ? document.getElementById('bUserId').value.trim() : '';
+
+  if (!message) { setMsg('กรุณาพิมพ์ข้อความ', 'var(--red)'); return; }
+  if (targetScope === 'specific' && !targetUserId) { setMsg('กรุณาระบุ LINE User ID', 'var(--red)'); return; }
+
+  const btn = document.getElementById('sendBtn');
+  btn.disabled = true;
+  setMsg('กำลังส่ง...', 'var(--muted)');
+
+  const r = await adminCall({ action: 'sendAdminBroadcast', message, title, targetScope, targetUserId });
+  btn.disabled = false;
+  if (!r || !r.ok) { setMsg('❌ ' + (r?.error||'ส่งไม่สำเร็จ'), 'var(--red)'); return; }
+
+  const lineStatus = r.lineDelivered ? '✅ ส่ง LINE สำเร็จ' : '⚠️ บันทึกแล้ว (LINE ยังไม่ได้ตั้งค่า)';
+  setMsg(lineStatus, r.lineDelivered ? 'var(--green)' : 'var(--yellow)');
+  document.getElementById('bMsg').value  = '';
+  document.getElementById('bTitle').value= '';
+  updateChar();
+  loadHistory();
+}
+
+function setMsg(txt, color) {
+  const el = document.getElementById('sendMsg');
+  el.textContent = txt; el.style.color = color;
+}
+
+async function loadHistory() {
+  const r = await adminCall({ action: 'getAdminBroadcasts' });
+  document.getElementById('loading').style.display = 'none';
+  if (!r || !r.ok) return;
+  document.getElementById('logTbody').innerHTML = (r.broadcasts||[]).map(b => `
+    <tr>
+      <td>${fmt.date(b.sent_at)}</td>
+      <td>${b.title||'—'}</td>
+      <td class="msg-preview">${b.message}</td>
+      <td>${b.target_scope||'all'}</td>
+      <td>${b.line_delivered ? '<span class="badge-sent">✅ สำเร็จ</span>' : '<span class="badge-fail">❌ ยังไม่ได้ส่ง</span>'}</td>
+    </tr>`).join('');
+  document.getElementById('logTable').style.display = '';
+}
+
+async function init() {
+  await checkAdminAuth();
+  loadHistory();
+}
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Members — Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="_auth.js"></script>
+<style>
+  :root{--bg:#0a1628;--card:#0e2040;--mint:#d7fefa;--accent:#3dd6f5;--text:#e8f4f8;--muted:#7a9bb5;--red:#ff6b6b;--yellow:#ffd166;--green:#06d6a0}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Poppins',sans-serif;min-height:100vh}
+  nav{background:var(--card);border-bottom:1px solid #1a3a5c;padding:12px 24px;display:flex;align-items:center;gap:12px}
+  nav h1{font-size:18px;color:var(--mint);flex:1}
+  nav a{color:var(--muted);text-decoration:none;font-size:13px;padding:6px 12px;border-radius:6px;transition:.15s}
+  nav a:hover,nav a.active{background:#1a3a5c;color:var(--mint)}
+  nav span{color:var(--muted);font-size:13px;margin-right:8px}
+  nav button{background:transparent;border:1px solid #2a4a6c;color:var(--muted);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px}
+  nav button:hover{color:var(--red)}
+  main{padding:24px}
+  h2{font-size:16px;color:var(--mint);margin-bottom:14px}
+  .toolbar{display:flex;gap:10px;margin-bottom:16px;align-items:center}
+  .toolbar input{flex:1;background:#1a3a5c;border:1px solid #2a4a6c;color:var(--text);padding:8px 12px;border-radius:6px;font-size:13px}
+  table{width:100%;border-collapse:collapse;background:var(--card);border-radius:10px;overflow:hidden}
+  th,td{padding:9px 12px;text-align:left;font-size:13px;border-bottom:1px solid #1a3a5c}
+  th{color:var(--muted);font-weight:500}
+  tr:last-child td{border-bottom:none}
+  .pct-bar{height:6px;background:#1a3a5c;border-radius:3px;overflow:hidden;margin-top:3px}
+  .pct-fill{height:100%;border-radius:3px;transition:width .3s}
+  .btn-edit{background:transparent;border:1px solid var(--accent);color:var(--accent);padding:4px 10px;border-radius:5px;cursor:pointer;font-size:12px}
+  .btn-edit:hover{background:var(--accent);color:#000}
+  .crisis-normal{color:var(--green)}
+  .crisis-watch{color:var(--yellow)}
+  .crisis-critical{color:var(--red)}
+  /* Modal */
+  .modal-bg{display:none;position:fixed;inset:0;background:#0008;z-index:100;align-items:center;justify-content:center}
+  .modal-bg.show{display:flex}
+  .modal{background:var(--card);border-radius:12px;padding:24px;width:360px;max-width:95vw}
+  .modal h3{color:var(--mint);margin-bottom:16px}
+  .modal label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-top:12px}
+  .modal input,.modal textarea{width:100%;background:#1a3a5c;border:1px solid #2a4a6c;color:var(--text);padding:8px;border-radius:6px;font-size:13px}
+  .modal textarea{height:70px;resize:vertical}
+  .modal-btns{display:flex;gap:10px;margin-top:18px}
+  .btn-save{background:var(--accent);color:#000;border:none;padding:9px 20px;border-radius:6px;cursor:pointer;font-weight:600}
+  .btn-cancel{background:transparent;border:1px solid #2a4a6c;color:var(--muted);padding:9px 16px;border-radius:6px;cursor:pointer}
+  .loading{color:var(--muted);text-align:center;padding:40px}
+  .status-msg{font-size:12px;color:var(--green);margin-top:8px;min-height:18px}
+</style>
+</head>
+<body>
+<nav>
+  <h1>⚙️ BNI Admin</h1>
+  <a href="index.html">Dashboard</a>
+  <a href="members.html" class="active">Members</a>
+  <a href="issues.html">Issues</a>
+  <a href="checkin.html">Check-in</a>
+  <a href="revenue.html">Revenue</a>
+  <a href="broadcast.html">Broadcast</a>
+  <a href="settings.html">Settings</a>
+  <span id="adminName">...</span>
+  <button onclick="adminLogout()">Logout</button>
+</nav>
+<main>
+  <h2>Growth Referral Members</h2>
+  <div class="toolbar">
+    <input type="text" id="searchInput" placeholder="ค้นหาชื่อ..." oninput="renderTable()">
+  </div>
+  <div id="loading" class="loading">กำลังโหลด...</div>
+  <table id="membersTable" style="display:none">
+    <thead><tr>
+      <th>#</th><th>ชื่อ</th><th>Nick</th><th>Group</th>
+      <th>Target (฿)</th><th>Received (฿)</th><th>% บรรลุ</th><th>Note</th><th></th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</main>
+
+<!-- Edit modal -->
+<div class="modal-bg" id="editModal">
+  <div class="modal">
+    <h3>แก้ไขข้อมูล</h3>
+    <label>Nick</label><input id="eNick" type="text">
+    <label>Target (฿)</label><input id="eTarget" type="number">
+    <label>Received (฿)</label><input id="eReceived" type="number">
+    <label>Note</label><textarea id="eNote"></textarea>
+    <div class="modal-btns">
+      <button class="btn-save" onclick="saveEdit()">บันทึก</button>
+      <button class="btn-cancel" onclick="closeModal()">ยกเลิก</button>
+    </div>
+    <div class="status-msg" id="saveStatus"></div>
+  </div>
+</div>
+
+<script>
+let allMembers = [];
+let editingId  = null;
+
+async function load() {
+  await checkAdminAuth();
+  const r = await adminCall({ action: 'getAdminMembers' });
+  if (!r || !r.ok) { document.getElementById('loading').textContent = '❌ ' + (r?.error||'ไม่สามารถโหลดข้อมูล'); return; }
+  allMembers = r.members || [];
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('membersTable').style.display = '';
+  renderTable();
+}
+
+function renderTable() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const filtered = q ? allMembers.filter(m => (m.name+m.nick).toLowerCase().includes(q)) : allMembers;
+  const CRISIS_COLOR = { normal:'crisis-normal', watch:'crisis-watch', critical:'crisis-critical' };
+  document.getElementById('tbody').innerHTML = filtered.map(m => {
+    const barColor = m.pct >= 80 ? '#06d6a0' : m.pct >= 40 ? '#ffd166' : '#ff6b6b';
+    const cls = CRISIS_COLOR[m.crisis] || '';
+    return `<tr>
+      <td>${m.seqNo||''}</td>
+      <td>${m.name}</td>
+      <td>${m.nick||''}</td>
+      <td>${m.group||'—'}</td>
+      <td>${fmt.thb(m.target)}</td>
+      <td>${fmt.thb(m.received)}</td>
+      <td class="${cls}">${m.pct}%
+        <div class="pct-bar"><div class="pct-fill" style="width:${Math.min(m.pct,100)}%;background:${barColor}"></div></div>
+      </td>
+      <td>${m.note||''}</td>
+      <td><button class="btn-edit" onclick="openEdit('${m.id}')">แก้ไข</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function openEdit(id) {
+  const m = allMembers.find(x => x.id === id);
+  if (!m) return;
+  editingId = id;
+  document.getElementById('eNick').value     = m.nick || '';
+  document.getElementById('eTarget').value   = m.target || 0;
+  document.getElementById('eReceived').value = m.received || 0;
+  document.getElementById('eNote').value     = m.note || '';
+  document.getElementById('saveStatus').textContent = '';
+  document.getElementById('editModal').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('editModal').classList.remove('show');
+  editingId = null;
+}
+
+async function saveEdit() {
+  if (!editingId) return;
+  const payload = {
+    action: 'updateAdminMember', id: editingId,
+    nickname:     document.getElementById('eNick').value.trim(),
+    target_thb:   Number(document.getElementById('eTarget').value) || 0,
+    received_thb: Number(document.getElementById('eReceived').value) || 0,
+    note:         document.getElementById('eNote').value.trim(),
+  };
+  const r = await adminCall(payload);
+  if (!r || !r.ok) { document.getElementById('saveStatus').style.color='var(--red)'; document.getElementById('saveStatus').textContent = '❌ ' + (r?.error||'บันทึกไม่สำเร็จ'); return; }
+  document.getElementById('saveStatus').textContent = '✅ บันทึกแล้ว';
+  // Update local data
+  const m = allMembers.find(x => x.id === editingId);
+  if (m) {
+    m.nick     = payload.nickname;
+    m.target   = payload.target_thb;
+    m.received = payload.received_thb;
+    m.note     = payload.note;
+    m.pct      = m.target > 0 ? Math.round(m.received / m.target * 100) : 0;
+    m.crisis   = m.pct >= 80 ? 'normal' : m.pct >= 40 ? 'watch' : 'critical';
+  }
+  setTimeout(() => { closeModal(); renderTable(); }, 700);
+}
+
+load();
+</script>
+</body>
+</html>

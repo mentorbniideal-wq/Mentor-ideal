@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin — BNI IDEAL</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="_auth.js"></script>
+<style>
+  :root{--bg:#0a1628;--card:#0e2040;--mint:#d7fefa;--accent:#3dd6f5;--text:#e8f4f8;--muted:#7a9bb5;--red:#ff6b6b;--yellow:#ffd166;--green:#06d6a0}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Poppins',sans-serif;min-height:100vh}
+  nav{background:var(--card);border-bottom:1px solid #1a3a5c;padding:12px 24px;display:flex;align-items:center;gap:12px}
+  nav h1{font-size:18px;color:var(--mint);flex:1}
+  nav a{color:var(--muted);text-decoration:none;font-size:13px;padding:6px 12px;border-radius:6px;transition:.15s}
+  nav a:hover,nav a.active{background:#1a3a5c;color:var(--mint)}
+  nav span{color:var(--muted);font-size:13px;margin-right:8px}
+  nav button{background:transparent;border:1px solid #2a4a6c;color:var(--muted);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px}
+  nav button:hover{color:var(--red)}
+  main{padding:24px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:28px}
+  .card{background:var(--card);border-radius:10px;padding:20px;text-align:center}
+  .card .num{font-size:36px;font-weight:700;margin-bottom:4px}
+  .card .lbl{color:var(--muted);font-size:13px}
+  .card.danger .num{color:var(--red)}
+  .card.warn .num{color:var(--yellow)}
+  .card.ok .num{color:var(--green)}
+  .card.all .num{color:var(--accent)}
+  h2{font-size:16px;color:var(--mint);margin-bottom:14px}
+  .team-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+  .team-box{background:var(--card);border-radius:10px;padding:16px}
+  .team-box h3{font-size:14px;color:var(--accent);margin-bottom:12px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:7px 10px;text-align:left;font-size:13px;border-bottom:1px solid #1a3a5c}
+  th{color:var(--muted);font-weight:500}
+  .tl-green{color:var(--green)}
+  .tl-yellow{color:var(--yellow)}
+  .tl-red{color:var(--red)}
+  .tl-black{color:#aaa}
+  .has-issue{color:var(--yellow);font-size:11px;background:#2a1a00;border-radius:4px;padding:1px 6px}
+  .loading{color:var(--muted);text-align:center;padding:40px}
+</style>
+</head>
+<body>
+<nav>
+  <h1>⚙️ BNI Admin</h1>
+  <a href="index.html" class="active">Dashboard</a>
+  <a href="members.html">Members</a>
+  <a href="issues.html">Issues</a>
+  <a href="checkin.html">Check-in</a>
+  <a href="revenue.html">Revenue</a>
+  <a href="broadcast.html">Broadcast</a>
+  <a href="settings.html">Settings</a>
+  <span id="adminName">...</span>
+  <button onclick="adminLogout()">Logout</button>
+</nav>
+<main>
+  <div id="loading" class="loading">กำลังโหลด...</div>
+  <div id="content" style="display:none">
+    <div class="cards" id="summaryCards"></div>
+    <h2>แยกตามทีม Mentor</h2>
+    <div class="team-grid" id="teamGrid"></div>
+  </div>
+</main>
+<script>
+const TL_CLASS = {green:'tl-green',yellow:'tl-yellow',red:'tl-red',black:'tl-black'};
+
+async function load() {
+  await checkAdminAuth();
+  const r = await adminCall({ action: 'getAdminDashboard' });
+  if (!r || !r.ok) { document.getElementById('loading').textContent = '❌ ' + (r?.error||'ไม่สามารถโหลดข้อมูล'); return; }
+
+  const { summary, teams } = r;
+  document.getElementById('summaryCards').innerHTML = `
+    <div class="card all"><div class="num">${summary.total}</div><div class="lbl">สมาชิกทั้งหมด</div></div>
+    <div class="card danger"><div class="num">${summary.critical}</div><div class="lbl">วิกฤต (แดง/ดำ)</div></div>
+    <div class="card warn"><div class="num">${summary.watch}</div><div class="lbl">เฝ้าระวัง (เหลือง)</div></div>
+    <div class="card ok"><div class="num">${summary.normal}</div><div class="lbl">ปกติ (เขียว)</div></div>
+  `;
+
+  const grid = document.getElementById('teamGrid');
+  grid.innerHTML = '';
+  for (const [teamName, members] of Object.entries(teams)) {
+    const rows = members.map(m => {
+      const cls = TL_CLASS[m.tl] || '';
+      const issueBadge = m.hasIssue ? '<span class="has-issue">Issue</span>' : '';
+      return `<tr>
+        <td>${m.nick||m.name}</td>
+        <td class="${cls}">${m.score||0}</td>
+        <td>${m.absent||0}</td>
+        <td>${issueBadge}</td>
+      </tr>`;
+    }).join('');
+    const box = document.createElement('div');
+    box.className = 'team-box';
+    box.innerHTML = `<h3>${teamName}</h3>
+      <table>
+        <thead><tr><th>ชื่อ</th><th>คะแนน</th><th>ขาด</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    grid.appendChild(box);
+  }
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('content').style.display = '';
+}
+
+load();
+</script>
+</body>
+</html>
