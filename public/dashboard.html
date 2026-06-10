@@ -925,6 +925,7 @@ body.light .gs-drop,body.light .mbox,body.light .bk-box,body.light #meeting{back
     <button class="bsm" onclick="toggleLight()" title="Light/Dark">☀️</button>
     <button class="bsm" id="btn-monthly-sync" onclick="openSyncModal()" style="display:none;background:rgba(240,180,41,.15);border-color:rgba(240,180,41,.4);color:#F0B429;font-weight:700;" title="Monthly Sync วันที่ 5">📅 Sync</button>
     <button class="bsm bac" onclick="manualReload()">↺ รีเฟรช</button>
+    <button onclick="window.open('index.html','_blank')" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818CF8;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">📱 Mobile</button>
     <button class="bsm blo" onclick="logout()">ออก</button>
   </header>
 
@@ -2252,13 +2253,14 @@ function sel(r,el){
   document.querySelectorAll('.rbtn').forEach(function(b){b.classList.remove('sel');});
   el.classList.add('sel');
   document.getElementById('lbtn').disabled=false;
-  document.getElementById('pin').focus();
+  // DEV MODE: auto-login on role select
+  login();
 }
 function login(){
-  var pin=document.getElementById('pin').value.trim();
+  // DEV MODE: skip PIN — use dummy
+  var pin='0000';
   document.getElementById('lerr').textContent='';
   if(!S.sr){document.getElementById('lerr').textContent='เลือก Role ก่อน';return;}
-  if(!pin){document.getElementById('pin').focus();return;}
   ld(true);
   gsr('login',{role:S.sr,pin:pin},function(r){
     ld(false);

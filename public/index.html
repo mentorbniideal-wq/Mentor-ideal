@@ -1166,7 +1166,7 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
 <div class="app" id="mcApp">
   <div class="hdr">
     <div class="hdr-l"><div class="hdr-logo">BNI <span>IDEAL</span></div><div class="hdr-role" id="mcRoleLbl">MC</div></div>
-    <div style="display:flex;align-items:center;"><button class="notif-bell-btn" id="notif-bell" onclick="openNotifPanel()">🔔<span class="notif-count" id="notif-total" style="display:none">0</span></button><button class="theme-btn" onclick="toggleTheme()" id="themeBtn">☀️</button><button class="btn-out" onclick="logout()">ออก</button></div>
+    <div style="display:flex;align-items:center;gap:4px;"><button class="notif-bell-btn" id="notif-bell" onclick="openNotifPanel()">🔔<span class="notif-count" id="notif-total" style="display:none">0</span></button><button onclick="window.open('dashboard.html','_blank')" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818CF8;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif;">💻 Desktop</button><button class="theme-btn" onclick="toggleTheme()" id="themeBtn">☀️</button><button class="btn-out" onclick="logout()">ออก</button></div>
   </div>
   <div class="tabs">
     <button class="tb on" onclick="mct('dashboard',this)"><span class="ti">📊</span>Dashboard</button>
@@ -1584,7 +1584,7 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
 <div class="app" id="growthApp">
   <div class="hdr">
     <div class="hdr-l"><div class="hdr-logo">BNI <span>IDEAL</span></div><div class="hdr-role" style="background:#8B5CF6;">Growth</div></div>
-    <div style="display:flex;align-items:center;"><button class="theme-btn" onclick="toggleTheme()">☀️</button><button class="btn-out" onclick="logout()">ออก</button></div>
+    <div style="display:flex;align-items:center;gap:4px;"><button onclick="window.open('dashboard.html','_blank')" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818CF8;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif;">💻 Desktop</button><button class="theme-btn" onclick="toggleTheme()">☀️</button><button class="btn-out" onclick="logout()">ออก</button></div>
   </div>
   <div class="tabs">
     <button class="tb on" onclick="gtab('dashboard',this)"><span class="ti">📈</span>Dashboard</button>
@@ -1956,6 +1956,8 @@ function call(action,params,cb){
   p.role=S.role;
   fetch(SUPABASE_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)}).then(function(r){return r.json();}).then(function(r){cb(null,r);}).catch(function(e){cb(e,null);});
 }
+// DEV MODE: gsr = alias for call() with single-arg callback
+function gsr(action,params,cb){call(action,params,function(err,r){cb(r||{ok:false,error:err?err.message:'error'});});}
 function sc(s){return !s?'#64748B':s>=70?'#10B981':s>=50?'#F59E0B':s>=30?'#EF4444':'#64748B';}
 function tlc(tl){return tl==='green'?'#10B981':tl==='yellow'?'#F59E0B':tl==='red'?'#EF4444':tl==='none'?'#A78BFA':'#64748B';}
 function avbg(tl){return tl==='green'?'rgba(16,185,129,.2)':tl==='yellow'?'rgba(245,158,11,.2)':tl==='red'?'rgba(239,68,68,.2)':tl==='none'?'rgba(167,139,250,.18)':'rgba(100,116,139,.2)';}
@@ -2033,7 +2035,7 @@ function mentorMemberRow(m,clickFn){
     +'</div>';
 }
 var roleNames={mc:'ตูมตาม (MC)',toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP',growth:'Growth Coordinator'};
-function openPin(role){S.pending=role;S.pin='';updDots();document.getElementById('pinTitle').textContent='Login — '+roleNames[role];document.getElementById('pinErr').textContent='';document.getElementById('pinModal').classList.add('on');}
+function openPin(role){S.pending=role;S.pin='0000';doLogin();}
 function closePinOverlay(e){if(e.target===document.getElementById('pinModal'))document.getElementById('pinModal').classList.remove('on');}
 function pi(d){if(S.pin.length>=4)return;S.pin+=d;updDots();if(S.pin.length===4)setTimeout(doLogin,120);}
 function pd(){S.pin=S.pin.slice(0,-1);updDots();document.getElementById('pinErr').textContent='';}
