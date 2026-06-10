@@ -651,17 +651,317 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       return jsonResponse({ ok: true, message: 'wednesday nudge sent', sentCount });
     }
 
-    // ── TRIGGER STUBS (scheduled push notifications) ──────────
-    case 'triggerAnniversary':
-    case 'triggerCheckinReminder':
-    case 'triggerChapterPulse':
-    case 'triggerPostMeetingPrompt':
-    case 'triggerTeamLeaderboard':
-    case 'triggerWeeklyScorePush':
-    case 'triggerMondayBrief':
-    case 'triggerMonthlyRecap':
-    case 'trigger121Reminder':
-      return jsonResponse({ ok: true, message: 'trigger scheduled' });
+    // ── TRIGGER: Check-In Reminder — Thursday 6AM Bangkok ────────
+    case 'triggerCheckinReminder': {
+      const cronSecret = String(p.cron_secret || '');
+      if (cronSecret) {
+        const { data: cfg } = await db.from('cron_config').select('value').eq('key', 'cron_secret').single();
+        if (!cfg || (cfg as Record<string, unknown>).value !== cronSecret) return errResponse('Invalid cron_secret');
+      } else {
+        const auth = await requireAuth(db, p, ['mc']);
+        if (!auth.ok) return errResponse(auth.error!);
+      }
+
+      const { data: lineRows } = await db.from('line_members').select('line_user_id');
+      const msg = `📋 BNI IDEAL — ประชุมวันนี้!\n\nอย่าลืมเตรียมตัว:\n✅ Referral ที่จะส่งวันนี้\n✅ Visitor ที่พาเข้ามา\n✅ 1-2-1 ที่นัดไว้\n\nพบกันเช้านี้ 💪`;
+      let sentCount = 0;
+      for (const row of ((lineRows || []) as Record<string, unknown>[])) {
+        const uid = String(row.line_user_id || '');
+        if (uid) { await sendLineMsg(uid, msg); sentCount++; }
+      }
+      return jsonResponse({ ok: true, message: 'checkin reminder sent', sentCount });
+    }
+
+    // ── TRIGGER: BNI Anniversary — Daily 9AM Bangkok ──────────
+    case 'triggerAnniversary': {
+      const cronSecret = String(p.cron_secret || '');
+      if (cronSecret) {
+        const { data: cfg } = await db.from('cron_config').select('value').eq('key', 'cron_secret').single();
+        if (!cfg || (cfg as Record<string, unknown>).value !== cronSecret) return errResponse('Invalid cron_secret');
+      } else {
+        const auth = await requireAuth(db, p, ['mc']);
+        if (!auth.ok) return errResponse(auth.error!);
+      }
+
+      // BNI anniversary = same month/day as expiry_date (member renewed same date each year)
+      const today = new Date();
+      const todayMM = today.getMonth() + 1;
+      const todayDD = today.getDate();
+
+      const { data: renewals } = await db
+        .from('renewals')
+        .select('member_id, expiry_date, members(name, nickname)')
+        .not('expiry_date', 'is', null);
+
+      let sentCount = 0;
+      for (const r of ((renewals || []) as Record<string, unknown>[])) {
+        const expiry = new Date(String(r.expiry_date));
+        if ((expiry.getMonth() + 1) !== todayMM || expiry.getDate() !== todayDD) continue;
+        const m = (r.members || {}) as Record<string, unknown>;
+        const nick = String(m.nickname || m.name || '');
+
+        const { data: lm } = await db.from('line_members').select('line_user_id')
+          .eq('member_id', String(r.member_id)).maybeSingle();
+        if (!lm) continue;
+        const uid = String((lm as Record<string, unknown>).line_user_id || '');
+        if (!uid) continue;
+
+        await sendLineMsg(uid, `🎉 Happy BNI Anniversary, คุณ${nick}!\n\nขอบคุณที่เป็นส่วนหนึ่งของ BNI IDEAL Chapter\nขอให้ปีนี้ธุรกิจรุ่งเรืองยิ่งขึ้นนะครับ/ค่ะ 🌟`);
+        sentCount++;
+      }
+      return jsonResponse({ ok: true, message: 'anniversary sent', sentCount });
+    }
+
+    // ── TRIGGER: Weekly Score Push — Friday 8AM Bangkok ──────
+    case 'triggerWeeklyScorePush': {
+      const cronSecret = String(p.cron_secret || '');
+      if (cronSecret) {
+        const { data: cfg } = await db.from('cron_config').select('value').eq('key', 'cron_secret').single();
+        if (!cfg || (cfg as Record<string, unknown>).value !== cronSecret) return errResponse('Invalid cron_secret');
+      } else {
+        const auth = await requireAuth(db, p, ['mc']);
+        if (!auth.ok) return errResponse(auth.error!);
+      }
+
+      const { data: members } = await db
+        .from('v_member_dashboard')
+        .select('id, name, nickname, display_score, traffic_light')
+        .eq('is_archived', false);
+
+      const { data: lineRows } = await db.from('line_members').select('line_user_id, member_id');
+      const lineMap: Record<string, string> = {};
+      for (const r of ((lineRows || []) as Record<string, unknown>[])) {
+        lineMap[String(r.member_id)] = String(r.line_user_id);
+      }
+
+      const tlEmoji: Record<string, string> = { green: '🟢', yellow: '🟡', red: '🔴', black: '⚫' };
+      let sentCount = 0;
+      for (const m of ((members || []) as Record<string, unknown>[])) {
+        const uid = lineMap[String(m.id)];
+        if (!uid) continue;
+        const score = Number(m.display_score) || 0;
+        const tl    = String(m.traffic_light || 'black');
+        const emoji = tlEmoji[tl] || '⚫';
+        const nick  = String(m.nickname || m.name || '');
+
+        const tips = score >= 70
+          ? 'ยอดเยี่ยม! รักษาฟอร์มนี้ไว้นะครับ/ค่ะ 💪'
+          : score >= 50
+          ? 'ใกล้ดีแล้ว! เพิ่ม Visitor หรือ 1-2-1 อีกนิดนึง 🎯'
+          : 'ขอแรงหน่อยนะครับ/ค่ะ — ลอง 1-2-1 สักสัปดาห์ละ 2 คน 🤝';
+
+        await sendLineMsg(uid, `📊 สรุปคะแนน PALMS สัปดาห์นี้\nคุณ${nick}\n\n${emoji} ${score} คะแนน (${tl.toUpperCase()})\n\n${tips}\n\nพิมพ์ "สถานะ" เพื่อดูรายละเอียด`);
+        sentCount++;
+      }
+      return jsonResponse({ ok: true, message: 'weekly score push sent', sentCount });
+    }
+
+    // ── TRIGGER: Chapter Pulse → MC — Friday 10AM Bangkok ────
+    case 'triggerChapterPulse': {
+      const cronSecret = String(p.cron_secret || '');
+      if (cronSecret) {
+        const { data: cfg } = await db.from('cron_config').select('value').eq('key', 'cron_secret').single();
+        if (!cfg || (cfg as Record<string, unknown>).value !== cronSecret) return errResponse('Invalid cron_secret');
+      } else {
+        const auth = await requireAuth(db, p, ['mc']);
+        if (!auth.ok) return errResponse(auth.error!);
+      }
+
+      // Get MC LINE ID
+      const { data: mcSetting } = await db.from('settings').select('value').eq('key', 'MC_LINE_ID').maybeSingle();
+      const mcUid = mcSetting ? String((mcSetting as Record<string, unknown>).value || '') : '';
+      if (!mcUid) return jsonResponse({ ok: true, message: 'MC LINE ID not set', sentCount: 0 });
+
+      const { data: rows } = await db
+        .from('v_member_dashboard')
+        .select('traffic_light, display_score, mentor_team')
+        .eq('is_archived', false);
+
+      const tl = { green: 0, yellow: 0, red: 0, black: 0 } as Record<string, number>;
+      let total = 0, scoreSum = 0;
+      for (const r of ((rows || []) as Record<string, unknown>[])) {
+        const t = String(r.traffic_light || 'black');
+        tl[t] = (tl[t] || 0) + 1;
+        scoreSum += Number(r.display_score) || 0;
+        total++;
+      }
+      const avg = total > 0 ? Math.round(scoreSum / total) : 0;
+
+      const pulse = `📊 Chapter Pulse — สรุปสัปดาห์\n\n👥 สมาชิกทั้งหมด: ${total} คน\n⭐ คะแนนเฉลี่ย: ${avg} คะแนน\n\n🟢 เขียว: ${tl.green} คน\n🟡 เหลือง: ${tl.yellow} คน\n🔴 แดง: ${tl.red} คน\n⚫ ดำ: ${tl.black} คน\n\n${avg >= 70 ? '✅ Chapter สัปดาห์นี้ดีมาก!' : avg >= 50 ? '⚠️ ต้องช่วยกันดึงคะแนนขึ้น' : '🚨 หลายคนต้องการความช่วยเหลือด่วน'}`;
+
+      await sendLineMsg(mcUid, pulse);
+      return jsonResponse({ ok: true, message: 'chapter pulse sent', sentCount: 1 });
+    }
+
+    // ── TRIGGER: Post-Meeting Prompt — Thursday 2PM Bangkok ──
+    case 'triggerPostMeetingPrompt': {
+      const cronSecret = String(p.cron_secret || '');
+      if (cronSecret) {
+        const { data: cfg } = await db.from('cron_config').select('value').eq('key', 'cron_secret').single();
+        if (!cfg || (cfg as Record<string, unknown>).value !== cronSecret) return errResponse('Invalid cron_secret');
+      } else {
+        const auth = await requireAuth(db, p, ['mc']);
+        if (!auth.ok) return errResponse(auth.error!);
+      }
+
+      const { data: lineRows } = await db.from('line_members').select('line_user_id');
+      const msg = `✅ BNI IDEAL — หลังประชุมวันนี้\n\nอย่าลืมบันทึก:\n📝 1-2-1 ที่นัดแล้ว\n🤝 Referral ที่รับ/ส่งวันนี้\n🎓 CEU ที่ทำในที่ประชุม\n\nพิมพ์ "สถานะ" เพื่อดูคะแนนอัพเดต`;
+      let sentCount = 0;
+      for (const row of ((lineRows || []) as Record<string, unknown>[])) {
+        const uid = String(row.line_user_id || '');
+        if (uid) { await sendLineMsg(uid, msg); sentCount++; }
+      }
+      return jsonResponse({ ok: true, message: 'post-meeting prompt sent', sentCount });
+    }
+
+    // ── TRIGGER: Team Leaderboard — Friday 9AM Bangkok ───────
+    case 'triggerTeamLeaderboard': {
+      const cronSecret = String(p.cron_secret || '');
+      if (cronSecret) {
+        const { data: cfg } = await db.from('cron_config').select('value').eq('key', 'cron_secret').single();
+        if (!cfg || (cfg as Record<string, unknown>).value !== cronSecret) return errResponse('Invalid cron_secret');
+      } else {
+        const auth = await requireAuth(db, p, ['mc']);
+        if (!auth.ok) return errResponse(auth.error!);
+      }
+
+      const { data: rows } = await db
+        .from('v_member_dashboard')
+        .select('mentor_team, display_score')
+        .eq('is_archived', false)
+        .not('mentor_team', 'is', null);
+
+      // Calculate team averages
+      const teamScores: Record<string, number[]> = {};
+      for (const r of ((rows || []) as Record<string, unknown>[])) {
+        const team = String(r.mentor_team || '');
+        if (!team) continue;
+        if (!teamScores[team]) teamScores[team] = [];
+        teamScores[team].push(Number(r.display_score) || 0);
+      }
+      const teams = Object.entries(teamScores)
+        .map(([name, scores]) => ({ name, avg: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) }))
+        .sort((a, b) => b.avg - a.avg);
+
+      const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
+      const board = teams.map((t, i) => `${medals[i] || '▪️'} ${t.name}: ${t.avg} คะแนน`).join('\n');
+      const msg = `🏆 Leaderboard ทีม BNI IDEAL\n\n${board}\n\nทีมไหนจะขึ้นอันดับ 1 สัปดาห์หน้า? 💪`;
+
+      const { data: lineRows } = await db.from('line_members').select('line_user_id');
+      let sentCount = 0;
+      for (const row of ((lineRows || []) as Record<string, unknown>[])) {
+        const uid = String(row.line_user_id || '');
+        if (uid) { await sendLineMsg(uid, msg); sentCount++; }
+      }
+      return jsonResponse({ ok: true, message: 'leaderboard sent', sentCount, teams });
+    }
+
+    // ── TRIGGER: Monday Brief — Monday 8AM Bangkok ────────────
+    case 'triggerMondayBrief': {
+      const cronSecret = String(p.cron_secret || '');
+      if (cronSecret) {
+        const { data: cfg } = await db.from('cron_config').select('value').eq('key', 'cron_secret').single();
+        if (!cfg || (cfg as Record<string, unknown>).value !== cronSecret) return errResponse('Invalid cron_secret');
+      } else {
+        const auth = await requireAuth(db, p, ['mc']);
+        if (!auth.ok) return errResponse(auth.error!);
+      }
+
+      const { data: lineRows } = await db.from('line_members').select('line_user_id');
+      const msg = `🌅 BNI IDEAL — ต้นสัปดาห์\n\nสัปดาห์ใหม่ เป้าหมายใหม่! 🎯\n\nเป้าสัปดาห์นี้:\n✅ 1-2-1 อย่างน้อย 1 คน\n✅ Referral 1 ใบ\n✅ Visitor 1 คน (ถ้าได้)\n\nพิมพ์ "สถานะ" เพื่อดูคะแนนปัจจุบัน`;
+      let sentCount = 0;
+      for (const row of ((lineRows || []) as Record<string, unknown>[])) {
+        const uid = String(row.line_user_id || '');
+        if (uid) { await sendLineMsg(uid, msg); sentCount++; }
+      }
+      return jsonResponse({ ok: true, message: 'monday brief sent', sentCount });
+    }
+
+    // ── TRIGGER: Monthly Recap — Last day of month 9AM Bangkok
+    case 'triggerMonthlyRecap': {
+      const cronSecret = String(p.cron_secret || '');
+      if (cronSecret) {
+        const { data: cfg } = await db.from('cron_config').select('value').eq('key', 'cron_secret').single();
+        if (!cfg || (cfg as Record<string, unknown>).value !== cronSecret) return errResponse('Invalid cron_secret');
+      } else {
+        const auth = await requireAuth(db, p, ['mc']);
+        if (!auth.ok) return errResponse(auth.error!);
+      }
+
+      const { data: members } = await db
+        .from('v_member_dashboard')
+        .select('id, name, nickname, display_score, traffic_light, given_thb, received_thb')
+        .eq('is_archived', false);
+
+      const { data: lineRows } = await db.from('line_members').select('line_user_id, member_id');
+      const lineMap: Record<string, string> = {};
+      for (const r of ((lineRows || []) as Record<string, unknown>[])) {
+        lineMap[String(r.member_id)] = String(r.line_user_id);
+      }
+
+      const monthNames = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+      const now = new Date();
+      const monthLabel = monthNames[now.getMonth()];
+
+      let sentCount = 0;
+      for (const m of ((members || []) as Record<string, unknown>[])) {
+        const uid = lineMap[String(m.id)];
+        if (!uid) continue;
+        const score  = Number(m.display_score) || 0;
+        const given  = Number(m.given_thb) || 0;
+        const recv   = Number(m.received_thb) || 0;
+        const nick   = String(m.nickname || m.name || '');
+        const tl     = String(m.traffic_light || 'black');
+        const status = tl === 'green' ? 'ยอดเยี่ยม 🌟' : tl === 'yellow' ? 'ดี ⭐' : tl === 'red' ? 'ต้องพัฒนา ⚠️' : 'ต้องปรับปรุงด่วน 🚨';
+
+        await sendLineMsg(uid, `📅 สรุปเดือน${monthLabel} — BNI IDEAL\nคุณ${nick}\n\n🏆 คะแนน PALMS: ${score} (${status})\n💰 Given: ฿${given.toLocaleString()}\n🤝 Received: ฿${recv.toLocaleString()}\n\nขอบคุณที่ร่วมสร้าง Chapter ที่แข็งแกร่ง! 💪`);
+        sentCount++;
+      }
+      return jsonResponse({ ok: true, message: 'monthly recap sent', sentCount });
+    }
+
+    // ── TRIGGER: 1-2-1 Reminder — Wednesday 6PM Bangkok ──────
+    case 'trigger121Reminder': {
+      const cronSecret = String(p.cron_secret || '');
+      if (cronSecret) {
+        const { data: cfg } = await db.from('cron_config').select('value').eq('key', 'cron_secret').single();
+        if (!cfg || (cfg as Record<string, unknown>).value !== cronSecret) return errResponse('Invalid cron_secret');
+      } else {
+        const auth = await requireAuth(db, p, ['mc']);
+        if (!auth.ok) return errResponse(auth.error!);
+      }
+
+      // Find members who have done 1-2-1 this week
+      const weekStart = new Date();
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1); // Monday
+      weekStart.setHours(0, 0, 0, 0);
+
+      const { data: recentLogs } = await db
+        .from('one_to_one_logs')
+        .select('initiator_id')
+        .gte('meeting_date', weekStart.toISOString().split('T')[0]);
+
+      const doneIds = new Set(((recentLogs || []) as Record<string, unknown>[]).map(r => String(r.initiator_id)));
+
+      // Get all LINE members
+      const { data: lineRows } = await db
+        .from('line_members')
+        .select('line_user_id, member_id, members(nickname, name)');
+
+      let sentCount = 0;
+      for (const row of ((lineRows || []) as Record<string, unknown>[])) {
+        const mid = String(row.member_id || '');
+        if (doneIds.has(mid)) continue; // Already done 1-2-1 this week
+        const uid  = String(row.line_user_id || '');
+        const m    = (row.members || {}) as Record<string, unknown>;
+        const nick = String(m.nickname || m.name || '');
+        if (!uid) continue;
+
+        await sendLineMsg(uid, `🤝 Reminder — 1-2-1 สัปดาห์นี้\nคุณ${nick}\n\nสัปดาห์นี้ยังไม่มีรายการ 1-2-1!\nพรุ่งนี้ประชุม — ลองนัดเพื่อนร่วม Chapter สักคนก่อนนะครับ/ค่ะ\n\nทำ 1-2-1 ช่วยเพิ่มคะแนน PALMS ได้ถึง 15 คะแนน 💡`);
+        sentCount++;
+      }
+      return jsonResponse({ ok: true, message: '1-2-1 reminder sent', sentCount });
+    }
 
     // ── Default stub ──────────────────────────────────────────
     default:
