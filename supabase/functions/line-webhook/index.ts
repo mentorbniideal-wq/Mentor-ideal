@@ -166,23 +166,23 @@ async function handleRegistration(
 
   if (!state || state === 'AWAITING') {
     await setState(db, userId, 'registration', 'AWAITING');
-    // Try to find matching members
+    // Search by name OR nickname (Thai/English both work)
     const { data: matches } = await db
       .from('members')
       .select('name, nickname, mentor_team')
-      .ilike('name', `%${text}%`)
+      .or(`name.ilike.%${text}%,nickname.ilike.%${text}%`)
       .eq('is_archived', false)
       .limit(3);
 
     if (!matches?.length) {
-      return `❌ ไม่พบ "${text}" ใน BNI IDEAL\n\nลองส่งชื่อ-นามสกุล (BNI) อีกครั้งนะครับ`;
+      return `❌ ไม่พบ "${text}" ใน BNI IDEAL\n\nลองส่งชื่อ-นามสกุล BNI (ภาษาอังกฤษ) อีกครั้งนะครับ\nเช่น: Phitarn Sakulthanaphetch`;
     }
     if (matches.length === 1) {
       await setState(db, userId, 'registration', `CONFIRM:${matches[0].name}`);
-      return `✅ พบสมาชิก:\n${matches[0].name}${matches[0].nickname ? ` (${matches[0].nickname})` : ''}\nทีม: ${matches[0].mentor_team || '—'}\n\nใช่คุณไหมครับ? ตอบ "ใช่" หรือ "ไม่ใช่"`;
+      return `✅ พบสมาชิก:\n${matches[0].nickname || matches[0].name.split(' ')[0]} (${matches[0].name})\nทีม: ${matches[0].mentor_team || '—'}\n\nใช่คุณไหมครับ? ตอบ "ใช่" หรือ "ไม่ใช่"`;
     }
     const opts = matches.map((m: { name: string; nickname: string }, i: number) =>
-      `${i + 1}. ${m.name}${m.nickname ? ` (${m.nickname})` : ''}`).join('\n');
+      `${i + 1}. ${m.nickname || m.name.split(' ')[0]} (${m.name})`).join('\n');
     await setState(db, userId, 'registration', `CHOOSE:${matches.map((m: { name: string }) => m.name).join('|')}`);
     return `พบหลายคนที่คล้ายกัน:\n${opts}\n\nตอบ 1, 2 หรือ 3 ครับ`;
   }
@@ -504,11 +504,11 @@ async function unregister(db: ReturnType<typeof getServiceClient>, userId: strin
 
 // ── Static message builders ──────────────────────────────────
 function buildWelcomeMessage(): string {
-  return 'สวัสดีครับ! 👋 ยินดีต้อนรับสู่\nBNI IDEAL — Mentor Coordinator\n─────────────────\n📊 เช็คคะแนน BNI ตัวเอง\n⚡ รู้ว่าต้องทำอะไรต่อ\n📈 ดู Trend คะแนน 3 เดือน\n─────────────────\n🔐 ส่งชื่อ-นามสกุล BNI (ภาษาอังกฤษ) เพื่อลงทะเบียนครับ\nเช่น: Phitarn Sakulthanaphetch';
+  return 'สวัสดีครับ! 👋 ยินดีต้อนรับสู่\nBNI IDEAL — Mentor System\n─────────────────\n📊 เช็คคะแนน BNI ตัวเอง\n⚡ รู้ว่าต้องทำอะไรต่อ\n📈 ดู Trend คะแนน\n─────────────────\n🔐 ส่งชื่อ-นามสกุล BNI (ภาษาอังกฤษ) เพื่อลงทะเบียนครับ\nเช่น: Phitarn Sakulthanaphetch';
 }
 
 function buildRegistrationPrompt(): string {
-  return 'สวัสดีครับ กรุณาส่งชื่อ BNI ของคุณเพื่อลงทะเบียนครับ';
+  return '🔐 ส่งชื่อ-นามสกุล BNI (ภาษาอังกฤษ) เพื่อลงทะเบียนครับ';
 }
 
 function buildHelpMessage(memberName: string): string {
