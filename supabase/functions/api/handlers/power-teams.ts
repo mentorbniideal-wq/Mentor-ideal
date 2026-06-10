@@ -68,21 +68,33 @@ async function fetchTeamGroups(db: ReturnType<typeof getServiceClient>) {
       }
     }
 
+    const tlShort: Record<string, string> = { green: 'G', yellow: 'Y', red: 'R', black: 'B', none: '' };
     return {
-      id:         teamName,
-      name:       teamName,
-      icon:       '🛡️',
-      members:    members.map(m => ({
-        name:   m.name,  nick:   m.nickname,
-        score:  Number(m.display_score) || 0,
-        tl:     String(m.traffic_light || 'none'),
-        given:  Number(m.given_thb) || 0,
-        recv:   Number(m.received_thb) || 0,
-        mentor: m.mentor_team,
+      id:          teamName,
+      name:        teamName,
+      team:        teamName,       // frontend uses t.team
+      icon:        '🛡️',
+      members:     members.map((m, idx) => ({
+        row:         idx + 1,                                  // synthetic row for edit/delete ops
+        name:        m.name,
+        nick:        String(m.nickname || ''),
+        firstName:   String(m.name || ''),                     // PT manager uses firstName
+        lastName:    '',
+        profession:  '',                                       // not in schema yet
+        tl:          tlShort[String(m.traffic_light)] || '',  // frontend expects G/Y/R
+        bniGoal:     0,
+        recv:        Number(m.received_thb) || 0,
+        given:       Number(m.given_thb) || 0,
+        goalPct:     0,
+        score:       Number(m.display_score) || 0,
+        mentor:      m.mentor_team,
       })),
-      count:      members.length,
-      avgScore,   redBlack,
-      totalGiven, totalRecv,
+      count:       members.length,
+      memberCount: members.length,  // frontend uses t.memberCount
+      teamGoal:    0,               // frontend uses t.teamGoal
+      teamRecv:    totalRecv,       // frontend uses t.teamRecv
+      avgScore,    redBlack,
+      totalGiven,  totalRecv,
       suggestions,
     };
   });

@@ -86,26 +86,110 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     case 'getDesktopDashboard': {
       const { data: rows, error } = await db
         .from('v_member_dashboard')
-        .select('name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb, tyfcb_thb, absent, palms_detail')
+        .select('id, name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb, tyfcb_thb, absent, palms_detail, expiry_date, days_to_expiry, bni_days')
         .eq('is_archived', false)
         .order('display_score', { ascending: false });
       if (error) return errResponse(error.message);
 
       const summary = { green: 0, yellow: 0, red: 0, black: 0, none: 0 };
+      const teamAgg: Record<string, { team: string; count: number; scoreSum: number; scored: number; green: number; yellow: number; red: number; black: number; none: number }> = {};
+
       const members = (rows || []).map((m: Record<string, unknown>) => {
-        const tl = String(m.traffic_light || 'none');
+        const tl    = String(m.traffic_light || 'none');
+        const score = Number(m.display_score) || 0;
+        const team  = String(m.mentor_team || '');
+
         if (tl in summary) (summary as Record<string, number>)[tl]++;
+
+        if (team) {
+          if (!teamAgg[team]) teamAgg[team] = { team, count: 0, scoreSum: 0, scored: 0, green: 0, yellow: 0, red: 0, black: 0, none: 0 };
+          const ta = teamAgg[team];
+          ta.count++;
+          if (score > 0) { ta.scoreSum += score; ta.scored++; }
+          if (tl in ta) (ta as Record<string, number>)[tl]++;
+        }
+
         return {
           name: m.name, nick: m.nickname, mentor: m.mentor_team,
-          score: Number(m.display_score) || 0, tl,
+          score, tl,
           given: Number(m.given_thb) || 0, recv: Number(m.received_thb) || 0,
           tyfcb: Number(m.tyfcb_thb) || 0, absent: Number(m.absent) || 0,
-          bniScore: Number(m.display_score) || 0, bniTl: tl,
+          bniScore: score, bniTl: tl,
           cats: m.palms_detail || null,
+          bniDays: Number(m.bni_days) || 0,
         };
       });
 
-      return jsonResponse({ ok: true, members, summary });
+      // ── Teams aggregation (needed for bar chart + Mentor Teams tab) ──
+      const activityData = await getMentorActivityData(db);
+      const actMap: Record<string, Record<string, unknown>> = {};
+      for (const a of activityData) actMap[a.team] = a as unknown as Record<string, unknown>;
+
+      const teams = TEAMS.map(teamName => {
+        const ta  = teamAgg[teamName] || { team: teamName, count: 0, scoreSum: 0, scored: 0, green: 0, yellow: 0, red: 0, black: 0, none: 0 };
+        const act = actMap[teamName]  || {};
+        return {
+          team: teamName,
+          count: ta.count,
+          avg: ta.scored ? Math.round(ta.scoreSum / ta.scored) : 0,
+          green: ta.green, yellow: ta.yellow, red: ta.red, black: ta.black, none: ta.none,
+          ...act,
+        };
+      });
+
+      // ── Renewal list (within 90 days) ──
+      const now90 = new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0];
+      const renewal = (rows || [])
+        .filter((m: Record<string, unknown>) => m.expiry_date != null && String(m.expiry_date) <= now90)
+        .map((m: Record<string, unknown>) => {
+          const diffDays = Number(m.days_to_expiry) || 0;
+          return {
+            name:     String(m.name),
+            team:     String(m.mentor_team || ''),
+            diffDays,
+            expStr:   String(m.expiry_date || ''),
+            status:   diffDays < 0 ? 'expired' : diffDays <= 30 ? 'urgent' : 'soon',
+          };
+        })
+        .sort((a: Record<string, unknown>, b: Record<string, unknown>) => (Number(a.diffDays) || 0) - (Number(b.diffDays) || 0));
+
+      // ── Chapter health metrics (computed from members) ──
+      const total = members.length;
+      const greenPct  = total ? Math.round(summary.green / total * 100) : 0;
+      const avgBNI    = total ? Math.round(members.reduce((s, m) => s + (m.score || 0), 0) / total) : 0;
+      const avgROI    = total ? Math.round(members.reduce((s, m) => s + (m.recv as number) / 28000 * 100, 0) / total) : 0;
+
+      const { data: archivedRows } = await db.from('members').select('id')
+        .eq('is_archived', true)
+        .gte('updated_at', new Date(Date.now() - 365 * 86400000).toISOString());
+      const left12mo = (archivedRows || []).length;
+
+      const { data: newRows } = await db.from('members').select('id')
+        .eq('is_new_member', true)
+        .eq('is_archived', false);
+      const added6mo = (newRows || []).length;
+
+      const thisMonthStart = new Date(); thisMonthStart.setDate(1); thisMonthStart.setHours(0,0,0,0);
+      const { data: visRows } = await db.from('visitor_log').select('id, status')
+        .gte('visit_date', thisMonthStart.toISOString().split('T')[0]);
+      const visTot = (visRows || []).length;
+      const visJoined = (visRows || []).filter((v: Record<string, unknown>) => String(v.status) === 'joined').length;
+
+      const health = {
+        total, greenPct, avgBNI, avgROI,
+        retention: total + left12mo > 0 ? Math.round(total / (total + left12mo) * 100) : 100,
+        left12mo, added6mo,
+        visitors: { visitedThisMonth: visTot, total: visTot, joined: visJoined, convRate: visTot ? Math.round(visJoined / visTot * 100) : 0 },
+      };
+
+      // ── New member list ──
+      const { data: nmRows } = await db.from('members').select('name, nickname, mentor_team')
+        .eq('is_new_member', true).eq('is_archived', false);
+      const nmList = (nmRows || []).map((m: Record<string, unknown>) => ({
+        name: m.name, nick: m.nickname, mentor: m.mentor_team,
+      }));
+
+      return jsonResponse({ ok: true, members, summary, teams, renewal, health, nmList, updatedAt: new Date().toISOString() });
     }
 
     case 'getMemberDetail': {

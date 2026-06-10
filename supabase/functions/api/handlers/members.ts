@@ -445,15 +445,20 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       }
 
       const enriched = (members as Record<string, unknown>[]).map((m) => {
-        const id = m.id as string;
+        const id    = m.id as string;
         const items = clByMember[id] || [];
+        const done  = items.filter((r) => r.is_done).length;
+        const total = items.length;
         return {
           id,
-          name:          m.name,
-          nick:          m.nickname,
-          mentorTeam:    m.mentor_team,
-          checklistDone:  items.filter((r) => r.is_done).length,
-          checklistTotal: items.length,
+          name:           m.name,
+          nick:           m.nickname,
+          mentor:         m.mentor_team,   // frontend uses nm.mentor
+          mentorTeam:     m.mentor_team,
+          checklistDone:  done,
+          checklistTotal: total,
+          progress:       total > 0 ? Math.round(done / total * 100) : 0,
+          startDate:      '',              // not tracked yet; placeholder
           latestNote:     latestNoteByMember[id] || '',
         };
       });

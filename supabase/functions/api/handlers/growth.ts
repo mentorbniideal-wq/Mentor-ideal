@@ -455,21 +455,64 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'getGrowthSheetData': {
       const { data: rows, error } = await db
         .from('v_member_dashboard')
-        .select('name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb, absent, rg, visitors, one_to_one, ceu, bni_days')
+        .select('name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb, tyfcb_thb, absent, attend, rg, rr, visitors, one_to_one, ceu, bni_days')
         .eq('is_archived', false)
         .order('display_score', { ascending: true });
       if (error) return errResponse(error.message);
 
-      const members = (rows || []).map((m: Record<string, unknown>) => ({
-        name: m.name, nick: m.nickname, mentor: m.mentor_team,
-        score: Number(m.display_score) || 0, tl: String(m.traffic_light || 'none'),
-        given: Number(m.given_thb) || 0, recv: Number(m.received_thb) || 0,
-        absent: Number(m.absent) || 0, rg: Number(m.rg) || 0,
-        visitors: Number(m.visitors) || 0, oToOne: Number(m.one_to_one) || 0,
-        ceu: Number(m.ceu) || 0, bniDays: Number(m.bni_days) || 0,
-      }));
+      let totalTYFCB = 0, totalVisitors = 0, total121 = 0;
+      let chapterAttend = 0, chapterAbsent = 0;
+      let highGiverLowRecv = 0, lowGiverHighRecv = 0, balanced = 0;
 
-      return jsonResponse({ ok: true, members });
+      const members = (rows || []).map((m: Record<string, unknown>) => {
+        const tl       = String(m.traffic_light || 'none');
+        const rgCount  = Number(m.rg)            || 0;
+        const rrCount  = Number(m.rr)            || 0;
+        const total    = rgCount + rrCount;
+        const giveRatio = total > 0 ? Math.round(rgCount / total * 100) : 50;
+        const given    = Number(m.given_thb)     || 0;
+        const recv     = Number(m.received_thb)  || 0;
+        const tyfcb    = Number(m.tyfcb_thb)     || 0;
+        const vis      = Number(m.visitors)      || 0;
+        const r121     = Number(m.one_to_one)    || 0;
+        const ceu      = Number(m.ceu)           || 0;
+        const absent   = Number(m.absent)        || 0;
+        const attend   = Number(m.attend)        || 0;
+
+        totalTYFCB    += tyfcb || given;
+        totalVisitors += vis;
+        total121      += r121;
+        chapterAttend += attend;
+        chapterAbsent += absent;
+
+        if (total >= 5) {
+          if (giveRatio > 60) highGiverLowRecv++;
+          else if (giveRatio < 40) lowGiverHighRecv++;
+          else balanced++;
+        }
+
+        return {
+          name: m.name, nick: m.nickname, mentor: m.mentor_team,
+          score: Number(m.display_score) || 0, tl, zone: tl,
+          given, recv, tyfcb, absent, attend,
+          rg: rgCount, rr: rrCount,
+          rgCount, rrCount, giveRatio,
+          visitors: vis, r121, oToOne: r121, ceu,
+          bniDays: Number(m.bni_days) || 0,
+        };
+      });
+
+      const total = members.length;
+      const chapterAttendRate = (chapterAttend + chapterAbsent) > 0
+        ? Math.round(chapterAttend / (chapterAttend + chapterAbsent) * 100) : 0;
+
+      const summary = {
+        total, totalTYFCB, totalVisitors, total121,
+        chapterAttend, chapterAbsent, chapterAttendRate,
+        highGiverLowRecv, lowGiverHighRecv, balanced,
+      };
+
+      return jsonResponse({ ok: true, members, summary });
     }
 
     // ── Mentor Activity + Performance (Growth can view) ───────

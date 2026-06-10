@@ -123,12 +123,78 @@ export async function handleAlerts(p: Record<string, unknown>): Promise<Response
     case 'getUnreadCounts':
       return jsonResponse({ ok: true, unread: {}, count: 0 });
 
-    case 'getReports':
-      return jsonResponse({ ok: true, reports: [] });
+    case 'getReports': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
 
-    case 'setReportStatus':
-    case 'saveReply':
+      const teamFilter = typeof p.teamName === 'string' && p.teamName ? p.teamName : null;
+      let q = db.from('core_issues')
+        .select('id, member_id, mentor_team, issue_text, action_plan, status, opened_at')
+        .order('opened_at', { ascending: false });
+      if (teamFilter) q = q.eq('mentor_team', teamFilter);
+      const { data: issues, error: iErr } = await q;
+      if (iErr) return errResponse(iErr.message);
+
+      const memberIds = [...new Set((issues || []).map((r: Record<string, unknown>) => String(r.member_id)))];
+      const { data: mRows } = memberIds.length
+        ? await db.from('members').select('id, name, nickname').in('id', memberIds)
+        : { data: [] };
+      const mMap: Record<string, Record<string, unknown>> = {};
+      for (const m of (mRows || []) as Record<string, unknown>[]) mMap[String(m.id)] = m;
+
+      const statusMap: Record<string, string> = { resolved: 'done', open: 'open', snoozed: 'snoozed' };
+      const reports = (issues || []).map((r: Record<string, unknown>) => {
+        const m = mMap[String(r.member_id)] || {};
+        return {
+          row:        String(r.id),
+          team:       String(r.mentor_team || ''),
+          memberName: String(m.name   || ''),
+          nick:       String(m.nickname || ''),
+          status:     statusMap[String(r.status)] || String(r.status),
+          coreIssue:  String(r.issue_text  || ''),
+          actionTaken: '',
+          plan:       String(r.action_plan || ''),
+          reply:      '',
+          savedAt:    String(r.opened_at   || ''),
+        };
+      });
+      return jsonResponse({ ok: true, reports });
+    }
+
+    case 'setReportStatus': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const row    = String(p.row || '').trim();
+      const status = String(p.status || '');
+      if (!row) return errResponse('row (issue id) required');
+
+      const dbStatus: Record<string, string> = { done: 'resolved', reopened: 'open', open: 'open', resolved: 'resolved', snoozed: 'snoozed' };
+      const newStatus = dbStatus[status] || 'open';
+      const update: Record<string, unknown> = { status: newStatus, updated_at: new Date().toISOString() };
+      if (newStatus === 'resolved') update.closed_at = new Date().toISOString();
+      if (newStatus === 'open')     update.closed_at = null;
+
+      const { error } = await db.from('core_issues').update(update).eq('id', row);
+      if (error) return errResponse(error.message);
       return jsonResponse({ ok: true });
+    }
+
+    case 'saveReply': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const row   = String(p.row   || '').trim();
+      const reply = String(p.reply || '').trim();
+      if (!row)   return errResponse('row (issue id) required');
+      if (!reply) return errResponse('reply text required');
+
+      const { error } = await db.from('core_issues')
+        .update({ action_plan: reply, updated_at: new Date().toISOString() })
+        .eq('id', row);
+      if (error) return errResponse(error.message);
+      return jsonResponse({ ok: true });
+    }
 
     default:
       return errResponse(`Unknown alerts action: ${action}`);
