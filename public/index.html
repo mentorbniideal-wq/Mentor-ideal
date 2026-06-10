@@ -7,24 +7,26 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap');
 :root{
-  --bg:#0C1520;--bg2:#162030;--bg3:#1E2D40;--bg4:#253650;
-  --gold:#F0B429;--gold2:#FCD34D;
+  --bg:#1A1D1D;--bg2:#242827;--bg3:#1D2120;--bg4:#2B2E2E;
+  --gold:#D7FEFA;--gold2:#A5F3E8;
   --green:#10B981;--greenl:rgba(16,185,129,0.15);
   --yellow:#F59E0B;--yellowl:rgba(245,158,11,0.15);
   --red:#EF4444;--redl:rgba(239,68,68,0.15);
-  --gray:#64748B;--gray2:#94A3B8;
-  --white:#F8FAFC;--border:rgba(255,255,255,0.07);
-  --r:12px;
+  --gray:#6B7280;--gray2:rgba(215,254,250,.45);
+  --white:#F5FFFE;--border:rgba(215,254,250,.07);
+  --r:14px;
+  --ac-dim:rgba(215,254,250,.1);--bd-hover:rgba(215,254,250,.2);
 }
 body.light{
-  --bg:#F1F5F9;--bg2:#FFFFFF;--bg3:#E2EAF4;--bg4:#D1DCEE;
-  --white:#0F172A;--border:rgba(0,0,0,0.08);
+  --bg:#F0F4F3;--bg2:#FFFFFF;--bg3:#E4EDEC;--bg4:#D1DED9;
+  --white:#0A1612;--border:rgba(0,0,0,0.08);
   --gray:#64748B;--gray2:#475569;
+  --gold:#0891B2;--gold2:#0E7490;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);min-height:100vh;overflow-x:hidden;transition:background .2s,color .2s;}
+body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);min-height:100vh;overflow-x:hidden;transition:background .2s,color .2s;}
 .theme-btn{background:none;border:1px solid var(--border);color:var(--gray2);border-radius:8px;padding:4px 8px;font-size:.82rem;cursor:pointer;margin-right:.4rem;line-height:1.4;}
 #loader{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity .4s;}
 #loader.out{opacity:0;pointer-events:none;}
@@ -1080,6 +1082,115 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
 .ml-item-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
 .ml-item-act{font-size:.84rem;font-weight:700;}
 .ml-item-meta{font-size:.68rem;color:var(--gray2);line-height:1.5;}
+
+/* ══════════════════════════════════════════════
+   POPPINS MINT DARK — Mobile Design Override v2
+   ══════════════════════════════════════════════ */
+
+/* Scrollbar */
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-thumb{background:rgba(215,254,250,.15);border-radius:3px}
+
+/* Loader */
+#loader{background:var(--bg)}
+.loader-logo{font-size:1.5rem;font-weight:800;letter-spacing:.08em;color:var(--gold)}
+.spin{border-top-color:var(--gold)}
+
+/* Login screen */
+#loginScreen{background:var(--bg)}
+#loginScreen::before{background:radial-gradient(circle,rgba(215,254,250,.05) 0%,transparent 70%)}
+.login-badge{background:var(--ac-dim);color:var(--gold);border:1px solid rgba(215,254,250,.15);border-radius:999px;font-size:.62rem;font-weight:700;letter-spacing:.1em;padding:4px 14px;margin-bottom:1rem;display:inline-block}
+.login-title{font-size:2rem;font-weight:800;letter-spacing:-.04em}
+.login-title span{color:var(--gold)}
+.login-sub{color:var(--gray2);font-size:.8rem}
+
+/* Role cards */
+.role-card{background:var(--bg2);border:1px solid var(--border);border-radius:18px;padding:1.2rem .9rem;cursor:pointer;transition:all .25s;position:relative;overflow:hidden}
+.role-card::after{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 0%,rgba(215,254,250,.06),transparent 70%);opacity:0;transition:opacity .2s}
+.role-card:hover{border-color:var(--bd-hover);transform:translateY(-2px)}
+.role-card:hover::after{opacity:1}
+.role-card:active{transform:scale(.97)}
+.role-card .icon{font-size:1.9rem;margin-bottom:.5rem;display:block;filter:drop-shadow(0 0 10px rgba(215,254,250,.2))}
+.role-card .rn{font-size:.88rem;font-weight:700;color:var(--white)}
+.role-card .rd{font-size:.65rem;color:var(--gray2);margin-top:3px;line-height:1.4}
+.mc-badge{background:var(--gold);color:#0A1612;border-radius:999px;font-size:.58rem;font-weight:700;padding:1px 6px}
+
+/* App header */
+.hdr{background:var(--bg2);border-bottom:1px solid var(--border)}
+.hdr-logo{font-size:1rem;font-weight:800;letter-spacing:.02em}
+.hdr-logo span{color:var(--gold)}
+.hdr-role{background:var(--gold);color:#0A1612;font-size:.6rem;font-weight:700;padding:2px 8px;border-radius:999px}
+.btn-out{color:var(--gray2);font-family:'Poppins',sans-serif;font-size:.78rem}
+.theme-btn{color:var(--gray2);border-color:var(--border);font-family:'Poppins',sans-serif}
+
+/* Tabs */
+.tabs{background:var(--bg2);border-bottom:1px solid var(--border)}
+.tb{color:var(--gray);font-family:'Poppins',sans-serif;font-size:.67rem;font-weight:500}
+.tb.on{color:var(--gold);border-bottom-color:var(--gold);font-weight:700}
+
+/* Cards */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:16px}
+.ct{color:var(--gray2);font-size:.6rem;font-weight:700;letter-spacing:.1em}
+
+/* Member rows */
+.mr{background:var(--bg3);border-radius:12px}
+.mr:active{background:rgba(215,254,250,.06)}
+.av{border-radius:12px}
+
+/* Stat bubbles */
+.sb{border-radius:12px}
+.bG{background:var(--greenl);color:var(--green)}
+.bY{background:var(--yellowl);color:var(--yellow)}
+.bR{background:var(--redl);color:var(--red)}
+
+/* Filter pills */
+.fb{background:var(--bg3);border:1px solid var(--border);border-radius:999px;color:var(--gray2);font-family:'Poppins',sans-serif}
+.fb.on{background:var(--gold);color:#0A1612;border-color:var(--gold);font-weight:700}
+
+/* Score cards */
+.scc{background:var(--bg3);border-radius:14px;border:1px solid var(--border)}
+
+/* Detail panel */
+.detail-panel{background:var(--bg)}
+
+/* Toast */
+.toast{background:var(--bg3);border:1px solid var(--border);color:var(--white);border-radius:16px;padding:10px 20px;font-family:'Poppins',sans-serif;font-size:.8rem}
+
+/* Action buttons */
+.mr-act{background:var(--bg4);border:1px solid var(--border);border-radius:20px;color:var(--gray);font-family:'Poppins',sans-serif}
+
+/* Score spark bars */
+.spark-bar{border-radius:3px 3px 0 0}
+
+/* Risk/task cards */
+.task-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px}
+.task-card.open{border-left:3px solid var(--yellow)}
+.task-card.done{border-left:3px solid var(--green);opacity:.7}
+.rd-item,.ml-item{background:var(--bg2);border:1px solid var(--border);border-radius:14px}
+
+/* Growth section stat boxes */
+.scg{gap:.5rem}
+.scc{padding:.75rem}
+
+/* PIN modal */
+.pin-modal{background:var(--bg2);border:1px solid var(--border);border-radius:24px}
+.dot{background:var(--border)}
+.dot.on{background:var(--gold);box-shadow:0 0 8px rgba(215,254,250,.3)}
+.pb{background:var(--bg3);border:1px solid var(--border);border-radius:14px;font-family:'Poppins',sans-serif;color:var(--white)}
+.pb:active{background:var(--bg4)}
+.pin-err{color:var(--red);font-family:'Poppins',sans-serif}
+
+/* Log forms */
+.log-input{background:var(--bg3);border:1px solid var(--border);border-radius:12px;color:var(--white);font-family:'Poppins',sans-serif;padding:.6rem .8rem;font-size:.82rem;width:100%;outline:none;resize:vertical;margin-bottom:6px}
+.log-input:focus{border-color:var(--gold)}
+.log-btn{background:var(--gold);color:#0A1612;border:none;border-radius:12px;padding:.6rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;width:100%}
+
+/* Save/cancel buttons */
+.mob-ml-save{background:var(--gold);color:#0A1612;font-family:'Poppins',sans-serif;border-radius:12px}
+.mob-ml-cancel{background:var(--bg3);border:1px solid var(--border);color:var(--gray2);font-family:'Poppins',sans-serif;border-radius:12px}
+
+/* Section headers */
+.sh{color:var(--gray2);letter-spacing:.1em}
 </style>
 </head>
 <body>
