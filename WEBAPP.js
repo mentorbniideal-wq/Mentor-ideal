@@ -2845,7 +2845,8 @@ function _getLineId(roleOrTeam) {
   return '';
 }
 
-function _sendLineMsg(userId, message) {
+function _sendLineMsg(userId, message, attempt) {
+  attempt = attempt || 0;
   if (!userId || !message) return {ok:false,error:'Missing userId or message'};
   var token = _getLineToken();
   if (!token) return {ok:false,error:'LINE_TOKEN not configured'};
@@ -2857,25 +2858,33 @@ function _sendLineMsg(userId, message) {
       muteHttpExceptions: true
     });
     var code = resp.getResponseCode();
+    var body = resp.getContentText();
     if (code === 200) {
       Logger.log('[LINE-OK] Push to '+userId+': '+message.substring(0,30)+'...');
       return {ok:true};
-    } else {
-      var body = resp.getContentText();
-      // Detect rate limiting specifically
-      if (code === 429) {
-        Logger.log('[LINE-429] Rate limit hit. Retry-After header: '+(resp.getHeaders()['Retry-After']||'N/A'));
-      }
-      Logger.log('[LINE-FAIL] Status '+code+': '+body.substring(0,100));
-      return {ok:false,error:'HTTP '+code,details:body};
     }
+    if (code === 429 && attempt < 3) {
+      var retryAfter = resp.getHeaders()['Retry-After'] || '1';
+      var waitMs = parseInt(retryAfter, 10) * 1000 || 1000;
+      waitMs = Math.max(1000, Math.min(5000, waitMs));
+      Logger.log('[LINE-429] Rate limit hit for '+userId+'; retryAfter='+retryAfter+'s wait='+waitMs+'ms attempt='+attempt);
+      Utilities.sleep(waitMs);
+      return _sendLineMsg(userId, message, attempt + 1);
+    }
+    if (code === 429) {
+      Logger.log('[LINE-429] Persistent rate limit for '+userId+' after '+attempt+' retries; Retry-After='+((resp.getHeaders()['Retry-After']||'N/A')));
+      return {ok:false,error:'HTTP 429',details:body};
+    }
+    Logger.log('[LINE-FAIL] Status '+code+': '+body.substring(0,100));
+    return {ok:false,error:'HTTP '+code,details:body};
   } catch(err) { 
     Logger.log('[LINE-ERROR] '+err.message);
     return {ok:false,error:err.message};
   }
 }
 
-function _sendLineMsgQR(userId, message, qrItems) {
+function _sendLineMsgQR(userId, message, qrItems, attempt) {
+  attempt = attempt || 0;
   if (!userId || !message) return {ok:false,error:'Missing userId or message'};
   var token = _getLineToken();
   if (!token) return {ok:false,error:'LINE_TOKEN not configured'};
@@ -2889,14 +2898,25 @@ function _sendLineMsgQR(userId, message, qrItems) {
       muteHttpExceptions: true
     });
     var code = resp.getResponseCode();
+    var body = resp.getContentText();
     if (code === 200) {
       Logger.log('[LINE-OK-QR] Push to '+userId+': '+message.substring(0,30)+'... ('+qrItems.length+' buttons)');
       return {ok:true};
-    } else {
-      var body = resp.getContentText();
-      Logger.log('[LINE-FAIL-QR] Status '+code+': '+body);
-      return {ok:false,error:'HTTP '+code,details:body};
     }
+    if (code === 429 && attempt < 3) {
+      var retryAfter = resp.getHeaders()['Retry-After'] || '1';
+      var waitMs = parseInt(retryAfter, 10) * 1000 || 1000;
+      waitMs = Math.max(1000, Math.min(5000, waitMs));
+      Logger.log('[LINE-429-QR] Rate limit hit for '+userId+'; retryAfter='+retryAfter+'s wait='+waitMs+'ms attempt='+attempt);
+      Utilities.sleep(waitMs);
+      return _sendLineMsgQR(userId, message, qrItems, attempt + 1);
+    }
+    if (code === 429) {
+      Logger.log('[LINE-429-QR] Persistent rate limit for '+userId+' after '+attempt+' retries; Retry-After='+((resp.getHeaders()['Retry-After']||'N/A')));
+      return {ok:false,error:'HTTP 429',details:body};
+    }
+    Logger.log('[LINE-FAIL-QR] Status '+code+': '+body);
+    return {ok:false,error:'HTTP '+code,details:body};
   } catch(err) { 
     Logger.log('[LINE-ERROR-QR] '+err.message);
     return {ok:false,error:err.message};
@@ -3011,7 +3031,7 @@ function apiSendLineBroadcast(p) {
     targets = Object.values(lineMap);
   }
   var sent=0, skipped=0, failed=0, rateLimited=0;
-  var delayMs = 150; // Throttle: 150ms between sends to avoid HTTP 429
+  var delayMs = 300; // Throttle: 300ms between sends to avoid HTTP 429
   targets.forEach(function(uid, idx){
     try { 
       // Add delay before each send (except first) to avoid LINE rate limiting
@@ -3023,7 +3043,7 @@ function apiSendLineBroadcast(p) {
         rateLimited++;
         Logger.log('[BROADCAST-429] Rate limited, backing off...');
         // Back off: increase delay for next sends
-        delayMs = Math.min(1000, delayMs + 100);
+        delayMs = Math.min(2000, delayMs + 200);
       } else {
         skipped++;
         Logger.log('[BROADCAST-FAIL] '+res.error);
@@ -3034,7 +3054,8 @@ function apiSendLineBroadcast(p) {
     }
   });
   Logger.log('[BROADCAST-RESULT] sent='+sent+' skipped='+skipped+' failed='+failed+' rateLimited='+rateLimited+' targets='+targets.length);
-  return {ok:true,sent:sent,skipped:skipped,failed:failed,rateLimited:rateLimited};
+  var ok = (failed === 0 && rateLimited === 0);
+  return {ok:ok,sent:sent,skipped:skipped,failed:failed,rateLimited:rateLimited};
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
