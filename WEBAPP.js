@@ -21,8 +21,8 @@ var MENTOR_ROLE = {
 // Single source of truth for all team sheet names
 var MENTOR_TEAMS = Object.values(MENTOR_ROLE); // MENTOR_TEAMS
 
-// Index maps to column number: col5=FEB...col15=DEC, col16=JAN (BNI sheet layout)
-var MONTH_LABELS = ['','','','','','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC','JAN'];
+// Index maps to column number: col5(E)=JAN, col6(F)=FEB, ..., col16(P)=DEC (Mentor Sheet layout)
+var MONTH_LABELS = ['','','','','','JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // BNI PALMS Scoring — Verified against real PALMS data
@@ -54,7 +54,8 @@ function _scoreOneToOne(oto, weeks) {
   return 0;
 }
 function _scoreCEU(ceu) {
-  if (ceu >= 4) return 20; // threshold is 4, NOT 5
+  if (ceu >= 4) return 20;
+  if (ceu >= 3) return 15;
   if (ceu >= 2) return 10;
   if (ceu >= 1) return 5;
   return 0;
@@ -67,8 +68,8 @@ function _scoreTYFB(tyfb) {
 }
 function _getColor(total) {
   if (total >= 70) return 'green';
-  if (total >= 40) return 'yellow';
-  if (total >= 25) return 'red';
+  if (total >= 50) return 'yellow';
+  if (total >= 30) return 'red';
   return 'black';
 }
 
@@ -88,14 +89,15 @@ function calcPALMSScore(d) {
 
 function _getNextColorGap(total) {
   if (total >= 70) return { current:'green',  next:null,     needed:'สีเขียวแล้ว 🟢' };
-  if (total >= 40) return { current:'yellow', next:'green',  needed:'ต้องการอีก '+(70-total)+' pts → เขียว 🟢' };
-  if (total >= 25) return { current:'red',    next:'yellow', needed:'ต้องการอีก '+(40-total)+' pts → เหลือง 🟡' };
-  return             { current:'black',  next:'red',    needed:'ต้องการอีก '+(25-total)+' pts → แดง 🔴' };
+  if (total >= 50) return { current:'yellow', next:'green',  needed:'ต้องการอีก '+(70-total)+' pts → เขียว 🟢' };
+  if (total >= 30) return { current:'red',    next:'yellow', needed:'ต้องการอีก '+(50-total)+' pts → เหลือง 🟡' };
+  return             { current:'black',  next:'red',    needed:'ต้องการอีก '+(30-total)+' pts → แดง 🔴' };
 }
 
 function calcGaps(d) {
-  var weeks  = (d.P||0)+(d.A||0)+(d.L||0)+(d.M||0)+(d.S||0);
-  var months = weeks / 4.333;
+  var attendWeeks = (d.P||0)+(d.A||0)+(d.L||0)+(d.M||0)+(d.S||0);
+  var weeks  = (d.bniDays > 0) ? Math.min(26, Math.max(1, Math.floor(d.bniDays/7))) : (attendWeeks || 1);
+  var months = weeks / 4;
   if (weeks === 0) return null;
   var scores = calcPALMSScore(d);
   var A = d.A||0; var RGI = d.RGI||0; var RGO = d.RGO||0;
@@ -129,7 +131,8 @@ function calcGaps(d) {
   }
   function gapCEU(currentScore) {
     if (currentScore===20) return { current:20,next:20,needed:'MAX แล้ว ✅' };
-    if (currentScore===10) return { current:10,next:20,needed:'เรียน CEU เพิ่มอีก '+(4-ceu)+' แต้ม (ปัจจุบัน '+ceu+' → ต้องถึง 4)' };
+    if (currentScore===15) return { current:15,next:20,needed:'เรียน CEU เพิ่มอีก '+(4-ceu)+' แต้ม (ปัจจุบัน '+ceu+' → ต้องถึง 4)' };
+    if (currentScore===10) return { current:10,next:15,needed:'เรียน CEU เพิ่มอีก '+(3-ceu)+' แต้ม (ปัจจุบัน '+ceu+' → ต้องถึง 3)' };
     if (currentScore===5)  return { current:5, next:10,needed:'เรียน CEU เพิ่มอีก '+(2-ceu)+' แต้ม (ปัจจุบัน '+ceu+' → ต้องถึง 2)' };
     return { current:0,next:5,needed:'เรียน CEU อย่างน้อย 1 แต้ม เพื่อรับ 5 pts' };
   }
@@ -161,7 +164,8 @@ function runTests() {
     { name:'Krisada',   P:12,A:2,L:5,M:0,S:0,  RGI:5, RGO:1, V:1,  oto:40,tyfb:10490,    ceu:2,  expect:40 },
     { name:'Narin',     P:20,A:1,L:0,M:0,S:2,  RGI:6, RGO:4, V:1,  oto:36,tyfb:149281,   ceu:5,  expect:55 },
     { name:'Tanyaluck', P:15,A:3,L:4,M:0,S:1,  RGI:9, RGO:7, V:2,  oto:32,tyfb:307831,   ceu:4,  expect:50 },
-    { name:'Phitarn',   P:23,A:0,L:0,M:0,S:0,  RGI:20,RGO:12,V:3,  oto:50,tyfb:309206,   ceu:5,  expect:80 }
+    { name:'Phitarn',   P:23,A:0,L:0,M:0,S:0,  RGI:20,RGO:12,V:3,  oto:50,tyfb:309206,   ceu:5,  expect:80 },
+    { name:'CEU3Test',  P:20,A:0,L:0,M:0,S:6,  RGI:0, RGO:0, V:0,  oto:0, tyfb:0,       ceu:3,  expect:30 }
   ];
   var results = cases.map(function(c) {
     var ps = calcPALMSScore(c);
@@ -242,13 +246,14 @@ function _bniBuildScore(actual) {
 
 function _bniFastTrack(actual) {
   var score = _bniBuildScore(actual);
-  var w = score.weeks || 1;
-  var months = w / 4.333;
+  var w = (actual.bniDays > 0) ? Math.min(26, Math.max(1, Math.floor(actual.bniDays/7))) : (score.weeks || 1);
+  var months = w / 4;
   var d = {
     P:actual.attend||0, A:actual.absent||0, L:actual.late||0,
     M:actual.medical||0, S:actual.sub||0,
     RGI:actual.rg||0, RGO:0, V:actual.visitor||0,
-    oto:actual.oToOne||0, ceu:actual.ceu||0, tyfb:actual.tyfcb||0
+    oto:actual.oToOne||0, ceu:actual.ceu||0, tyfb:actual.tyfcb||0,
+    bniDays: actual.bniDays||0
   };
   var gd = calcGaps(d);
   if (!gd) return { score:score, gaps:[], needed:0, target:70, nextTl:'yellow', fastestActions:[] };
@@ -357,36 +362,2453 @@ function doGet(e) {
     .addMetaTag('viewport','width=device-width,initial-scale=1.0,maximum-scale=1.0');
 }
 
+// Quick Reply ปุ่มลัด (แสดงหลังทุกข้อความสำหรับ registered users)
+var LINE_QR_MAIN = [
+  {type:'action',action:{type:'message',label:'📊 สถานะ',text:'สถานะ'}},
+  {type:'action',action:{type:'message',label:'📈 ประวัติ',text:'ประวัติ'}},
+  {type:'action',action:{type:'message',label:'🤝 แนะนำ',text:'แนะนำ'}},
+  {type:'action',action:{type:'message',label:'👥 ทีม',text:'ทีม'}},
+  {type:'action',action:{type:'message',label:'🙋 ลา',text:'ลา'}},
+  {type:'action',action:{type:'message',label:'👥 ส่ง sub',text:'ส่ง sub'}}
+];
+
 // ── LINE Webhook (รับข้อความจาก Bot → ตอบกลับ User ID) ────────
 function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents);
-    var events = body.events || [];
-    events.forEach(function(ev) {
-      if (ev.type !== 'message' || ev.message.type !== 'text') return;
-      var userId = ev.source.userId;
-      var text   = (ev.message.text || '').trim().toLowerCase();
-      var reply  = '';
-
-      if (text === 'myid' || text === 'ไอดีของฉัน' || text === 'id') {
-        reply = '🆔 LINE User ID ของคุณ:\n' + userId + '\n\nส่งค่านี้ให้ MC หรือ Growth เพื่อตั้งค่าการแจ้งเตือนครับ';
-      } else {
-        reply = 'สวัสดีครับ 👋 BNI IDEAL Bot\n\nพิมพ์ "myid" เพื่อดู LINE ID ของคุณสำหรับตั้งค่าแจ้งเตือนครับ';
+    (body.events || []).forEach(function(ev) {
+      if (ev.type === 'follow') {
+        _lineReply(ev.replyToken, _lineBotWelcome(), null);
+        PropertiesService.getScriptProperties().setProperty('LINE_REG_'+ev.source.userId,'AWAITING');
+        return;
       }
-
-      // ตอบกลับผ่าน Reply API
-      var token = _getLineToken();
-      if (token && ev.replyToken && reply) {
-        UrlFetchApp.fetch('https://api.line.me/v2/bot/message/reply', {
-          method: 'POST',
-          headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token },
-          payload: JSON.stringify({ replyToken: ev.replyToken, messages: [{ type:'text', text:reply }] }),
-          muteHttpExceptions: true
-        });
+      if (ev.type !== 'message' || ev.message.type !== 'text') return;
+      var reply = _lineBotHandle(ev.source.userId, (ev.message.text||'').trim(), ev);
+      if (reply) {
+        var isReg = !!_lineGetMember(ev.source.userId);
+        // reply can be a plain string OR {msg, qr} for dynamic quick replies
+        var replyMsg = (typeof reply === 'object' && reply.msg) ? reply.msg : reply;
+        var replyQR  = (typeof reply === 'object' && reply.qr)  ? reply.qr  : (isReg ? LINE_QR_MAIN : null);
+        _lineReply(ev.replyToken, replyMsg, replyQR);
       }
     });
   } catch(e2) { Logger.log('doPost error: ' + e2.message); }
   return ContentService.createTextOutput('OK');
+}
+
+function _lineBotWelcome() {
+  return 'สวัสดีครับ! 👋 ยินดีต้อนรับสู่\nBNI IDEAL — Mentor Coordinator\n'
+    +'─────────────────\n'
+    +'บัญชีนี้จะช่วยให้คุณ:\n'
+    +'📊 เช็คคะแนน BNI ตัวเอง\n'
+    +'⚡ รู้ว่าต้องทำอะไรต่อ\n'
+    +'📈 ดู Trend คะแนน 3 เดือน\n'
+    +'─────────────────\n'
+    +'🔐 เพื่อเริ่มใช้งาน กรุณาส่ง\n'
+    +'ชื่อ-นามสกุล BNI (ภาษาอังกฤษ)\n'
+    +'ของคุณมาเลยครับ\n\n'
+    +'ตัวอย่าง:\nPhitarn Sakulthanaphetch';
+}
+
+function _lineReply(replyToken, text, qrItems) {
+  var token = _getLineToken();
+  if (!token || !replyToken) return;
+  var msg = {type:'text', text:text};
+  if (qrItems && qrItems.length) msg.quickReply = {items: qrItems.slice(0,13)};
+  UrlFetchApp.fetch('https://api.line.me/v2/bot/message/reply', {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token },
+    payload: JSON.stringify({ replyToken:replyToken, messages:[msg] }),
+    muteHttpExceptions: true
+  });
+}
+
+// ── LINE Bot: Main handler ────────────────────────────────────
+function _lineBotHandle(userId, text, ev) {
+  var t = text.toLowerCase();
+  if (t === 'myid' || t === 'id') return '🆔 LINE User ID:\n' + userId;
+
+  var props = PropertiesService.getScriptProperties();
+  var member = _lineGetMember(userId);
+
+  // ── Registration flow ─────────────────────────────────────
+  if (!member) {
+    var state = props.getProperty('LINE_REG_' + userId) || '';
+    if (!state) {
+      props.setProperty('LINE_REG_' + userId, 'AWAITING');
+      return 'สวัสดีครับ! 👋 BNI IDEAL Bot\n\nส่งชื่อ-นามสกุลภาษาอังกฤษ (ตาม BNI) เพื่อลงทะเบียนครับ\n\nเช่น: Korranat Worawongthep';
+    }
+    if (state === 'AWAITING') {
+      var found = _lineFindMember(text);
+      if (!found.length) return '❌ ไม่พบ "' + text + '" ใน BNI IDEAL\n\nลองส่งชื่อ-นามสกุลอีกครั้งนะครับ';
+      if (found.length === 1) {
+        props.setProperty('LINE_REG_' + userId, 'CONFIRM:' + found[0].name);
+        return '✅ พบสมาชิก:\n' + found[0].name + (found[0].nick?' ('+found[0].nick+')':'') + '\nทีม: ' + (found[0].mentor||'—') + '\n\nใช่คุณไหมครับ? ตอบ "ใช่" หรือ "ไม่ใช่"';
+      }
+      var opts = found.slice(0,3).map(function(m,i){return (i+1)+'. '+m.name+(m.nick?' ('+m.nick+')':'');}).join('\n');
+      props.setProperty('LINE_REG_' + userId, 'CHOOSE:' + found.map(function(m){return m.name;}).join('|'));
+      return 'พบหลายคนที่คล้ายกัน:\n' + opts + '\n\nตอบ 1, 2 หรือ 3 ครับ';
+    }
+    if (state.indexOf('CONFIRM:') === 0) {
+      var pending = state.slice(8);
+      if (t === 'ใช่' || t === 'yes' || t === 'ok' || t === 'ยืนยัน' || t === '1') {
+        _lineRegisterMember(userId, pending);
+        props.deleteProperty('LINE_REG_' + userId);
+        var d0 = _lineGetMemberData(pending);
+        return '🎉 ลงทะเบียนสำเร็จ!\n\nยินดีต้อนรับ ' + ((d0&&d0.nick)||pending.split(' ')[0]) + ' 👋\n\nพิมพ์ "สถานะ" เพื่อดูคะแนน\nพิมพ์ "help" เพื่อดูคำสั่งทั้งหมด';
+      }
+      props.setProperty('LINE_REG_' + userId, 'AWAITING');
+      return 'โอเคครับ ลองส่งชื่ออีกครั้งนะครับ';
+    }
+    if (state.indexOf('CHOOSE:') === 0) {
+      var names = state.slice(7).split('|');
+      var idx = parseInt(t) - 1;
+      if (idx >= 0 && idx < names.length) {
+        _lineRegisterMember(userId, names[idx]);
+        props.deleteProperty('LINE_REG_' + userId);
+        var d1 = _lineGetMemberData(names[idx]);
+        return '🎉 ลงทะเบียนสำเร็จ!\n\nยินดีต้อนรับ ' + ((d1&&d1.nick)||names[idx].split(' ')[0]) + ' 👋\n\nพิมพ์ "สถานะ" เพื่อดูคะแนน\nพิมพ์ "help" เพื่อดูคำสั่งทั้งหมด';
+      }
+      return 'ตอบ 1, 2 หรือ 3 ครับ';
+    }
+    props.setProperty('LINE_REG_' + userId, 'AWAITING');
+    return 'สวัสดีครับ กรุณาส่งชื่อ BNI ของคุณเพื่อลงทะเบียนครับ';
+  }
+
+  // ── Pending sub state ─────────────────────────────────────
+  var absState = props.getProperty('LINE_ABS_' + userId);
+  if (absState === 'AWAITING_SUB') {
+    props.deleteProperty('LINE_ABS_' + userId);
+    if (t === 'ยกเลิก' || t === 'cancel') return '✅ ยกเลิกแล้วครับ';
+    return _lineAbsenceLog(member, text.trim(), 'ส่ง sub');
+  }
+
+  // ── Pending 1-2-1 outcome state ───────────────────────────
+  var await121Out = props.getProperty('LINE_121_AWAIT_OUT_' + userId);
+  if (await121Out) {
+    props.deleteProperty('LINE_121_AWAIT_OUT_' + userId);
+    return _line121LogOutcome(member, userId, await121Out, text.trim());
+  }
+
+  // ── Registered member commands ────────────────────────────
+  if (t === 'สถานะ' || t === 'score' || t === 'คะแนน') return _lineStatusReply(member);
+  if (t === 'ทำอะไร' || t === 'ต้องทำอะไร' || t === 'action')  return _lineActionReply(member);
+  if (t === 'ประวัติ' || t === 'trend' || t === 'history')        return _lineHistoryReply(member);
+  if (t === 'แนะนำ' || t.indexOf('แนะนำ') === 0)                return _lineMatchWithQR(member, text.slice(5).trim());
+  if (t.indexOf('นัด ') === 0 || t.indexOf('นัด121 ') === 0)   return _line121Schedule(member, text.replace(/^นัด(121)?\s+/i,'').trim());
+  if (t === 'เจอแล้ว' || t === 'met') {
+    return _line121ConfirmMet(member, userId, props);
+  }
+  if (t === 'ติดตาม' || t === 'track' || t === '1-2-1')        return _line121ViewMy(member);
+  if (t.indexOf('ธุรกิจ ') === 0) {
+    var bizDesc = text.slice(7).trim();
+    if (bizDesc) return _lineSetBizProfile(member, bizDesc);
+  }
+  if (t === 'ธุรกิจ') {
+    return '📌 ตั้งค่าธุรกิจของคุณ:\nพิมพ์: ธุรกิจ [คำอธิบายสั้นๆ]\nเช่น: ธุรกิจ ประกันชีวิต สุขภาพ\nแล้วพิมพ์ "แนะนำ" เพื่อให้ Bot หาคู่ 1-2-1 ให้อัตโนมัติ';
+  }
+  if (t === 'ทีม' || t === 'team')                               return _lineTeamReply(member);
+  if (t === 'ลา' || t.indexOf('ลา ') === 0) {
+    var reason = text.slice(2).trim();
+    return _lineAbsenceLog(member, reason, 'ลา');
+  }
+  if (t === 'ส่ง sub' || t.indexOf('ส่ง sub ') === 0) {
+    var subName = text.slice(8).trim();
+    if (!subName) {
+      props.setProperty('LINE_ABS_' + userId, 'AWAITING_SUB');
+      return '👥 ส่ง Sub\n─────────────────\nพิมพ์ชื่อคนที่จะมาแทนคุณครับ\n(ชื่อ-นามสกุล หรือชื่อเล่นก็ได้)';
+    }
+    return _lineAbsenceLog(member, subName, 'ส่ง sub');
+  }
+  if (t === 'ยกเลิกลา' || t === 'cancel') {
+    return _lineCancelAbsence(member);
+  }
+  if (t === 'ปัญหา' || t === 'issue') {
+    return _lineViewIssue(member);
+  }
+  if (t.indexOf('ปัญหา ') === 0 || t.indexOf('issue ') === 0) {
+    var issueDetail = text.replace(/^(ปัญหา|issue)\s+/i, '').trim();
+    return _lineReportIssue(member, issueDetail);
+  }
+  if (t === 'ยกเลิกปัญหา' || t === 'cancelissue') {
+    return _lineCancelIssue(member);
+  }
+  if (t.indexOf('ลอง ') === 0 || t.indexOf('sim ') === 0) {
+    var simParts = text.replace(/^(ลอง|sim)\s+/i,'').trim().split(/\s+/);
+    return _lineSimulate(member, simParts[0]||'', simParts[1]||'0');
+  }
+  if (t === 'แจ้งเตือน' || t === 'notif') return _lineNotifSettingsReply(member);
+  if (t.indexOf('ปิด ') === 0) return _lineToggleNotif(member, text.slice(4).trim(), true);
+  if (t.indexOf('เปิด ') === 0) return _lineToggleNotif(member, text.slice(5).trim(), false);
+  if (t === 'เป้า' || t === 'goal' || t === 'goals') return _lineGoalsReply(member);
+  if (t.indexOf('เป้า ') === 0) {
+    var gpParts = text.slice(5).trim().split(/\s+/);
+    return _lineSetGoal(member, gpParts[0]||'', parseInt(gpParts[1])||0);
+  }
+  if (t === 'ยกเลิก' || t === 'ลบ') {
+    _lineUnregister(userId);
+    props.deleteProperty('LINE_REG_' + userId);
+    return 'ลบข้อมูลแล้วครับ ส่งข้อความใหม่เพื่อลงทะเบียนอีกครั้ง';
+  }
+  return _lineHelpReply(member);
+}
+
+// ── LINE Bot: Member Storage ──────────────────────────────────
+function _lineGetMember(userId) {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📱 LINE MEMBERS');
+  if (!sh || sh.getLastRow() < 2) return null;
+  var data = sh.getRange(2, 1, sh.getLastRow()-1, 2).getValues();
+  for (var i = 0; i < data.length; i++) {
+    if (String(data[i][0]).trim() === userId) return String(data[i][1]).trim();
+  }
+  return null;
+}
+
+function _lineRegisterMember(userId, name) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('📱 LINE MEMBERS') || ss.insertSheet('📱 LINE MEMBERS');
+  if (sh.getLastRow() < 1) sh.appendRow(['LINE User ID','Member Name','Registered At']);
+  if (sh.getLastRow() > 1) {
+    var rows = sh.getRange(2, 1, sh.getLastRow()-1, 1).getValues();
+    for (var i = 0; i < rows.length; i++) {
+      if (String(rows[i][0]).trim() === userId) {
+        sh.getRange(i+2,2).setValue(name); sh.getRange(i+2,3).setValue(new Date()); return;
+      }
+    }
+  }
+  sh.appendRow([userId, name, new Date()]);
+}
+
+function _lineUnregister(userId) {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📱 LINE MEMBERS');
+  if (!sh || sh.getLastRow() < 2) return;
+  var rows = sh.getRange(2, 1, sh.getLastRow()-1, 1).getValues();
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i][0]).trim() === userId) { sh.deleteRow(i+2); return; }
+  }
+}
+
+function _lineFindMember(query) {
+  var listSh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('รายชื่อทั้งหมด');
+  if (!listSh || listSh.getLastRow() < 3) return [];
+  var data = listSh.getRange(3, 2, listSh.getLastRow()-2, 3).getValues();
+  var q = query.toLowerCase().trim();
+  var results = [];
+  data.forEach(function(row) {
+    var name = String(row[0]||'').trim(), nick = String(row[1]||'').trim(), mentor = String(row[2]||'').trim();
+    if (name.length < 2) return;
+    var nl = name.toLowerCase(), nickl = nick.toLowerCase();
+    var score = 0;
+    if (nl === q || nickl === q) score = 10;
+    else if (nl.indexOf(q) >= 0 || nickl.indexOf(q) >= 0) score = 6;
+    else {
+      var words = q.split(/\s+/).filter(function(w){return w.length>2;});
+      var hits = words.filter(function(w){return nl.indexOf(w)>=0||nickl.indexOf(w)>=0;}).length;
+      if (hits >= Math.ceil(words.length/2)) score = hits;
+    }
+    if (score > 0) results.push({name:name,nick:nick,mentor:mentor,score:score});
+  });
+  return results.sort(function(a,b){return b.score-a.score;}).slice(0,3);
+}
+
+// ── LINE Bot: Data Fetcher ────────────────────────────────────
+function _lineGetMemberData(memberName) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var r2ySh = ss.getSheetByName('Reporting2You');
+  var listSh = ss.getSheetByName('รายชื่อทั้งหมด');
+  var nick = '', mentor = '';
+  if (listSh && listSh.getLastRow() >= 3) {
+    listSh.getRange(3,2,listSh.getLastRow()-2,3).getValues().forEach(function(r){
+      if (String(r[0]||'').trim()===memberName){nick=String(r[1]||'');mentor=String(r[2]||'');}
+    });
+  }
+  var base = {name:memberName,nick:nick,mentor:mentor,bniScore:0,bniTl:'none',cats:null,fastTrack:[],scoreHistory:[]};
+  if (!r2ySh || r2ySh.getLastRow() < 2) return base;
+  var r2y = null;
+  r2ySh.getRange(2,1,r2ySh.getLastRow()-1,16).getValues().forEach(function(r){
+    var rn=String(r[0]||'').replace(/\s*\(BNI Ideal\)\s*/gi,'').trim();
+    if(rn===memberName) r2y=r;
+  });
+  if (!r2y) {
+    // Fallback: use master sheet col E score for LT/mentors not in R2Y
+    if (listSh && listSh.getLastRow() >= 3) {
+      listSh.getRange(3,2,listSh.getLastRow()-2,4).getValues().forEach(function(r){
+        if(String(r[0]||'').trim()===memberName){
+          var ms=parseFloat(r[3])||0;
+          if(ms>0){base.bniScore=ms;base.bniTl=_bniBuildTL(ms);}
+        }
+      });
+    }
+    return base;
+  }
+  var actual={rg:parseInt(r2y[1])||0,visitor:parseInt(r2y[3])||0,oToOne:parseInt(r2y[4])||0,
+              ceu:parseInt(r2y[5])||0,tyfcb:_parseR2YNum(r2y[6]),bniDays:parseInt(r2y[8])||0,
+              attend:parseInt(r2y[9])||0,absent:parseInt(r2y[10])||0};
+  var ps = calcPALMSScore({P:actual.attend,A:actual.absent,L:0,M:0,S:0,
+    RGI:actual.rg,RGO:0,V:actual.visitor,oto:actual.oToOne,
+    ceu:actual.ceu,tyfb:actual.tyfcb,bniDays:actual.bniDays});
+  var s = {absent:ps.absence,ref:ps.referral,tyfcb:ps.tyfb,visitor:ps.visitor,one21:ps.oneToOne,training:ps.ceu};
+  var pts = parseInt(r2y[7])||0;
+  var ft = [];
+  try { if (actual.bniDays>0) { var ftr=_bniFastTrack(actual); ft=(ftr&&ftr.fastestActions||[]).slice(0,3); } } catch(e){}
+  // Score history from UPDATE SCORES sheet (Traffic Light Evolution — covers ALL members)
+  var hist = [];
+  var updateSh = ss.getSheetByName('📥 UPDATE SCORES');
+  if (updateSh && updateSh.getLastRow() >= 8) {
+    var uLastCol = updateSh.getLastColumn();
+    var uHeaders = updateSh.getRange(7,2,1,uLastCol-1).getValues()[0];
+    var monthIdxs = [], monthPat = /^\d{2}\/\d{2}$/;
+    uHeaders.forEach(function(h,i){ if(monthPat.test(String(h).trim())) monthIdxs.push({i:i,h:String(h).trim()}); });
+    if (monthIdxs.length > 0) {
+      updateSh.getRange(8,2,updateSh.getLastRow()-7,uLastCol-1).getValues().forEach(function(row){
+        var raw = String(row[0]||'').trim().replace(/Export as PDF.*/i,'').replace(/No data.*/i,'').trim();
+        var m = raw.match(/^(.+?)\s*\(BNI Ideal\)/i);
+        var n = m ? m[1].trim() : raw;
+        if (n !== memberName) return;
+        monthIdxs.forEach(function(mi){
+          var sv = parseFloat(row[mi.i])||0;
+          if (sv > 0) {
+            var parts = mi.h.split('/'); // MM/YY
+            var mo = parseInt(parts[0])||0, yr = parseInt(parts[1]||0)+2000;
+            var labels = ['','JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+            hist.push({month:labels[mo]||mi.h, score:sv, sortKey:yr*100+mo});
+          }
+        });
+      });
+      hist.sort(function(a,b){return a.sortKey-b.sortKey;});
+    }
+  }
+  return {name:memberName,nick:nick,mentor:mentor,bniScore:pts>0?pts:0,bniTl:pts>0?_bniBuildTL(pts):'none',
+          cats:{absent:s.absent,ref:s.ref,tyfcb:s.tyfcb,visitor:s.visitor,one21:s.one21,training:s.training},
+          actual:actual,fastTrack:ft,scoreHistory:hist};
+}
+
+// ── LINE Bot: Random Encouragement ───────────────────────────
+var _LINE_MSG = {
+  green: [
+    'สุดยอดครับ คุณ{nick}! 🏆 ระดับ Top ของ Chapter เลย',
+    'เยี่ยมมากครับ คุณ{nick}! 💚 เป็นแบบอย่างให้ทีมได้เลย',
+    'ทำได้ดีมากๆ เลยครับ คุณ{nick}! รักษาฟอร์มนี้ไว้นะครับ 🔥',
+    'โปรมากครับ คุณ{nick}! 🌟 ทีมภูมิใจในตัวคุณครับ',
+    'คุณ{nick} กำลังสร้างความประทับใจให้ Chapter มากเลยครับ 👏',
+    'เก่งมากครับ! คุณ{nick} พิสูจน์แล้วว่าทำได้ต่อเนื่อง 💪'
+  ],
+  yellow: [
+    'ใกล้แล้วครับ คุณ{nick}! 🟡 อีกนิดเดียวก็เขียวแล้ว',
+    'กำลังดีมากเลยครับ คุณ{nick}! เห็นความพยายามชัดเลย 👍',
+    'สู้ๆ ครับ คุณ{nick}! แค่เพิ่มอีก 1-2 action ก็ขึ้นเขียวได้แล้ว',
+    'คุณ{nick} มาถูกทางแล้วครับ! ดัน Action Plan นิดเดียวก็ถึงครับ 🚀',
+    'ไม่ไกลเลยครับ คุณ{nick}! ทำต่อเนื่องอีกเดือนเดียวเท่านั้น ✨',
+    'เห็นพัฒนาการครับ คุณ{nick}! อย่าหยุดตอนนี้นะครับ 💛'
+  ],
+  red: [
+    'สู้ๆ ครับ คุณ{nick}! ทุกก้าวเล็กๆ นับรวมกันได้เสมอครับ 💪',
+    'ไม่เป็นไรครับ คุณ{nick}! เริ่มใหม่ได้เสมอ ทีมซัพพอร์ตอยู่ตลอดครับ',
+    'คุณ{nick} ยังมีเวลาครับ! Action Plan ข้างล่างนี้ทำได้แน่นอน 🎯',
+    'เชื่อในตัวคุณนะครับ คุณ{nick}! แค่โฟกัสที่ 2-3 อย่างก่อนเลยครับ',
+    'ก้าวแรกสำคัญที่สุดครับ คุณ{nick}! เลือกทำ 1 อย่างจากด้านล่างนี้เลย 🔴→🟡',
+    'ทีมเชียร์อยู่นะครับ คุณ{nick}! ลองทำ Action Plan สัปดาห์นี้เลยครับ'
+  ],
+  black: [
+    'คุณ{nick} ไม่ต้องท้อนะครับ! ทุกคนเริ่มต้นใหม่ได้เสมอครับ 🖤→🔴',
+    'พีทเชื่อในตัวคุณครับ คุณ{nick}! เริ่มจากก้าวเล็กๆ ก่อนเลยครับ',
+    'ยังไม่สายครับ คุณ{nick}! มาเริ่มกันใหม่ ทีมพร้อมช่วยเสมอครับ 🤝',
+    'คุณ{nick} มาทำ 1-2-1 กับ Mentor ก่อนนะครับ จะได้วางแผนด้วยกัน 📅',
+    'อย่าเพิ่งท้อครับ คุณ{nick}! BNI ต้องใช้เวลา แต่ผลลัพธ์คุ้มค่าแน่นอนครับ',
+    'ทุกวันคือโอกาสใหม่ครับ คุณ{nick}! เริ่มจาก Referral 1 ใบก่อนเลยครับ 💌'
+  ],
+  none: [
+    'ยินดีต้อนรับครับ คุณ{nick}! 🌟 ข้อมูลจะอัพเดทหลัง Mentor Coordinator import CSV ครับ',
+    'สวัสดีครับ คุณ{nick}! รอข้อมูลเดือนแรกก่อนนะครับ แล้วจะเห็นคะแนนเลยครับ'
+  ]
+};
+
+function _lineRandMsg(tl, nick) {
+  var pool = _LINE_MSG[tl] || _LINE_MSG.none;
+  var idx = Math.floor(Math.random() * pool.length);
+  return pool[idx].replace(/\{nick\}/g, nick);
+}
+
+// ── LINE Bot: Reply Builders ──────────────────────────────────
+function _lineStatusReply(memberName) {
+  var d = _lineGetMemberData(memberName);
+  var nick = (d&&d.nick)||memberName.split(' ')[0];
+  if (!d || !d.bniScore) return '⚠️ ยังไม่พบข้อมูลคะแนนของคุณในระบบครับ\n(ข้อมูลอัพเดทหลัง Mentor Coordinator import CSV ประจำเดือน)';
+
+  var tl = d.bniTl||'none';
+  var tlIcon = {green:'🟢',yellow:'🟡',red:'🔴',black:'⚫',none:'📊'}[tl]||'📊';
+  var nextZone = {black:'🔴 แดง (30pt)',red:'🟡 เหลือง (50pt)',yellow:'🟢 เขียว (70pt)'}[tl]||'';
+  var rankInfo = _lineTeamRank(memberName, d.mentor||'');
+  var rankStr = rankInfo ? '🏅 อันดับ '+rankInfo.rank+'/'+rankInfo.total+' ในทีม '+(d.mentor||'') : '';
+  var cats = d.cats||{};
+  var a = d.actual||{};
+
+  // Compute effective weeks for per-week context
+  var effWks = Math.min(26, Math.max(1, Math.floor((a.bniDays||0)/7)));
+  var rgPerWk  = effWks>0 ? (a.rg||0)/effWks : 0;
+  var otoPerWk = effWks>0 ? (a.oToOne||0)/effWks : 0;
+  var visMo    = effWks>0 ? (a.visitor||0)/(effWks/4) : 0;
+  var tyfStr   = (a.tyfcb||0) >= 1000000
+    ? (Math.round((a.tyfcb||0)/100000)/10)+'M'
+    : (a.tyfcb||0) >= 1000 ? Math.round((a.tyfcb||0)/1000)+'k' : String(a.tyfcb||0);
+
+  function bar(got, max) {
+    var pct = max>0 ? got/max : 0;
+    if (pct >= 1)   return '✅';
+    if (pct >= 0.6) return '🔸';
+    return '⚠️';
+  }
+  function fmt(n) { return Math.round(n*10)/10; }
+
+  var lines = [
+    '📊 คุณ'+nick+' — BNI Score',
+    tlIcon+' '+d.bniScore+'/100' + (nextZone?' | เป้า: '+nextZone:''),
+    rankStr ? rankStr : '',
+    '─────────────────',
+    '  หมวด           ได้   เต็ม',
+    bar(cats.absent||0,15)  +' ขาดประชุม  '+(cats.absent||0)+'/15'+(a.absent!==undefined?'  (ขาด '+(a.absent||0)+' ครั้ง)':''),
+    bar(cats.ref||0,15)     +' Referral   '+(cats.ref||0)+'/15'+'  ('+fmt(rgPerWk)+'/wk)',
+    bar(cats.one21||0,15)   +' 1-2-1      '+(cats.one21||0)+'/15'+'  ('+fmt(otoPerWk)+'/wk)',
+    bar(cats.visitor||0,20) +' Visitor    '+(cats.visitor||0)+'/20'+'  ('+fmt(visMo)+'/mo)',
+    bar(cats.training||0,20)+' CEU        '+(cats.training||0)+'/20'+'  ('+( a.ceu||0)+' ใบ)',
+    bar(cats.tyfcb||0,15)   +' TYFCB      '+(cats.tyfcb||0)+'/15'+'  (฿'+tyfStr+')',
+    '─────────────────'
+  ];
+
+  if (d.fastTrack && d.fastTrack.length) {
+    lines.push('⚡ ทำเพิ่มได้ทันที:');
+    d.fastTrack.slice(0,3).forEach(function(ft,i){
+      lines.push((i+1)+'. '+(ft.action||'')+(ft.gain?' → +'+ft.gain+' pt':''));
+    });
+    lines.push('─────────────────');
+  } else if (tl==='green') {
+    lines.push('🏆 ยอดเยี่ยม! รักษาฟอร์มนี้ไว้นะครับ');
+    lines.push('─────────────────');
+  }
+
+  lines.push(_lineRandMsg(tl, nick));
+  lines.push('');
+  lines.push('พิมพ์ "ประวัติ" ดู Trend 3 เดือน');
+  return lines.join('\n');
+}
+
+function _lineActionReply(memberName) { return _lineStatusReply(memberName); }
+
+function _lineHistoryReply(memberName) {
+  var d = _lineGetMemberData(memberName);
+  var nick = (d&&d.nick)||memberName.split(' ')[0];
+  if (!d || !d.scoreHistory || !d.scoreHistory.length) return '⚠️ ยังไม่มีประวัติคะแนนในระบบครับ';
+  var hist = d.scoreHistory.slice(-3);
+  var lines = ['📈 Trend — คุณ'+nick,'─────────────────'];
+
+  hist.forEach(function(h, i) {
+    var tl = h.score>=70?'🟢':h.score>=50?'🟡':h.score>=30?'🔴':'⚫';
+    var delta = '';
+    if (i > 0) {
+      var diff = Math.round(h.score - hist[i-1].score);
+      delta = diff > 0 ? '  ↑+'+diff : diff < 0 ? '  ↓'+diff : '  →';
+    }
+    lines.push(tl+' '+h.month+': '+Math.round(h.score)+' pt'+delta);
+  });
+
+  // Trend analysis
+  lines.push('─────────────────');
+  if (hist.length >= 2) {
+    var last = hist[hist.length-1].score;
+    var prev = hist[hist.length-2].score;
+    var diff2 = Math.round(last - prev);
+    if (diff2 < 0) {
+      lines.push('📉 ลด '+ Math.abs(diff2)+' pt — หมวดที่ขาด:');
+      var cats = d.cats||{};
+      var weak = [];
+      if ((cats.training||0) < 15) weak.push('CEU '+(cats.training||0)+'/20');
+      if ((cats.ref||0)      < 10) weak.push('Referral '+(cats.ref||0)+'/15');
+      if ((cats.one21||0)    < 10) weak.push('1-2-1 '+(cats.one21||0)+'/15');
+      if ((cats.visitor||0)  < 15) weak.push('Visitor '+(cats.visitor||0)+'/20');
+      if ((cats.absent||0)   < 15) weak.push('ขาดประชุม '+(cats.absent||0)+'/15');
+      weak.slice(0,3).forEach(function(w){ lines.push('  ⚠️ '+w); });
+    } else if (diff2 > 0) {
+      lines.push('📈 ขึ้น +'+diff2+' pt 👏 ทำต่อเนื่องไว้ครับ!');
+    } else {
+      lines.push('→ คะแนนคงที่ เพิ่มอีก 1 action ขึ้นได้เลยครับ');
+    }
+  }
+
+  // Gap to next zone
+  var cur = Math.round((hist[hist.length-1]||{}).score||0);
+  var nextTgt = cur < 30 ? 30 : cur < 50 ? 50 : cur < 70 ? 70 : 100;
+  var gap = nextTgt - cur;
+  if (gap > 0 && gap < 50) {
+    var zoneName = nextTgt>=70?'🟢 เขียว':nextTgt>=50?'🟡 เหลือง':'🔴 แดง';
+    lines.push('─────────────────');
+    lines.push('🎯 อีก '+gap+' pt → '+zoneName);
+    if (d.fastTrack && d.fastTrack.length) {
+      lines.push('⚡ ทำได้เลยตอนนี้:');
+      d.fastTrack.slice(0,2).forEach(function(ft,i){
+        lines.push((i+1)+'. '+(ft.action||'')+(ft.gain?' +'+ft.gain+' pt':''));
+      });
+    }
+  }
+  lines.push('─────────────────');
+  lines.push('พิมพ์ "สถานะ" ดูรายละเอียดทุกหมวด');
+  return lines.join('\n');
+}
+
+function _lineTeamRank(memberName, teamName) {
+  if (!teamName) return null;
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var teamSh = ss.getSheetByName(teamName);
+  if (!teamSh || teamSh.getLastRow() < 4) return null;
+  var data = teamSh.getRange(4, 3, Math.max(1, teamSh.getLastRow()-3), 14).getValues();
+  var scores = [];
+  data.forEach(function(row) {
+    var mName = String(row[0]||'').trim();
+    if (!mName) return;
+    var latest = 0;
+    for (var c = 13; c >= 2; c--) {
+      var v = parseFloat(row[c])||0;
+      if (v > 0) { latest = v; break; }
+    }
+    scores.push({name:mName, score:latest});
+  });
+  scores.sort(function(a,b){ return b.score-a.score; });
+  for (var i = 0; i < scores.length; i++) {
+    if (scores[i].name === memberName) return {rank:i+1, total:scores.length};
+  }
+  return null;
+}
+
+function _lineHelpReply(memberName) {
+  var d = _lineGetMemberData(memberName);
+  var nick = (d&&d.nick)||memberName.split(' ')[0];
+  return '👋 BNI IDEAL Bot — คุณ'+nick+'\n─────────────────\n'+
+    '📊 สถานะ              →  คะแนน + Action Plan\n'+
+    '📈 ประวัติ              →  Trend 3 เดือน\n'+
+    '🤝 แนะนำ             →  Auto หาคู่จาก profile\n'+
+    '📌 ธุรกิจ [คำอธิบาย]→  ตั้งค่า profile\n'+
+    '👥 ทีม                  →  Leaderboard ทีม\n'+
+    '🙋 ลา [เหตุผล]       →  แจ้งลาวันศุกร์\n'+
+    '👥 ส่ง sub [ชื่อ]      →  แจ้งส่งคนแทน\n'+
+    '🔄 ยกเลิกลา           →  ยกเลิกการแจ้งลา\n'+
+    '🤝 นัด [ชื่อ]           →  บันทึกนัด 1-2-1\n'+
+    '✅ เจอแล้ว              →  ยืนยันเจอ + บอกผล\n'+
+    '📊 ติดตาม              →  ดูประวัติ 1-2-1\n'+
+    '⚠️ ปัญหา [รายละเอียด] → แจ้งปัญหาให้ Mentor\n'+
+    '📋 ปัญหา               →  ดูเรื่องที่แจ้งไว้\n'+
+    '🔮 ลอง ref 3          →  จำลองคะแนนถ้าทำได้\n'+
+    '─────────────────\n'+
+    '🎯 เป้า ref 8          →  ตั้งเป้า Referral 8 ใบ\n'+
+    '🎯 เป้า                →  ดู Progress เป้าหมาย\n'+
+    '🔔 แจ้งเตือน           →  ดู/ตั้งค่า Notification\n'+
+    '🔕 ปิด nudge           →  ปิด Wednesday Nudge\n'+
+    '─────────────────\n'+
+    'ข้อมูลอัพเดทหลัง Mentor Coordinator import CSV ประจำเดือน';
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// คำสั่ง "ทีม" — แสดงภาพรวมคะแนนทีม
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+var _MENTOR_SHEETS = ['TOOMTAM','Aof','Draft','PHAI','AMP'];
+
+function _lineTeamReply(memberName) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var selfMentor = '';
+  var selfNick = memberName.split(' ')[0];
+  var listSh = ss.getSheetByName('รายชื่อทั้งหมด');
+  if (listSh && listSh.getLastRow() >= 3) {
+    listSh.getRange(3, 2, listSh.getLastRow()-2, 3).getValues().forEach(function(r) {
+      if (String(r[0]||'').trim() === memberName) {
+        selfNick = String(r[1]||'').trim() || selfNick;
+        selfMentor = String(r[2]||'').trim();
+      }
+    });
+  }
+  var teamSheetName = selfMentor;
+  // Try exact sheet name first; if not found, scan all mentor sheets for the member
+  var teamSh = teamSheetName ? ss.getSheetByName(teamSheetName) : null;
+  if (!teamSh) {
+    for (var si = 0; si < _MENTOR_SHEETS.length; si++) {
+      var candidate = ss.getSheetByName(_MENTOR_SHEETS[si]);
+      if (!candidate) continue;
+      for (var ri = 4; ri <= 11; ri++) {
+        var cn = candidate.getRange(ri,3).getDisplayValue().trim();
+        if (cn === memberName || cn === selfNick) { teamSh = candidate; teamSheetName = _MENTOR_SHEETS[si]; break; }
+      }
+      if (teamSh) break;
+    }
+  }
+  if (!teamSh) return '⚠️ ไม่พบข้อมูลทีมในระบบครับ\nกรุณาติดต่อ Mentor Coordinator เพื่อตรวจสอบข้อมูลครับ';
+
+  // Read names from mentor sheet, then get live scores via _lineGetMemberData (uses Math.max rule)
+  var nameRows = teamSh.getRange(4, 3, Math.max(1, teamSh.getLastRow()-3), 1).getValues();
+  var members = [];
+  nameRows.forEach(function(row) {
+    var mName = String(row[0]||'').trim();
+    if (!mName) return;
+    var d = _lineGetMemberData(mName);
+    var score = (d&&d.bniScore) || 0;
+    var nick  = (d&&d.nick) || mName.split(' ')[0];
+    members.push({nick:nick, score:score, tl:(d&&d.bniTl)||'none'});
+  });
+  members.sort(function(a,b){ return b.score - a.score; });
+  var TL = {green:'🟢', yellow:'🟡', red:'🔴', black:'⚫', none:'📊'};
+  var lines = ['👥 ทีม ' + teamSheetName, '─────────────────'];
+  members.forEach(function(m) {
+    lines.push((TL[m.tl]||'📊') + ' ' + m.nick + ' — ' + (m.score||'?') + '/100');
+  });
+  if (!members.length) lines.push('ยังไม่มีข้อมูลครับ');
+  return lines.join('\n');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Renewal reminder helpers
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function _lineCheckRenewal(memberName) {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('💳 RENEWAL');
+  if (!sh || sh.getLastRow() < 3) return '';
+  var today = new Date(); today.setHours(0,0,0,0);
+  for (var r = 3; r <= sh.getLastRow(); r++) {
+    var name = sh.getRange(r,1).getDisplayValue().trim();
+    if (name !== memberName) continue;
+    var expRaw = sh.getRange(r,3).getValue();
+    if (!expRaw) return '';
+    var expDate = new Date(expRaw); expDate.setHours(0,0,0,0);
+    var diff = Math.floor((expDate - today) / 86400000);
+    if (diff < 0)    return '💳 สมาชิกภาพหมดอายุแล้ว! กรุณาต่ออายุด่วนครับ ‼️';
+    if (diff <= 14)  return '💳 สมาชิกภาพเหลือ ' + diff + ' วัน ต่ออายุด่วนเลยครับ ⚠️';
+    if (diff <= 45)  return '💳 สมาชิกภาพเหลือ ' + diff + ' วัน อย่าลืมต่ออายุนะครับ';
+    return '';
+  }
+  return '';
+}
+
+function _lineRenewalPush() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📱 LINE MEMBERS');
+  if (!sh || sh.getLastRow() < 2) return;
+  var renSh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('💳 RENEWAL');
+  if (!renSh) return;
+  var today = new Date(); today.setHours(0,0,0,0);
+  var rows = sh.getRange(2, 1, sh.getLastRow()-1, 2).getValues();
+  rows.forEach(function(r) {
+    var userId = String(r[0]||'').trim();
+    var name   = String(r[1]||'').trim();
+    if (!userId || !name) return;
+    for (var i = 3; i <= renSh.getLastRow(); i++) {
+      var rName = renSh.getRange(i,1).getDisplayValue().trim();
+      if (rName !== name) continue;
+      var expRaw = renSh.getRange(i,3).getValue();
+      if (!expRaw) break;
+      var expDate = new Date(expRaw); expDate.setHours(0,0,0,0);
+      var diff = Math.floor((expDate - today) / 86400000);
+      if (diff > 45) break;
+      var nick = name.split(' ')[0];
+      var msg = diff < 0
+        ? '‼️ ' + nick + ' — สมาชิกภาพหมดอายุแล้ว!\nกรุณาติดต่อ Mentor เพื่อต่ออายุด่วนครับ'
+        : '⚠️ ' + nick + ' — สมาชิกภาพเหลือ ' + diff + ' วัน\nอย่าลืมต่ออายุก่อน ' + Utilities.formatDate(expDate, Session.getScriptTimeZone(), 'dd MMM yyyy') + ' นะครับ';
+      _sendLineMsg(userId, msg);
+      break;
+    }
+  });
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Feature C — 1-2-1 Match Suggestion ("แนะนำ" command)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function _lineMatchReply(memberName, query) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // ── 1. Get member profile ────────────────────────────────────
+  var myNick = memberName.split(' ')[0];
+  var selfMentor = '';
+  var d = null;
+  try { d = _lineGetMemberData(memberName); myNick = (d&&d.nick)||myNick; } catch(e){}
+
+  var listSh = ss.getSheetByName('รายชื่อทั้งหมด');
+  if (listSh && listSh.getLastRow() >= 3) {
+    listSh.getRange(3,2,listSh.getLastRow()-2,3).getValues().forEach(function(r){
+      if (String(r[0]||'').trim()===memberName) selfMentor = String(r[2]||'').trim();
+    });
+  }
+
+  // ── 2. Get stored business profile from LINE MEMBERS col E ──
+  var lineSh = ss.getSheetByName('📱 LINE MEMBERS');
+  var myBizProfile = '';
+  if (lineSh && lineSh.getLastRow() >= 2) {
+    lineSh.getRange(2,1,lineSh.getLastRow()-1,5).getValues().forEach(function(r){
+      if (String(r[1]||'').trim()===memberName) myBizProfile = String(r[4]||'').trim();
+    });
+  }
+
+  // ── 3. Read CHECKIN LOG — get member LF map + my own LF ─────
+  var ciSh = ss.getSheetByName('📋 CHECKIN LOG');
+  var memberLF = {}; // name → {lf, mentor, nick}
+  var myLF = myBizProfile; // prefer stored profile over checkin
+  var nickMap = {};
+
+  if (ciSh && ciSh.getLastRow() >= 2) {
+    var ciData = ciSh.getRange(2,1,ciSh.getLastRow()-1,6).getValues();
+    ciData.forEach(function(row){
+      var name = String(row[1]||'').trim();
+      var lf   = String(row[4]||'').trim();
+      var mtor = String(row[5]||'').trim();
+      if (!name || !lf) return;
+      if (name === memberName) {
+        if (!myLF) myLF = lf; // use checkin LF only if no stored profile
+      } else {
+        memberLF[name] = {lf:lf, mentor:mtor};
+      }
+    });
+  }
+
+  // Build nick map from master list
+  if (listSh && listSh.getLastRow() >= 3) {
+    listSh.getRange(3,2,listSh.getLastRow()-2,2).getValues().forEach(function(r){
+      if(r[0]) nickMap[String(r[0]).trim()] = String(r[1]||'').trim()||String(r[0]).split(' ')[0];
+    });
+  }
+
+  // ── 4. Build 1-2-1 urgency context ──────────────────────────
+  var ctx121 = '';
+  if (d && d.actual && d.actual.bniDays > 0) {
+    var effWks = Math.min(26, Math.max(1, Math.floor(d.actual.bniDays/7)));
+    var otoNow = d.actual.oToOne||0;
+    var otoPerWk = otoNow / effWks;
+    if (otoPerWk < 1) {
+      var stillNeed = Math.max(1, Math.ceil(effWks*1) - otoNow);
+      ctx121 = '⚡ ต้องนัด 1-2-1 อีก ~'+stillNeed+' ครั้งเพื่อได้ 10 pts';
+    } else if (otoPerWk < 2) {
+      ctx121 = '💡 เพิ่มอีก 1 ครั้ง/สัปดาห์ → ขึ้นจาก 10 → 15 pts';
+    }
+  }
+
+  // ── 5. Handle command `ธุรกิจ [คำอธิบาย]` (บันทึก profile) ─
+  // (handled separately in _lineBotHandle, not here)
+
+  // ── 6. AUTO MODE — no keyword ────────────────────────────────
+  if (!query || !query.trim()) {
+    if (!myLF) {
+      // No profile yet — prompt to set it
+      var hint = '🤝 ระบบยังไม่รู้จักธุรกิจของคุณครับ\n─────────────────\n'
+        + 'ตั้งค่าธุรกิจ 1 ครั้ง:\n'
+        + 'พิมพ์: ธุรกิจ [คำอธิบายสั้นๆ]\n'
+        + 'เช่น: ธุรกิจ ประกันชีวิต สุขภาพ\n\n'
+        + 'หรือค้นหาแบบ manual:\n'
+        + 'พิมพ์: แนะนำ [หมวดธุรกิจ]\n'
+        + 'เช่น: แนะนำ ก่อสร้าง / แนะนำ ร้านอาหาร';
+      if (ctx121) hint += '\n─────────────────\n'+ctx121;
+      return hint;
+    }
+    // Have profile — use it as search query (find who needs what I offer)
+    query = myLF;
+    // Fall through to search with auto flag
+  }
+
+  // ── 7. SEARCH & SCORE ────────────────────────────────────────
+  var isAutoMode = (query === myLF && !!myLF);
+  var qLow  = query.toLowerCase();
+  var qCats = _getCategories(qLow);
+  var qWords = _tokenize(qLow);
+  var results = [];
+
+  Object.keys(memberLF).forEach(function(name){
+    var info = memberLF[name];
+    var lfLow = info.lf.toLowerCase();
+    var mCats = _getCategories(lfLow);
+    var score = 0;
+    var whyParts = [];
+
+    // Their LF mentions my category → they need what I do
+    var theyNeedMe = qCats.filter(function(c){ return mCats.indexOf(c) >= 0; });
+    if (theyNeedMe.length) { score += theyNeedMe.length*3; whyParts.push('มองหา '+theyNeedMe[0]); }
+
+    // Keyword overlap
+    qWords.forEach(function(w){ if (lfLow.indexOf(w) >= 0) { score += 2; } });
+
+    var crossTeam = info.mentor !== selfMentor;
+    if (crossTeam && score > 0) score += 1;
+
+    if (score > 0) results.push({
+      name:name, nick:nickMap[name]||name.split(' ')[0],
+      mentor:info.mentor, lf:info.lf,
+      score:score, crossTeam:crossTeam, why:whyParts.join(', ')
+    });
+  });
+
+  // ── 8. Fallback: if no matches, show cross-team suggestions ─
+  if (!results.length) {
+    if (!Object.keys(memberLF).length) {
+      return '⚠️ ยังไม่มีข้อมูล Looking For ของสมาชิกในระบบครับ\nต้องมีการ Check-In ก่อนนะครับ'
+        + (ctx121?'\n─────────────────\n'+ctx121:'');
+    }
+    // Suggest cross-team members without score filter
+    var crossTeamAll = Object.keys(memberLF)
+      .filter(function(n){ return memberLF[n].mentor !== selfMentor; })
+      .slice(0,3)
+      .map(function(n){ return {
+        name:n, nick:nickMap[n]||n.split(' ')[0],
+        mentor:memberLF[n].mentor, lf:memberLF[n].lf,
+        score:0, crossTeam:true, why:'ข้ามทีม'
+      }; });
+    if (crossTeamAll.length) {
+      results = crossTeamAll;
+    } else {
+      return '🔍 ไม่พบ match สำหรับ "'+query+'" ครับ\nลองคำอื่น เช่น หมวดธุรกิจกว้างๆ'
+        + (ctx121?'\n─────────────────\n'+ctx121:'');
+    }
+  }
+
+  results.sort(function(a,b){ return a.crossTeam!==b.crossTeam?(a.crossTeam?-1:1):b.score-a.score; });
+  var top = results.slice(0,3);
+
+  // ── 9. Build output ──────────────────────────────────────────
+  var header = isAutoMode
+    ? '🤝 คน BNI ที่น่าจะต้องการธุรกิจของคุณ'
+    : '🤝 แนะนำ 1-2-1: "'+query+'"';
+  var lines = [header, '─────────────────'];
+
+  var medals = ['🥇','🥈','🥉'];
+  top.forEach(function(m,i){
+    lines.push(medals[i]+' '+m.nick+(m.crossTeam?' 🔀':' ')+' [ทีม '+(m.mentor||'—')+']');
+    var lfShort = m.lf.length > 50 ? m.lf.slice(0,50)+'…' : m.lf;
+    lines.push('   📌 '+lfShort);
+    if (m.why && isAutoMode) {
+      lines.push('   💬 "ผมทำ'+m.why+' อยากหาเวลาคุยกันไหมครับ?"');
+    }
+  });
+
+  lines.push('─────────────────');
+  if (ctx121) lines.push(ctx121);
+  lines.push('🔀 = ข้ามทีม — ได้คะแนนเพิ่ม!');
+  if (isAutoMode) {
+    lines.push('\nเปลี่ยน profile: ธุรกิจ [คำอธิบาย]');
+  } else {
+    lines.push('กด "นัด [ชื่อ]" เพื่อบันทึก + ติดตามผล');
+  }
+  return {msg: lines.join('\n'), topNicks: top.map(function(m){return m.nick;})};
+}
+
+// ── Wrap _lineMatchReply to add dynamic "นัด" quick-reply buttons
+function _lineMatchWithQR(memberName, query) {
+  var result = _lineMatchReply(memberName, query);
+  var msg = result.msg || result;
+  var topNicks = result.topNicks || [];
+  var qr = LINE_QR_MAIN.slice();
+  // Prepend "นัด [nick]" buttons for each top match (unshift = appear first)
+  topNicks.slice(0,3).reverse().forEach(function(nick) {
+    if (nick) qr.unshift({type:'action',action:{type:'message',label:'🤝 นัด '+nick,text:'นัด '+nick}});
+  });
+  return {msg: msg, qr: qr.slice(0,13)};
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 1-2-1 TRACKER — นัด / ติดตาม / ผลลัพธ์
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function _get121Sheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('📊 1-2-1 TRACKER');
+  if (!sh) {
+    sh = ss.insertSheet('📊 1-2-1 TRACKER');
+    sh.appendRow(['วันที่นัด','ชื่อสมาชิก','ชื่อเล่น','ทีม','นัดกับ','ทีม partner','สถานะ','ผลลัพธ์','รายละเอียด','วันที่อัพเดท']);
+    sh.setFrozenRows(1);
+    sh.getRange(1,1,1,10).setFontWeight('bold');
+  }
+  return sh;
+}
+
+function _line121Schedule(memberName, partnerQuery) {
+  if (!partnerQuery) return '🤝 พิมพ์: นัด [ชื่อหรือชื่อเล่น]\nเช่น: นัด นิค / นัด Phitarn\n\nใช้ "ติดตาม" ดู 1-2-1 ที่บันทึกไว้';
+
+  // Fuzzy-find partner in master sheet
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var listSh = ss.getSheetByName('รายชื่อทั้งหมด');
+  var partner = null;
+  if (listSh && listSh.getLastRow() >= 3) {
+    var q = partnerQuery.toLowerCase();
+    listSh.getRange(3,2,listSh.getLastRow()-2,3).getValues().forEach(function(r){
+      var name = String(r[0]||'').trim();
+      var nick = String(r[1]||'').trim().toLowerCase();
+      var team = String(r[2]||'').trim();
+      if (!name) return;
+      if (name.toLowerCase()===q || nick===q || name.toLowerCase().indexOf(q)>=0 || nick.indexOf(q)>=0) {
+        if (!partner) partner = {name:name, nick:String(r[1]||'').trim()||name.split(' ')[0], team:team};
+      }
+    });
+  }
+  if (!partner) return '❌ ไม่พบสมาชิก "'+partnerQuery+'" ในระบบครับ\nลองใช้ชื่อ-นามสกุลเต็มหรือชื่อเล่นครับ';
+  if (partner.name === memberName) return '😅 ไม่สามารถนัดกับตัวเองได้ครับ';
+
+  var d = null; var myNick = memberName.split(' ')[0]; var myTeam = '';
+  try { d = _lineGetMemberData(memberName); myNick=(d&&d.nick)||myNick; myTeam=(d&&d.mentor)||''; } catch(e){}
+
+  var sh = _get121Sheet();
+  var now = new Date();
+  var nowStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
+  sh.appendRow([now, memberName, myNick, myTeam, partner.name, partner.team, 'นัดแล้ว', '', '', now]);
+
+  return '✅ บันทึกนัด 1-2-1 แล้วครับ!\n─────────────────\n'
+    + '🤝 คุณ' + myNick + ' × ' + partner.nick + '\n'
+    + '📅 ' + nowStr + '\n'
+    + (partner.team !== myTeam ? '🔀 ข้ามทีม — ได้คะแนนพิเศษ!\n' : '')
+    + '─────────────────\n'
+    + 'หลังเจอกันแล้ว พิมพ์ "เจอแล้ว" เพื่ออัพเดทผลครับ\n'
+    + 'พิมพ์ "ติดตาม" ดู 1-2-1 ทั้งหมดของคุณ';
+}
+
+function _line121ConfirmMet(memberName, userId, props) {
+  // Find latest pending meeting for this member
+  var sh = _get121Sheet();
+  if (sh.getLastRow() < 2) return 'ไม่พบนัด 1-2-1 ที่ค้างอยู่ครับ\nพิมพ์ "นัด [ชื่อ]" เพื่อบันทึกก่อนนะครับ';
+  var rows = sh.getRange(2,1,sh.getLastRow()-1,7).getValues();
+  var pendingRow = -1;
+  var pendingPartner = '';
+  for (var i = rows.length-1; i >= 0; i--) {
+    if (String(rows[i][1]||'').trim()===memberName && String(rows[i][6]||'').trim()==='นัดแล้ว') {
+      pendingRow = i+2; pendingPartner = String(rows[i][4]||'').trim(); break;
+    }
+  }
+  if (pendingRow < 0) return 'ไม่พบนัด 1-2-1 ที่รอยืนยันครับ\n(อาจบันทึกไปแล้วหรือยังไม่ได้นัด)';
+
+  // Update status
+  var now = new Date();
+  sh.getRange(pendingRow, 7).setValue('เจอแล้ว');
+  sh.getRange(pendingRow, 10).setValue(now);
+
+  // Store state waiting for outcome
+  props.setProperty('LINE_121_AWAIT_OUT_'+userId, pendingPartner+'|'+pendingRow);
+
+  var partnerNick = pendingPartner.split(' ')[0];
+  return {
+    msg: '🎉 ดีมากเลยครับ! ยืนยันแล้ว\n─────────────────\n'
+      + '✅ นัด 1-2-1 กับ ' + partnerNick + ': เจอแล้ว\n'
+      + '─────────────────\n'
+      + 'ได้อะไรจากการคุยครั้งนี้บ้างครับ?',
+    qr: [
+      {type:'action',action:{type:'message',label:'✅ ได้ Ref แล้ว',text:'ได้ ref'}},
+      {type:'action',action:{type:'message',label:'🔄 มีโอกาสต่อ',text:'มีโอกาส'}},
+      {type:'action',action:{type:'message',label:'📝 ยังคุยอยู่',text:'ยังคุยอยู่'}},
+      {type:'action',action:{type:'message',label:'❌ ไม่ได้อะไร',text:'ไม่ได้อะไร'}}
+    ]
+  };
+}
+
+function _line121LogOutcome(memberName, userId, stateVal, text) {
+  var parts = stateVal.split('|');
+  var partnerName = parts[0]||'';
+  var rowNum = parseInt(parts[1])||0;
+  var partnerNick = partnerName.split(' ')[0];
+  var t = text.toLowerCase();
+
+  var outcome = '';
+  var detail  = '';
+  if (t==='ได้ ref' || t.indexOf('ได้ ref')>=0)        { outcome='ได้ Referral'; detail=text; }
+  else if (t==='มีโอกาส' || t.indexOf('โอกาส')>=0)    { outcome='มีโอกาส'; detail=text; }
+  else if (t==='ยังคุยอยู่' || t.indexOf('คุย')>=0)    { outcome='ยังคุยอยู่'; detail=text; }
+  else if (t==='ไม่ได้อะไร' || t.indexOf('ไม่ได้')>=0) { outcome='ไม่ได้อะไร'; }
+  else { outcome='อื่นๆ'; detail=text; }
+
+  var sh = _get121Sheet();
+  var now = new Date();
+  if (rowNum >= 2 && rowNum <= sh.getLastRow()) {
+    sh.getRange(rowNum, 8).setValue(outcome);
+    if (detail) sh.getRange(rowNum, 9).setValue(detail);
+    sh.getRange(rowNum, 10).setValue(now);
+  }
+
+  var icon = outcome==='ได้ Referral'?'🎊':outcome==='มีโอกาส'?'🌱':outcome==='ยังคุยอยู่'?'💬':'📝';
+  var msg = icon+' บันทึกผลแล้วครับ!\n─────────────────\n'
+    + '🤝 1-2-1 กับ '+partnerNick+'\n'
+    + '📊 ผล: '+outcome+'\n'
+    + '─────────────────\n';
+  if (outcome==='ได้ Referral') {
+    msg += '🎊 ยอดเยี่ยมมาก! การ 1-2-1 เกิดผลแล้วครับ\n';
+  } else if (outcome==='มีโอกาส') {
+    msg += '🌱 มีแนวโน้มดี ติดตามต่อเลยครับ!\n';
+  }
+  msg += '\nพิมพ์ "ติดตาม" ดูสถิติ 1-2-1 ทั้งหมดของคุณ';
+  return msg;
+}
+
+function _line121ViewMy(memberName) {
+  var sh = _get121Sheet();
+  if (sh.getLastRow() < 2) return '📊 ยังไม่มีประวัติ 1-2-1 ครับ\nพิมพ์ "นัด [ชื่อ]" เพื่อเริ่มติดตาม';
+  var rows = sh.getRange(2,1,sh.getLastRow()-1,10).getValues();
+  var myRows = rows.filter(function(r){ return String(r[1]||'').trim()===memberName; });
+  if (!myRows.length) return '📊 ยังไม่มีประวัติ 1-2-1 ของคุณครับ\nพิมพ์ "นัด [ชื่อ]" เพื่อบันทึกครั้งแรก';
+
+  var total   = myRows.length;
+  var met     = myRows.filter(function(r){ return ['เจอแล้ว','ได้ Referral','มีโอกาส','ยังคุยอยู่','ไม่ได้อะไร'].indexOf(String(r[6]||''))>=0 || String(r[7]||''); }).length;
+  var gotRef  = myRows.filter(function(r){ return String(r[7]||'').indexOf('Referral')>=0; }).length;
+  var pending = myRows.filter(function(r){ return String(r[6]||'')==='นัดแล้ว'; }).length;
+  var convRate = met>0 ? Math.round(gotRef/met*100) : 0;
+
+  var lines = ['📊 1-2-1 ของคุณ','─────────────────',
+    '📅 นัดทั้งหมด: '+total+' ครั้ง',
+    '✅ เจอแล้ว: '+met+' ครั้ง',
+    '🎊 ได้ Ref: '+gotRef+' ครั้ง ('+convRate+'%)',
+    pending?'⏳ รอยืนยัน: '+pending+' ครั้ง':'',
+    '─────────────────'];
+
+  // Last 3 meetings
+  myRows.slice(-3).reverse().forEach(function(r){
+    var partnerNick = String(r[4]||'').split(' ')[0];
+    var status = String(r[6]||'')==='' ? '—' : String(r[6]||'');
+    var outcome = String(r[7]||'');
+    var statusIcon = {นัดแล้ว:'⏳',เจอแล้ว:'✅',ยกเลิก:'❌'}[status]||'✅';
+    var outIcon = outcome.indexOf('Referral')>=0?'🎊':outcome==='มีโอกาส'?'🌱':outcome?'💬':'';
+    var dateStr = r[0] instanceof Date ? Utilities.formatDate(r[0],Session.getScriptTimeZone(),'dd/MM') : String(r[0]||'').slice(0,5);
+    lines.push(statusIcon+' '+partnerNick+' ('+dateStr+')'+' '+outIcon+(outcome?' '+outcome:''));
+  });
+
+  lines.push('─────────────────');
+  lines.push('พิมพ์ "นัด [ชื่อ]" บันทึกครั้งใหม่');
+  return lines.filter(Boolean).join('\n');
+}
+
+function _line121FollowUp(memberName, userId) {
+  var sh = _get121Sheet();
+  if (sh.getLastRow() < 2) return null;
+  var rows = sh.getRange(2,1,sh.getLastRow()-1,7).getValues();
+  var cutoff = new Date(); cutoff.setDate(cutoff.getDate()-1);
+  var pending = rows.filter(function(r){
+    return String(r[1]||'').trim()===memberName
+      && String(r[6]||'').trim()==='นัดแล้ว'
+      && (r[0] instanceof Date ? r[0] < cutoff : false);
+  });
+  if (!pending.length) return null;
+  var latest = pending[pending.length-1];
+  var partnerNick = String(latest[4]||'').split(' ')[0];
+  return {
+    msg: '📋 Follow-up 1-2-1\n─────────────────\n'
+      + 'คุณนัดพบ '+partnerNick+' ไว้ เจอกันแล้วไหมครับ?',
+    qr: [
+      {type:'action',action:{type:'message',label:'✅ เจอแล้ว',text:'เจอแล้ว'}},
+      {type:'action',action:{type:'message',label:'📅 ยังไม่ได้เจอ',text:'ยังไม่ได้เจอ'}},
+      {type:'action',action:{type:'message',label:'❌ ยกเลิกนัด',text:'ยกเลิกนัด'}}
+    ]
+  };
+}
+
+function apiGet121Tracker(p) {
+  if (!p.role) return {ok:false,error:'auth'};
+  var sh = _get121Sheet();
+  if (sh.getLastRow() < 2) return {ok:true,list:[],stats:{}};
+  var rows = sh.getRange(2,1,sh.getLastRow()-1,10).getValues();
+  var list = rows.map(function(r,i){
+    var dt = r[0] instanceof Date ? Utilities.formatDate(r[0],Session.getScriptTimeZone(),'dd/MM/yyyy HH:mm') : String(r[0]||'');
+    var upd= r[9] instanceof Date ? Utilities.formatDate(r[9],Session.getScriptTimeZone(),'dd/MM/yyyy') : String(r[9]||'');
+    return {row:i+2,date:dt,name:String(r[1]||''),nick:String(r[2]||''),team:String(r[3]||''),
+            partner:String(r[4]||''),partnerTeam:String(r[5]||''),status:String(r[6]||''),
+            outcome:String(r[7]||''),detail:String(r[8]||''),updated:upd};
+  }).filter(function(r){return r.name;}).reverse();
+  var total=list.length, met=0, gotRef=0, pending=0;
+  list.forEach(function(r){
+    if(r.status==='เจอแล้ว'||r.outcome) met++;
+    if(r.outcome.indexOf('Referral')>=0) gotRef++;
+    if(r.status==='นัดแล้ว'&&!r.outcome) pending++;
+  });
+  return {ok:true,list:list,stats:{total:total,met:met,gotRef:gotRef,pending:pending,
+    convRate:met>0?Math.round(gotRef/met*100):0}};
+}
+
+function _lineSetBizProfile(memberName, biz) {
+  var ss   = SpreadsheetApp.getActiveSpreadsheet();
+  var sh   = ss.getSheetByName('📱 LINE MEMBERS');
+  if (!sh || sh.getLastRow() < 2) return 'ไม่พบข้อมูลสมาชิกครับ';
+  // Ensure col E header
+  if (!sh.getRange(1,5).getValue()) sh.getRange(1,5).setValue('biz_profile');
+  var rows = sh.getRange(2,1,sh.getLastRow()-1,2).getValues();
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i][1]||'').trim()===memberName) {
+      sh.getRange(i+2, 5).setValue(biz.trim());
+      var nick = memberName.split(' ')[0];
+      try { var d2 = _lineGetMemberData(memberName); nick=(d2&&d2.nick)||nick; } catch(e){}
+      return '✅ บันทึก profile ของคุณแล้วครับ\n─────────────────\n'
+        + '📌 ' + biz.trim() + '\n\n'
+        + 'ตอนนี้พิมพ์ "แนะนำ" เพื่อให้ Bot หาคู่ 1-2-1 ที่เหมาะกับธุรกิจของคุณได้เลยครับ';
+    }
+  }
+  return 'ไม่พบชื่อในระบบครับ';
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Feature A — Thursday Morning Bot Push
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function thursdayBotPush() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📱 LINE MEMBERS');
+  if (!sh || sh.getLastRow() < 2) return;
+  var rows = sh.getRange(2, 1, sh.getLastRow()-1, 2).getValues();
+  var dateStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd MMM');
+  var sent = 0;
+  rows.forEach(function(r) {
+    var userId = String(r[0]||'').trim();
+    var name   = String(r[1]||'').trim();
+    if (!userId || !name) return;
+    try {
+      var d = _lineGetMemberData(name);
+      if (!d || !d.bniScore) return;
+      var nick = d.nick || name.split(' ')[0];
+      var tlLabel = {green:'🟢',yellow:'🟡',red:'🔴',black:'⚫'}[d.bniTl||'none'] || '📊';
+      var msg = '🌄 BNI IDEAL — วันศุกร์ ' + dateStr + '\n'
+        + '─────────────────\n'
+        + 'สวัสดีตอนเช้า ' + nick + ' 👋\n'
+        + 'คะแนนล่าสุด: ' + tlLabel + ' ' + d.bniScore + '/100\n'
+        + '─────────────────\n';
+      if (d.fastTrack && d.fastTrack.length) {
+        msg += '⚡ Focus วันนี้:\n';
+        d.fastTrack.slice(0,2).forEach(function(ft) {
+          msg += '• ' + (ft.action||'') + (ft.gain?' (+'+ft.gain+'pt)':'') + '\n';
+        });
+        msg += '─────────────────\n';
+      }
+      var renewal = _lineCheckRenewal(name);
+      if (renewal) msg += renewal + '\n─────────────────\n';
+      msg += 'พิมพ์ "สถานะ" เพื่อดูรายละเอียด';
+      _sendLineMsg(userId, msg);
+      sent++;
+    } catch(e2) { Logger.log('thursdayBotPush error for ' + name + ': ' + e2.message); }
+  });
+  Logger.log('thursdayBotPush: sent to ' + sent + ' members');
+}
+
+function setupThursdayBotTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'thursdayBotPush') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('thursdayBotPush')
+    .timeBased()
+    .onWeekDay(ScriptApp.WeekDay.FRIDAY)
+    .atHour(7)
+    .create();
+  Browser.msgBox('✅ ตั้ง Trigger thursdayBotPush แล้ว!\n\nทุกวันศุกร์ 07:00 น. ระบบจะส่งสรุปคะแนน\nให้สมาชิกที่ลงทะเบียน LINE Bot ทุกคนครับ');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Feature A2 — Friday Evening Reminder (Thursday 18:00 trigger → day before)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function fridayEveningReminder() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📱 LINE MEMBERS');
+  if (!sh || sh.getLastRow() < 2) return;
+  var rows = sh.getRange(2, 1, sh.getLastRow()-1, 2).getValues();
+  var tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+  var dateStr = Utilities.formatDate(tomorrow, Session.getScriptTimeZone(), 'dd MMM');
+  var sent = 0;
+  rows.forEach(function(r) {
+    var userId = String(r[0]||'').trim();
+    var name   = String(r[1]||'').trim();
+    if (!userId || !name) return;
+    try {
+      var d = _lineGetMemberData(name);
+      var nick = (d&&d.nick) || name.split(' ')[0];
+      var msg = '📅 BNI IDEAL — พรุ่งนี้วันศุกร์ ' + dateStr + ' 🎉\n'
+        + '─────────────────\n'
+        + 'สวัสดีตอนเย็น ' + nick + ' 👋\n\n'
+        + '✅ เตรียมพร้อมสำหรับพรุ่งนี้:\n'
+        + '• Looking For ที่ต้องการ Referral\n'
+        + '• 60-second presentation\n'
+        + '• Visitor ที่จะพามา\n\n'
+        + 'พิมพ์ "สถานะ" ดูคะแนนล่าสุดของคุณครับ 🏆';
+      _sendLineMsg(userId, msg);
+      sent++;
+    } catch(e2) { Logger.log('fridayEveningReminder error for ' + name + ': ' + e2.message); }
+  });
+  Logger.log('fridayEveningReminder: sent to ' + sent + ' members');
+}
+
+function setupFridayEveningTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'fridayEveningReminder') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('fridayEveningReminder')
+    .timeBased()
+    .onWeekDay(ScriptApp.WeekDay.THURSDAY)
+    .atHour(18)
+    .create();
+  Browser.msgBox('✅ ตั้ง Trigger แล้ว!\n\nทุกวันพฤหัส 18:00 น. ระบบจะส่งแจ้งเตือน\nให้เตรียมพร้อมก่อนประชุมวันศุกร์ครับ');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Feature A3 — Low Score Drop Alert (2-month consecutive decline)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function _lineScoreDropAlert() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var lineSh = ss.getSheetByName('📱 LINE MEMBERS');
+  if (!lineSh || lineSh.getLastRow() < 2) return;
+  var lineRows = lineSh.getRange(2, 1, lineSh.getLastRow()-1, 2).getValues();
+  var lineMap = {};
+  lineRows.forEach(function(r){ if(r[0]&&r[1]) lineMap[String(r[1]).trim()]=String(r[0]).trim(); });
+
+  var _MENTOR_SHEETS_LOCAL = ['TOOMTAM','Aof','Draft','PHAI','AMP'];
+  var alerted = 0;
+  _MENTOR_SHEETS_LOCAL.forEach(function(shName) {
+    var msh = ss.getSheetByName(shName);
+    if (!msh || msh.getLastRow() < 4) return;
+    var data = msh.getRange(4, 1, msh.getLastRow()-3, 20).getValues();
+    data.forEach(function(row) {
+      var name = String(row[2]||'').trim();
+      var userId = lineMap[name];
+      if (!name || !userId) return;
+      // cols 4-15 = JAN-DEC scores (0-indexed: 4=col E=JAN)
+      var scores = [];
+      for (var c = 4; c <= 15; c++) {
+        var v = row[c];
+        if (v !== '' && v !== null && v !== undefined && !isNaN(Number(v))) {
+          scores.push({col:c, val:Number(v)});
+        }
+      }
+      if (scores.length < 3) return;
+      var last3 = scores.slice(-3);
+      var s1 = last3[0].val, s2 = last3[1].val, s3 = last3[2].val;
+      if (s3 < s2 && s2 < s1) {
+        var nick = (String(row[3]||'').trim()) || name.split(' ')[0];
+        var msg = '⚠️ ' + nick + ' — คะแนนลดลง 2 เดือนต่อเนื่อง\n'
+          + '─────────────────\n'
+          + '3 เดือนล่าสุด: ' + Math.round(s1) + ' → ' + Math.round(s2) + ' → ' + Math.round(s3) + '\n\n'
+          + 'อย่าปล่อยให้คะแนนตกต่อไปนะครับ!\n'
+          + 'พิมพ์ "สถานะ" ดู Action Plan เพื่อเพิ่มคะแนนครับ 💪';
+        _sendLineMsg(userId, msg);
+        alerted++;
+      }
+    });
+  });
+  Logger.log('_lineScoreDropAlert: alerted ' + alerted + ' members');
+  return alerted;
+}
+
+function apiTriggerScoreAlert(p) {
+  if (p.role !== 'mc') return {ok:false,error:'MC only'};
+  try {
+    var alerted = _lineScoreDropAlert() || 0;
+    return {ok:true, alerted:alerted};
+  } catch(e) { return {ok:false,error:e.message}; }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Feature A4 — BNI Anniversary Alert (30 days before renewal)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function _lineBNIAnniversary() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var lineSh = ss.getSheetByName('📱 LINE MEMBERS');
+  var renSh = ss.getSheetByName('💳 RENEWAL');
+  if (!lineSh || !renSh || lineSh.getLastRow() < 2) return;
+  var lineRows = lineSh.getRange(2, 1, lineSh.getLastRow()-1, 2).getValues();
+  var lineMap = {};
+  lineRows.forEach(function(r){ if(r[0]&&r[1]) lineMap[String(r[1]).trim()]=String(r[0]).trim(); });
+  var today = new Date(); today.setHours(0,0,0,0);
+  var sent = 0;
+  for (var i = 3; i <= renSh.getLastRow(); i++) {
+    var rName = String(renSh.getRange(i,1).getDisplayValue()||'').trim();
+    var userId = lineMap[rName];
+    if (!rName || !userId) continue;
+    var expRaw = renSh.getRange(i,3).getValue();
+    if (!expRaw) continue;
+    var expDate = new Date(expRaw); expDate.setHours(0,0,0,0);
+    var diff = Math.floor((expDate - today) / 86400000);
+    if (diff !== 30) continue;
+    var nick = rName.split(' ')[0];
+    var msg = '🎂 ' + nick + ' — BNI Anniversary ใกล้มาแล้ว!\n'
+      + '─────────────────\n'
+      + 'สมาชิกภาพของคุณจะครบรอบในอีก 30 วัน\n'
+      + '(' + Utilities.formatDate(expDate, Session.getScriptTimeZone(), 'dd MMM yyyy') + ')\n\n'
+      + 'ขอบคุณที่เป็นส่วนหนึ่งของ BNI IDEAL 🙏\n'
+      + 'อย่าลืมต่ออายุเพื่อรักษา Referral Network ของคุณนะครับ!\n\n'
+      + 'ติดต่อ Mentor เพื่อต่ออายุได้เลยครับ 💪';
+    _sendLineMsg(userId, msg);
+    sent++;
+  }
+  Logger.log('_lineBNIAnniversary: sent to ' + sent + ' members');
+  return sent;
+}
+
+function setupAnniversaryCheckTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === '_lineBNIAnniversary') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('_lineBNIAnniversary')
+    .timeBased()
+    .onWeekDay(ScriptApp.WeekDay.FRIDAY)
+    .atHour(8)
+    .create();
+  Browser.msgBox('✅ ตั้ง Trigger BNI Anniversary แล้ว!\n\nทุกวันศุกร์ 08:00 น. ระบบจะเช็คว่าสมาชิกคนไหน\nครบรอบใน 30 วันข้างหน้าและส่งแจ้งเตือนครับ');
+}
+
+function apiTriggerAnniversary(p) {
+  if (p.role !== 'mc') return {ok:false,error:'MC only'};
+  try {
+    var sent = _lineBNIAnniversary() || 0;
+    return {ok:true, sent:sent};
+  } catch(e) { return {ok:false,error:e.message}; }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Feature A5 — 1-2-1 Introduction via LINE Bot
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function apiSendLineIntro(p) {
+  if (p.role !== 'mc') return {ok:false,error:'MC only'};
+  if (!p.name1 || !p.name2) return {ok:false,error:'ต้องระบุชื่อสมาชิก 2 คน'};
+  var uid1 = _lineGetUserId(p.name1);
+  var uid2 = _lineGetUserId(p.name2);
+  if (!uid1 && !uid2) return {ok:false,error:'ทั้งสองคนยังไม่ได้ลงทะเบียน LINE Bot'};
+  var d1 = _lineGetMemberData(p.name1);
+  var d2 = _lineGetMemberData(p.name2);
+  var nick1 = (d1&&d1.nick)||p.name1.split(' ')[0];
+  var nick2 = (d2&&d2.nick)||p.name2.split(' ')[0];
+  var team1 = (d1&&d1.mentor)||'—';
+  var team2 = (d2&&d2.mentor)||'—';
+  var msg1 = '🤝 1-2-1 Introduction จาก Mentor Coordinator!\n'
+    + '─────────────────\n'
+    + 'สวัสดี ' + nick1 + ' 👋\n\n'
+    + 'MC แนะนำให้คุณรู้จักกับ:\n'
+    + '👤 ' + p.name2 + ' [ทีม ' + team2 + ']\n\n'
+    + 'น่าจะ Synergy กับธุรกิจของคุณได้ดีครับ!\n'
+    + 'ลองนัด 1-2-1 เพื่อแลกเปลี่ยนดูนะครับ 🎯';
+  var msg2 = '🤝 1-2-1 Introduction จาก Mentor Coordinator!\n'
+    + '─────────────────\n'
+    + 'สวัสดี ' + nick2 + ' 👋\n\n'
+    + 'MC แนะนำให้คุณรู้จักกับ:\n'
+    + '👤 ' + p.name1 + ' [ทีม ' + team1 + ']\n\n'
+    + 'น่าจะ Synergy กับธุรกิจของคุณได้ดีครับ!\n'
+    + 'ลองนัด 1-2-1 เพื่อแลกเปลี่ยนดูนะครับ 🎯';
+  var sentTo = [];
+  if (uid1) { _sendLineMsg(uid1, msg1); sentTo.push(nick1); }
+  if (uid2) { _sendLineMsg(uid2, msg2); sentTo.push(nick2); }
+  return {ok:true, sentTo:sentTo};
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Feature A6 — Absence Reporting via LINE Bot
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+var _ABSENCE_SHEET = '📋 ABSENCE LOG';
+
+function _lineAbsenceLog(memberName, detail, type) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var d = _lineGetMemberData(memberName);
+  var nick = (d&&d.nick) || memberName.split(' ')[0];
+  var team = (d&&d.mentor) || '—';
+  var today = new Date();
+  var isSub = (type === 'ส่ง sub');
+  // find next Friday
+  var nextFri = new Date(today);
+  var dow = today.getDay();
+  var daysToFri = (5 - dow + 7) % 7 || 7;
+  nextFri.setDate(today.getDate() + daysToFri);
+  var friStr = Utilities.formatDate(nextFri, Session.getScriptTimeZone(), 'dd MMM yyyy');
+
+  var abSh = ss.getSheetByName(_ABSENCE_SHEET);
+  if (!abSh) {
+    abSh = ss.insertSheet(_ABSENCE_SHEET);
+    abSh.appendRow(['วันที่แจ้ง','ชื่อสมาชิก','ชื่อเล่น','ทีม','วันที่ขาด','ประเภท','รายละเอียด']);
+    abSh.getRange(1,1,1,7).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
+  }
+  abSh.appendRow([today, memberName, nick, team, nextFri, type||'ลา', detail||'ไม่ระบุ']);
+
+  // Notify Mentor Coordinator
+  var mcId = _getLineId('mc');
+  if (mcId) {
+    var mcMsg = (isSub ? '👥 แจ้งส่ง Sub!\n' : '🙋 แจ้งลา!\n')
+      + '─────────────────\n'
+      + '👤 ' + nick + ' [ทีม ' + team + ']\n'
+      + '📅 วันศุกร์ ' + friStr + '\n'
+      + (isSub
+          ? '👥 Sub: ' + (detail||'ไม่ระบุ')
+          : '📝 เหตุผล: ' + (detail||'ไม่ระบุ')) + '\n'
+      + '─────────────────\n'
+      + 'รับทราบแล้วอัตโนมัติครับ';
+    _sendLineMsg(mcId, mcMsg);
+  }
+
+  if (isSub) {
+    return '✅ รับทราบแล้วครับ ' + nick + '\n'
+      + '─────────────────\n'
+      + '👥 ส่ง Sub: ' + (detail||'ไม่ระบุ') + '\n'
+      + '📅 วันศุกร์ ' + friStr + '\n\n'
+      + 'Mentor Coordinator ได้รับแจ้งแล้วครับ 👍\n'
+      + 'พิมพ์ "ยกเลิกลา" ถ้าแผนเปลี่ยนครับ';
+  }
+  return '✅ รับทราบแล้วครับ ' + nick + '\n'
+    + '─────────────────\n'
+    + '🙋 ลา: ' + (detail||'ไม่ระบุ') + '\n'
+    + '📅 วันศุกร์ ' + friStr + '\n\n'
+    + 'Mentor Coordinator ได้รับแจ้งแล้วครับ 👍\n'
+    + 'พิมพ์ "ยกเลิกลา" ถ้าแผนเปลี่ยนครับ';
+}
+
+function _lineCancelAbsence(memberName) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var abSh = ss.getSheetByName(_ABSENCE_SHEET);
+  if (!abSh || abSh.getLastRow() < 2) return '⚠️ ไม่พบรายการแจ้งลาของคุณครับ';
+  var d = _lineGetMemberData(memberName);
+  var nick = (d&&d.nick) || memberName.split(' ')[0];
+  var today = new Date(); today.setHours(0,0,0,0);
+  var dow = today.getDay();
+  var weekStart = new Date(today); weekStart.setDate(today.getDate() - dow);
+  var data = abSh.getRange(2,1,abSh.getLastRow()-1,3).getValues();
+  for (var i = data.length-1; i >= 0; i--) {
+    var rowDate = data[i][0] ? new Date(data[i][0]) : null;
+    var rowName = String(data[i][1]||'').trim();
+    if (rowDate && rowDate >= weekStart && rowName === memberName) {
+      abSh.deleteRow(i+2);
+      var mcId = _getLineId('mc');
+      if (mcId) _sendLineMsg(mcId, '🔄 ' + nick + ' [ทีม '+(d&&d.mentor||'—')+'] ยกเลิกการแจ้งลาแล้วครับ');
+      return '✅ ยกเลิกการแจ้งลาแล้วครับ ' + nick + '\n─────────────────\nMentor Coordinator ได้รับแจ้งแล้วครับ';
+    }
+  }
+  return '⚠️ ไม่พบรายการแจ้งลาของสัปดาห์นี้ครับ';
+}
+
+function apiGetAbsenceLog(p) {
+  if (!p.role) return {ok:false,error:'auth'};
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(_ABSENCE_SHEET);
+  if (!sh || sh.getLastRow() < 2) return {ok:true,list:[]};
+  var data = sh.getRange(2,1,sh.getLastRow()-1,7).getValues();
+  var list = data.map(function(r) {
+    return {
+      reportedAt: r[0] ? Utilities.formatDate(new Date(r[0]), Session.getScriptTimeZone(), 'dd/MM/yy HH:mm') : '',
+      name:   String(r[1]||'').trim(),
+      nick:   String(r[2]||'').trim(),
+      team:   String(r[3]||'').trim(),
+      absDate:r[4] ? Utilities.formatDate(new Date(r[4]), Session.getScriptTimeZone(), 'dd/MM/yyyy') : '',
+      type:   String(r[5]||'ลา').trim(),
+      detail: String(r[6]||'').trim()
+    };
+  }).filter(function(r){return r.name;}).reverse();
+  return {ok:true, list:list};
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Feature A7 — Chapter Pulse (Friday morning summary → MC)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function _lineChapterPulse() {
+  var mcId = _getLineId('mc');
+  if (!mcId) return;
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var listSh = ss.getSheetByName('รายชื่อทั้งหมด');
+  if (!listSh || listSh.getLastRow() < 3) return;
+
+  // Count scores by color
+  var counts = {green:0, yellow:0, red:0, black:0, total:0};
+  var scoreSum = 0;
+  var riskNames = [];
+  listSh.getRange(3,2,listSh.getLastRow()-2,4).getValues().forEach(function(r) {
+    var name   = String(r[0]||'').trim();
+    var mentor = String(r[2]||'').trim();
+    var score  = parseFloat(r[3])||0;
+    if (!name || !mentor) return; // skip empty rows and LT/non-mentor members
+    counts.total++;
+    scoreSum += score;
+    var tl = _bniBuildTL ? _bniBuildTL(score) : (score>=70?'green':score>=50?'yellow':score>=30?'red':'black');
+    counts[tl] = (counts[tl]||0) + 1;
+    if (tl === 'red' || tl === 'black') riskNames.push(name.split(' ')[0]);
+  });
+  var avg = counts.total > 0 ? Math.round(scoreSum / counts.total) : 0;
+
+  // Check this week's absence log
+  var abSh = ss.getSheetByName(_ABSENCE_SHEET);
+  var absentees = [];
+  if (abSh && abSh.getLastRow() >= 2) {
+    var today = new Date(); today.setHours(0,0,0,0);
+    var dow = today.getDay();
+    var weekStart = new Date(today); weekStart.setDate(today.getDate() - dow);
+    var weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 7);
+    abSh.getRange(2,1,abSh.getLastRow()-1,3).getValues().forEach(function(r) {
+      var d = r[0] ? new Date(r[0]) : null;
+      if (d && d >= weekStart && d < weekEnd) absentees.push(String(r[2]||r[1]||'').trim());
+    });
+  }
+
+  var dateStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd MMM yyyy');
+  var msg = '🏆 Chapter Pulse — ' + dateStr + '\n'
+    + '─────────────────\n'
+    + 'สมาชิกทั้งหมด: ' + counts.total + ' คน\n'
+    + 'คะแนนเฉลี่ย: ' + avg + '/100\n\n'
+    + '🟢 ' + counts.green + '  🟡 ' + counts.yellow
+    + '  🔴 ' + counts.red + '  ⚫ ' + counts.black + '\n';
+  if (riskNames.length) {
+    msg += '─────────────────\n';
+    msg += '⚠️ ต้องดูแล (' + riskNames.length + ' คน):\n';
+    msg += riskNames.slice(0,5).join(', ') + (riskNames.length>5?' +อีก '+(riskNames.length-5)+' คน':'') + '\n';
+  }
+  if (absentees.length) {
+    msg += '─────────────────\n';
+    msg += '🙋 แจ้งขาดวันนี้ (' + absentees.length + ' คน):\n';
+    msg += absentees.join(', ') + '\n';
+  }
+  msg += '─────────────────\n';
+  msg += 'ขอให้การประชุมราบรื่นครับ! 🙏';
+  _sendLineMsg(mcId, msg);
+}
+
+function apiGetAbsenceLogRecent(p) {
+  if (!p.role) return {ok:false,error:'auth'};
+  var r = apiGetAbsenceLog(p);
+  if (!r.ok) return r;
+  // filter to last 30 days
+  var cutoff = new Date(); cutoff.setDate(cutoff.getDate()-30);
+  r.list = r.list.filter(function(item){
+    var parts = item.reportedAt.split('/');
+    if (parts.length < 3) return true;
+    return true; // keep all, let UI filter
+  });
+  return r;
+}
+
+function apiSetMCLineId(p) {
+  if (p.role !== 'mc') return {ok:false,error:'MC only'};
+  if (!p.memberName) return {ok:false,error:'ไม่มีชื่อสมาชิก'};
+  var userId = _lineGetUserId(p.memberName);
+  if (!userId) return {ok:false,error:'"'+p.memberName+'" ยังไม่ได้ลงทะเบียน LINE Bot'};
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('⚙️ SETTINGS');
+  if (!sh) {
+    sh = ss.insertSheet('⚙️ SETTINGS');
+    sh.appendRow(['Key','Value']);
+  }
+  var data = sh.getDataRange().getValues();
+  var found = false;
+  for (var i = 0; i < data.length; i++) {
+    if (String(data[i][0]).trim() === 'LINE_ID_MC') {
+      sh.getRange(i+1, 2).setValue(userId);
+      found = true; break;
+    }
+  }
+  if (!found) sh.appendRow(['LINE_ID_MC', userId]);
+  return {ok:true, userId:userId, name:p.memberName};
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Feature B2 — Zone-Up Celebration (called inside _lineNotifyScoreUpdate)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function _zoneName(score) {
+  if (score >= 70) return 'green';
+  if (score >= 50) return 'yellow';
+  if (score >= 30) return 'red';
+  return 'black';
+}
+
+function _buildZoneUpMsg(nick, prevScore, newScore) {
+  var prev = _zoneName(prevScore), cur = _zoneName(newScore);
+  var order = {black:0, red:1, yellow:2, green:3};
+  if (order[cur] <= order[prev]) return null;
+  var labels = {black:'⚫ Black', red:'🔴 Red', yellow:'🟡 Yellow', green:'🟢 Green'};
+  var celebrate = {
+    'red':   '🎉 คุณ{nick} ก้าวเข้าสู่โซนแดงแล้วครับ!\nเป็นจุดเริ่มต้นที่ดีมาก — ไปต่อได้เลยครับ 💪',
+    'yellow':'🌟 คุณ{nick} ขึ้นโซนเหลืองแล้วครับ! ยอดเยี่ยมมาก!\nอีกแค่ไม่กี่ action ก็เขียวแล้วครับ 🔥',
+    'green': '🏆 คุณ{nick} ขึ้นโซนเขียวแล้วครับ!! สุดยอดเลย!\nระดับ Top ของ Chapter ขอแสดงความยินดีด้วยครับ 🎊'
+  };
+  var msg = (celebrate[cur]||'').replace('{nick}', nick);
+  msg += '\n─────────────────\n';
+  msg += labels[prev] + ' → ' + labels[cur] + '\n';
+  msg += prevScore + ' → ' + newScore + ' pts (+' + (newScore - prevScore) + ')';
+  return msg;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Feature C — Core Issue ผ่าน LINE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function _lineReportIssue(memberName, detail) {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var nick  = '';
+  var team  = '';
+  try {
+    var d = _lineGetMemberData(memberName);
+    nick = (d&&d.nick)||memberName.split(' ')[0];
+    team = (d&&d.mentor)||'';
+  } catch(e){}
+
+  // Ensure sheet exists
+  var sh = ss.getSheetByName('📋 LINE ISSUES');
+  if (!sh) {
+    sh = ss.insertSheet('📋 LINE ISSUES');
+    sh.appendRow(['วันที่','ชื่อสมาชิก','ชื่อเล่น','ทีม','รายละเอียด','สถานะ']);
+    sh.setFrozenRows(1);
+  }
+  var now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
+  sh.appendRow([now, memberName, nick, team, detail, 'รอดำเนินการ']);
+
+  // Notify mentor (if they have LINE)
+  if (team) {
+    var mentorId = _getLineId(team.toLowerCase());
+    if (mentorId) {
+      _sendLineMsg(mentorId,
+        '⚠️ สมาชิกแจ้งปัญหาผ่าน LINE\n─────────────────\n'
+        + '👤 ' + memberName + ' (' + nick + ')\n'
+        + '💬 ' + detail + '\n─────────────────\n'
+        + 'ตรวจสอบได้ที่ Sheet "📋 LINE ISSUES" ครับ');
+    }
+  }
+  // Notify MC
+  var mcId = _getLineId('mc');
+  if (mcId) {
+    _sendLineMsg(mcId,
+      '⚠️ Core Issue รายใหม่\n─────────────────\n'
+      + '👤 ' + memberName + ' / ทีม ' + (team||'—') + '\n'
+      + '💬 ' + detail + '\n─────────────────\n'
+      + 'ดูได้ที่ Sheet "📋 LINE ISSUES"');
+  }
+  return '✅ รับเรื่องแล้วครับ คุณ' + nick + '\n─────────────────\n'
+    + 'ทีมงานจะติดต่อกลับโดยเร็วครับ\nพิมพ์ "ปัญหา" เพื่อดูสถานะ\nพิมพ์ "ยกเลิกปัญหา" ถ้าหายไปเองครับ';
+}
+
+function _lineViewIssue(memberName) {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📋 LINE ISSUES');
+  if (!sh || sh.getLastRow() < 2) return '📋 ยังไม่มีเรื่องค้างอยู่ครับ';
+  var rows = sh.getRange(2, 1, sh.getLastRow()-1, 6).getValues();
+  var myIssues = rows.filter(function(r){ return String(r[1]||'').trim()===memberName && String(r[5]||'').trim()!=='เสร็จสิ้น'; });
+  if (!myIssues.length) return '📋 ไม่มีเรื่องค้างอยู่ในขณะนี้ครับ\n\nพิมพ์ "ปัญหา [รายละเอียด]" เพื่อแจ้งใหม่ได้ครับ';
+  var lines = ['📋 เรื่องที่แจ้งไว้:\n─────────────────'];
+  myIssues.slice(-3).forEach(function(r, i) {
+    var statusIcon = r[5]==='รอดำเนินการ' ? '🟡' : r[5]==='กำลังดำเนินการ' ? '🔵' : '✅';
+    lines.push((i+1)+'. ' + statusIcon + ' ' + String(r[4]||'').slice(0,50) + '\n   📅 ' + r[0]);
+  });
+  lines.push('\n─────────────────\nพิมพ์ "ยกเลิกปัญหา" เพื่อยกเลิกล่าสุด');
+  return lines.join('\n');
+}
+
+function _lineCancelIssue(memberName) {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📋 LINE ISSUES');
+  if (!sh || sh.getLastRow() < 2) return 'ไม่พบเรื่องที่แจ้งไว้ครับ';
+  var rows = sh.getRange(2, 1, sh.getLastRow()-1, 6).getValues();
+  for (var i = rows.length-1; i >= 0; i--) {
+    if (String(rows[i][1]||'').trim()===memberName && String(rows[i][5]||'').trim()==='รอดำเนินการ') {
+      sh.getRange(i+2, 6).setValue('ยกเลิก');
+      return '✅ ยกเลิกเรื่องแล้วครับ\n"' + String(rows[i][4]||'').slice(0,40) + '"';
+    }
+  }
+  return 'ไม่พบเรื่องที่สามารถยกเลิกได้ครับ (อาจดำเนินการไปแล้ว)';
+}
+
+function apiGetLineIssues(p) {
+  if (!p.role) return {ok:false,error:'auth'};
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📋 LINE ISSUES');
+  if (!sh || sh.getLastRow() < 2) return {ok:true, list:[]};
+  var rows = sh.getRange(2, 1, sh.getLastRow()-1, 6).getValues();
+  var list = rows.map(function(r, i) {
+    return {row:i+2, date:String(r[0]||''), name:String(r[1]||''), nick:String(r[2]||''), team:String(r[3]||''), detail:String(r[4]||''), status:String(r[5]||'')};
+  }).filter(function(r){ return r.name; });
+  list.reverse();
+  return {ok:true, list:list};
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Feature E — Simulate Score (ลอง ref 3 / ลอง 1-2-1 2)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function _lineSimulate(memberName, metric, addCount) {
+  var d = _lineGetMemberData(memberName);
+  if (!d || !d.actual) return 'ไม่พบข้อมูลครับ';
+  var nick = d.nick || memberName.split(' ')[0];
+  var a    = d.actual;
+  var add  = parseFloat(addCount)||0;
+  if (add <= 0) return '❓ ระบุจำนวนที่ต้องการทดสอบด้วยครับ\nเช่น: ลอง ref 3 / ลอง 1-2-1 2 / ลอง visitor 1 / ลอง ceu 2';
+
+  // Build modified actual
+  var modified = {
+    P: a.attend||0, A: a.absent||0, L:0, M:0, S:0,
+    RGI: a.rg||0, RGO: 0, V: a.visitor||0,
+    oto: a.oToOne||0, ceu: a.ceu||0, tyfb: a.tyfcb||0, bniDays: a.bniDays||0
+  };
+  var metricLabel = '';
+  var m = String(metric).toLowerCase();
+  if      (m==='ref'||m==='referral'||m==='rg') { modified.RGI += add; metricLabel = 'Referral +'+add+' ใบ'; }
+  else if (m==='1-2-1'||m==='121'||m==='oto')   { modified.oto += add; metricLabel = '1-2-1 +'+add+' ครั้ง'; }
+  else if (m==='visitor'||m==='vis')             { modified.V   += add; metricLabel = 'Visitor +'+add+' คน'; }
+  else if (m==='ceu'||m==='training')            { modified.ceu += add; metricLabel = 'CEU +'+add+' แต้ม'; }
+  else if (m==='tyfcb'||m==='tyfb'||m==='ty')   { modified.tyfb += add*1000; metricLabel = 'TYFCB +'+add+'K บาท'; }
+  else return '❓ ไม่รู้จัก metric นั้นครับ\nใช้ได้: ref, 1-2-1, visitor, ceu, tyfcb';
+
+  var before = calcPALMSScore(modified);
+  // adjust back to before for comparison
+  var orig = {
+    P: a.attend||0, A: a.absent||0, L:0, M:0, S:0,
+    RGI: a.rg||0, RGO: 0, V: a.visitor||0,
+    oto: a.oToOne||0, ceu: a.ceu||0, tyfb: a.tyfcb||0, bniDays: a.bniDays||0
+  };
+  var origScore = calcPALMSScore(orig);
+  var currentScore = d.bniScore || origScore.total;
+  var newTotal     = Math.max(origScore.total, 0) + (before.total - origScore.total);
+  var diff = before.total - origScore.total;
+  var zoneNow  = _zoneName(currentScore);
+  var zoneNew  = _zoneName(currentScore + diff);
+  var zoneIcons = {black:'⚫',red:'🔴',yellow:'🟡',green:'🟢'};
+
+  var msg = '🔮 Simulate: '+metricLabel+'\n';
+  msg += '─────────────────\n';
+  msg += '📊 ก่อน: ' + zoneIcons[zoneNow] + ' ' + currentScore + ' pts\n';
+  msg += '📈 หลัง: ' + zoneIcons[zoneNew] + ' ' + (currentScore+diff) + ' pts';
+  if (diff > 0) msg += ' (+' + diff + ')';
+  else if (diff === 0) msg += ' (ไม่เปลี่ยน)';
+  msg += '\n';
+  if (zoneNew !== zoneNow) {
+    msg += '\n🎯 จะขึ้นโซน ' + zoneIcons[zoneNew] + ' ' + zoneNew.toUpperCase() + '!\n';
+  }
+  msg += '─────────────────\n';
+  var gap = _getNextColorGap(currentScore+diff);
+  if (gap.next) msg += '💡 ' + gap.needed;
+  else msg += '🏆 โซนสูงสุดแล้วครับ!';
+  return msg;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Notification Preferences — col G of 📱 LINE MEMBERS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+var _NOTIF_TYPE_MAP = {
+  'nudge':'nudge','wednesday':'nudge',
+  'leaderboard':'leaderboard',
+  'brief':'brief','monday':'brief',
+  'recap':'recap','monthly':'recap',
+  'postmeeting':'postmeeting','post':'postmeeting',
+  'ทุกอย่าง':'all','all':'all','ทั้งหมด':'all'
+};
+var _NOTIF_LABELS = {
+  nudge:'⏰ Wednesday Nudge', brief:'🌅 Monday Brief',
+  leaderboard:'🏆 Team Leaderboard', recap:'📊 Monthly Recap',
+  postmeeting:'📋 Post-Meeting'
+};
+
+function _lineToggleNotif(member, typeText, disable) {
+  var type = _NOTIF_TYPE_MAP[typeText.toLowerCase()] || typeText.toLowerCase();
+  var validTypes = ['nudge','leaderboard','brief','recap','postmeeting'];
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📱 LINE MEMBERS');
+  if (!sh || sh.getLastRow() < 2) return 'ไม่พบข้อมูลครับ';
+  if (!sh.getRange(1,7).getValue()) sh.getRange(1,7).setValue('notif_prefs');
+  var rows = sh.getRange(2, 1, sh.getLastRow()-1, 7).getValues();
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i][1]||'').trim() !== member) continue;
+    var cur = String(rows[i][6]||'').trim();
+    var prefs = cur ? cur.split(',').filter(function(p){return p;}) : [];
+    if (type === 'all') {
+      prefs = disable ? validTypes.slice() : [];
+    } else {
+      if (disable && prefs.indexOf(type) < 0) prefs.push(type);
+      if (!disable) prefs = prefs.filter(function(p){ return p !== type; });
+    }
+    sh.getRange(i+2, 7).setValue(prefs.join(','));
+    var d = _lineGetMemberData(member);
+    var nick = (d&&d.nick)||member.split(' ')[0];
+    if (type === 'all') {
+      return disable
+        ? '🔕 ปิดการแจ้งเตือนทั้งหมดแล้วครับ คุณ'+nick+'\nพิมพ์ "เปิด ทุกอย่าง" เพื่อเปิดใหม่'
+        : '🔔 เปิดการแจ้งเตือนทั้งหมดแล้วครับ คุณ'+nick;
+    }
+    var label = _NOTIF_LABELS[type] || type;
+    return (disable ? '🔕 ปิด '+label : '🔔 เปิด '+label)
+      + ' แล้วครับ\nพิมพ์ "แจ้งเตือน" ดูสถานะทั้งหมด';
+  }
+  return 'ไม่พบข้อมูลครับ';
+}
+
+function _lineNotifSettingsReply(member) {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📱 LINE MEMBERS');
+  var prefs = [];
+  if (sh && sh.getLastRow() >= 2) {
+    sh.getRange(2,1,sh.getLastRow()-1,7).getValues().forEach(function(r){
+      if (String(r[1]||'').trim() === member) prefs = String(r[6]||'').trim().split(',');
+    });
+  }
+  var d = _lineGetMemberData(member);
+  var nick = (d&&d.nick)||member.split(' ')[0];
+  var types = [['nudge','⏰ Wednesday Nudge'],['brief','🌅 Monday Brief'],
+               ['leaderboard','🏆 Leaderboard'],['recap','📊 Monthly Recap'],['postmeeting','📋 Post-Meeting']];
+  var lines = ['🔔 การแจ้งเตือน — คุณ'+nick,'─────────────────'];
+  types.forEach(function(t){ lines.push((prefs.indexOf(t[0])<0?'✅':'🔕')+' '+t[1]); });
+  lines.push('─────────────────');
+  lines.push('เช่น: ปิด nudge / เปิด nudge');
+  lines.push('ปิด ทุกอย่าง  /  เปิด ทุกอย่าง');
+  return lines.join('\n');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Personal Goals — col H of 📱 LINE MEMBERS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+var _GOAL_METRIC_MAP = {
+  'ref':'ref','referral':'ref','rg':'ref',
+  '1-2-1':'oto','121':'oto','oto':'oto',
+  'visitor':'visitor','vis':'visitor',
+  'ceu':'ceu','training':'ceu'
+};
+var _GOAL_LABELS = {ref:'Referral', oto:'1-2-1', visitor:'Visitor', ceu:'CEU'};
+
+function _lineGetGoals(memberName) {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📱 LINE MEMBERS');
+  if (!sh || sh.getLastRow() < 2) return {};
+  var rows = sh.getRange(2, 1, sh.getLastRow()-1, 8).getValues();
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i][1]||'').trim() !== memberName) continue;
+    var g = String(rows[i][7]||'').trim();
+    if (!g) return {};
+    try { return JSON.parse(g); } catch(e) { return {}; }
+  }
+  return {};
+}
+
+function _lineSetGoal(member, metricText, target) {
+  var metric = _GOAL_METRIC_MAP[String(metricText).toLowerCase()];
+  if (!metric) return '❓ ไม่รู้จัก metric นั้นครับ\nใช้ได้: ref, 1-2-1, visitor, ceu';
+  if (target <= 0) return '❓ ระบุเป้าหมายด้วยครับ เช่น: เป้า ref 8';
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📱 LINE MEMBERS');
+  if (!sh || sh.getLastRow() < 2) return 'ไม่พบข้อมูลครับ';
+  if (!sh.getRange(1,8).getValue()) sh.getRange(1,8).setValue('goals_json');
+  var rows = sh.getRange(2, 1, sh.getLastRow()-1, 8).getValues();
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i][1]||'').trim() !== member) continue;
+    var g = {}; try { g = JSON.parse(String(rows[i][7]||'{}')); } catch(e){}
+    g[metric] = target;
+    sh.getRange(i+2, 8).setValue(JSON.stringify(g));
+    var d = _lineGetMemberData(member);
+    var nick = (d&&d.nick)||member.split(' ')[0];
+    return '🎯 ตั้งเป้าแล้วครับ คุณ'+nick
+      +'\n─────────────────\n'
+      +_GOAL_LABELS[metric]+': '+target+' ครั้ง/ใบ/เดือน\n\n'
+      +'ระบบจะรายงาน progress ทุกจันทร์เช้าครับ\n'
+      +'พิมพ์ "เป้า" เพื่อดูทุกเป้า';
+  }
+  return 'ไม่พบข้อมูลครับ';
+}
+
+function _lineGoalsReply(member) {
+  var goals = _lineGetGoals(member);
+  var d = _lineGetMemberData(member);
+  var nick = (d&&d.nick)||member.split(' ')[0];
+  var a = (d&&d.actual)||{};
+  if (!Object.keys(goals).length) {
+    return '🎯 ยังไม่มีเป้าหมายครับ คุณ'+nick
+      +'\n─────────────────\n'
+      +'ตั้งเป้าได้ด้วย:\n'
+      +'เป้า ref 8       →  Referral 8 ใบ\n'
+      +'เป้า visitor 2  →  Visitor 2 คน\n'
+      +'เป้า 1-2-1 12  →  1-2-1 12 ครั้ง\n'
+      +'เป้า ceu 4      →  CEU 4 แต้ม';
+  }
+  var curMap = {ref:a.rg||0, oto:a.oToOne||0, visitor:a.visitor||0, ceu:a.ceu||0};
+  var lines = ['🎯 เป้าหมายเดือนนี้ — คุณ'+nick,'─────────────────'];
+  Object.keys(goals).forEach(function(m){
+    var tgt=goals[m], cur=curMap[m]||0, pct=Math.round(cur/tgt*100);
+    var bar = cur>=tgt?'✅':pct>=75?'🔸':pct>=50?'🟡':'⚠️';
+    lines.push(bar+' '+(_GOAL_LABELS[m]||m)+': '+cur+'/'+tgt+'  ('+pct+'%)');
+  });
+  lines.push('─────────────────');
+  lines.push('เป้า [metric] [จำนวน] เพื่ออัพเดท');
+  return lines.join('\n');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Feature — Monday Morning Brief (จันทร์ 08:00)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function mondayMorningBrief() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📱 LINE MEMBERS');
+  if (!sh || sh.getLastRow() < 2) return;
+  var rows = sh.getRange(2, 1, sh.getLastRow()-1, 8).getValues();
+  var sent = 0;
+  rows.forEach(function(r) {
+    var userId   = String(r[0]||'').trim();
+    var name     = String(r[1]||'').trim();
+    var disabled = String(r[6]||'').trim().split(',');
+    if (!userId || !name) return;
+    if (disabled.indexOf('brief') >= 0) return;
+    try {
+      var d = _lineGetMemberData(name);
+      if (!d || !d.bniScore) return;
+      var nick  = (d&&d.nick)||name.split(' ')[0];
+      var score = d.bniScore||0;
+      var tl    = d.bniTl||'black';
+      var tlIcon = {green:'🟢',yellow:'🟡',red:'🔴',black:'⚫'}[tl]||'📊';
+      var cats  = d.cats||{};
+      var a     = d.actual||{};
+      var effWks = Math.min(26, Math.max(1, Math.floor((a.bniDays||0)/7)));
+      var actions = [];
+      if ((cats.training||0) < 15) actions.push({gain:20-(cats.training||0), label:'CEU: ทำ BNI Online Training'});
+      if (effWks>0&&(a.visitor||0)/(effWks/4)<1) actions.push({gain:10,label:'Visitor: พาหน้าใหม่เข้า meeting'});
+      if (effWks>0&&(a.oToOne||0)/effWks<1)      actions.push({gain:5, label:'1-2-1: นัดสมาชิกอีกทีมสัปดาห์นี้'});
+      if (effWks>0&&(a.rg||0)/effWks<1)          actions.push({gain:5, label:'Referral: ส่งใบ ref ให้สักคน'});
+      actions.sort(function(a,b){return b.gain-a.gain;});
+      var nextTgt = score<30?30:score<50?50:score<70?70:null;
+      var msg = '🌅 สวัสดีตอนเช้า คุณ'+nick+'\n'
+        +'─────────────────\n'
+        +'สัปดาห์ใหม่ เริ่มต้นดีๆ กันครับ!\n\n'
+        +tlIcon+' คะแนนล่าสุด: '+score+'/100\n';
+      if (nextTgt) {
+        var zn = nextTgt>=70?'🟢 Green':nextTgt>=50?'🟡 Yellow':'🔴 Red';
+        msg += '🎯 เป้า: '+zn+' (อีก '+(nextTgt-score)+' pt)\n';
+      } else {
+        msg += '🏆 Green Zone แล้ว รักษาให้อยู่!\n';
+      }
+      if (actions.length) {
+        msg += '\n⚡ Action สัปดาห์นี้:\n';
+        actions.slice(0,2).forEach(function(ac,i){ msg += (i+1)+'. '+ac.label+'\n'; });
+      }
+      var goals = {}; try { goals = JSON.parse(String(r[7]||'{}')); } catch(e){}
+      var gKeys = Object.keys(goals);
+      if (gKeys.length) {
+        var curMap = {ref:a.rg||0,oto:a.oToOne||0,visitor:a.visitor||0,ceu:a.ceu||0};
+        msg += '\n🎯 Progress:\n';
+        gKeys.forEach(function(m){
+          var cur=curMap[m]||0, tgt=goals[m];
+          var bar = cur>=tgt?'✅':Math.round(cur/tgt*100)>=75?'🔸':'⚠️';
+          msg += bar+' '+(_GOAL_LABELS[m]||m)+': '+cur+'/'+tgt+'\n';
+        });
+      }
+      msg += '─────────────────\nพิมพ์ "สถานะ" ดูรายละเอียด 💪';
+      var qr = [
+        {type:'action',action:{type:'message',label:'📊 สถานะ',text:'สถานะ'}},
+        {type:'action',action:{type:'message',label:'🤝 แนะนำ 1-2-1',text:'แนะนำ'}},
+        {type:'action',action:{type:'message',label:'🎯 เป้าหมาย',text:'เป้า'}}
+      ];
+      _sendLineMsgQR(userId, msg, qr);
+      sent++;
+    } catch(e2) { Logger.log('mondayMorningBrief error: '+e2.message); }
+  });
+  Logger.log('mondayMorningBrief: sent to '+sent);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Feature — Monthly Recap (จันทร์แรกของเดือน 09:00)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function monthlyRecap() {
+  if (new Date().getDate() > 7) return; // only first Monday of month
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📱 LINE MEMBERS');
+  if (!sh || sh.getLastRow() < 2) return;
+  var rows = sh.getRange(2, 1, sh.getLastRow()-1, 7).getValues();
+  var sent = 0;
+  var thMonths = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  var today = new Date();
+  var prevMonthName = thMonths[today.getMonth()===0?12:today.getMonth()];
+  rows.forEach(function(r) {
+    var userId   = String(r[0]||'').trim();
+    var name     = String(r[1]||'').trim();
+    var disabled = String(r[6]||'').trim().split(',');
+    if (!userId || !name) return;
+    if (disabled.indexOf('recap') >= 0) return;
+    try {
+      var d = _lineGetMemberData(name);
+      if (!d || !d.scoreHistory || d.scoreHistory.length < 2) return;
+      var nick  = (d&&d.nick)||name.split(' ')[0];
+      var hist  = d.scoreHistory;
+      var last  = hist[hist.length-1];
+      var prev  = hist[hist.length-2];
+      var diff  = Math.round(last.score - prev.score);
+      var tl = last.score>=70?'🟢':last.score>=50?'🟡':last.score>=30?'🔴':'⚫';
+      var arrow = diff>0?'↑+'+diff:diff<0?'↓'+diff:'→';
+      var cats  = d.cats||{};
+      var msg = '📊 สรุปเดือน '+prevMonthName+' — คุณ'+nick+'\n'
+        +'─────────────────\n'
+        +tl+' คะแนน: '+Math.round(last.score)+' pt  '+arrow+'\n'
+        +'(เดือนก่อน: '+Math.round(prev.score)+' pt)\n'
+        +'─────────────────\n';
+      var comps = [
+        ['⚫ ขาดประชุม',cats.absent||0,15],['📨 Referral',cats.ref||0,15],
+        ['🤝 1-2-1',cats.one21||0,15],['🧲 Visitor',cats.visitor||0,20],
+        ['📚 CEU',cats.training||0,20],['💰 TYFCB',cats.tyfcb||0,15]
+      ];
+      comps.forEach(function(c){
+        var b = c[1]>=c[2]?'✅':c[1]>=c[2]*0.6?'🔸':'⚠️';
+        msg += b+' '+c[0]+': '+c[1]+'/'+c[2]+'\n';
+      });
+      msg += '─────────────────\n';
+      if (diff>0)      msg += '🎉 +'+diff+' pt เดือนนี้! ทำต่อไปครับ 💪\n';
+      else if (diff<0) msg += '📉 -'+Math.abs(diff)+' pt เดือนหน้าทำให้ดีขึ้นได้ 💡\n';
+      else             msg += '→ คะแนนเท่าเดิม เพิ่ม 1 action ขึ้นได้เลยครับ\n';
+      var nextTgt = Math.round(last.score)<30?30:Math.round(last.score)<50?50:Math.round(last.score)<70?70:null;
+      if (nextTgt) msg += '🎯 เป้าเดือนหน้า: อีก '+(nextTgt-Math.round(last.score))+' pt ขึ้น zone!';
+      _sendLineMsg(userId, msg);
+      sent++;
+    } catch(e2) { Logger.log('monthlyRecap error: '+e2.message); }
+  });
+  Logger.log('monthlyRecap: sent to '+sent);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Feature — 1-2-1 Auto-Reminder (อังคาร 09:00)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function line121AutoReminder() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var trackerSh = ss.getSheetByName('📊 1-2-1 TRACKER');
+  var lineSh    = ss.getSheetByName('📱 LINE MEMBERS');
+  if (!trackerSh || trackerSh.getLastRow() < 2 || !lineSh || lineSh.getLastRow() < 2) return;
+  var userMap = {};
+  lineSh.getRange(2,1,lineSh.getLastRow()-1,2).getValues().forEach(function(r){
+    if (r[0]&&r[1]) userMap[String(r[1]).trim()] = String(r[0]).trim();
+  });
+  var now  = new Date();
+  var rows = trackerSh.getRange(2, 1, trackerSh.getLastRow()-1, 7).getValues();
+  var sent = 0;
+  rows.forEach(function(r) {
+    var dateVal = r[0]; var name = String(r[1]||'').trim(); var nick = String(r[2]||'').trim();
+    var partner = String(r[4]||'').trim(); var status = String(r[6]||'').trim();
+    if (!name || status !== 'นัดแล้ว') return;
+    var meetDate = dateVal instanceof Date ? dateVal : new Date(dateVal);
+    if (isNaN(meetDate.getTime())) return;
+    var daysSince = (now - meetDate) / 86400000;
+    if (daysSince < 3 || daysSince > 14) return;
+    var userId = userMap[name];
+    if (!userId) return;
+    var msg = '⏰ เช็ค 1-2-1 — คุณ'+nick+'\n'
+      +'─────────────────\n'
+      +'นัด '+partner+' เมื่อ '+Math.round(daysSince)+' วันที่แล้ว\n'
+      +'เจอกันแล้วยังครับ?\n\n'
+      +'กด "เจอแล้ว" เพื่อบันทึกผล';
+    var qr = [
+      {type:'action',action:{type:'message',label:'✅ เจอแล้ว',text:'เจอแล้ว'}},
+      {type:'action',action:{type:'message',label:'📊 ติดตาม',text:'ติดตาม'}}
+    ];
+    _sendLineMsgQR(userId, msg, qr);
+    sent++;
+  });
+  Logger.log('line121AutoReminder: sent '+sent);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Mentor Broadcast — ส่งข้อความไปยัง mentees ทั้งทีม
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function apiMentorBroadcast(p) {
+  var role = p.role||'';
+  var message = String(p.message||'').trim();
+  if (!message) return {ok:false, error:'ต้องระบุข้อความ'};
+  var roleToTeam = {toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP'};
+  var teamSheet = roleToTeam[role];
+  if (!teamSheet && role !== 'mc') return {ok:false, error:'Permission denied'};
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var lineSh = ss.getSheetByName('📱 LINE MEMBERS');
+  if (!lineSh || lineSh.getLastRow() < 2) return {ok:false, error:'ไม่มีสมาชิก LINE'};
+  var userMap = {};
+  lineSh.getRange(2,1,lineSh.getLastRow()-1,2).getValues().forEach(function(r){
+    if (r[0]&&r[1]) userMap[String(r[1]).trim()] = String(r[0]).trim();
+  });
+  var targets = [];
+  if (role === 'mc') {
+    targets = Object.keys(userMap);
+  } else {
+    var listSh = ss.getSheetByName('รายชื่อทั้งหมด');
+    if (listSh && listSh.getLastRow() >= 3) {
+      listSh.getRange(3,2,listSh.getLastRow()-2,3).getValues().forEach(function(r){
+        var n = String(r[0]||'').trim(), team = String(r[2]||'').trim();
+        if (n && team === teamSheet && userMap[n]) targets.push(n);
+      });
+    }
+  }
+  var sent = 0;
+  targets.forEach(function(name, i) {
+    try {
+      if (i > 0) Utilities.sleep(200);
+      _sendLineMsg(userMap[name], message);
+      sent++;
+    } catch(e) { Logger.log('mentorBroadcast error: '+e.message); }
+  });
+  return {ok:true, sent:sent, total:targets.length};
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// LINE Rich Menu Setup
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function apiSetupRichMenu(p) {
+  if (p.role !== 'mc') return {ok:false, error:'MC only'};
+  var token = _getLineToken();
+  if (!token) return {ok:false, error:'ไม่พบ LINE Token'};
+  try {
+    var listRes = UrlFetchApp.fetch('https://api.line.me/v2/bot/richmenu/list',
+      {headers:{'Authorization':'Bearer '+token},muteHttpExceptions:true});
+    var existing = JSON.parse(listRes.getContentText());
+    (existing.richmenus||[]).forEach(function(rm){
+      UrlFetchApp.fetch('https://api.line.me/v2/bot/richmenu/'+rm.richMenuId,
+        {method:'DELETE',headers:{'Authorization':'Bearer '+token},muteHttpExceptions:true});
+    });
+  } catch(e) {}
+  var menuDef = {
+    size:{width:2500,height:843}, selected:true,
+    name:'BNI IDEAL Menu', chatBarText:'📋 เมนู BNI',
+    areas:[
+      {bounds:{x:0,   y:0,  width:833,height:421},action:{type:'message',label:'📊 สถานะ', text:'สถานะ'}},
+      {bounds:{x:833, y:0,  width:834,height:421},action:{type:'message',label:'📈 ประวัติ',text:'ประวัติ'}},
+      {bounds:{x:1667,y:0,  width:833,height:421},action:{type:'message',label:'🤝 แนะนำ', text:'แนะนำ'}},
+      {bounds:{x:0,   y:421,width:833,height:422},action:{type:'message',label:'📊 ติดตาม',text:'ติดตาม'}},
+      {bounds:{x:833, y:421,width:834,height:422},action:{type:'message',label:'⚠️ ปัญหา', text:'ปัญหา'}},
+      {bounds:{x:1667,y:421,width:833,height:422},action:{type:'message',label:'❓ ช่วย',   text:'ช่วย'}}
+    ]
+  };
+  var createRes = UrlFetchApp.fetch('https://api.line.me/v2/bot/richmenu',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+    payload:JSON.stringify(menuDef),
+    muteHttpExceptions:true
+  });
+  var created = JSON.parse(createRes.getContentText());
+  if (!created.richMenuId) return {ok:false, error:'สร้างไม่สำเร็จ: '+createRes.getContentText()};
+  UrlFetchApp.fetch('https://api.line.me/v2/bot/user/all/richmenu/'+created.richMenuId,{
+    method:'POST', headers:{'Authorization':'Bearer '+token}, muteHttpExceptions:true
+  });
+  PropertiesService.getScriptProperties().setProperty('LINE_RICH_MENU_ID', created.richMenuId);
+  return {ok:true, richMenuId:created.richMenuId,
+    note:'✅ สร้าง Rich Menu แล้วครับ\n⚠️ ต้องอัพโหลด background image ผ่าน LINE OA Manager\nMenu ID: '+created.richMenuId};
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Feature D — Friday Team Leaderboard (ศุกร์ 07:30)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function fridayTeamLeaderboard() {
+  var ss  = SpreadsheetApp.getActiveSpreadsheet();
+  var sh  = ss.getSheetByName('📱 LINE MEMBERS');
+  if (!sh || sh.getLastRow() < 2) return;
+
+  // Build team score map from master sheet (fast — no per-member data calls)
+  var masterSh = ss.getSheetByName('รายชื่อทั้งหมด');
+  var teamScores = {}; // name → {score, nick, mentor}
+  if (masterSh && masterSh.getLastRow() >= 3) {
+    masterSh.getRange(3, 2, masterSh.getLastRow()-2, 4).getValues().forEach(function(r) {
+      var name   = String(r[0]||'').trim();
+      var nick   = String(r[1]||'').trim();
+      var mentor = String(r[2]||'').trim();
+      var score  = parseFloat(r[3])||0;
+      if (name && mentor) teamScores[name] = {score:score, nick:nick||name.split(' ')[0], mentor:mentor};
+    });
+  }
+
+  var rows = sh.getRange(2, 1, sh.getLastRow()-1, 7).getValues();
+  var sent = 0;
+  rows.forEach(function(r) {
+    var userId = String(r[0]||'').trim();
+    var name   = String(r[1]||'').trim();
+    if (!userId || !name) return;
+    var disabled = String(r[6]||'').trim().split(',');
+    if (disabled.indexOf('leaderboard') >= 0) return;
+    try {
+      var me = teamScores[name];
+      if (!me || !me.mentor) return;
+      var team = me.mentor;
+
+      // Get all team members sorted by score desc
+      var members = Object.keys(teamScores).filter(function(n){ return teamScores[n].mentor===team; })
+        .map(function(n){ return {name:n, nick:teamScores[n].nick, score:teamScores[n].score}; })
+        .sort(function(a,b){ return b.score-a.score; });
+      if (members.length === 0) return;
+
+      var medals = ['🥇','🥈','🥉'];
+      var myRank = -1;
+      var lines  = members.map(function(m, i) {
+        var medal = medals[i] || ('  '+(i+1)+'.');
+        var isMe  = m.name === name;
+        if (isMe) myRank = i+1;
+        var tl    = _bniBuildTL(m.score)||'black';
+        var icon  = {green:'🟢',yellow:'🟡',red:'🔴',black:'⚫'}[tl]||'📊';
+        return medal + (isMe?' ★ ':' ') + m.nick + '  ' + icon + ' ' + m.score;
+      });
+
+      var msg = '🏆 Leaderboard ทีม ' + team + '\n';
+      msg += '─────────────────\n';
+      msg += lines.join('\n') + '\n';
+      msg += '─────────────────\n';
+      if (myRank === 1)      msg += '👑 คุณอยู่อันดับ 1 ของทีม! รักษาไว้นะครับ';
+      else if (myRank <= 3)  msg += '🥉 Top 3 ของทีม! อีกหน่อยก็ #1 แล้ว';
+      else {
+        var gap = me.score > 0 && members[myRank-2] ? (members[myRank-2].score - me.score) : 0;
+        msg += '📊 อันดับ '+myRank+'/'+members.length+' — ห่างอันดับบน ' + gap + ' pts';
+      }
+      _sendLineMsg(userId, msg);
+      sent++;
+    } catch(e2) { Logger.log('fridayTeamLeaderboard error for '+name+': '+e2.message); }
+  });
+  Logger.log('fridayTeamLeaderboard: sent to '+sent);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Feature A8 — Friday Post-Meeting Prompt (ศุกร์ 13:00)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function fridayPostMeetingPrompt() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📱 LINE MEMBERS');
+  if (!sh || sh.getLastRow() < 2) return;
+  var rows = sh.getRange(2, 1, sh.getLastRow()-1, 7).getValues();
+  var sent = 0;
+  rows.forEach(function(r) {
+    var userId = String(r[0]||'').trim();
+    var name   = String(r[1]||'').trim();
+    if (!userId || !name) return;
+    var disabled = String(r[6]||'').trim().split(',');
+    if (disabled.indexOf('postmeeting') >= 0) return;
+    try {
+      var d = _lineGetMemberData(name);
+      var nick = (d&&d.nick)||name.split(' ')[0];
+      var cats = (d&&d.cats)||{};
+      var tips = [];
+      if ((cats.one21||0) < 10) tips.push('🤝 นัด 1-2-1 ให้ครบ 1 ครั้ง/สัปดาห์');
+      if ((cats.ref||0)   < 10) tips.push('📨 ส่ง Referral ให้สมาชิกที่เหมาะกับลูกค้าคุณ');
+      if ((cats.visitor||0)<10) tips.push('🧲 หา Visitor สักคนมาครั้งหน้า');
+      var msg = '🎯 ขอบคุณที่มาประชุมครับ คุณ'+nick+'!\n'
+        + '─────────────────\n'
+        + '✅ Checklist หลังประชุม:\n'
+        + '• นัด 1-2-1 สัปดาห์หน้าแล้วไหม?\n'
+        + '• ส่ง Referral ให้ใครได้บ้าง?\n'
+        + '• มี Visitor ที่จะพามาครั้งหน้าไหม?\n';
+      if (tips.length) {
+        msg += '─────────────────\n';
+        msg += '💡 Focus สัปดาห์นี้:\n';
+        tips.slice(0,2).forEach(function(t){ msg += '• '+t+'\n'; });
+      }
+      msg += '─────────────────\n';
+      msg += 'พิมพ์ "สถานะ" ดูคะแนนปัจจุบัน 📊';
+      _sendLineMsg(userId, msg);
+      // 1-2-1 follow-up: ask about any pending meetings from previous week
+      try {
+        var fu = _line121FollowUp(name, userId);
+        if (fu) {
+          Utilities.sleep(600);
+          _sendLineMsg(userId, fu.msg);
+        }
+      } catch(ef){}
+      sent++;
+    } catch(e2) { Logger.log('fridayPostMeetingPrompt error: '+e2.message); }
+  });
+  Logger.log('fridayPostMeetingPrompt: sent to '+sent);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Feature A9 — Wednesday Nudge (พุธ 10:00 — เฉพาะคนที่ขาด metric)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function wednesdayNudge() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('📱 LINE MEMBERS');
+  if (!sh || sh.getLastRow() < 2) return;
+
+  // ── Pre-load all reference data ONCE (outside loop) ─────────
+  // 1. Master sheet: nickMap + teamMap
+  var nickMap = {}, teamMap = {};
+  var listSh = ss.getSheetByName('รายชื่อทั้งหมด');
+  if (listSh && listSh.getLastRow() >= 3) {
+    listSh.getRange(3,2,listSh.getLastRow()-2,3).getValues().forEach(function(r){
+      var n = String(r[0]||'').trim();
+      if (n) { nickMap[n] = String(r[1]||'').trim()||n.split(' ')[0]; teamMap[n] = String(r[2]||'').trim(); }
+    });
+  }
+  // 2. CHECKIN LOG: latest Looking For per member
+  var ciLF = {}; // name → lf string
+  var ciSh = ss.getSheetByName('📋 CHECKIN LOG');
+  if (ciSh && ciSh.getLastRow() >= 2) {
+    ciSh.getRange(2,1,ciSh.getLastRow()-1,5).getValues().forEach(function(r){
+      var n = String(r[1]||'').trim(); var lf = String(r[4]||'').trim();
+      if (n && lf) ciLF[n] = lf; // later rows overwrite → keep latest
+    });
+  }
+  // 3. LINE MEMBERS: biz_profile (col E) + notif_prefs (col G)
+  var bizMap = {}, disabledMap = {};
+  var allLMRows = sh.getRange(2,1,sh.getLastRow()-1,7).getValues();
+  allLMRows.forEach(function(r){
+    var n = String(r[1]||'').trim(); var biz = String(r[4]||'').trim();
+    if (n && biz) bizMap[n] = biz;
+    if (n) disabledMap[n] = String(r[6]||'').trim().split(',');
+  });
+
+  var rows = allLMRows;
+  var sent = 0;
+
+  rows.forEach(function(r) {
+    var userId = String(r[0]||'').trim();
+    var name   = String(r[1]||'').trim();
+    if (!userId || !name) return;
+    if ((disabledMap[name]||[]).indexOf('nudge') >= 0) return;
+    try {
+      var d = _lineGetMemberData(name);
+      if (!d || !d.bniScore) return;
+      var nick     = (d&&d.nick)||name.split(' ')[0];
+      var cats     = d.cats||{};
+      var a        = d.actual||{};
+      var selfTeam = (d&&d.mentor)||'';
+      var effWks   = Math.min(26, Math.max(1, Math.floor((a.bniDays||0)/7)));
+      var otoPerWk = effWks>0 ? (a.oToOne||0)/effWks : 0;
+      var rgPerWk  = effWks>0 ? (a.rg||0)/effWks : 0;
+
+      var nudges = [];
+      if ((cats.training||0) < 10)
+        nudges.push({gain:10, icon:'📚', msg:'CEU ยังขาดอยู่ '+Math.round(20-(cats.training||0))+' pt\nลอง BNI Online Training วันนี้ได้เลยครับ 🎓'});
+      if ((cats.visitor||0) < 10)
+        nudges.push({gain:10, icon:'🧲', msg:'ยังไม่มี Visitor เดือนนี้\nมีใครในเครือข่ายเหมาะกับ BNI ไหมครับ?'});
+      if (otoPerWk < 1)
+        nudges.push({gain:5, icon:'🤝', msg:'ยังไม่มี 1-2-1 สัปดาห์นี้เลยครับ\nดูคนที่น่าจะเหมาะได้ด้านล่างเลยครับ 👇'});
+      if (rgPerWk < 1)
+        nudges.push({gain:5, icon:'📨', msg:'ส่ง Referral ให้สมาชิกสักใบดีกว่านะครับ\nนึกถึงใครที่น่าจะช่วยกันได้บ้าง?'});
+      if (!nudges.length) return;
+
+      nudges.sort(function(a,b){ return b.gain-a.gain; });
+      var top = nudges[0];
+      var msg = top.icon+' Nudge — คุณ'+nick+'\n'
+        + '─────────────────\n'
+        + top.msg+'\n\n'
+        + '📊 คะแนนปัจจุบัน: '+(d.bniScore||0)+'/100';
+
+      if (top.icon === '🤝') {
+        // Smart match using pre-loaded data
+        var myLF = bizMap[name] || ciLF[name] || '';
+        var qrBtns = _getSmartQRButtons(name, myLF, selfTeam, ciLF, nickMap, teamMap, 5);
+        qrBtns.push({type:'action',action:{type:'message',label:'📊 ดูสถานะ',text:'สถานะ'}});
+        _sendLineMsgQR(userId, msg, qrBtns);
+      } else {
+        _sendLineMsg(userId, msg);
+      }
+      sent++;
+    } catch(e2) { Logger.log('wednesdayNudge error for '+name+': '+e2.message); }
+  });
+  Logger.log('wednesdayNudge: sent to '+sent+' members');
+}
+
+// Smart match for QR buttons — uses pre-loaded data, no sheet reads
+function _getSmartQRButtons(memberName, myLF, selfTeam, ciLF, nickMap, teamMap, limit) {
+  if (!myLF) {
+    // No profile: fall back to cross-team members sorted randomly
+    var fallback = [];
+    Object.keys(nickMap).forEach(function(n){
+      if (n !== memberName && teamMap[n]) fallback.push({nick:nickMap[n], cross: teamMap[n]!==selfTeam});
+    });
+    fallback.sort(function(a,b){ return a.cross===b.cross ? Math.random()-.5 : (a.cross?-1:1); });
+    return fallback.slice(0, limit||5).map(function(m){
+      return {type:'action',action:{type:'message',label:'🤝 นัด '+m.nick,text:'นัด '+m.nick}};
+    });
+  }
+
+  var qLow  = myLF.toLowerCase();
+  var qCats = _getCategories(qLow);
+  var qWords = _tokenize(qLow);
+  var scored = [];
+
+  Object.keys(ciLF).forEach(function(n){
+    if (n === memberName) return;
+    var nick = nickMap[n]||n.split(' ')[0];
+    var team = teamMap[n]||'';
+    var lfLow = ciLF[n].toLowerCase();
+    var mCats = _getCategories(lfLow);
+    var score = 0;
+    // They need what I offer
+    qCats.forEach(function(c){ if (mCats.indexOf(c)>=0) score+=3; });
+    qWords.forEach(function(w){ if (lfLow.indexOf(w)>=0) score+=1; });
+    var cross = team !== selfTeam;
+    if (cross && score>0) score+=1;
+    if (score>0) scored.push({nick:nick, score:score, cross:cross});
+  });
+
+  // Fill remaining slots with cross-team members not yet included
+  if (scored.length < (limit||5)) {
+    var scoredNicks = scored.map(function(s){return s.nick;});
+    Object.keys(nickMap).forEach(function(n){
+      if (n===memberName || teamMap[n]===selfTeam) return;
+      var nick = nickMap[n];
+      if (scoredNicks.indexOf(nick)>=0) return;
+      scored.push({nick:nick, score:0, cross:true});
+    });
+  }
+
+  scored.sort(function(a,b){ return a.cross===b.cross ? b.score-a.score : (a.cross?-1:1); });
+  return scored.slice(0, limit||5).map(function(m){
+    return {type:'action',action:{type:'message',label:'🤝 นัด '+m.nick,text:'นัด '+m.nick}};
+  });
+}
+
+function apiSetupAllTriggers(p) {
+  if (p.role !== 'mc') return {ok:false,error:'MC only'};
+  var results = [];
+  var fns = [
+    {name:'thursdayBotPush',       day:ScriptApp.WeekDay.FRIDAY,    hour:7,  label:'Weekly Score Card (ศุกร์ 07:00)'},
+    {name:'thursdayMorningAlert',  day:ScriptApp.WeekDay.FRIDAY,    hour:7,  label:'Morning Alert (ศุกร์ 07:00)'},
+    {name:'fridayEveningReminder', day:ScriptApp.WeekDay.THURSDAY,  hour:18, label:'Check-In Reminder (พฤหัส 18:00)'},
+    {name:'_lineBNIAnniversary',   day:ScriptApp.WeekDay.FRIDAY,    hour:8,  label:'Anniversary Check (ศุกร์ 08:00)'},
+    {name:'fridayPostMeetingPrompt',day:ScriptApp.WeekDay.FRIDAY,   hour:13, label:'Post-Meeting Prompt (ศุกร์ 13:00)'},
+    {name:'wednesdayNudge',        day:ScriptApp.WeekDay.WEDNESDAY, hour:10, label:'Wednesday Nudge (พุธ 10:00)'},
+    {name:'fridayTeamLeaderboard', day:ScriptApp.WeekDay.FRIDAY,   hour:7, minute:30, label:'Team Leaderboard (ศุกร์ 07:30)'},
+    {name:'mondayMorningBrief',  day:ScriptApp.WeekDay.MONDAY,  hour:8,  label:'Monday Morning Brief (จันทร์ 08:00)'},
+    {name:'monthlyRecap',        day:ScriptApp.WeekDay.MONDAY,  hour:9,  label:'Monthly Recap (จันทร์แรกของเดือน 09:00)'},
+    {name:'line121AutoReminder', day:ScriptApp.WeekDay.TUESDAY, hour:9,  label:'1-2-1 Auto-Reminder (อังคาร 09:00)'}
+  ];
+  fns.forEach(function(cfg) {
+    try {
+      ScriptApp.getProjectTriggers().forEach(function(t) {
+        if (t.getHandlerFunction() === cfg.name) ScriptApp.deleteTrigger(t);
+      });
+      var t2 = ScriptApp.newTrigger(cfg.name).timeBased().onWeekDay(cfg.day).atHour(cfg.hour);
+      if (cfg.minute) t2 = t2.nearMinute(cfg.minute);
+      t2.create();
+      results.push('✅ ' + cfg.label);
+    } catch(e) {
+      results.push('❌ ' + cfg.label + ': ' + e.message);
+    }
+  });
+  return {ok:true, results:results};
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Feature B — Auto-notify members after MC imports scores
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function _lineNotifyScoreUpdate(monthKey) {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📱 LINE MEMBERS');
+  if (!sh || sh.getLastRow() < 2) return;
+
+  // Ensure header cols D, F exist
+  if (!sh.getRange(1,4).getValue()) sh.getRange(1,4).setValue('last_score');
+  if (!sh.getRange(1,6).getValue()) sh.getRange(1,6).setValue('last_oto');
+
+  // Read all rows including col D (last_score) and col F (last_oto)
+  var lastRow = sh.getLastRow()-1;
+  var rows = sh.getRange(2, 1, lastRow, 6).getValues();
+  var sent = 0;
+
+  rows.forEach(function(r, idx) {
+    var userId    = String(r[0]||'').trim();
+    var name      = String(r[1]||'').trim();
+    var prevScore = parseFloat(r[3])||0; // col D
+    var prevOto   = parseFloat(r[5])||0; // col F
+    if (!userId || !name) return;
+    try {
+      var d = _lineGetMemberData(name);
+      if (!d || !d.bniScore) return;
+      var nick     = d.nick || name.split(' ')[0];
+      var newScore = d.bniScore;
+      var newOto   = (d.actual&&d.actual.oToOne)||0;
+      var tlLabel  = {green:'🟢',yellow:'🟡',red:'🔴',black:'⚫'}[d.bniTl||'none'] || '📊';
+
+      // Save new score + oToOne to cols D, F
+      sh.getRange(idx+2, 4).setValue(newScore);
+      sh.getRange(idx+2, 6).setValue(newOto);
+
+      var msg = '📊 คะแนนเดือน ' + (monthKey||'ล่าสุด') + ' อัพเดทแล้ว!\n'
+        + '─────────────────\n'
+        + nick + ': ' + tlLabel + ' ' + newScore + '/100\n'
+        + '─────────────────\n'
+        + _lineRandMsg(d.bniTl, nick) + '\n\n'
+        + 'พิมพ์ "สถานะ" เพื่อดู Action Plan ครับ';
+      _sendLineMsg(userId, msg);
+
+      // Zone-up celebration
+      if (prevScore > 0 && newScore !== prevScore) {
+        var zoneMsg = _buildZoneUpMsg(nick, prevScore, newScore);
+        if (zoneMsg) {
+          Utilities.sleep(800);
+          _sendLineMsg(userId, zoneMsg);
+        }
+        // MC alert on zone drop
+        var zOrd = {black:0,red:1,yellow:2,green:3};
+        var prevZ = _zoneName(prevScore), newZ = _zoneName(newScore);
+        if (zOrd[newZ] < zOrd[prevZ]) {
+          var mcId2 = _getLineId('mc');
+          if (mcId2) {
+            Utilities.sleep(300);
+            var zIcons = {black:'⚫',red:'🔴',yellow:'🟡',green:'🟢'};
+            _sendLineMsg(mcId2,
+              '⚠️ Zone Drop Alert\n─────────────────\n'
+              +'👤 '+nick+' (ทีม '+(d.mentor||'—')+')\n'
+              +prevScore+' → '+newScore+' pts\n'
+              +zIcons[prevZ]+' → '+zIcons[newZ]+'\n─────────────────\n'
+              +'พิมพ์ "สถานะ" ดูรายละเอียด');
+          }
+        }
+      }
+
+      // 1-2-1 increase detection — ask who they met
+      var otoDiff = newOto - prevOto;
+      if (prevOto > 0 && otoDiff > 0) {
+        Utilities.sleep(800);
+        var selfTeam = (d&&d.mentor)||'';
+        var otoMsg = '🤝 เดือนนี้คุณทำ 1-2-1 เพิ่มขึ้น '+otoDiff+' ครั้ง!\n'
+          + '─────────────────\n'
+          + 'เจอกับใครบ้างครับ? บันทึกไว้ติดตามผลได้เลย\n'
+          + '(พิมพ์ "นัด [ชื่อ]" หรือกดปุ่มด้านล่างครับ)';
+        var qrBtns = _getMemberQRButtons(name, selfTeam, 6);
+        _sendLineMsgQR(userId, otoMsg, qrBtns);
+      }
+      sent++;
+    } catch(e2) { Logger.log('_lineNotifyScoreUpdate error for ' + name + ': ' + e2.message); }
+  });
+  Logger.log('_lineNotifyScoreUpdate: sent to ' + sent + ' members for month ' + (monthKey||'?'));
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -424,17 +2846,505 @@ function _getLineId(roleOrTeam) {
 }
 
 function _sendLineMsg(userId, message) {
-  if (!userId || !message) return;
+  if (!userId || !message) return {ok:false,error:'Missing userId or message'};
   var token = _getLineToken();
-  if (!token) return;
+  if (!token) return {ok:false,error:'LINE_TOKEN not configured'};
   try {
-    UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
+    var resp = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
       method: 'POST',
       headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token },
       payload: JSON.stringify({ to: userId, messages: [{ type:'text', text: message }] }),
       muteHttpExceptions: true
     });
-  } catch(err) { Logger.log('LINE push error: ' + err.message); }
+    var code = resp.getResponseCode();
+    if (code === 200) {
+      Logger.log('[LINE-OK] Push to '+userId+': '+message.substring(0,30)+'...');
+      return {ok:true};
+    } else {
+      var body = resp.getContentText();
+      Logger.log('[LINE-FAIL] Status '+code+': '+body);
+      return {ok:false,error:'HTTP '+code,details:body};
+    }
+  } catch(err) { 
+    Logger.log('[LINE-ERROR] '+err.message);
+    return {ok:false,error:err.message};
+  }
+}
+
+function _sendLineMsgQR(userId, message, qrItems) {
+  if (!userId || !message) return {ok:false,error:'Missing userId or message'};
+  var token = _getLineToken();
+  if (!token) return {ok:false,error:'LINE_TOKEN not configured'};
+  var msg = {type:'text', text:message};
+  if (qrItems && qrItems.length) msg.quickReply = {items: qrItems.slice(0,13)};
+  try {
+    var resp = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+token},
+      payload: JSON.stringify({to:userId, messages:[msg]}),
+      muteHttpExceptions: true
+    });
+    var code = resp.getResponseCode();
+    if (code === 200) {
+      Logger.log('[LINE-OK-QR] Push to '+userId+': '+message.substring(0,30)+'... ('+qrItems.length+' buttons)');
+      return {ok:true};
+    } else {
+      var body = resp.getContentText();
+      Logger.log('[LINE-FAIL-QR] Status '+code+': '+body);
+      return {ok:false,error:'HTTP '+code,details:body};
+    }
+  } catch(err) { 
+    Logger.log('[LINE-ERROR-QR] '+err.message);
+    return {ok:false,error:err.message};
+  }
+}
+
+// Build QR items for "นัด [nick]" from team members — cross-team first
+function _getMemberQRButtons(excludeName, selfTeam, limit) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var listSh = ss.getSheetByName('รายชื่อทั้งหมด');
+  if (!listSh || listSh.getLastRow() < 3) return [];
+  var members = [];
+  listSh.getRange(3,2,listSh.getLastRow()-2,3).getValues().forEach(function(r){
+    var name = String(r[0]||'').trim();
+    var nick = String(r[1]||'').trim()||name.split(' ')[0];
+    var team = String(r[2]||'').trim();
+    if (!name || !team || name === excludeName) return;
+    members.push({nick:nick, team:team, cross: team !== selfTeam});
+  });
+  // Cross-team first, shuffle within each group
+  members.sort(function(a,b){ return a.cross === b.cross ? (Math.random()-.5) : (a.cross?-1:1); });
+  return members.slice(0, limit||6).map(function(m){
+    return {type:'action',action:{type:'message',label:'🤝 นัด '+m.nick,text:'นัด '+m.nick}};
+  });
+}
+
+// ── LINE Bot Push / Broadcast APIs ───────────────────────────
+function _lineGetUserId(memberName) {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📱 LINE MEMBERS');
+  if (!sh || sh.getLastRow() < 2) return null;
+  var data = sh.getRange(2,1,sh.getLastRow()-1,2).getValues();
+  for (var i=0; i<data.length; i++) {
+    if (String(data[i][1]||'').trim()===memberName) return String(data[i][0]).trim();
+  }
+  return null;
+}
+
+function apiGetLineMembers(p) {
+  if (!p.role) return {ok:false,error:'auth'};
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📱 LINE MEMBERS');
+  if (!sh || sh.getLastRow() < 2) return {ok:true,members:{}};
+  var data = sh.getRange(2,1,sh.getLastRow()-1,2).getValues();
+  var members = {};
+  data.forEach(function(r){ if(r[0]&&r[1]) members[String(r[1]).trim()]=true; });
+  return {ok:true,members:members};
+}
+
+function apiGetLineMembersDetail(p) {
+  if (!p.role) return {ok:false,error:'auth'};
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('📱 LINE MEMBERS');
+  if (!sh || sh.getLastRow() < 2) return {ok:true,list:[],total:0};
+  var data = sh.getRange(2,1,sh.getLastRow()-1,4).getValues();
+  // Build team map from master list
+  var teamMap = {}; var nickMap = {};
+  var listSh = ss.getSheetByName('รายชื่อทั้งหมด');
+  if (listSh && listSh.getLastRow() >= 3) {
+    listSh.getRange(3,2,listSh.getLastRow()-2,3).getValues().forEach(function(r){
+      if(r[0]) { teamMap[String(r[0]).trim()] = String(r[2]||'').trim(); nickMap[String(r[0]).trim()] = String(r[1]||'').trim(); }
+    });
+  }
+  var list = [];
+  data.forEach(function(r){
+    var userId = String(r[0]||'').trim();
+    var name   = String(r[1]||'').trim();
+    var regAt  = r[2]||'';
+    if (!userId || !name) return;
+    var regStr = '';
+    if (regAt instanceof Date) regStr = Utilities.formatDate(regAt, Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
+    else if (regAt) regStr = String(regAt);
+    var lastScore = parseFloat(r[3])||0;
+    list.push({userId:userId, name:name, nick:nickMap[name]||'', team:teamMap[name]||'—', registeredAt:regStr, lastScore:lastScore});
+  });
+  list.sort(function(a,b){ return a.name.localeCompare(b.name); });
+  return {ok:true, list:list, total:list.length};
+}
+
+function apiSendLineMessage(p) {
+  if (!p.role) return {ok:false,error:'auth'};
+  if (!p.memberName||!p.message) return {ok:false,error:'ข้อมูลไม่ครบ'};
+  var userId = _lineGetUserId(p.memberName);
+  if (!userId) return {ok:false,error:'สมาชิกยังไม่ได้ลงทะเบียน LINE Bot'};
+  Logger.log('[API-SEND-LINE] Sending to '+p.memberName+' (uid: '+userId+'): '+p.message.substring(0,50)+'...');
+  var result = _sendLineMsg(userId, p.message);
+  if (result.ok) {
+    Logger.log('[API-SEND-LINE-OK] Success for '+p.memberName);
+    return {ok:true};
+  } else {
+    Logger.log('[API-SEND-LINE-FAIL] Error: '+result.error);
+    return {ok:false, error: result.error, details: result.details};
+  }
+}
+
+function apiSendLineBroadcast(p) {
+  if (!p.role) return {ok:false,error:'auth'};
+  if (!p.message) return {ok:false,error:'ไม่มีข้อความ'};
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('📱 LINE MEMBERS');
+  if (!sh || sh.getLastRow() < 2) return {ok:true,sent:0,skipped:0};
+  var lineData = sh.getRange(2,1,sh.getLastRow()-1,2).getValues();
+  var lineMap = {};
+  lineData.forEach(function(r){ if(r[0]&&r[1]) lineMap[String(r[1]).trim()]=String(r[0]).trim(); });
+  var targets = [];
+  if (p.teamName) {
+    var teamSh = ss.getSheetByName(p.teamName);
+    if (teamSh && teamSh.getLastRow() >= 4) {
+      teamSh.getRange(4,3,Math.max(1,teamSh.getLastRow()-3),1).getValues().forEach(function(r){
+        var n=String(r[0]||'').trim(); if(n && lineMap[n]) targets.push(lineMap[n]);
+      });
+    }
+  } else {
+    targets = Object.values(lineMap);
+  }
+  var sent=0, skipped=0, failed=0;
+  targets.forEach(function(uid){
+    try { 
+      var res = _sendLineMsg(uid, p.message);
+      if (res.ok) sent++; else { skipped++; Logger.log('[BROADCAST-FAIL] '+res.error); }
+    } catch(e){ 
+      failed++; 
+      Logger.log('[BROADCAST-ERROR] '+e.message);
+    }
+  });
+  Logger.log('[BROADCAST-RESULT] sent='+sent+' skipped='+skipped+' failed='+failed+' targets='+targets.length);
+  return {ok:true,sent:sent,skipped:skipped,failed:failed};
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 8-Week Onboarding Program
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+var _ONBOARD_SHEET = '📋 ONBOARDING';
+
+var _ONBOARD_MSGS = {
+  1: function(nick) {
+    return '🎉 ยินดีต้อนรับสู่ BNI IDEAL '+nick+'!\n\n'
+      +'📅 สัปดาห์ที่ 1: แนะนำตัวให้โลกรู้จัก\n'
+      +'─────────────────\n'
+      +'BNI เริ่มต้นที่ "60-second presentation"\n'
+      +'คำถามหลักคือ: "ลูกค้าที่ดีของคุณ คือใคร?"\n\n'
+      +'✅ งานสัปดาห์นี้:\n'
+      +'• เตรียม 60-sec ให้ชัดเจน\n'
+      +'• บอกว่าคุณทำอะไร ช่วยใครได้\n'
+      +'• ฝึกพูดก่อนวันศุกร์\n\n'
+      +'📝 Template:\n"ผม/หนู [ชื่อ] ธุรกิจ [X]\nลูกค้าที่ดีของผม/หนูคือ [Y]"\n\n'
+      +'สัปดาห์หน้าเจอกันครับ! 💪';
+  },
+  2: function(nick) {
+    return '📅 '+nick+' — สัปดาห์ที่ 2: Power Team\n'
+      +'─────────────────\n'
+      +'Power Team = คนที่ทำธุรกิจ "เสริมกัน"\n'
+      +'ไม่แข่งกัน แต่ส่ง Referral ให้กัน\n\n'
+      +'ตัวอย่าง:\nนายหน้าอสังหา + สถาปนิก + ช่างตกแต่ง\n→ ลูกค้าคนเดียวกัน แต่คนละงาน!\n\n'
+      +'✅ งานสัปดาห์นี้:\n'
+      +'• คิดว่าธุรกิจคุณ "ไปคู่กับ" ใครใน Chapter\n'
+      +'• นัด 1-2-1 กับคนนั้น 1 คน\n\n'
+      +'🎯 เป้า: 1-2-1 ≥1 ครั้ง/สัปดาห์\n'
+      +'พิมพ์ "แนะนำ [ธุรกิจ]" ให้ Bot ช่วยหาคู่ครับ';
+  },
+  3: function(nick) {
+    return '📅 '+nick+' — สัปดาห์ที่ 3: 1-2-1 กับ Mentor\n'
+      +'─────────────────\n'
+      +'Mentor อยู่ที่นี่เพื่อช่วยให้ธุรกิจโต\nไม่ใช่แค่เช็คคะแนน!\n\n'
+      +'✅ งานสัปดาห์นี้:\n'
+      +'• นัด 1-2-1 กับ Mentor (ถ้ายังไม่ได้ทำ)\n'
+      +'• เตรียม 3 คำถาม: "อยากได้ลูกค้าแบบไหน"\n'
+      +'• เล่าธุรกิจให้ Mentor เข้าใจชัดเจน\n\n'
+      +'💡 Tip: 1-2-1 ที่ดี = ฟังมากกว่าพูด\n'
+      +'เข้าใจธุรกิจเขา → ส่ง Referral ได้ตรงจุด 🎯';
+  },
+  4: function(nick) {
+    return '📅 '+nick+' — สัปดาห์ที่ 4: PALMS Score\n'
+      +'─────────────────\n'
+      +'PALMS = 6 หมวดคะแนน (รวม 100 pt)\n\n'
+      +'📊 P = เข้าประชุม  (15 pt)\n'
+      +'📊 A = ไม่ขาด    (15 pt)\n'
+      +'📊 L = 1-2-1      (15 pt)\n'
+      +'📊 M = Visitor     (20 pt)\n'
+      +'📊 S = CEU         (20 pt)\n'
+      +'📊 + Referral      (15 pt)\n\n'
+      +'✅ งานสัปดาห์นี้:\n'
+      +'• พิมพ์ "สถานะ" ดูคะแนนตัวเอง\n'
+      +'• หมวดไหนยังต่ำ → ทำให้ขึ้นก่อน\n\n'
+      +'🏆 เป้า 8 สัปดาห์แรก: 🟡 เหลือง (50+ pt)';
+  },
+  5: function(nick) {
+    return '📅 '+nick+' — สัปดาห์ที่ 5: CEU Training\n'
+      +'─────────────────\n'
+      +'CEU = Continuing Education Unit\n'
+      +'ทุกครั้งที่เข้า Training → ได้คะแนน (20 pt)\n\n'
+      +'✅ วิธีได้ CEU:\n'
+      +'• เข้า BNI Leadership Training\n'
+      +'• เข้า Chapter Education ทุกวันศุกร์\n'
+      +'• เรียน BNI Business Builder (Online)\n\n'
+      +'🎯 เป้า: ≥4 CEU = คะแนนเต็ม\n\n'
+      +'✅ งานสัปดาห์นี้:\n'
+      +'• เช็ค CEU ปัจจุบัน (พิมพ์ "สถานะ")\n'
+      +'• ถ้า <4 → วางแผนเข้า Training เพิ่มครับ';
+  },
+  6: function(nick) {
+    return '📅 '+nick+' — สัปดาห์ที่ 6: พา Visitor\n'
+      +'─────────────────\n'
+      +'Visitor = คนรู้จักที่คุณพามาดู BNI\n'
+      +'+ ได้คะแนน Visitor (20 pt)\n'
+      +'+ Visitor อาจส่ง Referral กลับมาหาคุณ!\n\n'
+      +'✅ คุณสมบัติ Visitor:\n'
+      +'• ไม่เป็นสมาชิก BNI IDEAL อยู่แล้ว\n'
+      +'• ธุรกิจไม่ซ้ำสมาชิกใน Chapter\n\n'
+      +'✅ งานสัปดาห์นี้:\n'
+      +'• คิดว่าใครในเครือข่ายเหมาะกับ BNI\n'
+      +'• ทักเชิญ 1 คนมาวันศุกร์หน้า 📩';
+  },
+  7: function(nick) {
+    return '📅 '+nick+' — สัปดาห์ที่ 7: TYFCB\n'
+      +'─────────────────\n'
+      +'TYFCB = Thank You For Closed Business\n'
+      +'= ยอดธุรกิจที่ปิดได้จาก Referral BNI\n\n'
+      +'นี่คือ "ผลลัพธ์จริง" ว่า BNI คุ้มค่าแค่ไหน\n\n'
+      +'✅ วิธีรายงาน TYFCB:\n'
+      +'• ปิดงานจาก Referral → แจ้ง Mentor Coordinator\n'
+      +'• ระบุ: ใครส่ง Referral + ยอดเงิน\n\n'
+      +'💡 สมาชิกที่ TYFCB สูง = ได้ Referral ดี\nเพราะทีมรู้ว่าส่งให้แล้ว "ได้ผล" 🏆\n\n'
+      +'✅ งานสัปดาห์นี้:\n'
+      +'• ปิดงานจาก BNI แล้วไหม? แจ้ง Mentor Coordinator เลยครับ';
+  },
+  8: function(nick) {
+    return '🏆 '+nick+' — จบ 8 สัปดาห์แรกแล้ว!\n'
+      +'─────────────────\n'
+      +'คุณมาได้ไกลมากแล้วครับ 👏\n'
+      +'ตอนนี้คุณรู้จัก BNI ในระดับที่ทำได้จริง\n\n'
+      +'✅ ลอง Review ตัวเอง:\n'
+      +'• คะแนน PALMS ตอนนี้เป็นยังไง?\n'
+      +'• 1-2-1 ทำได้กี่ครั้ง/สัปดาห์?\n'
+      +'• ส่ง Referral ให้ใครบ้าง?\n\n'
+      +'🎯 เป้าหมายต่อไป:\n'
+      +'• 🟢 เขียว (70+ pt) ภายใน 3 เดือน\n'
+      +'• 1-2-1 สัปดาห์ละ 2+ ครั้ง\n'
+      +'• Visitor 1 คน/เดือน\n\n'
+      +'พิมพ์ "สถานะ" เพื่อดูคะแนนปัจจุบันครับ 🚀';
+  }
+};
+
+// ── Custom onboarding message wrapper ─────────────────────────
+function _getOnboardMsg(week, nick) {
+  try {
+    var custom = PropertiesService.getScriptProperties().getProperty('onboard_msg_'+week);
+    if (custom && custom !== '__DEFAULT__') return custom.replace(/\{nick\}/g, nick);
+  } catch(e) {}
+  return _ONBOARD_MSGS[week] ? _ONBOARD_MSGS[week](nick) : '';
+}
+
+function apiGetOnboardingMessages(p) {
+  if (p.role !== 'mc') return {ok:false,error:'MC only'};
+  var props = PropertiesService.getScriptProperties();
+  var messages = {}, defaults = {};
+  for (var w = 1; w <= 8; w++) {
+    var custom = props.getProperty('onboard_msg_'+w);
+    if (custom && custom !== '__DEFAULT__') messages[w] = custom;
+    defaults[w] = _ONBOARD_MSGS[w]('{nick}');
+  }
+  return {ok:true, messages:messages, defaults:defaults};
+}
+
+function apiSaveOnboardingMessage(p) {
+  if (p.role !== 'mc') return {ok:false,error:'MC only'};
+  var w = parseInt(p.week);
+  if (!w || w < 1 || w > 8) return {ok:false,error:'week ต้องเป็น 1-8'};
+  var props = PropertiesService.getScriptProperties();
+  if (p.message === '__DEFAULT__') {
+    props.deleteProperty('onboard_msg_'+w);
+  } else {
+    if (!p.message || !p.message.trim()) return {ok:false,error:'ข้อความว่างเปล่า'};
+    props.setProperty('onboard_msg_'+w, p.message.trim());
+  }
+  return {ok:true};
+}
+
+function apiGetOnboardingPreview(p) {
+  if (p.role !== 'mc') return {ok:false,error:'MC only'};
+  var weeks = {};
+  var nick = p.nick || 'ชื่อ';
+  for (var w = 1; w <= 8; w++) {
+    weeks[w] = _getOnboardMsg(w, nick);
+  }
+  return {ok:true, weeks:weeks};
+}
+
+function _lineOnboardEnroll(userId, name, enrolledBy) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(_ONBOARD_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(_ONBOARD_SHEET);
+    sh.appendRow(['LINE User ID','Member Name','Start Date','Week Last Sent','Completed','Enrolled By']);
+    sh.getRange(1,1,1,6).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
+  }
+  if (sh.getLastRow() > 1) {
+    var rows = sh.getRange(2,1,sh.getLastRow()-1,5).getValues();
+    for (var i = 0; i < rows.length; i++) {
+      if (String(rows[i][0]).trim() === userId) {
+        if (rows[i][4]) return; // already completed, don't reset
+        return; // already enrolled
+      }
+    }
+  }
+  sh.appendRow([userId, name, new Date(), 0, false, enrolledBy || 'MC']);
+}
+
+function _lineOnboardGetRow(userId) {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(_ONBOARD_SHEET);
+  if (!sh || sh.getLastRow() < 2) return null;
+  var rows = sh.getRange(2,1,sh.getLastRow()-1,6).getValues();
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i][0]).trim() === userId) {
+      return { row: i+2, userId: rows[i][0], name: rows[i][1], startDate: rows[i][2], weekSent: parseInt(rows[i][3])||0, completed: rows[i][4] };
+    }
+  }
+  return null;
+}
+
+function _lineOnboardSetWeek(sh, rowNum, week) {
+  sh.getRange(rowNum, 4).setValue(week);
+  if (week >= 8) sh.getRange(rowNum, 5).setValue(true);
+}
+
+function onboardingWeeklyPush() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(_ONBOARD_SHEET);
+  if (!sh || sh.getLastRow() < 2) return;
+  var today = new Date(); today.setHours(0,0,0,0);
+  var rows = sh.getRange(2,1,sh.getLastRow()-1,6).getValues();
+  var sent = 0;
+  rows.forEach(function(r, idx) {
+    try {
+      var userId    = String(r[0]||'').trim();
+      var name      = String(r[1]||'').trim();
+      var startDate = r[2] ? new Date(r[2]) : null;
+      var weekSent  = parseInt(r[3]) || 0;
+      var completed = r[4];
+      if (!userId || !name || !startDate || completed) return;
+      startDate.setHours(0,0,0,0);
+      var daysPassed  = Math.floor((today - startDate) / 86400000);
+      var weeksDue    = Math.min(8, Math.floor(daysPassed / 7) + 1);
+      if (weeksDue <= weekSent) return; // already sent up to this week
+      var nextWeek = weekSent + 1;
+      if (nextWeek > 8) return;
+      var d = _lineGetMemberData(name);
+      var nick = (d&&d.nick) || name.split(' ')[0];
+      var msg = _getOnboardMsg(nextWeek, nick);
+      if (!msg) return;
+      _sendLineMsg(userId, msg);
+      _lineOnboardSetWeek(sh, idx+2, nextWeek);
+      sent++;
+      // แจ้ง Mentor เมื่อ mentee จบ Week 8
+      if (nextWeek === 8) {
+        try {
+          var mentorName = (d&&d.mentor) || '';
+          if (mentorName) {
+            var mentorUserId = _lineGetUserId(mentorName);
+            if (mentorUserId) {
+              _sendLineMsg(mentorUserId, '🏆 '+nick+' จบ 8-week Onboarding Program แล้วครับ!\n\nนัด 1-2-1 Review เพื่อวางเป้าหมาย 3 เดือนต่อไปได้เลยครับ 🚀');
+            }
+          }
+        } catch(e3) { Logger.log('week8 mentor notify err: '+e3.message); }
+      }
+    } catch(e2) { Logger.log('onboardingWeeklyPush err for row '+(idx+2)+': '+e2.message); }
+  });
+  Logger.log('onboardingWeeklyPush: sent '+sent+' messages');
+}
+
+function apiEnrollOnboarding(p) {
+  if (p.role !== 'mc') return {ok:false,error:'MC only'};
+  if (!p.memberName) return {ok:false,error:'ไม่มีชื่อสมาชิก'};
+  try {
+    var userId = _lineGetUserId(p.memberName) || ('PENDING_'+p.memberName.replace(/\s+/g,'_'));
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName(_ONBOARD_SHEET);
+    // Remove existing row if re-enrolling (match by userId OR name)
+    if (sh && sh.getLastRow() > 1) {
+      var rows = sh.getRange(2,1,sh.getLastRow()-1,2).getValues();
+      for (var i = rows.length-1; i >= 0; i--) {
+        var rid = String(rows[i][0]).trim(), rname = String(rows[i][1]).trim();
+        if (rid === userId || rname === p.memberName) { sh.deleteRow(i+2); break; }
+      }
+    }
+    // Create sheet + append new row
+    var shAfter = ss.getSheetByName(_ONBOARD_SHEET);
+    if (!shAfter) {
+      shAfter = ss.insertSheet(_ONBOARD_SHEET);
+      shAfter.appendRow(['LINE User ID','Member Name','Start Date','Week Last Sent','Completed','Enrolled By']);
+      shAfter.getRange(1,1,1,6).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
+    }
+    shAfter.appendRow([userId, p.memberName, new Date(), 0, false, 'MC']);
+    var newRow = shAfter.getLastRow();
+    // Send LINE Week 1 if registered
+    var sentLine = false;
+    if (userId.indexOf('PENDING_') !== 0) {
+      var d = _lineGetMemberData(p.memberName);
+      var nick = (d&&d.nick)||p.memberName.split(' ')[0];
+      _sendLineMsg(userId, _getOnboardMsg(1, nick));
+      sentLine = true;
+    }
+    _lineOnboardSetWeek(shAfter, newRow, sentLine ? 1 : 0);
+    return {ok:true, message: sentLine ? 'Enrolled และส่ง Week 1 แล้ว' : 'Enrolled แล้ว (ยังไม่มี LINE Bot)'};
+  } catch(e) {
+    return {ok:false, error:'Enroll ล้มเหลว: '+e.message};
+  }
+}
+
+function apiSendOnboardingWeek(p) {
+  if (p.role !== 'mc') return {ok:false,error:'MC only'};
+  if (!p.memberName) return {ok:false,error:'ไม่มีชื่อสมาชิก'};
+  var week = parseInt(p.week);
+  if (!week || week < 1 || week > 8) return {ok:false,error:'week ต้องเป็น 1-8'};
+  var userId = _lineGetUserId(p.memberName);
+  if (!userId) return {ok:false,error:'สมาชิกยังไม่ได้ลงทะเบียน LINE Bot'};
+  var d = _lineGetMemberData(p.memberName);
+  var nick = (d&&d.nick)||p.memberName.split(' ')[0];
+  var msg = _getOnboardMsg(week, nick);
+  if (!msg) return {ok:false,error:'ไม่พบ content สำหรับ week '+week};
+  _sendLineMsg(userId, msg);
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(_ONBOARD_SHEET);
+  if (sh && sh.getLastRow() > 1) {
+    var rows = sh.getRange(2,1,sh.getLastRow()-1,1).getValues();
+    for (var i = 0; i < rows.length; i++) {
+      if (String(rows[i][0]).trim() === userId) { _lineOnboardSetWeek(sh, i+2, week); break; }
+    }
+  }
+  return {ok:true, message:'ส่ง Week '+week+' ให้ '+nick+' แล้ว'};
+}
+
+function apiRemoveOnboarding(p) {
+  if (p.role !== 'mc') return {ok:false,error:'MC only'};
+  if (!p.memberName) return {ok:false,error:'ไม่มีชื่อสมาชิก'};
+  var userId = _lineGetUserId(p.memberName);
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(_ONBOARD_SHEET);
+  if (!sh || sh.getLastRow() < 2) return {ok:false,error:'ไม่พบข้อมูล Onboarding'};
+  var rows = sh.getRange(2,1,sh.getLastRow()-1,2).getValues();
+  for (var i = rows.length-1; i >= 0; i--) {
+    var matchId   = userId && String(rows[i][0]).trim() === userId;
+    var matchName = String(rows[i][1]).trim() === p.memberName;
+    if (matchId || matchName) { sh.deleteRow(i+2); return {ok:true}; }
+  }
+  return {ok:false,error:'ไม่พบ "'+p.memberName+'" ใน Onboarding program'};
+}
+
+function apiGetOnboardingStatus(p) {
+  if (p.role !== 'mc') return {ok:false,error:'MC only'};
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(_ONBOARD_SHEET);
+  if (!sh || sh.getLastRow() < 2) return {ok:true, members:[]};
+  var rows = sh.getRange(2,1,sh.getLastRow()-1,6).getValues();
+  var members = rows.filter(function(r){ return r[0]&&r[1]; }).map(function(r){
+    return { userId: r[0], name: r[1], startDate: r[2] ? Utilities.formatDate(new Date(r[2]), Session.getScriptTimeZone(), 'dd/MM/yy') : '', weekSent: r[3]||0, completed: r[4]||false, enrolledBy: r[5]||'' };
+  });
+  return {ok:true, members: members};
 }
 
 // บันทึก LINE ID จาก webapp settings UI
@@ -580,6 +3490,8 @@ function dispatch(payload) {
     if (a==='getBroadcasts')       return apiGetBroadcasts(payload);
     if (a==='getMentorPerformance')return apiGetMentorPerformance(payload);
     if (a==='getAlertCenter')      return apiGetAlertCenter(payload);
+    if (a==='dismissAlert')        return apiDismissAlert(payload);
+    if (a==='getDismissedAlerts')  return apiGetDismissedAlerts(payload);
     if (a==='getMeetingPrep')      return apiGetMeetingPrep(payload);
     if (a==='getChapterPulse')     return apiGetChapterPulse(payload);
     if (a==='getLeaderboard')      return apiGetLeaderboard(payload);
@@ -591,6 +3503,36 @@ function dispatch(payload) {
     if (a==='ackAssignment')       return apiAckAssignment(payload);
     if (a==='saveLineId')          return apiSaveLineId(payload);
     if (a==='getLineIds')          return apiGetLineIds(payload);
+    if (a==='getLineMembers')       return apiGetLineMembers(payload);
+    if (a==='getLineMembersDetail') return apiGetLineMembersDetail(payload);
+    if (a==='sendLineMessage')      return apiSendLineMessage(payload);
+    if (a==='sendLineBroadcast')    return apiSendLineBroadcast(payload);
+    if (a==='sendLineIntro')        return apiSendLineIntro(payload);
+    if (a==='triggerScoreAlert')    return apiTriggerScoreAlert(payload);
+    if (a==='triggerAnniversary')   return apiTriggerAnniversary(payload);
+    if (a==='triggerCheckinReminder') return (function(){ if(payload.role!=='mc') return {ok:false,error:'MC only'}; try{ fridayEveningReminder(); return {ok:true}; }catch(e){ return {ok:false,error:e.message}; } })();
+    if (a==='getAbsenceLog')          return apiGetAbsenceLog(payload);
+    if (a==='setMCLineId')            return apiSetMCLineId(payload);
+    if (a==='triggerChapterPulse')    return (function(){ if(payload.role!=='mc') return {ok:false,error:'MC only'}; try{ _lineChapterPulse(); return {ok:true}; }catch(e){ return {ok:false,error:e.message}; } })();
+    if (a==='triggerPostMeetingPrompt') return (function(){ if(payload.role!=='mc') return {ok:false,error:'MC only'}; try{ fridayPostMeetingPrompt(); return {ok:true}; }catch(e){ return {ok:false,error:e.message}; } })();
+    if (a==='triggerWednesdayNudge')  return (function(){ if(payload.role!=='mc') return {ok:false,error:'MC only'}; try{ wednesdayNudge(); return {ok:true}; }catch(e){ return {ok:false,error:e.message}; } })();
+    if (a==='triggerTeamLeaderboard') return (function(){ if(payload.role!=='mc') return {ok:false,error:'MC only'}; try{ fridayTeamLeaderboard(); return {ok:true}; }catch(e){ return {ok:false,error:e.message}; } })();
+    if (a==='getLineIssues')          return apiGetLineIssues(payload);
+    if (a==='get121Tracker')          return apiGet121Tracker(payload);
+    if (a==='setupAllTriggers')       return apiSetupAllTriggers(payload);
+    if (a==='mentorBroadcast')        return apiMentorBroadcast(payload);
+    if (a==='setupRichMenu')          return apiSetupRichMenu(payload);
+    if (a==='triggerMondayBrief')     return (function(){ if(payload.role!=='mc') return {ok:false,error:'MC only'}; try{ mondayMorningBrief(); return {ok:true}; }catch(e){ return {ok:false,error:e.message}; } })();
+    if (a==='triggerMonthlyRecap')    return (function(){ if(payload.role!=='mc') return {ok:false,error:'MC only'}; try{ monthlyRecap(); return {ok:true}; }catch(e){ return {ok:false,error:e.message}; } })();
+    if (a==='trigger121Reminder')     return (function(){ if(payload.role!=='mc') return {ok:false,error:'MC only'}; try{ line121AutoReminder(); return {ok:true}; }catch(e){ return {ok:false,error:e.message}; } })();
+    if (a==='triggerWeeklyScorePush') return (function(){ if(payload.role!=='mc') return {ok:false,error:'MC only'}; try{ var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📱 LINE MEMBERS'); var cnt=sh&&sh.getLastRow()>1?sh.getLastRow()-1:0; thursdayBotPush(); return {ok:true,sent:cnt}; }catch(e){ return {ok:false,error:e.message}; } })();
+    if (a==='enrollOnboarding')     return apiEnrollOnboarding(payload);
+    if (a==='removeOnboarding')     return apiRemoveOnboarding(payload);
+    if (a==='sendOnboardingWeek')   return apiSendOnboardingWeek(payload);
+    if (a==='getOnboardingStatus')  return apiGetOnboardingStatus(payload);
+    if (a==='getOnboardingPreview')  return apiGetOnboardingPreview(payload);
+    if (a==='getOnboardingMessages') return apiGetOnboardingMessages(payload);
+    if (a==='saveOnboardingMessage') return apiSaveOnboardingMessage(payload);
     if (a==='saveMemberNote')      return apiSaveMemberNote(payload);
     if (a==='getMemberNote')       return apiGetMemberNote(payload);
     if (a==='extendRenewal')       return apiExtendRenewal(payload);
@@ -845,17 +3787,21 @@ function apiGetDashboard(p) {
       } catch(e2) {}
     }
 
-    // Official BNI Points only — no computed fallback
-    var displayScore = bniScore;
-    var tlKey        = bniTl || 'none';
+    // Use the higher of master sheet col E vs R2Y official — avoids stale overrides
+    var masterScore = parseFloat(row[4])||0;
+    var displayScore = Math.max(masterScore||0, bniScore||0);
+    var tlKey = displayScore > 0 ? _bniBuildTL(displayScore) : (bniTl || 'none');
     summary[tlKey]++;
+    // Keep bniTl/bniScore in sync with the correct display score
+    var effBniScore = displayScore;
+    var effBniTl = tlKey;
 
     var m = { name:name, nick:nick, mentor:mentor,
               score:displayScore, tl:tlKey,
               given:given, recv:recv, balance:balance,
               phone:phone, email:email,
               tyfcb:tyfcb, absent:absent,
-              bniTl:bniTl, bniScore:bniScore, cats:cats };
+              bniTl:effBniTl, bniScore:effBniScore, cats:cats };
     members.push(m);
 
     if (tlKey==='red'||tlKey==='black'||absent>4) alerts.push(m);
@@ -978,16 +3924,17 @@ function apiGetMemberDetail(p) {
     }
   } catch(fe) {}
 
-  // Official BNI Points only — no computed fallback
-  var displayScore = bniScore;
-  var displayTl    = bniTl || 'none';
+  // Use the higher of master sheet col E vs R2Y official — avoids stale overrides
+  var masterScoreD = parseFloat(masterRow[4])||0;
+  var displayScore = Math.max(masterScoreD||0, bniScore||0);
+  var displayTl    = displayScore > 0 ? _bniBuildTL(displayScore) : (bniTl || 'none');
 
   return {
     ok:true, name:name, nick:nick, mentor:mentor,
-    score:    displayScore,   // primary score (official R2Y or col E)
-    tl:       displayTl,      // primary zone — consistent with score
-    bniScore: bniScore,       // official from R2Y (kept for BNI SCORE section)
-    bniTl:    bniTl,
+    score:    displayScore,
+    tl:       displayTl,
+    bniScore: displayScore,   // keep bniScore in sync with display score
+    bniTl:    displayTl,
     cats:     cats,
     given:given, recv:recv, balance:balance,
     actual:actual, target:target, weeks:weeks,
@@ -1582,7 +4529,7 @@ function _computePriorities(actual, target, weeks) {
   var list=[];
   if (actual.absent>=1) {
     var t,a,tgt,em;
-    if (actual.absent>=5) { t='🏛️ [🚨 วิกฤต!] Attendance'; a='ขาดไปแล้ว '+actual.absent+' ครั้ง — เสี่ยงต้องดรอป\nBNI เกณฑ์: ขาด 5-6 ครั้ง = ต้องดรอปออก'; tgt='มาทุกครั้งที่เหลือ + ปรึกษา MC ทันที'; em=true; }
+    if (actual.absent>=5) { t='🏛️ [🚨 วิกฤต!] Attendance'; a='ขาดไปแล้ว '+actual.absent+' ครั้ง — เสี่ยงต้องดรอป\nBNI เกณฑ์: ขาด 5-6 ครั้ง = ต้องดรอปออก'; tgt='มาทุกครั้งที่เหลือ + ปรึกษา Mentor Coordinator ทันที'; em=true; }
     else if (actual.absent>=3) { t='🏛️ [⚠️ อันตราย] Attendance'; a='ขาดไปแล้ว '+actual.absent+' ครั้ง — เสี่ยงเปิดเก้าอี้\nBNI เกณฑ์: ขาด 3 ครั้ง = Chapter มีสิทธิ์เปิดเก้าอี้'; tgt='ห้ามขาดอีกแม้แต่ครั้งเดียว'; em=true; }
     else { t='🏛️ [📋 ระวัง] Attendance'; a='ขาดไปแล้ว '+actual.absent+' ครั้ง (Rolling 6 เดือน)\nขาดได้อีกแค่ '+Math.max(0,2-actual.absent)+' ครั้งก่อนถึงเกณฑ์เสี่ยง'; tgt='มาทุกวันศุกร์ไม่มีข้อยกเว้น'; em=false; }
     list.push({ type:em?'emergency':'warning',title:t,action:a,target:tgt });
@@ -2329,8 +5276,9 @@ function apiGetPowerTeams(p) {
         var name  = String(mData[i][1]||'').trim();
         var nick  = String(mData[i][2]||'').trim();
         var mentor= String(mData[i][3]||'').trim();
+        var masterScore3 = parseFloat(mData[i][4])||0;
         var offPts3 = ptR2yMap[name] || 0;
-        var score = offPts3 > 0 ? offPts3 : (parseFloat(mData[i][4])||0);
+        var score = masterScore3 > 0 ? masterScore3 : offPts3;
         var tl    = score > 0 ? _bniBuildTL(score) : 'none';
         var given = parseFloat(mData[i][6])||0;
         var recv  = parseFloat(mData[i][7])||0;
@@ -2778,8 +5726,8 @@ function apiGetMentorActivity(p) {
   var teams  = ['TOOMTAM', 'Aof', 'Draft', 'PHAI', 'AMP'];
   var result = [];
 
-  var MONTH_LABEL = {2:'APR',3:'MAY',4:'JUN',5:'JUL',6:'AUG',7:'SEP',
-                     8:'OCT',9:'NOV',10:'DEC',11:'JAN',12:'FEB',13:'MAR'};
+  var MONTH_LABEL = {2:'JAN',3:'FEB',4:'MAR',5:'APR',6:'MAY',7:'JUN',
+                     8:'JUL',9:'AUG',10:'SEP',11:'OCT',12:'NOV',13:'DEC'};
 
   teams.forEach(function(teamName) {
     var sh = ss.getSheetByName(teamName);
@@ -3108,10 +6056,11 @@ function apiGetChapterPulse(p) {
     var given = parseFloat(mData[i][6])||0;
     var recv  = parseFloat(mData[i][7])||0;
     if (!name || archivedNames[name]) continue;
-    // Official R2Y Points only
+    // Master sheet col E (most recently synced) takes priority over R2Y
+    var masterScore = parseFloat(mData[i][4])||0;
     var offPts = r2yMap[name] || 0;
-    var score  = offPts > 0 ? offPts : 0;
-    if (score === 0) continue; // skip if no official data
+    var score  = masterScore > 0 ? masterScore : offPts;
+    if (score === 0) continue;
     var tl = score>=70?'green':score>=50?'yellow':score>=30?'red':'black';
     memberCount++;
     tlCount[tl] = (tlCount[tl]||0) + 1;
@@ -3182,8 +6131,9 @@ function apiGetLeaderboard(p) {
     var given = parseFloat(mData[i][6])||0;
     var recv  = parseFloat(mData[i][7])||0;
     if (!name || archivedNames[name]) continue;
+    var masterScore4 = parseFloat(mData[i][4])||0;
     var offPts4 = lbR2y[name] || 0;
-    var score   = offPts4 > 0 ? offPts4 : (parseFloat(mData[i][4])||0);
+    var score   = masterScore4 > 0 ? masterScore4 : offPts4;
     var tl      = score > 0 ? _bniBuildTL(score) : 'none';
     members.push({ name:name, nick:nick, mentor:mentor, score:score, tl:tl, given:given, recv:recv });
   }
@@ -3399,6 +6349,16 @@ function apiGetAlertCenter(p) {
   var now   = new Date();
   var alerts = [];
 
+  // Build R2Y score lookup for accurate MAX scoring
+  var r2yMap = {};
+  var r2ySh = ss.getSheetByName('Reporting2You');
+  if (r2ySh && r2ySh.getLastRow() > 1) {
+    r2ySh.getRange(2, 1, r2ySh.getLastRow()-1, 8).getValues().forEach(function(row) {
+      var rn = String(row[0]||'').replace(/\s*\(BNI Ideal\)\s*/gi,'').trim();
+      if (rn) r2yMap[rn] = parseInt(row[7])||0;
+    });
+  }
+
   TEAMS.forEach(function(team) {
     var sh = ss.getSheetByName(team);
     if (!sh) return;
@@ -3407,8 +6367,9 @@ function apiGetAlertCenter(p) {
       var name = String(row[0]||'').trim();
       if (!name) return;
       var nick = String(row[1]||'').trim();
-      var latest = 0;
-      for (var c = 2; c <= 13; c++) { var sv = parseFloat(row[c]); if (sv > 0) latest = sv; }
+      var sheetLatest = 0;
+      for (var c = 2; c <= 13; c++) { var sv = parseFloat(row[c]); if (sv > 0) sheetLatest = sv; }
+      var latest = Math.max(sheetLatest, r2yMap[name]||0);
       var tl = !latest?'none':latest>=70?'green':latest>=50?'yellow':latest>=30?'red':'black';
       var coreRaw = String(row[21]||'').trim();
       var status  = String(row[25]||'').trim();
@@ -3471,6 +6432,29 @@ function apiGetAlertCenter(p) {
     return ld!==0 ? ld : b.sortKey - a.sortKey;
   });
   return { ok:true, alerts:alerts, total:alerts.length };
+}
+
+// ── Alert dismiss — stored in ScriptProperties (persistent) ───
+function _getNotifDismissed() {
+  try {
+    var raw = PropertiesService.getScriptProperties().getProperty('notif_dismissed') || '{}';
+    var map = JSON.parse(raw);
+    var cutoff = Date.now() - 7*24*60*60*1000;
+    Object.keys(map).forEach(function(k){ if (map[k] < cutoff) delete map[k]; });
+    return map;
+  } catch(e) { return {}; }
+}
+function apiDismissAlert(p) {
+  if (p.role !== 'mc') return { ok:false, error:'Permission denied' };
+  if (!p.key) return { ok:false, error:'No key' };
+  var map = _getNotifDismissed();
+  map[p.key] = Date.now();
+  PropertiesService.getScriptProperties().setProperty('notif_dismissed', JSON.stringify(map));
+  return { ok:true };
+}
+function apiGetDismissedAlerts(p) {
+  if (p.role !== 'mc') return { ok:false, error:'Permission denied' };
+  return { ok:true, dismissed:_getNotifDismissed() };
 }
 
 // ── Meeting Prep (MC) ──────────────────────────────────────────
@@ -4368,7 +7352,7 @@ function apiVerifyScoring(p) {
     if (!name) continue;
     var palmsScore = parseFloat(mrow[4])||0;
     if (!palmsScore) continue; // skip unscored members (not yet in PALMS)
-    var palmsTl    = palmsScore >= 70 ? 'green' : palmsScore >= 50 ? 'yellow' : palmsScore >= 30 ? 'red' : 'blue';
+    var palmsTl    = palmsScore >= 70 ? 'green' : palmsScore >= 50 ? 'yellow' : palmsScore >= 30 ? 'red' : 'black';
 
     var r2y = r2yMap[name];
     if (!r2y) {
@@ -4519,13 +7503,15 @@ function apiGetDesktopDashboard(p) {
     var recv   = parseFloat(mrow[7])||0;
     var ANNUAL_FEE = 28000;
     var roi = recv > 0 ? Math.round(recv / ANNUAL_FEE * 100) : 0;
+    var _mHist = histMap[name]||[];
+    var _mScoreAvg = _mHist.length ? Math.round(_mHist.reduce(function(a,b){return a+b;},0)/_mHist.length) : 0;
     var m = { name:name, nick:nick, mentor:mentor,
               palmsScore:palmsScore, absent:absent,
               given:given, recv:recv, roi:roi,
               phone: r2y ? String(r2y[15]||'').trim() : '',
               email: r2y ? String(r2y[14]||'').trim() : '',
               bniTl:'none', bniScore:0, cats:null,
-              fastTrack:null, hist: histMap[name]||[] };
+              fastTrack:null, hist: _mHist, scoreAvg: _mScoreAvg };
 
     if (r2y) {
       var actual = {
@@ -4540,8 +7526,10 @@ function apiGetDesktopDashboard(p) {
         try {
           var s = _bniBuildScore(actual);
           var officialPts = parseInt(r2y[7])||0;
-          m.bniScore = officialPts > 0 ? officialPts : 0;
-          m.bniTl    = officialPts > 0 ? _bniBuildTL(officialPts) : 'none';
+          // Use the higher of R2Y official pts vs master sheet — avoids stale overrides
+          var effPts = Math.max(officialPts||0, palmsScore||0);
+          m.bniScore = effPts > 0 ? effPts : 0;
+          m.bniTl    = effPts > 0 ? _bniBuildTL(effPts) : 'none';
           m.cats = { absent:s.absent, ref:s.ref, tyfcb:s.tyfcb,
                      visitor:s.visitor, one21:s.one21, training:s.training };
           m.actual = { rg:actual.rg, rr:actual.rr, visitor:actual.visitor,
@@ -5573,4 +8561,84 @@ function apiGetReferralFlow(p) {
             topReceivers:memberPool.slice().sort(function(a,b){return (b.refIn||0)-(a.refIn||0);}).slice(0,10),
             imbalanced:memberPool.filter(function(m){return (m.refIn||0)>(m.refOut||0)*2&&(m.refIn||0)>3;}).sort(function(a,b){return b.refIn-a.refIn;}).slice(0,10)};
   } catch(e){return {ok:false,error:e.message};}
+}
+
+// ── Check-In: Save from Desktop upload ────────────────────────
+function apiSaveCheckin(p) {
+  if (p.role !== 'mc' && p.role !== 'growth') return { ok:false, error:'Permission denied' };
+  if (!p.members || !p.members.length) return { ok:false, error:'No members' };
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('📋 CHECKIN LOG');
+  if (!sh) {
+    sh = ss.insertSheet('📋 CHECKIN LOG');
+    sh.getRange(1,1,1,6).setValues([['date','name','status','sub_for','looking_for','mentor']]);
+    sh.getRange(1,1,1,6).setBackground('#1E2A3A').setFontColor('#F0B429').setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  var listSh = ss.getSheetByName('รายชื่อทั้งหมด');
+  var mentorMap = {};
+  if (listSh && listSh.getLastRow() >= 3) {
+    listSh.getRange(3,2,listSh.getLastRow()-2,3).getValues().forEach(function(r) {
+      var nm = String(r[0]||'').trim(); if (nm) mentorMap[nm] = String(r[2]||'').trim();
+    });
+  }
+  var now = new Date();
+  var dateStr = p.date || Utilities.formatDate(now, Session.getScriptTimeZone(), 'dd/MM/yyyy');
+  var week = p.week || (function(){
+    var d=now, soy=new Date(d.getFullYear(),0,1);
+    var wn=Math.ceil((((d-soy)/86400000)+soy.getDay()+1)/7);
+    return ('0'+wn).slice(-2)+'/'+d.getFullYear();
+  })();
+  var rows = p.members.map(function(m) {
+    return [dateStr, m.name||'', m.status||'สมาชิก', m.sub_for||'', m.looking_for||'', mentorMap[m.name]||''];
+  });
+  sh.getRange(sh.getLastRow()+1, 1, rows.length, 6).setValues(rows);
+  return { ok:true, saved:rows.length, week:week };
+}
+
+// ── Check-In: Read log for desktop history view ────────────────
+function apiGetCheckinLog(p) {
+  if (p.role !== 'mc' && p.role !== 'growth') return { ok:false, error:'Permission denied' };
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('📋 CHECKIN LOG');
+  if (!sh || sh.getLastRow() < 2) return { ok:true, weeks:[], members:[], currentWeek:'' };
+  var data = sh.getRange(2,1,sh.getLastRow()-1,6).getValues();
+  var weekMap = {};
+  data.forEach(function(row) {
+    var date = String(row[0]||'').trim();
+    if (!date) return;
+    var d = new Date(date.replace(/(\d{2})\/(\d{2})\/(\d{4})/,'$3-$2-$1'));
+    var key = '';
+    if (!isNaN(d.getTime())) {
+      var soy = new Date(d.getFullYear(),0,1);
+      var wn = Math.ceil((((d-soy)/86400000)+soy.getDay()+1)/7);
+      key = ('0'+wn).slice(-2)+'/'+d.getFullYear();
+    } else { key = date; }
+    if (!weekMap[key]) weekMap[key] = 0;
+    weekMap[key]++;
+  });
+  var weeks = Object.keys(weekMap).sort(function(a,b){
+    var pa=a.split('/'), pb=b.split('/');
+    var va=parseInt(pa[1])*100+parseInt(pa[0]), vb=parseInt(pb[1])*100+parseInt(pb[0]);
+    return vb-va;
+  }).map(function(w){ return {week:w, count:weekMap[w]}; });
+  var targetWeek = p.week || (weeks[0]||{}).week || '';
+  var members = [];
+  if (targetWeek) {
+    data.forEach(function(row) {
+      var date = String(row[0]||'').trim(); if (!date) return;
+      var d = new Date(date.replace(/(\d{2})\/(\d{2})\/(\d{4})/,'$3-$2-$1'));
+      var key = '';
+      if (!isNaN(d.getTime())) {
+        var soy = new Date(d.getFullYear(),0,1);
+        var wn = Math.ceil((((d-soy)/86400000)+soy.getDay()+1)/7);
+        key = ('0'+wn).slice(-2)+'/'+d.getFullYear();
+      } else { key = date; }
+      if (key === targetWeek) {
+        members.push({ date:date, name:String(row[1]||''), status:String(row[2]||''),
+                       sub_for:String(row[3]||''), looking_for:String(row[4]||''), mentor:String(row[5]||'') });
+      }
+    });
+  }
+  return { ok:true, weeks:weeks, members:members, currentWeek:targetWeek };
 }
