@@ -5,7 +5,7 @@
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse } from '../../_shared/db.ts';
 
-export async function handlecomms(p: Record<string, unknown>): Promise<Response> {
+export async function handleComms(p: Record<string, unknown>): Promise<Response> {
   const db = getServiceClient();
   const auth = await requireAuth(db, p);
   if (!auth.ok && p.action !== 'getMemberDirectory' && p.action !== 'getSimulateData' && p.action !== 'getMemberPublicDetail') {
