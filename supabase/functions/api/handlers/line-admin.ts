@@ -547,8 +547,18 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
     // ── TRIGGER: score alert — send to members with score < 50 ─
     case 'triggerScoreAlert': {
-      const auth = await requireAuth(db, p, ['mc']);
-      if (!auth.ok) return errResponse(auth.error!);
+      // Allow cron bypass: verify cron_secret from cron_config table
+      const cronSecret = String(p.cron_secret || '');
+      if (cronSecret) {
+        const { data: cfg } = await db.from('cron_config').select('value').eq('key', 'cron_secret').single();
+        if (!cfg || (cfg as Record<string, unknown>).value !== cronSecret) {
+          return errResponse('Invalid cron_secret');
+        }
+        // Cron authenticated — proceed without role check
+      } else {
+        const auth = await requireAuth(db, p, ['mc']);
+        if (!auth.ok) return errResponse(auth.error!);
+      }
 
       const { data: lowScoreMembers } = await db
         .from('v_member_dashboard')
@@ -586,12 +596,47 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       return jsonResponse({ ok: true, message: 'trigger queued', sentCount });
     }
 
+    // ── TRIGGER: Wednesday mentor nudge — remind mentors to check team scores ─
+    case 'triggerWednesdayNudge': {
+      const cronSecret = String(p.cron_secret || '');
+      if (cronSecret) {
+        const { data: cfg } = await db.from('cron_config').select('value').eq('key', 'cron_secret').single();
+        if (!cfg || (cfg as Record<string, unknown>).value !== cronSecret) return errResponse('Invalid cron_secret');
+      } else {
+        const auth = await requireAuth(db, p, ['mc']);
+        if (!auth.ok) return errResponse(auth.error!);
+      }
+
+      // Get mentors who have LINE IDs
+      const { data: mentorMembers } = await db
+        .from('members')
+        .select('id, name, nickname, mentor_team')
+        .eq('is_archived', false)
+        .in('mentor_team', ['TOOMTAM', 'Aof', 'Draft', 'PHAI', 'AMP']);
+
+      const mentorIds = ((mentorMembers || []) as Record<string, unknown>[]).map(m => String(m.id));
+      const { data: lineRows } = await db
+        .from('line_members')
+        .select('line_user_id, member_id')
+        .in('member_id', mentorIds);
+
+      let sentCount = 0;
+      for (const row of ((lineRows || []) as Record<string, unknown>[])) {
+        const uid = String(row.line_user_id || '');
+        if (uid) {
+          const nudge = `📋 BNI IDEAL — สรุปสัปดาห์\n\nพรุ่งนี้เจอกันที่ประชุม! 🎯\nอย่าลืมเตรียม:\n• Referral ให้ทีม\n• ตรวจสอบ 1-2-1 ของลูกทีม\n• CEU และ Visitor ครบหรือยัง?\n\nพิมพ์ "สถานะ" เพื่อดูคะแนนล่าสุด`;
+          await sendLineMsg(uid, nudge);
+          sentCount++;
+        }
+      }
+      return jsonResponse({ ok: true, message: 'wednesday nudge sent', sentCount });
+    }
+
     // ── TRIGGER STUBS (scheduled push notifications) ──────────
     case 'triggerAnniversary':
     case 'triggerCheckinReminder':
     case 'triggerChapterPulse':
     case 'triggerPostMeetingPrompt':
-    case 'triggerWednesdayNudge':
     case 'triggerTeamLeaderboard':
     case 'triggerWeeklyScorePush':
     case 'triggerMondayBrief':

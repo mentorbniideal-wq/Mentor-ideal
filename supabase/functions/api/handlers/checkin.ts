@@ -229,13 +229,76 @@ export async function handleCheckin(p: Record<string, unknown>): Promise<Respons
         .not('looking_for', 'is', null);
       if (eErr) return errResponse(eErr.message);
 
-      const matches = ((entries || []) as Record<string, unknown>[])
+      const rawMatches = ((entries || []) as Record<string, unknown>[])
         .filter(e => String(e.looking_for || '').trim() !== '')
         .map(e => ({
-          memberName:        String(e.raw_name || ''),
-          lookingFor:        String(e.looking_for || ''),
-          suggestedPartners: [] as string[], // rule-based matching not yet implemented
+          memberName: String(e.raw_name || ''),
+          lookingFor: String(e.looking_for || ''),
         }));
+
+      if (rawMatches.length === 0) return jsonResponse({ ok: true, matches: [] });
+
+      // Load all active members for AI context
+      const { data: allMembers } = await db
+        .from('members')
+        .select('name, nickname, mentor_team')
+        .eq('is_archived', false)
+        .order('name');
+
+      const memberList = ((allMembers || []) as Record<string, unknown>[]).map(m =>
+        `${String(m.name)} (${String(m.nickname || m.name)}, ทีม${String(m.mentor_team || 'N/A')})`
+      );
+
+      // Call Anthropic for smart 1-2-1 matching
+      const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY') || '';
+      let matches: Array<{ memberName: string; lookingFor: string; suggestedPartners: string[] }> = rawMatches.map(m => ({ ...m, suggestedPartners: [] }));
+
+      if (ANTHROPIC_KEY) {
+        try {
+          const prompt = `คุณเป็นผู้ช่วยจับคู่ธุรกิจ BNI IDEAL Chapter ภาษาไทย
+
+สมาชิกที่เข้าประชุมวันนี้และความต้องการทางธุรกิจ:
+${JSON.stringify(rawMatches, null, 2)}
+
+รายชื่อสมาชิกทั้งหมดในชาพเตอร์:
+${memberList.join('\n')}
+
+งาน: สำหรับแต่ละสมาชิกที่มี "lookingFor" ให้แนะนำ 1-3 คนที่น่าจะช่วยได้ดีที่สุด โดยพิจารณาจากประเภทธุรกิจและความต้องการ
+
+ตอบเฉพาะ JSON array นี้เท่านั้น (ไม่ต้องมีคำอธิบายเพิ่มเติม):
+[{"memberName":"...", "suggestedPartners":["ชื่อ1","ชื่อ2"]}]`;
+
+          const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': ANTHROPIC_KEY,
+              'anthropic-version': '2023-06-01',
+            },
+            body: JSON.stringify({
+              model: 'claude-haiku-4-5-20251001',
+              max_tokens: 1024,
+              messages: [{ role: 'user', content: prompt }],
+            }),
+          });
+
+          if (aiResp.ok) {
+            const aiJson = await aiResp.json() as Record<string, unknown>;
+            const content = (aiJson.content as Array<{ type: string; text: string }>)?.[0]?.text || '';
+            // Extract JSON array from response
+            const jsonMatch = content.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+              const aiMatches = JSON.parse(jsonMatch[0]) as Array<{ memberName: string; suggestedPartners: string[] }>;
+              matches = rawMatches.map(m => {
+                const ai = aiMatches.find(a => a.memberName === m.memberName);
+                return { ...m, suggestedPartners: ai?.suggestedPartners || [] };
+              });
+            }
+          }
+        } catch (_err) {
+          // AI failed — return rule-based empty suggestions, don't error
+        }
+      }
 
       return jsonResponse({ ok: true, matches });
     }

@@ -7476,5 +7476,69 @@ function loadLineMembers() {
     <button class="btn-p" style="margin-top:.75rem;" onclick="copyExport()">📋 Copy ทั้งหมด</button>
   </div>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+(function(){
+  var SB_URL='https://itwyjhlfemxsfbimshby.supabase.co';
+  var SB_ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
+  var _sbClient=null;
+  var _realtimeChannel=null;
+  var _debounceTimer=null;
+
+  function getSbClient(){
+    if(!_sbClient&&window.supabase){
+      _sbClient=window.supabase.createClient(SB_URL,SB_ANON,{realtime:{params:{eventsPerSecond:5}}});
+    }
+    return _sbClient;
+  }
+
+  function onScoreChange(payload){
+    // Debounce: wait 1.5s after last change before refreshing
+    clearTimeout(_debounceTimer);
+    _debounceTimer=setTimeout(function(){
+      if(!S||!S.role)return;
+      // Show a subtle "data updated" toast
+      var toast=document.getElementById('rt-toast');
+      if(!toast){
+        toast=document.createElement('div');
+        toast.id='rt-toast';
+        toast.style.cssText='position:fixed;bottom:72px;left:50%;transform:translateX(-50%);background:rgba(215,254,250,.15);backdrop-filter:blur(12px);border:1px solid rgba(215,254,250,.2);color:#D7FEFA;padding:.4rem .9rem;border-radius:20px;font-size:.72rem;z-index:9999;transition:opacity .5s;';
+        document.body.appendChild(toast);
+      }
+      toast.textContent='🔄 ข้อมูลอัพเดตแล้ว';
+      toast.style.opacity='1';
+      setTimeout(function(){toast.style.opacity='0';},3000);
+      // Reload relevant section
+      if(typeof loadDashboard==='function'&&S.role==='mc')loadDashboard();
+      if(typeof loadMentorPerformance==='function'&&S.role!=='mc'&&S.role!=='growth')loadMentorPerformance();
+    },1500);
+  }
+
+  function setupRealtime(){
+    var client=getSbClient();
+    if(!client)return;
+    if(_realtimeChannel){client.removeChannel(_realtimeChannel);}
+    _realtimeChannel=client.channel('score-updates')
+      .on('postgres_changes',{event:'*',schema:'public',table:'members'},onScoreChange)
+      .on('postgres_changes',{event:'*',schema:'public',table:'r2y_stats'},onScoreChange)
+      .on('postgres_changes',{event:'*',schema:'public',table:'monthly_scores'},onScoreChange)
+      .subscribe(function(status){
+        if(status==='SUBSCRIBED'){console.log('[Realtime] connected');}
+      });
+  }
+
+  // Hook into login success — S.role is set after login
+  var _origLoginOk=window._realtimeHooked;
+  if(!_origLoginOk){
+    window._realtimeHooked=true;
+    var _check=setInterval(function(){
+      if(S&&S.role&&!_realtimeChannel){
+        setupRealtime();
+        clearInterval(_check);
+      }
+    },500);
+  }
+})();
+</script>
 </body>
 </html>
