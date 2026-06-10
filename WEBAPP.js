@@ -2862,7 +2862,11 @@ function _sendLineMsg(userId, message) {
       return {ok:true};
     } else {
       var body = resp.getContentText();
-      Logger.log('[LINE-FAIL] Status '+code+': '+body);
+      // Detect rate limiting specifically
+      if (code === 429) {
+        Logger.log('[LINE-429] Rate limit hit. Retry-After header: '+(resp.getHeaders()['Retry-After']||'N/A'));
+      }
+      Logger.log('[LINE-FAIL] Status '+code+': '+body.substring(0,100));
       return {ok:false,error:'HTTP '+code,details:body};
     }
   } catch(err) { 
@@ -3006,18 +3010,31 @@ function apiSendLineBroadcast(p) {
   } else {
     targets = Object.values(lineMap);
   }
-  var sent=0, skipped=0, failed=0;
-  targets.forEach(function(uid){
+  var sent=0, skipped=0, failed=0, rateLimited=0;
+  var delayMs = 150; // Throttle: 150ms between sends to avoid HTTP 429
+  targets.forEach(function(uid, idx){
     try { 
+      // Add delay before each send (except first) to avoid LINE rate limiting
+      if (idx > 0) Utilities.sleep(delayMs);
       var res = _sendLineMsg(uid, p.message);
-      if (res.ok) sent++; else { skipped++; Logger.log('[BROADCAST-FAIL] '+res.error); }
+      if (res.ok) {
+        sent++;
+      } else if (res.error && res.error.indexOf('429') >= 0) {
+        rateLimited++;
+        Logger.log('[BROADCAST-429] Rate limited, backing off...');
+        // Back off: increase delay for next sends
+        delayMs = Math.min(1000, delayMs + 100);
+      } else {
+        skipped++;
+        Logger.log('[BROADCAST-FAIL] '+res.error);
+      }
     } catch(e){ 
       failed++; 
       Logger.log('[BROADCAST-ERROR] '+e.message);
     }
   });
-  Logger.log('[BROADCAST-RESULT] sent='+sent+' skipped='+skipped+' failed='+failed+' targets='+targets.length);
-  return {ok:true,sent:sent,skipped:skipped,failed:failed};
+  Logger.log('[BROADCAST-RESULT] sent='+sent+' skipped='+skipped+' failed='+failed+' rateLimited='+rateLimited+' targets='+targets.length);
+  return {ok:true,sent:sent,skipped:skipped,failed:failed,rateLimited:rateLimited};
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
