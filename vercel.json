@@ -1,0 +1,9 @@
+{
+  "outputDirectory": "public",
+  "routes": [
+    { "src": "/$",           "dest": "/index.html" },
+    { "src": "/dashboard",   "dest": "/dashboard.html" },
+    { "src": "/dashboard.html", "dest": "/dashboard.html" },
+    { "src": "/(.*)",        "dest": "/$1" }
+  ]
+}
