@@ -7,6 +7,341 @@ const TEAM_ROLE: Record<string, string> = {
   toomtam: 'TOOMTAM', aof: 'Aof', draft: 'Draft', phai: 'PHAI', amp: 'AMP',
 };
 
+function normalizeName(value: unknown): string {
+  return String(value || '')
+    .replace(/\s*\(bni ideal\)\s*/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function parseNumber(value: unknown): number {
+  const text = String(value || '').replace(/[\s,฿$]/g, '');
+  const num = parseFloat(text);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function parseCsvString(csvString: string | null | undefined): string[][] {
+  if (!csvString) return [];
+  const rows: string[][] = [];
+  const lines = csvString.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const row: string[] = [];
+    let inQuotes = false;
+    let cell = '';
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          cell += '"';
+          i += 1;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (ch === ',' && !inQuotes) {
+        row.push(cell.trim());
+        cell = '';
+      } else {
+        cell += ch;
+      }
+    }
+    row.push(cell.trim());
+    rows.push(row);
+  }
+  return rows;
+}
+
+function findHeaderRow(rows: string[][], predicate: (row: string[]) => boolean): { row: string[]; idx: number } | null {
+  const limit = Math.min(rows.length, 10);
+  for (let i = 0; i < limit; i++) {
+    if (predicate(rows[i])) return { row: rows[i], idx: i };
+  }
+  return null;
+}
+
+function findColumnIndex(headers: string[], candidates: string[]): number {
+  const normalized = headers.map(h => String(h || '').toLowerCase().trim());
+  for (const candidate of candidates) {
+    const idx = normalized.indexOf(candidate);
+    if (idx >= 0) return idx;
+  }
+  return -1;
+}
+
+function findMonthlyColumns(headers: string[]): Array<{ idx: number; year: number; month: number }> {
+  const result: Array<{ idx: number; year: number; month: number }> = [];
+  const normalize = (h: string) => String(h || '').toLowerCase().trim();
+  const monthNames: Record<string, number> = {
+    jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+    jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+  };
+  const currentYear = new Date().getFullYear();
+
+  for (let i = 0; i < headers.length; i++) {
+    const raw = normalize(headers[i]);
+    const mmyy = raw.match(/^(\d{1,2})\/(\d{2,4})$/);
+    if (mmyy) {
+      const month = Number(mmyy[1]);
+      let year = Number(mmyy[2]);
+      if (year < 100) year += 2000;
+      if (month >= 1 && month <= 12 && year >= 2020 && year <= 2100) {
+        result.push({ idx: i, year, month });
+        continue;
+      }
+    }
+    if (monthNames[raw]) {
+      result.push({ idx: i, year: currentYear, month: monthNames[raw] });
+    }
+  }
+
+  return result;
+}
+
+function parseMonthlyScores(rows: string[][], memberMap: Record<string, string>): Array<{ member_id: string; year: number; month: number; score: number; source: string }> {
+  if (!rows || rows.length === 0) return [];
+  const headerInfo = findHeaderRow(rows, row => {
+    const normalized = row.map(c => String(c || '').toLowerCase().trim());
+    return findMonthlyColumns(normalized).length > 0 && normalized.some(c => c.includes('name') || c.includes('member'));
+  });
+  if (!headerInfo) return [];
+
+  const headers = headerInfo.row.map(c => String(c || '').toLowerCase().trim());
+  const nameIdx = findColumnIndex(headers, ['name -surname', 'name-surname', 'name', 'member name', 'member']);
+  const monthCols = findMonthlyColumns(headers);
+  if (nameIdx < 0 || monthCols.length === 0) return [];
+
+  const scores: Array<{ member_id: string; year: number; month: number; score: number; source: string }> = [];
+  for (let ri = headerInfo.idx + 1; ri < rows.length; ri++) {
+    const row = rows[ri];
+    if (!row || row.length <= nameIdx) continue;
+    const rawName = normalizeName(row[nameIdx]);
+    if (!rawName) continue;
+    const memberId = memberMap[rawName];
+    if (!memberId) continue;
+
+    for (const col of monthCols) {
+      if (row.length <= col.idx) continue;
+      const score = parseNumber(row[col.idx]);
+      if (score > 0) {
+        scores.push({ member_id: memberId, year: col.year, month: col.month, score, source: 'traffic_light_csv' });
+      }
+    }
+  }
+  return scores;
+}
+
+function parseMemberTrafficLightData(rows: string[][]): Record<string, {
+  given: number; received: number; rg: number; rr: number; visitors: number; one_to_one: number;
+  ceu: number; score: number; p: number; a: number; l: number; m: number; s: number;
+}> {
+  const normalizedRows = rows.map(r => r.map(c => String(c || '').toLowerCase().trim()));
+  const headerInfo = findHeaderRow(normalizedRows, row => row.some(c => c === 'total score') && row.some(c => c === 'traffic light'));
+  if (!headerInfo) return {};
+
+  const headers = normalizedRows[headerInfo.idx];
+  const nameIdx = findColumnIndex(headers, ['name -surname', 'name-surname', 'name', 'member name', 'member']);
+  const givenIdx = findColumnIndex(headers, ['value of business given (baht)', 'value of business given', 'given (baht)', 'given', 'tyfcb given', 'business given']);
+  const recvIdx = findColumnIndex(headers, ['value of business received (baht)', 'value of business received', 'received (baht)', 'received', 'tyfcb received', 'business received']);
+  const rgIdx = findColumnIndex(headers, ['referral', 'rg', 'referrals given']);
+  const rrIdx = findColumnIndex(headers, ['rr', 'received referrals', 'rri', 'rro']);
+  const rriIdx = findColumnIndex(headers, ['rri']);
+  const rroIdx = findColumnIndex(headers, ['rro']);
+  const visitorsIdx = findColumnIndex(headers, ['v', 'visi', 'visitor', 'visitors']);
+  const otoIdx = findColumnIndex(headers, ['121', 'one to one', 'one-to-one', 'one_to_one']);
+  const ceuIdx = findColumnIndex(headers, ['training', 'ceu']);
+  const scoreIdx = findColumnIndex(headers, ['total score', 'score', 'points']);
+  const pIdx = findColumnIndex(headers, ['p']);
+  const aIdx = findColumnIndex(headers, ['a']);
+  const lIdx = findColumnIndex(headers, ['l']);
+  const mIdx = findColumnIndex(headers, ['m']);
+  const sIdx = findColumnIndex(headers, ['s']);
+
+  if (nameIdx < 0 || givenIdx < 0 || recvIdx < 0) return {};
+
+  const map: Record<string, any> = {};
+  for (let ri = headerInfo.idx + 1; ri < rows.length; ri++) {
+    const row = rows[ri];
+    if (!row || row.length <= Math.max(nameIdx, givenIdx, recvIdx)) continue;
+    const no = String(row[0] || '').trim();
+    if (!no || isNaN(parseInt(no, 10))) continue;
+    const rawName = normalizeName(row[nameIdx]);
+    if (!rawName) continue;
+
+    const rg = parseNumber(row[rgIdx]);
+    const rr = parseNumber(row[rrIdx]);
+    const rri = parseNumber(row[rriIdx]);
+    const rro = parseNumber(row[rroIdx]);
+    const visitors = parseNumber(row[visitorsIdx]);
+    const one_to_one = parseNumber(row[otoIdx]);
+    const ceu = parseNumber(row[ceuIdx]);
+    const score = parseNumber(row[scoreIdx]);
+    const p = parseNumber(row[pIdx]);
+    const a = parseNumber(row[aIdx]);
+    const l = parseNumber(row[lIdx]);
+    const m = parseNumber(row[mIdx]);
+    const s = parseNumber(row[sIdx]);
+    const given = parseNumber(row[givenIdx]);
+    const received = parseNumber(row[recvIdx]);
+
+    map[rawName] = {
+      given, received, rg, rr: rr || rri + rro, visitors, one_to_one,
+      ceu, score, p, a, l, m, s,
+    };
+  }
+
+  return map;
+}
+
+async function upsertMonthlyScores(db: ReturnType<typeof getServiceClient>, rows: Array<{ member_id: string; year: number; month: number; score: number; source: string }>): Promise<number> {
+  if (!rows.length) return 0;
+  const BATCH = 100;
+  let imported = 0;
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const batch = rows.slice(i, i + BATCH);
+    const { error } = await db.from('monthly_scores').upsert(batch, {
+      onConflict: 'member_id,year,month',
+      ignoreDuplicates: false,
+    });
+    if (error) throw new Error(error.message);
+    imported += batch.length;
+  }
+  return imported;
+}
+
+async function upsertR2YStats(db: ReturnType<typeof getServiceClient>, rows: Array<Record<string, unknown>>): Promise<number> {
+  if (!rows.length) return 0;
+  const BATCH = 100;
+  let imported = 0;
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const batch = rows.slice(i, i + BATCH) as Record<string, unknown>[];
+    const { error } = await db.from('r2y_stats').upsert(batch, {
+      onConflict: 'member_id',
+      ignoreDuplicates: false,
+    });
+    if (error) throw new Error(error.message);
+    imported += batch.length;
+  }
+  return imported;
+}
+
+function parseR2YRows(rows: string[][], memberMap: Record<string, string>): Array<Record<string, unknown>> {
+  if (!rows || rows.length < 2) return [];
+  const dataRows = rows.slice(1);
+  const parsed: Array<Record<string, unknown>> = [];
+
+  for (const row of dataRows) {
+    const rawName = normalizeName(row[0]);
+    if (!rawName) continue;
+    const memberId = memberMap[rawName];
+    if (!memberId) continue;
+
+    parsed.push({
+      member_id:  memberId,
+      rg:         parseNumber(row[1]),
+      rr:         parseNumber(row[2]),
+      visitors:   parseNumber(row[3]),
+      one_to_one: parseNumber(row[4]),
+      ceu:        parseNumber(row[5]),
+      tyfcb_thb:  parseNumber(row[6]),
+      official_pts: parseNumber(row[7]),
+      bni_days:   parseNumber(row[8]),
+      attend:     parseNumber(row[9]),
+      absent:     parseNumber(row[10]),
+      late:       parseNumber(row[11]),
+      medical:    parseNumber(row[12]),
+      sub:        parseNumber(row[13]),
+      synced_at:  new Date().toISOString(),
+    });
+  }
+
+  return parsed;
+}
+
+async function updateMembersGivenReceived(db: ReturnType<typeof getServiceClient>, data: Record<string, { given: number; received: number }>, memberMap: Record<string, string>): Promise<number> {
+  const rows = [] as Array<Record<string, unknown>>;
+  for (const [name, item] of Object.entries(data)) {
+    const memberId = memberMap[name];
+    if (!memberId) continue;
+    rows.push({ id: memberId, given_thb: item.given, received_thb: item.received, updated_at: new Date().toISOString() });
+  }
+  if (!rows.length) return 0;
+  const BATCH = 100;
+  let updated = 0;
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const batch = rows.slice(i, i + BATCH);
+    const { error } = await db.from('members').upsert(batch, {
+      onConflict: 'id',
+      ignoreDuplicates: false,
+    });
+    if (error) throw new Error(error.message);
+    updated += batch.length;
+  }
+  return updated;
+}
+
+function parseMemberTLStats(rows: string[][]): Record<string, {
+  given: number; received: number; rg: number; rr: number; visitors: number; one_to_one: number;
+  ceu: number; score: number; p: number; a: number; l: number; m: number; s: number;
+}> {
+  if (!rows || rows.length === 0) return {};
+  const normalizedRows = rows.map(row => row.map(cell => String(cell || '').toLowerCase().trim()));
+  const headerInfo = findHeaderRow(normalizedRows, row => row.some(cell => cell === 'total score') && row.some(cell => cell === 'traffic light'));
+  if (!headerInfo) return {};
+
+  const headers = headerInfo.row;
+  const nameIdx = findColumnIndex(headers, ['name -surname', 'name-surname', 'name', 'member name', 'member']);
+  const givenIdx = findColumnIndex(headers, ['value of business given (baht)', 'value of business given', 'given (baht)', 'given', 'tyfcb given', 'business given']);
+  const recvIdx = findColumnIndex(headers, ['value of business received (baht)', 'value of business received', 'received (baht)', 'received', 'tyfcb received', 'business received']);
+  if (nameIdx < 0 || givenIdx < 0 || recvIdx < 0) return {};
+
+  const rgIdx = findColumnIndex(headers, ['referral', 'rg', 'referrals given']);
+  const rrIdx = findColumnIndex(headers, ['rr', 'received referrals']);
+  const rriIdx = findColumnIndex(headers, ['rri']);
+  const rroIdx = findColumnIndex(headers, ['rro']);
+  const visitorsIdx = findColumnIndex(headers, ['v', 'visi', 'visitor', 'visitors']);
+  const otoIdx = findColumnIndex(headers, ['121', 'one to one', 'one-to-one', 'one_to_one']);
+  const ceuIdx = findColumnIndex(headers, ['training', 'ceu']);
+  const scoreIdx = findColumnIndex(headers, ['total score', 'score', 'points']);
+  const pIdx = findColumnIndex(headers, ['p']);
+  const aIdx = findColumnIndex(headers, ['a']);
+  const lIdx = findColumnIndex(headers, ['l']);
+  const mIdx = findColumnIndex(headers, ['m']);
+  const sIdx = findColumnIndex(headers, ['s']);
+
+  const map: Record<string, any> = {};
+  for (let ri = headerInfo.idx + 1; ri < rows.length; ri++) {
+    const row = rows[ri];
+    if (!row || row.length <= Math.max(nameIdx, givenIdx, recvIdx)) continue;
+    const no = String(row[0] || '').trim();
+    if (!no || isNaN(parseInt(no, 10))) continue;
+
+    const rawName = normalizeName(row[nameIdx]);
+    if (!rawName) continue;
+
+    const rg = parseNumber(row[rgIdx]);
+    const rr = parseNumber(row[rrIdx]);
+    const rri = parseNumber(row[rriIdx]);
+    const rro = parseNumber(row[rroIdx]);
+    map[rawName] = {
+      given: parseNumber(row[givenIdx]),
+      received: parseNumber(row[recvIdx]),
+      rg,
+      rr: rr || rri + rro,
+      visitors: parseNumber(row[visitorsIdx]),
+      one_to_one: parseNumber(row[otoIdx]),
+      ceu: parseNumber(row[ceuIdx]),
+      score: parseNumber(row[scoreIdx]),
+      p: parseNumber(row[pIdx]),
+      a: parseNumber(row[aIdx]),
+      l: parseNumber(row[lIdx]),
+      m: parseNumber(row[mIdx]),
+      s: parseNumber(row[sIdx]),
+    };
+  }
+  return map;
+}
+
 export async function handleGrowth(p: Record<string, unknown>): Promise<Response> {
   const db = getServiceClient();
   const action = String(p.action || '');
@@ -144,7 +479,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     }
 
     case 'getMentorPerformance': {
-      const auth = await requireAuth(db, p, ['mc']);
+      const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
       const teams = await getMentorActivityData(db);
       for (const t of teams) {
@@ -192,12 +527,101 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       return jsonResponse({ ok: true });
     }
 
+    // ── Monthly sync from CSV uploads ─────────────────────────────
+    case 'monthlySync': {
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const tlCsv = typeof p.tlCsv === 'string' ? p.tlCsv : null;
+      const r2yCsv = typeof p.r2yCsv === 'string' ? p.r2yCsv : null;
+      const memberTLCsv = typeof p.memberTLCsv === 'string' ? p.memberTLCsv : null;
+
+      if (!tlCsv && !memberTLCsv && !r2yCsv) {
+        return errResponse('ต้องส่งไฟล์ Member Traffic Light หรือ Traffic Lights หรือ Reporting2You อย่างน้อย 1 ไฟล์');
+      }
+
+      const tlRows = parseCsvString(tlCsv);
+      const mtlRows = parseCsvString(memberTLCsv);
+      const r2yRows = parseCsvString(r2yCsv);
+
+      const { data: members, error: memberError } = await db.from('members').select('id, name');
+      if (memberError) return errResponse(memberError.message);
+      const memberMap: Record<string, string> = {};
+      for (const row of (members || []) as Array<Record<string, unknown>>) {
+        const name = normalizeName(row.name);
+        if (name) memberMap[name] = String(row.id);
+      }
+      if (!Object.keys(memberMap).length) {
+        return errResponse('ไม่พบสมาชิกในระบบ');
+      }
+
+      const scoreRows = tlRows.length ? parseMonthlyScores(tlRows, memberMap) : [];
+      const fallbackScoreRows = scoreRows.length ? scoreRows : parseMonthlyScores(mtlRows, memberMap);
+      let importedScores = 0;
+      if (fallbackScoreRows.length) {
+        importedScores = await upsertMonthlyScores(db, fallbackScoreRows);
+      }
+
+      let importedR2Y = 0;
+      if (r2yRows.length) {
+        const r2yParsed = parseR2YRows(r2yRows, memberMap);
+        if (r2yParsed.length) importedR2Y += await upsertR2YStats(db, r2yParsed);
+      }
+
+      const mtlData = parseMemberTLStats(mtlRows);
+      let updatedGR = 0;
+      if (Object.keys(mtlData).length) {
+        const grMap: Record<string, { given: number; received: number }> = {};
+        const r2yUpserts: Array<Record<string, unknown>> = [];
+        for (const [name, item] of Object.entries(mtlData)) {
+          const memberId = memberMap[name];
+          if (!memberId) continue;
+          grMap[name] = { given: item.given, received: item.received };
+          r2yUpserts.push({
+            member_id: memberId,
+            rg: item.rg,
+            rr: item.rr,
+            visitors: item.visitors,
+            one_to_one: item.one_to_one,
+            ceu: item.ceu,
+            tyfcb_thb: item.given,
+            official_pts: item.score,
+            attend: item.p,
+            absent: item.a,
+            late: item.l,
+            medical: item.m,
+            sub: item.s,
+            synced_at: new Date().toISOString(),
+          });
+        }
+        if (Object.keys(grMap).length) {
+          updatedGR = await updateMembersGivenReceived(db, grMap, memberMap);
+        }
+        if (r2yUpserts.length) {
+          importedR2Y += await upsertR2YStats(db, r2yUpserts);
+        }
+      }
+
+      return jsonResponse({
+        ok: true,
+        nonMentorOk: true,
+        counterOk: true,
+        r2yOk: true,
+        r2ySyncOk: true,
+        renewalOk: true,
+        grOk: true,
+        mtlOk: true,
+        importedScores,
+        importedR2Y,
+        updatedGivenReceived: updatedGR,
+      });
+    }
+
     // ── Stubs ─────────────────────────────────────────────────
     case 'updateGrowthMember':
     case 'addGrowthMember':
     case 'moveGrowthMember':
     case 'getGrowthPowerTeams':
-    case 'monthlySync':
       return jsonResponse({ ok: true, message: 'not yet implemented' });
 
     default:
