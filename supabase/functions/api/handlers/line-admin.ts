@@ -620,10 +620,59 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       return jsonResponse({ ok: true, sentCount });
     }
 
-    // ── ADMIN SETUP STUBS ─────────────────────────────────────
-    case 'setupRichMenu':
-    case 'setupAllTriggers':
-      return jsonResponse({ ok: true, message: 'requires LINE admin setup' });
+    // ── SETUP RICH MENU (stub) ────────────────────────────────
+    case 'setupRichMenu': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      return jsonResponse({ ok: true, note: 'Rich Menu ต้องสร้างผ่าน LINE OA Manager แล้ว link ด้วย LINE API — ยังไม่ได้ implement' });
+    }
+
+    // ── SETUP ALL CRON TRIGGERS (calls DB function) ───────────
+    case 'setupAllTriggers': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const { data, error } = await db.rpc('rebuild_line_cron_jobs');
+      if (error) {
+        // Likely migrations not run yet
+        return errResponse(`ต้องรัน SQL migration ก่อน: 20260611000004_trigger_setup_fn.sql\n${error.message}`);
+      }
+      const result = data as Record<string, unknown>;
+      if (!result.ok) {
+        return errResponse(String(result.error || 'setup failed'));
+      }
+      return jsonResponse({ ok: true, results: result.results });
+    }
+
+    // ── TEST LINE CONNECTION ──────────────────────────────────
+    case 'testLineConnection': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      if (!LINE_TOKEN) return errResponse('LINE_CHANNEL_ACCESS_TOKEN ยังไม่ได้ตั้งค่า');
+
+      const res = await fetch('https://api.line.me/v2/bot/info', {
+        headers: { 'Authorization': `Bearer ${LINE_TOKEN}` },
+      }).catch(e => { throw new Error(`Network error: ${e.message}`); });
+
+      if (!res.ok) {
+        const body = await res.text();
+        return errResponse(`LINE API error ${res.status}: ${body}`);
+      }
+
+      const info = await res.json() as Record<string, unknown>;
+
+      // Count registered members
+      const { count } = await db.from('line_members').select('*', { count: 'exact', head: true });
+
+      return jsonResponse({
+        ok: true,
+        botName:    String(info.displayName || ''),
+        botPicture: String(info.pictureUrl || ''),
+        followers:  Number(info.followerCount || 0),
+        registered: count || 0,
+      });
+    }
 
     // ── TRIGGER: score alert — send to members with score < 50 ─
     case 'triggerScoreAlert': {

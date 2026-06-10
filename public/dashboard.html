@@ -1577,10 +1577,10 @@ tbody tr:hover{background:rgba(215,254,250,.025)}
                 <button onclick="deskMentorBroadcast()" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818cf8;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif;white-space:nowrap">📢 ส่ง</button>
               </div>
             </div>
-            <div style="border-top:1px solid var(--bd);margin-top:10px;padding-top:10px;display:flex;align-items:center;gap:10px">
-              <span style="font-size:11px;color:var(--sub);flex:1">ตั้งค่า Auto Trigger ทั้งหมดให้ถูกต้อง (รันครั้งเดียว)</span>
+            <div style="border-top:1px solid var(--bd);margin-top:10px;padding-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <span style="font-size:11px;color:var(--sub);flex:1;min-width:160px">ตั้งค่า Auto Trigger ทั้งหมดให้ถูกต้อง (รันครั้งเดียว)</span>
+              <button onclick="deskTestLineToken()" style="background:rgba(6,182,212,.12);border:1px solid rgba(6,182,212,.3);color:#22d3ee;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:Sarabun,sans-serif">🔌 ทดสอบ LINE Token</button>
               <button onclick="deskSetupAllTriggers()" style="background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:#34d399;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:Sarabun,sans-serif">⚙️ Setup All Triggers</button>
-              <button onclick="deskSetupRichMenu()" style="background:rgba(250,204,21,.1);border:1px solid rgba(250,204,21,.3);color:#fbbf24;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:Sarabun,sans-serif">📌 Setup Rich Menu</button>
             </div>
             <div style="border-top:1px solid var(--bd);margin-top:10px;padding-top:10px;display:flex;align-items:center;gap:10px">
               <span style="font-size:11px;color:var(--sub)">LINE ID ของ MC:</span>
@@ -8725,6 +8725,14 @@ function deskMentorBroadcast() {
       toast('📢 ส่งแล้ว '+(r.sentCount||0)+' คน ✅','ok');
       document.getElementById('mentor-broadcast-msg').value='';
     } else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');
+  });
+}
+
+function deskTestLineToken() {
+  toast('🔌 กำลังทดสอบ LINE Token...','ok');
+  gsr('testLineConnection',{role:S.role},function(r){
+    if (!r||!r.ok) { toast('❌ LINE Token ไม่ถูกต้อง: '+(r&&r.error||'error'),'err'); return; }
+    alert('✅ LINE Bot เชื่อมต่อสำเร็จ!\n\nBot: '+r.botName+'\nFollowers: '+r.followers+' คน\nลงทะเบียนแล้ว: '+r.registered+' คน');
   });
 }
 
