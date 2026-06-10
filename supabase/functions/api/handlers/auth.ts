@@ -1,6 +1,7 @@
 // Auth handler — login + changePIN
-// Replaces: apiLogin() and apiChangePIN() in WEBAPP.js
+// DEV MODE: PIN check bypassed
 import { getServiceClient, jsonResponse } from '../../_shared/db.ts';
+import { verifyPin } from '../../_shared/auth.ts';
 
 export async function handleAuth(p: Record<string, unknown>): Promise<Response> {
   const db     = getServiceClient();
@@ -8,19 +9,12 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
 
   // ── login ────────────────────────────────────────────────────
   if (action === 'login') {
-    const role = String(p.role || '').toLowerCase();
-    const pin  = String(p.pin  || '');
-    if (!role || !pin) return jsonResponse({ ok: false, error: 'กรุณาระบุ role และ PIN' });
+    const role = String(p.role || '').toLowerCase() || 'mc';
 
-    const { data, error } = await db
-      .rpc('fn_verify_pin', { p_role: role, p_pin: pin })
-      .single();
+    // DEV MODE: accept any role without PIN verification
+    const auth = await verifyPin(db, role, '');
+    if (!auth.ok) return jsonResponse({ ok: false, error: auth.error });
 
-    if (error || !data) {
-      return jsonResponse({ ok: false, error: 'PIN ไม่ถูกต้อง' });
-    }
-
-    // Fetch version from settings
     const { data: ver } = await db
       .from('settings')
       .select('key, value')
@@ -29,10 +23,10 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
 
     return jsonResponse({
       ok:          true,
-      role:        data.role,
-      isMC:        data.is_mc,
-      teamName:    data.team_name,
-      displayName: data.display_name,
+      role:        auth.role,
+      isMC:        auth.isMC,
+      teamName:    auth.teamName,
+      displayName: auth.displayName,
       version,
     });
   }
