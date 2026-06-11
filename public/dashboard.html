@@ -1237,6 +1237,8 @@ main{
       <button class="bsm bac" id="btn-meeting" onclick="enterMeeting()" style="display:none">Meeting</button>
       <button class="bsm" onclick="toggleLight()" title="Light/Dark">Theme</button>
       <button class="bsm" id="btn-monthly-sync" onclick="openSyncModal()" style="display:none;background:rgba(240,180,41,.15);border-color:rgba(240,180,41,.4);color:#F0B429;font-weight:700;" title="Monthly Sync วันที่ 5">Sync</button>
+      <button class="bsm" id="btn-role-growth" onclick="switchDesktopRole('growth')" style="display:none;background:rgba(139,92,246,.16);border-color:rgba(139,92,246,.42);color:#C4B5FD;font-weight:800;" title="ไปหน้า Growth Desktop">Growth View</button>
+      <button class="bsm" id="btn-role-mc" onclick="switchDesktopRole('mc')" style="display:none;background:rgba(215,254,250,.12);border-color:rgba(215,254,250,.32);color:#D7FEFA;font-weight:800;" title="กลับหน้า MC Desktop">MC View</button>
       <button class="bsm bac" onclick="manualReload()">Refresh</button>
       <button onclick="window.open('index.html','_blank')" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818CF8;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">Mobile</button>
       <button class="bsm blo" onclick="logout()">ออก</button>
@@ -2643,15 +2645,19 @@ function ld(v){document.getElementById('ov').style.display=v?'flex':'none';}
 // ── Login: now handled by Google OAuth ────────────────────────
 function enterApp(r){
   S.role=r.role;S.isMC=r.isMC;S.teamName=r.teamName;S.displayName=r.displayName;
+  S.canRoleSwitch=S.canRoleSwitch||S.isMC||S.role==='toomtam';
   gsr('logUsage',{role:S.role,team:r.teamName||S.role,platform:'desktop',logAction:'login',detail:r.displayName||S.role},function(){});
   var nm={mc:'👑 Mentor Co',growth:'📈 Growth Committee'};
   document.getElementById('hrole').textContent=nm[S.role]||S.role;
   var mini=document.getElementById('cc-role-mini');if(mini)mini.textContent=nm[S.role]||S.role;
   document.getElementById('login').style.display='none';
   document.getElementById('app').style.display='grid';
+  ['mc-tabs','gr-tabs'].forEach(function(id){document.getElementById(id).style.display='none';});
   document.getElementById(S.role==='mc'?'mc-tabs':'gr-tabs').style.display='flex';
   document.getElementById('btn-meeting').style.display=S.role==='mc'?'':'none';
   document.getElementById('btn-monthly-sync').style.display=S.role==='mc'?'':'none';
+  document.getElementById('btn-role-growth').style.display=(S.canRoleSwitch&&S.role==='mc')?'':'none';
+  document.getElementById('btn-role-mc').style.display=(S.canRoleSwitch&&S.role==='growth')?'':'none';
   document.querySelectorAll('.sec').forEach(function(s){s.classList.remove('on');});
   document.querySelectorAll('#mc-tabs .tb,#gr-tabs .tb').forEach(function(b){b.classList.remove('on');});
   var defSec=S.role==='mc'?'mc-ov':'gr-ov';
@@ -2662,11 +2668,27 @@ function enterApp(r){
   startAR();
   reload();
 }
+function switchDesktopRole(target){
+  target=String(target||'').toLowerCase();
+  if(!target||target===S.role)return;
+  if(!S.token){alert('กรุณา Login ด้วย Google ก่อนสลับ Role');return;}
+  ld(true);
+  gsr('viewAsRole',{targetRole:target,token:S.token},function(r){
+    ld(false);
+    if(!r||!r.ok){alert('สลับ Role ไม่สำเร็จ: '+((r&&r.error)||'ไม่ทราบสาเหตุ'));return;}
+    if(arTimer){clearInterval(arTimer);arTimer=null;}
+    D={mem:[],ren:[],sm:{},teams:[],msgs:[],reps:[]};
+    G={mem:[],sm:{},tasks:[],nm:[],dec:[]};
+    bulkSel={};cmpState=[];
+    if(dc){dc.destroy();dc=null;} if(bc){bc.destroy();bc=null;} if(jc){jc.destroy();jc=null;} if(mdc){mdc.destroy();mdc=null;} if(tdc){tdc.destroy();tdc=null;} if(tdc2){tdc2.destroy();tdc2=null;}
+    enterApp(r);
+  });
+}
 function logout(){
   var sb=getSbAuth();
   if(sb)sb.auth.signOut();
   clearInterval(arTimer);arTimer=null;
-  S={role:'',token:null,sr:''};
+  S={role:'',token:null,sr:'',canRoleSwitch:false};
   D={mem:[],ren:[],sm:{},teams:[],msgs:[],reps:[]};
   G={mem:[],sm:{},tasks:[],nm:[],dec:[]};
   bulkSel={};updateBulkBar();
