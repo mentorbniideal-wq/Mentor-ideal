@@ -1419,7 +1419,8 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
         <button class="tr-pill" onclick="trSet('format','online',this)">Online</button>
         <button class="tr-pill" onclick="trSet('format','onsite',this)">On-site</button>
       </div>
-      <input class="tr-search" id="tr-person" type="text" placeholder="พิมพ์ชื่อคนที่จะแนะนำ เช่น นุ่น, member ใหม่, คน CEU น้อย..." oninput="trRender()">
+      <input class="tr-search" id="tr-person" type="text" placeholder="ชื่อคนที่จะแนะนำ เช่น นุ่น, member ใหม่, คน CEU น้อย..." oninput="trRender()">
+      <input class="tr-search" id="tr-search" type="text" placeholder="ค้นหาชื่อคอร์ส / สถานที่ / keyword เช่น MSP, Zoom, Mandarin" oninput="trRender()" style="margin-top:8px;">
     </div>
     <div class="tr-count" id="tr-count"></div>
     <div id="tr-list"></div>
@@ -6197,8 +6198,8 @@ function trRenderReco(list){
   document.getElementById('tr-reco').innerHTML=card('แนะนำ Member ใหม่',msp)+card('เพิ่ม CEU เร็วสุด',ceu)+card('สำหรับ Mentor / Growth',mentor);
 }
 function trRender(){
-  var personEl=document.getElementById('tr-person');
-  var q=(personEl&&personEl.value||'').trim().toLowerCase();
+  var searchEl=document.getElementById('tr-search');
+  var q=(searchEl&&searchEl.value||'').trim().toLowerCase();
   var visible=TRAINING_EVENTS.filter(function(e){return trMatch(e,q);}).sort(function(a,b){return trDateObj(a)-trDateObj(b);});
   trRenderReco(visible);
   document.getElementById('tr-total').textContent=TRAINING_EVENTS.length+' คอร์ส';
