@@ -90,6 +90,23 @@ function latestScorePeriod(
   return best;
 }
 
+async function getExistingLatestScorePeriod(
+  db: ReturnType<typeof getServiceClient>,
+): Promise<{ year: number; month: number }> {
+  const fallback = new Date();
+  const { data } = await db
+    .from('monthly_scores')
+    .select('year, month')
+    .order('year', { ascending: false })
+    .order('month', { ascending: false })
+    .limit(1);
+  const latest = Array.isArray(data) ? data[0] as Record<string, unknown> | undefined : undefined;
+  const year = Number(latest?.year);
+  const month = Number(latest?.month);
+  if (year >= 2020 && month >= 1 && month <= 12) return { year, month };
+  return { year: fallback.getFullYear(), month: fallback.getMonth() + 1 };
+}
+
 function findNameColumnIndex(headers: string[], rows: string[][], startIdx: number, memberMap: Record<string, string>): number {
   const idx = findColumnIndex(headers, [
     'name -surname', 'name - surname', 'name-surname', 'name surname',
@@ -839,7 +856,10 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       // Steps 3+4: upsert monthly scores. Traffic Light Evolution keeps history;
       // Member Traffic Light is the current score source for the active sync.
       const tlScoreRows = tlRows.length ? parseMonthlyScores(tlRows, memberMap) : [];
-      const scorePeriod = latestScorePeriod(tlScoreRows);
+      const existingScorePeriod = await getExistingLatestScorePeriod(db);
+      const scorePeriod = tlScoreRows.length
+        ? latestScorePeriod(tlScoreRows)
+        : existingScorePeriod;
       const mtlScoreRows = mtlRows.length
         ? parseMemberTLCurrentScores(mtlRows, memberMap, scorePeriod.year, scorePeriod.month)
         : [];
