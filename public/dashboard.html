@@ -8059,10 +8059,11 @@ function renderCross(r){
   // Recommendations
   var recHTML=(r.recommendations||[]).filter(function(x){return !x.isSaved;}).slice(0,15).map(function(rec){
     var scoreC=rec.score>=60?'var(--gr)':rec.score>=40?'#f59e0b':'var(--sub)';
-    var safeN1=rec.nick1.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    var safeN2=rec.nick2.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    var safeT1=rec.team1.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    var safeT2=rec.team2.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    var reasons=rec.reasons||[];
+    var safeN1=String(rec.nick1||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    var safeN2=String(rec.nick2||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    var safeT1=String(rec.team1||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    var safeT2=String(rec.team2||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     return '<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;margin-bottom:8px">'
       +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">'
       +'<div style="flex:1"><span style="font-weight:600">'+esc(rec.nick1)+'</span> <span style="font-size:10px;color:var(--sub)">'+esc(rec.team1)+'</span></div>'
@@ -8070,7 +8071,7 @@ function renderCross(r){
       +'<div style="flex:1;text-align:right"><span style="font-weight:600">'+esc(rec.nick2)+'</span> <span style="font-size:10px;color:var(--sub)">'+esc(rec.team2)+'</span></div>'
       +'<span style="font-size:11px;font-weight:700;color:'+scoreC+'">Score: '+rec.score+'</span>'
       +'</div>'
-      +(rec.reasons.length?'<div style="font-size:10px;color:var(--ac);margin-bottom:8px">💡 '+rec.reasons.join(' · ')+'</div>':'')
+      +(reasons.length?'<div style="font-size:10px;color:var(--ac);margin-bottom:8px">💡 '+reasons.join(' · ')+'</div>':'')
       +'<div style="display:flex;gap:6px">'
       +'<button onclick="crossAssign(\''+safeN1+'\',\''+safeN2+'\',\''+safeT1+'\',\''+safeT2+'\')" style="background:rgba(108,99,255,.15);border:1px solid rgba(108,99,255,.4);color:var(--ac);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-weight:600">📌 Assign 1-2-1</button>'
       +'</div></div>';

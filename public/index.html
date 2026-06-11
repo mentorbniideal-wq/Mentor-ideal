@@ -2415,15 +2415,16 @@ function mobCrossLoad(force){
     html+='<div style="font-size:12px;font-weight:700;margin:12px 0 8px">🤖 AI แนะนำ ('+recs.length+')</div>';
     recs.forEach(function(rec){
       if(rec.isSaved) return;
-      var sN1=rec.nick1.replace(/'/g,"\\'"); var sN2=rec.nick2.replace(/'/g,"\\'");
-      var sT1=rec.team1.replace(/'/g,"\\'"); var sT2=rec.team2.replace(/'/g,"\\'");
+      var reasons=rec.reasons||[];
+      var sN1=String(rec.nick1||'').replace(/'/g,"\\'"); var sN2=String(rec.nick2||'').replace(/'/g,"\\'");
+      var sT1=String(rec.team1||'').replace(/'/g,"\\'"); var sT2=String(rec.team2||'').replace(/'/g,"\\'");
       html+='<div style="background:var(--bg3,#1E2D40);border-radius:8px;padding:10px 12px;margin-bottom:8px">'
         +'<div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:4px">'
         +'<b>'+escHtml(rec.nick1)+'</b><span style="color:var(--gray2);font-size:10px">'+escHtml(rec.team1)+'</span>'
         +'<span>↔️</span>'
         +'<b>'+escHtml(rec.nick2)+'</b><span style="color:var(--gray2);font-size:10px">'+escHtml(rec.team2)+'</span>'
         +'</div>'
-        +(rec.reasons.length?'<div style="font-size:10px;color:#A78BFA;margin-bottom:6px">💡 '+escHtml(rec.reasons.join(' · '))+'</div>':'')
+        +(reasons.length?'<div style="font-size:10px;color:#A78BFA;margin-bottom:6px">💡 '+escHtml(reasons.join(' · '))+'</div>':'')
         +'<button onclick="mobAssignPair(\''+sN1+'\',\''+sN2+'\',\''+sT1+'\',\''+sT2+'\')" style="background:rgba(108,99,255,.15);border:1px solid rgba(108,99,255,.4);color:#A78BFA;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;font-family:Sarabun,sans-serif;cursor:pointer">📌 Assign</button>'
         +'</div>';
     });
