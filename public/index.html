@@ -2929,6 +2929,10 @@ function submitGrowthTask(name,team,formId){
   var typeEl=document.getElementById(formId+'-type');
   var noteEl=document.getElementById(formId+'-note');
   if(!typeEl||!noteEl)return;
+  if(!team){
+    toast('⚠️ สมาชิกคนนี้ยังไม่มี Mentor/ทีม');
+    return;
+  }
   var taskType=typeEl.value;
   var note=noteEl.value.trim();
   call('createGrowthTask',{teamName:team,memberName:name,taskType:taskType,note:note,priority:'📋'},function(err,r){
@@ -3881,14 +3885,16 @@ function buildGrowthCard(m){
   var initials=m.nick?m.nick.slice(0,2):m.name.slice(0,2);
   var scoreColor=m.score>=70?'#10B981':m.score>=50?'#F59E0B':m.score>=30?'#EF4444':'#64748B';
   var avBg=m.tl==='green'?'rgba(16,185,129,.2)':m.tl==='yellow'?'rgba(245,158,11,.2)':m.tl==='red'?'rgba(239,68,68,.2)':'rgba(100,116,139,.2)';
+  var mentorName=m.mentor||'';
+  var mentorLabel=mentorName||'ไม่มีทีม';
   var safeN=m.name.replace(/'/g,"\\'");
-  var safeTeam=m.mentor.replace(/'/g,"\\'");
+  var safeTeam=mentorName.replace(/'/g,"\\'");
   var formId='gtf-'+m.name.replace(/[^a-zA-Z0-9]/g,'_');
   return '<div class="gm-card '+zoneClass+'" id="gmc-'+formId+'">' +
-    '<div class="gm-top" onclick="openDetail(\''+safeN+'\')" style="cursor:pointer;"><div class="gm-av" style="background:'+avBg+';color:'+scoreColor+'">'+initials+'</div><div class="gm-info"><div class="gm-name">'+m.name.split(' ').slice(0,2).join(' ')+(m.nick?' ('+m.nick+')':'')+'</div><div class="gm-sub"><span>'+m.mentor+'</span><span class="zone-pill '+zonePillClass+'">'+zoneLabel+'</span></div></div><div class="gm-score" style="color:'+scoreColor+'">'+m.score+'</div></div>' +
+    '<div class="gm-top" onclick="openDetail(\''+safeN+'\')" style="cursor:pointer;"><div class="gm-av" style="background:'+avBg+';color:'+scoreColor+'">'+initials+'</div><div class="gm-info"><div class="gm-name">'+m.name.split(' ').slice(0,2).join(' ')+(m.nick?' ('+m.nick+')':'')+'</div><div class="gm-sub"><span>'+escHtml(mentorLabel)+'</span><span class="zone-pill '+zonePillClass+'">'+zoneLabel+'</span></div></div><div class="gm-score" style="color:'+scoreColor+'">'+m.score+'</div></div>' +
     '<div class="ref-bar-wrap"><div class="ref-label"><span>Referral (ใบ)</span><span>ให้ '+m.rgCount+' | รับ '+m.rrCount+'</span></div><div class="ref-bars"><div class="ref-bar-row"><span class="ref-bar-lbl">ให้</span><div class="ref-bar-bg"><div class="ref-bar-fill" style="width:'+rgPct+'%;background:'+rgColor+'"></div></div><span class="ref-val" style="color:'+rgColor+'">'+m.rgCount+'</span></div><div class="ref-bar-row"><span class="ref-bar-lbl">รับ</span><div class="ref-bar-bg"><div class="ref-bar-fill" style="width:'+rrPct+'%;background:'+rrColor+'"></div></div><span class="ref-val" style="color:'+rrColor+'">'+m.rrCount+'</span></div></div></div>' +
     '<div class="tyfcb-row"><div><div class="tyfcb-val">฿'+fmt(m.tyfcb)+'</div><div class="tyfcb-lbl">TYFCB รวม</div></div><div style="margin-left:.75rem"><div class="tyfcb-val" style="color:var(--gray2)">฿'+fmt(m.tyfcbPerDay)+'</div><div class="tyfcb-lbl">ต่อวัน</div></div><div style="margin-left:auto"><div class="tyfcb-val" style="color:var(--gray2)">'+m.bniDays+'</div><div class="tyfcb-lbl">วันใน BNI</div></div></div>' +
-    '<div style="text-align:right;margin-top:.35rem;"><button class="gm-task-btn" onclick="toggleGrowthTaskForm(\''+formId+'\',\''+safeN+'\',\''+safeTeam+'\');event.stopPropagation()">🎯 มอบหมาย Mentor</button></div>' +
+    '<div style="text-align:right;margin-top:.35rem;">'+(mentorName?'<button class="gm-task-btn" onclick="toggleGrowthTaskForm(\''+formId+'\',\''+safeN+'\',\''+safeTeam+'\');event.stopPropagation()">🎯 มอบหมาย Mentor</button>':'<span style="font-size:.72rem;color:var(--gray2);">ยังไม่มี Mentor</span>')+'</div>' +
     '<div id="'+formId+'" class="gm-task-form" style="display:none;">'
       +'<select id="'+formId+'-type"><option value="Referral">ช่วยหา Referral ให้</option><option value="1-2-1">นัด 1-2-1 ด่วน</option><option value="ติดตาม">ติดตามความคืบหน้า</option><option value="ประชุม">ช่วยเรื่องมาประชุม</option><option value="อื่นๆ">อื่นๆ</option></select>'
       +'<textarea id="'+formId+'-note" rows="2" placeholder="รายละเอียดที่ต้องการให้ Mentor ดำเนินการ..."></textarea>'
@@ -3904,8 +3910,9 @@ function renderNudges(){
   if(!el)return;
   var nudges=[];
   GS.members.forEach(function(m){
+    var mentorName=m.mentor||'';
     var safeN=m.name.replace(/'/g,"\\'");
-    var safeTeam=m.mentor.replace(/'/g,"\\'");
+    var safeTeam=mentorName.replace(/'/g,"\\'");
     // P1 — ให้เยอะ รับน้อย (critical)
     if(m.zone==='highGiverLowRecv'){
       var gap=m.rgCount-m.rrCount;
@@ -3951,9 +3958,9 @@ function renderNudges(){
       '<div class="nudge-top">'+
         '<div class="nudge-who">'+
           '<div class="nudge-name">'+escHtml(n.m.nick||n.m.name.split(' ')[0])+'<span style="font-weight:400;font-size:.72rem;color:var(--gray2);"> — '+escHtml(n.m.name.split(' ').slice(0,2).join(' '))+'</span></div>'+
-          '<div class="nudge-team">ทีม '+escHtml(n.m.mentor)+' · Score '+n.m.score+' · '+pLabel[n.p]+'</div>'+
+          '<div class="nudge-team">ทีม '+escHtml(n.m.mentor||'ไม่มีทีม')+' · Score '+n.m.score+' · '+pLabel[n.p]+'</div>'+
         '</div>'+
-        '<button class="nudge-quick-btn" onclick="toggleGrowthTaskForm(\''+fid+'\',\''+n.safeN+'\',\''+n.safeTeam+'\')">🎯 Task</button>'+
+        (n.safeTeam?'<button class="nudge-quick-btn" onclick="toggleGrowthTaskForm(\''+fid+'\',\''+n.safeN+'\',\''+n.safeTeam+'\')">🎯 Task</button>':'<span style="font-size:.72rem;color:var(--gray2);">ไม่มี Mentor</span>')+
       '</div>'+
       '<div class="nudge-issue">'+escHtml(n.issue)+'</div>'+
       '<div class="nudge-action">'+n.action+'</div>'+
