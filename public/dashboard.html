@@ -2593,6 +2593,38 @@ var _gsResults=[];       // global search results
 var arTimer=null,arCount=300,arActive=true;  // auto-refresh
 var _m360={name:'',mentor:'',repRow:0,repTeam:''};  // current modal member
 
+function normalizeGrowthMember(m){
+  m=m||{};
+  var name=String(m.name||'').trim();
+  var nick=String(m.nick||'').trim();
+  var mentor=String(m.mentor||'').trim();
+  return Object.assign({},m,{
+    name:name||nick||'ไม่ระบุชื่อ',
+    nick:nick,
+    mentor:mentor,
+    score:Number(m.score)||0,
+    tl:String(m.tl||'none'),
+    zone:String(m.zone||'insufficient'),
+    given:Number(m.given)||0,
+    recv:Number(m.recv)||0,
+    tyfcb:Number(m.tyfcb)||0,
+    absent:Number(m.absent)||0,
+    attend:Number(m.attend)||0,
+    rg:Number(m.rg)||0,
+    rr:Number(m.rr)||0,
+    rgCount:Number(m.rgCount)||0,
+    rrCount:Number(m.rrCount)||0,
+    giveRatio:Number(m.giveRatio)||0,
+    visitors:Number(m.visitors)||0,
+    r121:Number(m.r121)||0,
+    oToOne:Number(m.oToOne)||0,
+    ceu:Number(m.ceu)||0,
+    bniDays:Number(m.bniDays)||0,
+    tyfcbPerDay:Number(m.tyfcbPerDay)||0,
+    hist:Array.isArray(m.hist)?m.hist:[],
+  });
+}
+
 var SUPABASE_API='https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
 var SUPABASE_ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
 var SUPABASE_URL_AUTH='https://itwyjhlfemxsfbimshby.supabase.co';
@@ -2758,7 +2790,7 @@ function startMonthlySync(){
             return;
           }
           var hasTL=!!tlCsv,hasR2y=!!r2yCsv,hasMTL=!!mtlCsv;
-          _setSyncStep(2,r.ok?(hasTL?'done':'skip'):'error');
+          _setSyncStep(2,r.ok?((hasTL||hasMTL)?'done':'skip'):'error');
           _setSyncStep(3,r.nonMentorOk?'done':'error');
           _setSyncStep(4,r.counterOk?'done':'error');
           _setSyncStep(5,r.r2yOk?(hasR2y?'done':'skip'):'error');
@@ -2766,8 +2798,10 @@ function startMonthlySync(){
           _setSyncStep(7,r.renewalOk?'done':'error');
           _setSyncStep(8,r.grOk?(hasMTL?'done':'skip'):'error');
           _setSyncStep(9,r.mtlOk?(hasMTL?'done':'skip'):'error');
-          var coreOk=r.nonMentorOk&&r.counterOk&&r.grOk&&r.r2ySyncOk&&r.renewalOk;
-          btn.textContent=coreOk?'✅ Sync สำเร็จ! (คลิกปิดแล้วรีเฟรช)':'⚠️ บางขั้นตอนมีข้อผิดพลาด';
+          var coreOk=r.nonMentorOk&&r.counterOk&&r.grOk&&r.r2ySyncOk&&r.renewalOk&&r.mtlOk;
+          var period=(r.scoreYear&&r.scoreMonth)?(' · คะแนนล่าสุด '+r.scoreMonth+'/'+r.scoreYear):'';
+          var errTxt=(r.errors&&r.errors.length)?(' · '+r.errors.join(' | ')):'';
+          btn.textContent=coreOk?'✅ Sync สำเร็จ!'+period+' (คลิกปิดแล้วรีเฟรช)':'⚠️ บางขั้นตอนมีข้อผิดพลาด'+errTxt;
           btn.disabled=false;
           if(coreOk){setTimeout(function(){manualReload();},800);}
         });
@@ -2809,7 +2843,7 @@ function loadGrowth(){
   var done=0;
   function chk(){done++;if(done===3){ld(false);updateBadges();}}
   gsr('getGrowthData',{role:'growth'},function(r){
-    if(r.ok){G.mem=r.members||[];G.sm=r.summary||{};
+    if(r.ok){G.mem=(r.members||[]).map(normalizeGrowthMember);G.sm=r.summary||{};
       document.getElementById('hup').textContent='อัพเดท: '+new Date().toLocaleTimeString('th');
       buildGrowthFilters();renderGrowthAll();}
     chk();
@@ -5558,6 +5592,11 @@ function m360SendTask(){
   var pr=document.getElementById('m360-task-pri').value;
   var nt=document.getElementById('m360-task-note').value.trim();
   var res=document.getElementById('m360-task-res');
+  if(!_m360.mentor){
+    res.style.color='var(--re)';
+    res.textContent='สมาชิกคนนี้ยังไม่มี Mentor/ทีม จึงยังสร้าง Task ไม่ได้';
+    return;
+  }
   res.style.color='var(--sub)';res.textContent='กำลังส่ง...';
   gsr('createGrowthTask',{role:'growth',teamName:_m360.mentor,memberName:_m360.name,taskType:tp,priority:pr,note:nt},function(r){
     if(r.ok){
