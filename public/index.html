@@ -1041,18 +1041,66 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
 .gateway-arrow{position:relative;z-index:1;color:var(--gold);font-size:1rem;font-weight:800}
 .sim-tile.gateway-tile{grid-column:auto;background:linear-gradient(135deg,rgba(99,102,241,.12),rgba(215,254,250,.045));border-color:rgba(129,140,248,.28)!important}
 .sim-tile .gateway-ico{background:rgba(129,140,248,.12);border-color:rgba(129,140,248,.24)}
+.training-tile.gateway-tile{background:linear-gradient(135deg,rgba(16,185,129,.13),rgba(240,180,41,.07));border-color:rgba(16,185,129,.28)!important}
+.training-tile .gateway-ico{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.24)}
 @media(min-width:760px){
   .gateway-shell{max-width:860px}
   .gateway-grid{display:grid;grid-template-columns:minmax(0,.95fr) minmax(340px,.72fr);gap:1rem;align-items:end}
   .gateway-top{margin-bottom:0}
   .gateway-title{font-size:3.35rem}
   .public-panel{grid-column:1/-1}
-  .gateway-actions{grid-template-columns:1fr 1fr}
+  .gateway-actions{grid-template-columns:repeat(3,1fr)}
 }
 @media(max-width:380px){
   .gateway-title{font-size:2rem}
   .gateway-sub{font-size:.76rem}
   .gateway-tile{padding:.86rem}
+}
+/* ── Training Check ── */
+#trainingScreen{position:fixed;inset:0;background:var(--bg);z-index:200;display:none;flex-direction:column;overflow:hidden;}
+.tr-body{flex:1;overflow-y:auto;padding:12px 16px 30px;}
+.tr-hero{background:linear-gradient(135deg,rgba(16,185,129,.12),rgba(240,180,41,.08));border:1px solid rgba(215,254,250,.11);border-radius:16px;padding:14px;margin-bottom:12px;}
+.tr-hero-k{font-size:.64rem;color:var(--gold);font-weight:800;letter-spacing:.11em;text-transform:uppercase;margin-bottom:4px;}
+.tr-hero-t{font-size:1.2rem;font-weight:900;line-height:1.25;margin-bottom:5px;}
+.tr-hero-s{font-size:.76rem;color:var(--gray2);line-height:1.55;}
+.tr-reco-grid{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:12px;}
+.tr-reco-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:11px 12px;}
+.tr-reco-l{font-size:.64rem;color:var(--gray2);font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;}
+.tr-reco-v{font-size:.9rem;font-weight:800;line-height:1.35;}
+.tr-reco-m{font-size:.68rem;color:var(--gray2);margin-top:4px;line-height:1.35;}
+.tr-controls{background:rgba(255,255,255,.025);border:1px solid rgba(215,254,250,.08);border-radius:16px;padding:10px;margin-bottom:12px;}
+.tr-control-title{font-size:.68rem;font-weight:800;color:var(--gray2);letter-spacing:.08em;text-transform:uppercase;margin:2px 0 8px;}
+.tr-pills{display:flex;gap:6px;overflow-x:auto;padding-bottom:3px;margin-bottom:9px;}
+.tr-pill{background:var(--card);border:1px solid var(--border);color:var(--gray2);border-radius:999px;padding:6px 11px;font-size:.76rem;font-weight:700;white-space:nowrap;cursor:pointer;font-family:Sarabun,sans-serif;}
+.tr-pill.on{background:var(--accent);border-color:var(--accent);color:#0F1923;}
+.tr-search{width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 12px;color:var(--text);font-size:.86rem;font-family:Sarabun,sans-serif;outline:none;}
+.tr-search:focus{border-color:var(--accent);}
+.tr-count{font-size:.7rem;color:var(--gray2);margin:8px 2px;}
+.tr-month{font-size:.72rem;font-weight:900;color:var(--gold);letter-spacing:.09em;text-transform:uppercase;margin:14px 2px 8px;}
+.tr-list{display:grid;gap:9px;}
+.tr-card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;display:grid;grid-template-columns:72px minmax(0,1fr);}
+.tr-date{background:rgba(215,254,250,.055);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 6px;text-align:center;}
+.tr-day{font-size:1.55rem;font-weight:900;line-height:1;color:var(--white);}
+.tr-mon{font-size:.7rem;font-weight:800;color:var(--gray2);margin-top:4px;text-transform:uppercase;}
+.tr-info{padding:11px 12px;min-width:0;}
+.tr-title{font-size:.96rem;font-weight:900;line-height:1.3;margin-bottom:5px;}
+.tr-tags{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;}
+.tr-tag{font-size:.62rem;font-weight:800;border-radius:999px;padding:3px 8px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.08);color:var(--gray2);}
+.tr-tag.msp{background:rgba(96,165,250,.13);border-color:rgba(96,165,250,.24);color:#60A5FA;}
+.tr-tag.ceu{background:rgba(16,185,129,.13);border-color:rgba(16,185,129,.24);color:#10B981;}
+.tr-tag.lead{background:rgba(167,139,250,.14);border-color:rgba(167,139,250,.25);color:#A78BFA;}
+.tr-meta{font-size:.75rem;color:var(--gray2);line-height:1.55;}
+.tr-actions{display:flex;gap:7px;margin-top:9px;align-items:center;flex-wrap:wrap;}
+.tr-copy{background:rgba(215,254,250,.12);border:1px solid rgba(215,254,250,.2);color:var(--accent);border-radius:10px;padding:7px 10px;font-size:.75rem;font-weight:800;cursor:pointer;font-family:Sarabun,sans-serif;}
+.tr-copy:active{transform:scale(.98);}
+.tr-deadline{font-size:.68rem;color:var(--gold);}
+.tr-empty{text-align:center;color:var(--gray2);padding:36px 10px;font-size:.86rem;}
+@media(min-width:760px){
+  .tr-body{padding:18px 22px 36px;}
+  .tr-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;padding:18px 20px;}
+  .tr-reco-grid{grid-template-columns:repeat(3,1fr);}
+  .tr-list{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .tr-card{grid-template-columns:84px minmax(0,1fr);}
 }
 /* ── Simulate Screen ── */
 #simulateScreen{position:fixed;inset:0;background:var(--bg);z-index:200;display:none;flex-direction:column;overflow:hidden;}
@@ -1294,6 +1342,14 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
             </span>
             <span class="gateway-arrow">›</span>
           </button>
+          <button class="gateway-tile training-tile" onclick="openTrainingCheck()">
+            <span class="gateway-ico">🎓</span>
+            <span class="gateway-info">
+              <span class="gateway-name">Training Check</span>
+              <span class="gateway-desc">หาคอร์ส MSP / CEU และ copy คำแนะนำให้สมาชิก</span>
+            </span>
+            <span class="gateway-arrow">›</span>
+          </button>
         </div>
       </div>
     </div>
@@ -1320,6 +1376,53 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
     <input class="dir-search" type="text" placeholder="🔍 ค้นหาชื่อ หรืออีเมล..." oninput="dirSearch(this.value)">
     <div class="dir-count" id="dir-count"></div>
     <div class="dir-grid" id="dir-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+  </div>
+</div>
+
+<!-- Training Check (Public) -->
+<div id="trainingScreen">
+  <div class="dir-hdr">
+    <button class="dir-back" onclick="closeTrainingCheck()">← กลับ</button>
+    <div class="dir-htitle">🎓 Training Check</div>
+    <div class="dir-htotal" id="tr-total"></div>
+  </div>
+  <div class="tr-body">
+    <div class="tr-hero">
+      <div>
+        <div class="tr-hero-k">BNI Thailand Training Calendar</div>
+        <div class="tr-hero-t">เลือกคอร์สให้ตรงกับคนที่ต้องแนะนำ</div>
+        <div class="tr-hero-s">ใช้สำหรับหา MSP ภายใน 30 วัน, เพิ่ม CEU, และแนะนำคอร์ส Mentor / Growth / Leadership จากอีเมล Training ล่าสุด</div>
+      </div>
+    </div>
+    <div class="tr-reco-grid" id="tr-reco"></div>
+    <div class="tr-controls">
+      <div class="tr-control-title">ประเภทคอร์ส</div>
+      <div class="tr-pills" id="tr-course-pills">
+        <button class="tr-pill on" onclick="trSet('course','all',this)">ทั้งหมด</button>
+        <button class="tr-pill" onclick="trSet('course','msp',this)">MSP</button>
+        <button class="tr-pill" onclick="trSet('course','advanced',this)">Advanced MSP</button>
+        <button class="tr-pill" onclick="trSet('course','networking',this)">Networking</button>
+        <button class="tr-pill" onclick="trSet('course','121',this)">1-2-1</button>
+        <button class="tr-pill" onclick="trSet('course','club',this)">Club / Leadership</button>
+      </div>
+      <div class="tr-control-title">เหมาะกับใคร</div>
+      <div class="tr-pills" id="tr-audience-pills">
+        <button class="tr-pill on" onclick="trSet('audience','all',this)">ทุกคน</button>
+        <button class="tr-pill" onclick="trSet('audience','new',this)">Member ใหม่</button>
+        <button class="tr-pill" onclick="trSet('audience','ceu',this)">CEU น้อย</button>
+        <button class="tr-pill" onclick="trSet('audience','mentor',this)">Mentor / Growth</button>
+        <button class="tr-pill" onclick="trSet('audience','leader',this)">Leadership</button>
+      </div>
+      <div class="tr-control-title">รูปแบบ</div>
+      <div class="tr-pills" id="tr-format-pills">
+        <button class="tr-pill on" onclick="trSet('format','all',this)">ทั้งหมด</button>
+        <button class="tr-pill" onclick="trSet('format','online',this)">Online</button>
+        <button class="tr-pill" onclick="trSet('format','onsite',this)">On-site</button>
+      </div>
+      <input class="tr-search" id="tr-person" type="text" placeholder="พิมพ์ชื่อคนที่จะแนะนำ เช่น นุ่น, member ใหม่, คน CEU น้อย..." oninput="trRender()">
+    </div>
+    <div class="tr-count" id="tr-count"></div>
+    <div id="tr-list"></div>
   </div>
 </div>
 
@@ -2241,12 +2344,28 @@ function mentorMemberRow(m,clickFn){
   if(m.renewalSoon)badges+='<span style="font-size:.58rem;background:rgba(245,158,11,.13);color:#F59E0B;border-radius:4px;padding:1px 5px;margin-right:3px;">💳 Renewal ใกล้</span>';
   if(contactBadge)badges+=contactBadge;
   var badgeRow=badges?'<div style="margin-top:3px;display:flex;gap:3px;flex-wrap:wrap;">'+badges+'</div>':'';
+
+  // 8W Checklist progress bar (for new members — tl=none)
+  var clBar='';
+  if(tl==='none'){
+    // cross-reference NM.members if loaded
+    var nmD=(NM.members||[]).filter(function(x){return x.name===name;})[0];
+    var pct=nmD?nmD.progress||0:0;
+    var pColor=pct>=100?'#10B981':pct>0?'#F59E0B':'#A78BFA';
+    var safeName=name.replace(/'/g,"\\'");
+    clBar='<div onclick="event.stopPropagation();openChecklistFromTeam(\''+safeName+'\')" style="cursor:pointer;margin-top:5px;padding:5px 8px;background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.2);border-radius:7px;">'
+      +'<div style="display:flex;justify-content:space-between;font-size:.62rem;color:#A78BFA;margin-bottom:3px;font-weight:700;">📋 8W Checklist <span style="color:'+pColor+'">'+pct+'%'+(nmD?' · '+nmD.checklistDone+'/41':'')+'</span></div>'
+      +'<div style="height:5px;background:rgba(167,139,250,.15);border-radius:3px;overflow:hidden"><div style="height:100%;border-radius:3px;background:'+pColor+';width:'+pct+'%"></div></div>'
+      +'</div>';
+  }
+
   return '<div class="mr" onclick="'+clickFn+'">'
     +'<div class="av" style="background:'+avbg(tl)+';color:'+scoreColor+'">'+initials+'</div>'
     +'<div class="mi">'
       +'<div class="mn">'+name.split(' ').slice(0,2).join(' ')+(nick?' ('+nick+')':'')+'</div>'
       +'<div class="ms">'+sub+'</div>'
       +badgeRow
+      +clBar
     +'</div>'
     +'<div style="text-align:right">'
       +'<div class="msc" style="color:'+scoreColor+'">'+scoreDisp+'</div>'
@@ -2254,6 +2373,24 @@ function mentorMemberRow(m,clickFn){
     +'</div>'
     +'<div class="tld" style="background:'+tlc(tl)+'"></div>'
     +'</div>';
+}
+
+function openChecklistFromTeam(name){
+  // Switch to New Members tab and open checklist
+  var safeName=encodeURIComponent(name);
+  var btn=document.querySelector('[onclick*="mnt(\'newmembers\'"]');
+  if(btn){mnt('newmembers',btn);}
+  // Load NM data if not loaded
+  if(!NM.members||!NM.members.length){
+    loadNewMembers(S.isMC?'mc':'mentor');
+    setTimeout(function(){
+      var nm=(NM.members||[]).filter(function(x){return x.name===name;})[0];
+      if(nm)openCL(encodeURIComponent(nm.fileUrl||name),safeName);
+    },1200);
+  } else {
+    var nm=(NM.members||[]).filter(function(x){return x.name===name;})[0];
+    openCL(encodeURIComponent(nm?nm.fileUrl||name:name),safeName);
+  }
 }
 var roleNames={mc:'ตูมตาม (MC)',toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP',growth:'Growth Coordinator'};
 
@@ -3721,7 +3858,7 @@ function parseBatchInput(){
     else if(!nick)err='ไม่มีชื่อเล่น';
     else if(teams.indexOf(mentor)<0)err='Mentor ต้องเป็น: '+teams.join('/');
     else if(!/^\d{4}-\d{2}-\d{2}$/.test(startDate))err='วันที่ต้องเป็น YYYY-MM-DD';
-    if(!err)_batchParsed.push({name:name,nick:nick,mentor:mentor,startDate:startDate,business:biz});
+    if(!err)_batchParsed.push({name:name,nick:nick,mentor_team:mentor,joined_date:startDate,business:biz});
     if(err)valid=false;
     return '<div class="batch-row"><span class="'+(err?'batch-err':'batch-ok')+'">'+(err?'❌ '+err:'✅')+'</span><span style="flex:1">'+escHtml(name)+'</span><span style="color:var(--gray2);">'+escHtml(mentor)+'</span></div>';
   }).join('');
@@ -5111,6 +5248,7 @@ function renderChecklist(d) {
         + '<div class="cl-task-top">'
         + (t.timeline ? '<span class="cl-task-tl">' + escHtml(t.timeline) + '</span>' : '')
         + '<span class="cl-task-name">' + escHtml(t.task) + '</span>'
+        + (t.link ? '<a href="' + escHtml(t.link) + '" target="_blank" style="font-size:10px;color:var(--accent);margin-left:6px;flex-shrink:0">🔗</a>' : '')
         + '</div>'
         + '<div class="cl-task-status">' + statusTxt + '</div>'
         + '<div class="cl-task-actions">'
@@ -5118,7 +5256,10 @@ function renderChecklist(d) {
         + '<button class="btn-nopass' + (t.nopass?' active':'') + '" onclick="tickTask(\'' + safeKey + '\',false)">❌ No Pass</button>'
         + '<button class="btn-reset" onclick="tickTask(\'' + safeKey + '\',null)">↺</button>'
         + '</div>'
-        + (t.comment ? '<div class="cl-task-meta">💬 ' + escHtml(t.comment) + '</div>' : '')
+        + '<div style="display:flex;gap:6px;align-items:center;margin-top:6px">'
+        + '<input type="text" class="task-comment-input" placeholder="💬 Mentor comment..." value="' + escHtml(t.comment||'') + '" style="flex:1;font-size:11px;padding:5px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:inherit">'
+        + '<button onclick="saveTaskComment(\'' + safeKey + '\')" style="font-size:10px;padding:4px 8px;border-radius:5px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);cursor:pointer;white-space:nowrap">💾</button>'
+        + '</div>'
         + '</div>';
     });
   });
@@ -5128,13 +5269,19 @@ function renderChecklist(d) {
 
 function tickTask(encodedKey, passVal) {
   var itemKey = decodeURIComponent(encodedKey || '');
-  var btn = document.querySelector('#task-' + encodedKey + ' .btn-pass');
+  var taskEl  = document.querySelector('#task-' + encodedKey);
+  var btn     = taskEl ? taskEl.querySelector('.btn-pass') : null;
   if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
 
+  var commentEl = taskEl ? taskEl.querySelector('.task-comment-input') : null;
+  var comment   = commentEl ? commentEl.value.trim() : undefined;
+
   call('saveNMCheckItem', {
-    memberName: NM.curFileUrl,
-    itemKey:    itemKey,
-    isDone:     passVal === null ? false : Boolean(passVal)
+    memberName:     NM.curFileUrl,
+    itemKey:        itemKey,
+    pass:           passVal === true  ? true : false,
+    nopass:         passVal === false ? true : false,
+    mentor_comment: comment,
   }, function(err, r) {
     if (r && r.ok) {
       toast('✅ บันทึกแล้ว');
@@ -5145,6 +5292,22 @@ function tickTask(encodedKey, passVal) {
       toast('❌ ' + (err ? err.message : r.error));
       if (btn) { btn.disabled = false; btn.textContent = '✅ Pass'; }
     }
+  });
+}
+
+function saveTaskComment(encodedKey) {
+  var itemKey   = decodeURIComponent(encodedKey || '');
+  var taskEl    = document.querySelector('#task-' + encodedKey);
+  var commentEl = taskEl ? taskEl.querySelector('.task-comment-input') : null;
+  if (!commentEl) return;
+  var comment = commentEl.value.trim();
+  call('saveNMCheckItem', {
+    memberName:     NM.curFileUrl,
+    itemKey:        itemKey,
+    mentor_comment: comment,
+  }, function(err, r) {
+    if (r && r.ok) toast('💬 บันทึก comment แล้ว');
+    else toast('❌ ' + (err ? err.message : (r && r.error) || ''));
   });
 }
 
@@ -5192,22 +5355,26 @@ function submitNewMember() {
   var phoneVal = (document.getElementById('nm-phone')||{}).value||'';
   call('addNewMember', {
     name: name, nick: nick, business: biz,
-    mentor: mentor, startDate: date,
+    mentorTeam: mentor, joinDate: date,
     email: emailVal.trim(), phone: phoneVal.trim()
   }, function(err, r) {
     btn.disabled = false;
     btn.textContent = '✅ สร้างและเพิ่มสมาชิก';
 
     if (r && r.ok) {
-      var msg = '✅ เพิ่ม ' + r.name + ' เข้าระบบแล้ว!';
+      var msg = '✅ เพิ่ม ' + r.name + ' แล้ว!'
+        + (r.w8Date ? ' · ครบ 8W: ' + r.w8Date : '')
+        + (r.expiryDate ? ' · Renewal: ' + r.expiryDate : '');
       if (r.warnings && r.warnings.length) msg += '\n⚠️ ' + r.warnings.join('\n⚠️ ');
-      toast(msg, 4000);
+      toast(msg, 5000);
       document.getElementById('nmFormOverlay').classList.remove('on');
       ['nm-name','nm-nick','nm-biz','nm-date'].forEach(function(id) {
         document.getElementById(id).value = '';
       });
       document.getElementById('nm-mentor').value = '';
-      loadNewMembers('mc');
+      // Reload NM list + team view
+      loadNewMembers(S.isMC ? 'mc' : 'mentor');
+      if (S.teamMembers) { S.teamMembers=null; loadMyTeam(); }
     } else {
       toast('❌ ' + (err ? err.message : (r && r.error) || 'เกิดข้อผิดพลาด'));
     }
@@ -5954,6 +6121,128 @@ function openDirectory() {
 function closeDirectory() {
   document.getElementById('directoryScreen').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'flex';
+}
+
+// ── TRAINING CHECK (Public) ────────────────────────────
+var TRAINING_EVENTS = [
+  {date:'2026-06-04', title:'Networking Training', course:'networking', format:'online', time:'13:00-16:00', location:'Zoom', early:'450 บาท ภายใน 28 พ.ค. 2569', price:'650 บาท', audience:['ceu'], note:'เพิ่มทักษะ Networking และใช้เป็นคอร์ส CEU สำหรับคนคะแนน Training ต่ำ'},
+  {date:'2026-06-09', title:'MSP', course:'msp', format:'onsite', time:'10:00-17:00', location:'Mandarin Hotel Samyan ชั้น 1', early:'1,350 บาท ภายใน 2 มิ.ย. 2569', price:'1,550 บาท', audience:['new','ceu'], note:'เหมาะที่สุดสำหรับ Member ใหม่ที่ต้องเรียน MSP ภายใน 30 วัน'},
+  {date:'2026-06-19', title:'Advanced MSP', course:'advanced', format:'onsite', time:'10:00-17:00', location:'Mandarin Hotel', early:'1,350 บาท ภายใน 12 มิ.ย. 2569', price:'1,550 บาท', audience:['ceu','mentor'], note:'เหมาะกับคนที่ผ่าน MSP แล้วและต้องการยกระดับการใช้ระบบ BNI ให้ลึกขึ้น'},
+  {date:'2026-06-24', title:'LTM Master Connector & Gold Club Cof.', course:'club', format:'online', time:'13:00-17:00', location:'Zoom', early:'450 บาท ภายใน 17 มิ.ย. 2569', price:'650 บาท', audience:['ceu','leader'], note:'เหมาะกับคนที่อยากต่อยอด Connection และทำงานเชิง leadership'},
+  {date:'2026-06-24', title:'President / VP / Mentor / Growth / 1st Year Club', course:'club', format:'online', time:'18:00-20:30', location:'Zoom', early:'450 บาท ภายใน 17 มิ.ย. 2569', price:'650 บาท', audience:['mentor','leader'], note:'เหมาะกับ Mentor, Growth และทีมบริหาร chapter โดยตรง'},
+  {date:'2026-06-26', title:'MSP', course:'msp', format:'onsite', time:'10:00-17:00', location:'Mandarin Hotel', early:'1,350 บาท ภายใน 19 มิ.ย. 2569', price:'1,550 บาท', audience:['new','ceu'], note:'ตัวเลือก MSP รอบปลายเดือน สำหรับ Member ใหม่ที่ยังไม่ครบ requirement'},
+  {date:'2026-07-03', title:'1-2-1 Training', course:'121', format:'online', time:'13:00-16:00', location:'Zoom', early:'450 บาท ภายใน 26 มิ.ย. 2569', price:'650 บาท', audience:['ceu'], note:'เหมาะกับคนที่ต้องเพิ่มคุณภาพ 1-2-1 และสร้าง referral relationship'},
+  {date:'2026-07-07', title:'MSP', course:'msp', format:'onsite', time:'10:00-17:00', location:'Mandarin Hotel', early:'1,350 บาท ภายใน 30 มิ.ย. 2569', price:'1,550 บาท', audience:['new','ceu'], note:'MSP รอบต้นเดือน เหมาะกับ member ใหม่ที่เริ่มนับ 30 วันในช่วงปลาย มิ.ย./ต้น ก.ค.'},
+  {date:'2026-07-15', title:'President / VP / Mentor / Growth Club', course:'club', format:'online', time:'18:00-20:30', location:'Zoom', early:'450 บาท ภายใน 8 ก.ค. 2569', price:'650 บาท', audience:['mentor','leader'], note:'เหมาะสำหรับทีม Mentor/Growth/Leadership ที่ต้อง align การทำงานร่วมกัน'},
+  {date:'2026-07-17', title:'Advanced MSP', course:'advanced', format:'onsite', time:'10:00-17:00', location:'Mandarin Hotel', early:'1,350 บาท ภายใน 10 ก.ค. 2569', price:'1,550 บาท', audience:['ceu','mentor'], note:'เหมาะกับ member ที่พร้อมต่อยอดหลัง MSP และอยากเข้าใจ BNI แบบ advance'},
+  {date:'2026-07-22', title:'MSP', course:'msp', format:'onsite', time:'10:00-17:00', location:'Mandarin Hotel', early:'1,350 บาท ภายใน 15 ก.ค. 2569', price:'1,550 บาท', audience:['new','ceu'], note:'MSP รอบท้ายเดือน ใช้แนะนำ member ใหม่ที่ต้องล็อกวันเรียนล่วงหน้า'}
+];
+var TR = { course:'all', audience:'all', format:'all' };
+function openTrainingCheck(){
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('trainingScreen').style.display='flex';
+  trRender();
+}
+function closeTrainingCheck(){
+  document.getElementById('trainingScreen').style.display='none';
+  document.getElementById('loginScreen').style.display='flex';
+}
+function trSet(key,val,btn){
+  TR[key]=val;
+  var wrap=document.getElementById('tr-'+key+'-pills');
+  if(wrap){wrap.querySelectorAll('.tr-pill').forEach(function(b){b.classList.remove('on');});}
+  if(btn)btn.classList.add('on');
+  trRender();
+}
+function trDateObj(e){
+  var p=e.date.split('-');
+  return new Date(Number(p[0]),Number(p[1])-1,Number(p[2]));
+}
+function trFmtDate(d){
+  return d.toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+}
+function trMonthKey(d){
+  return d.toLocaleDateString('th-TH',{month:'long',year:'numeric'});
+}
+function trTags(e){
+  var tags=[];
+  if(e.course==='msp')tags.push('<span class="tr-tag msp">MSP / New Member</span>');
+  if(e.course==='advanced')tags.push('<span class="tr-tag msp">Advanced MSP</span>');
+  if(e.course==='121')tags.push('<span class="tr-tag ceu">1-2-1</span>');
+  if(e.course==='networking')tags.push('<span class="tr-tag ceu">Networking</span>');
+  if(e.course==='club')tags.push('<span class="tr-tag lead">Leadership</span>');
+  if(e.audience.indexOf('ceu')>=0)tags.push('<span class="tr-tag ceu">CEU</span>');
+  tags.push('<span class="tr-tag">'+(e.format==='online'?'Online':'On-site')+'</span>');
+  return tags.join('');
+}
+function trMatch(e,q){
+  if(TR.course!=='all'&&e.course!==TR.course)return false;
+  if(TR.audience!=='all'&&e.audience.indexOf(TR.audience)<0)return false;
+  if(TR.format!=='all'&&e.format!==TR.format)return false;
+  if(!q)return true;
+  var hay=[e.title,e.location,e.note,e.course,e.format,e.audience.join(' ')].join(' ').toLowerCase();
+  return hay.indexOf(q)>=0;
+}
+function trRenderReco(list){
+  var now=new Date();now.setHours(0,0,0,0);
+  function nextBy(fn){return TRAINING_EVENTS.filter(function(e){return trDateObj(e)>=now&&fn(e);}).sort(function(a,b){return trDateObj(a)-trDateObj(b);})[0];}
+  var msp=nextBy(function(e){return e.course==='msp';});
+  var ceu=nextBy(function(e){return e.audience.indexOf('ceu')>=0;});
+  var mentor=nextBy(function(e){return e.audience.indexOf('mentor')>=0;});
+  function card(label,e){
+    if(!e)return '<div class="tr-reco-card"><div class="tr-reco-l">'+label+'</div><div class="tr-reco-v">ยังไม่มีรอบถัดไป</div></div>';
+    var d=trDateObj(e);
+    return '<div class="tr-reco-card"><div class="tr-reco-l">'+label+'</div><div class="tr-reco-v">'+escHtml(e.title)+'</div><div class="tr-reco-m">'+trFmtDate(d)+' · '+escHtml(e.time)+' · '+escHtml(e.location)+'</div></div>';
+  }
+  document.getElementById('tr-reco').innerHTML=card('แนะนำ Member ใหม่',msp)+card('เพิ่ม CEU เร็วสุด',ceu)+card('สำหรับ Mentor / Growth',mentor);
+}
+function trRender(){
+  var personEl=document.getElementById('tr-person');
+  var q=(personEl&&personEl.value||'').trim().toLowerCase();
+  var visible=TRAINING_EVENTS.filter(function(e){return trMatch(e,q);}).sort(function(a,b){return trDateObj(a)-trDateObj(b);});
+  trRenderReco(visible);
+  document.getElementById('tr-total').textContent=TRAINING_EVENTS.length+' คอร์ส';
+  document.getElementById('tr-count').textContent='แสดง '+visible.length+' คอร์ส จาก '+TRAINING_EVENTS.length+' คอร์ส';
+  var host=document.getElementById('tr-list');
+  if(!visible.length){host.innerHTML='<div class="tr-empty">ไม่พบคอร์สที่ตรงเงื่อนไข ลองเปลี่ยน filter หรือคำค้นหา</div>';return;}
+  var html='',cur='';
+  visible.forEach(function(e,idx){
+    var d=trDateObj(e),mk=trMonthKey(d);
+    if(mk!==cur){cur=mk;html+='<div class="tr-month">'+escHtml(mk)+'</div><div class="tr-list">';}
+    var mon=d.toLocaleDateString('en-US',{month:'short'}).toUpperCase();
+    html+='<div class="tr-card">'+
+      '<div class="tr-date"><div class="tr-day">'+d.getDate()+'</div><div class="tr-mon">'+mon+'</div></div>'+
+      '<div class="tr-info">'+
+        '<div class="tr-title">'+escHtml(e.title)+'</div>'+
+        '<div class="tr-tags">'+trTags(e)+'</div>'+
+        '<div class="tr-meta">🕒 '+escHtml(e.time)+'<br>📍 '+escHtml(e.location)+'<br>💳 Early Bird: '+escHtml(e.early)+' · ปกติ '+escHtml(e.price)+'<br>🎯 '+escHtml(e.note)+'</div>'+
+        '<div class="tr-actions"><button class="tr-copy" onclick="trCopyAdvice('+TRAINING_EVENTS.indexOf(e)+')">Copy คำแนะนำ</button><span class="tr-deadline">'+trFmtDate(d)+'</span></div>'+
+      '</div></div>';
+    var next=visible[idx+1],nextMk=next?trMonthKey(trDateObj(next)):'';
+    if(nextMk!==cur)html+='</div>';
+  });
+  host.innerHTML=html;
+}
+function trCopyAdvice(i){
+  var e=TRAINING_EVENTS[i];if(!e)return;
+  var name=(document.getElementById('tr-person').value||'member').trim()||'member';
+  var d=trDateObj(e);
+  var text='แนะนำคอร์สสำหรับ '+name+'\n\n'+
+    e.title+'\n'+
+    'วันที่: '+trFmtDate(d)+'\n'+
+    'เวลา: '+e.time+'\n'+
+    'รูปแบบ/สถานที่: '+e.location+'\n'+
+    'ราคา Early Bird: '+e.early+'\n'+
+    'ราคาปกติ: '+e.price+'\n'+
+    'เหตุผลที่แนะนำ: '+e.note;
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(text).then(function(){toast('✅ Copy คำแนะนำแล้ว');}).catch(function(){trFallbackCopy(text);});
+  }else trFallbackCopy(text);
+}
+function trFallbackCopy(text){
+  var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();
+  try{document.execCommand('copy');toast('✅ Copy คำแนะนำแล้ว');}catch(e){toast('❌ Copy ไม่ได้ กรุณาลองใหม่');}
+  document.body.removeChild(ta);
 }
 
 // ── SIMULATE (public, no PIN) ─────────────────────────

@@ -33,11 +33,33 @@ export async function handleAdminRevenue(p: Record<string, unknown>): Promise<Re
     const month   = Number(p.month) || new Date().getMonth() + 1;
     const goalThb = Number(p.goalThb || p.goal_thb) || 0;
     const note    = String(p.note || '').trim();
+    const period  = `${String(month).padStart(2, '0')}/${String(year).slice(-2)}`;
 
-    const { error } = await db.from('chapter_revenue_goals').upsert(
-      { year, month, goal_thb: goalThb, note },
-      { onConflict: 'year,month' },
-    );
+    const { data: existing, error: findError } = await db
+      .from('chapter_revenue_goals')
+      .select('id')
+      .eq('year', year)
+      .eq('month', month)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (findError) return errResponse(findError.message);
+
+    const row = {
+      year,
+      month,
+      goal_thb: goalThb,
+      note,
+      goal_type: 'tyfcb',
+      target: goalThb,
+      period,
+      updated_at: new Date().toISOString(),
+    };
+
+    const existingId = existing ? String((existing as Record<string, unknown>).id) : '';
+    const { error } = existingId
+      ? await db.from('chapter_revenue_goals').update(row).eq('id', existingId)
+      : await db.from('chapter_revenue_goals').insert(row);
     if (error) return errResponse(error.message);
     return jsonResponse({ ok: true });
   }

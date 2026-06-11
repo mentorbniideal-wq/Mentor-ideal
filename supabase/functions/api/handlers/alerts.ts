@@ -9,17 +9,24 @@ export async function handleAlerts(p: Record<string, unknown>): Promise<Response
   switch (action) {
 
     case 'getAlertCenter': {
-      const auth = await requireAuth(db, p, ['mc']);
+      // All authenticated roles can see alerts (badge count & notification panel).
+      // Data is filtered server-side: MC sees all; mentors/growth see their team's issues only.
+      const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
 
       const now = Date.now();
       const alerts: Record<string, unknown>[] = [];
 
+      // Team filter: MC/growth see all; mentor roles see only their own team's alerts.
+      const callerTeam = auth.isMC ? null : (auth.teamName || null);
+
       // ── 1. Stale open core issues (>= 14 days) ─────────────
-      const { data: openIssues } = await db
+      let issueQuery = db
         .from('core_issues')
         .select('id, member_id, mentor_team, opened_at, issue_text')
         .eq('status', 'open');
+      if (callerTeam) issueQuery = issueQuery.eq('mentor_team', callerTeam);
+      const { data: openIssues } = await issueQuery;
 
       for (const ci of (openIssues || []) as Record<string, unknown>[]) {
         const age = Math.floor((now - new Date(String(ci.opened_at)).getTime()) / 86400000);
@@ -37,11 +44,13 @@ export async function handleAlerts(p: Record<string, unknown>): Promise<Response
       }
 
       // ── 2. Declining score streak + no Core Issue ──────────
-      const { data: members } = await db
+      let memberQuery = db
         .from('v_member_dashboard')
         .select('id, name, nickname, mentor_team, display_score, traffic_light, open_core_issue')
         .eq('is_archived', false)
         .not('mentor_team', 'is', null);
+      if (callerTeam) memberQuery = memberQuery.eq('mentor_team', callerTeam);
+      const { data: members } = await memberQuery;
 
       const memberIds = (members || []).map((m: Record<string, unknown>) => String(m.id));
       const { data: allScores } = await db

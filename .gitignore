@@ -1,3 +1,4 @@
 .env
 migration-exports/
 supabase/.temp/
+.vercel

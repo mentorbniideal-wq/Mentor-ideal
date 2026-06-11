@@ -55,7 +55,7 @@ export function calcPalmsScore(d: PalmsInput): PalmsResult {
   const referral = rgRate >= 2 ? 15 : rgRate >= 1 ? 10 : 0;
 
   // Visitor (20 pts)
-  const visRate = d.visitor / (weeks / 4.333);
+  const visRate = d.visitor / (weeks / 4);  // months = weeks/4 per spec (not 4.333)
   const visitor = visRate >= 1 ? 20 : d.visitor > 0 ? 10 : 0;
 
   // 1-2-1 (15 pts)

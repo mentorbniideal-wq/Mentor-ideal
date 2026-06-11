@@ -205,8 +205,8 @@ export async function handleComms(p: Record<string, unknown>): Promise<Response>
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const mentorTeam     = String(p.mentorTeam     || p.team || '').trim();
-      const assignmentText = String(p.assignmentText || p.text || '').trim();
+      const mentorTeam     = String(p.mentorTeam     || p.team     || p.mentor  || '').trim();
+      const assignmentText = String(p.assignmentText || p.text     || p.message || '').trim();
       const dueDate        = p.dueDate ? String(p.dueDate) : null;
 
       if (!assignmentText) return errResponse('assignmentText required');
@@ -272,7 +272,7 @@ export async function handleComms(p: Record<string, unknown>): Promise<Response>
         member: { name: string; nickname: string | null } | null;
       };
 
-      const assignments = ((data || []) as AssignRow[]).map((row) => ({
+      const assignments = ((data || []) as unknown as AssignRow[]).map((row) => ({
         id:         row.id,
         row:        row.id,   // frontend uses a.row for ackAssignment onclick
         mentor:     row.mentor_team ?? '',
@@ -327,7 +327,7 @@ export async function handleComms(p: Record<string, unknown>): Promise<Response>
         member: { name: string; nickname: string | null } | null;
       };
 
-      const assignments = ((data || []) as AssignRow[]).map((row) => ({
+      const assignments = ((data || []) as unknown as AssignRow[]).map((row) => ({
         id:         row.id,
         row:        row.id,   // frontend uses a.row for ackAssignment onclick
         mentor:     row.mentor_team ?? '',

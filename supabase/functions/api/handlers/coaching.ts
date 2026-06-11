@@ -28,9 +28,11 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
       const { data: existing } = await db.from('core_issues')
         .select('id').eq('member_id', memberId).eq('status', 'open').single();
 
+      const actionPlan = String(p.plan || p.actionPlan || p.action_plan || '').trim() || null;
+
       if (existing) {
         const { error } = await db.from('core_issues')
-          .update({ issue_text: issueText, status: statusVal, updated_at: new Date().toISOString() })
+          .update({ issue_text: issueText, action_plan: actionPlan, status: statusVal, updated_at: new Date().toISOString() })
           .eq('id', String((existing as Record<string, unknown>).id));
         if (error) return errResponse(error.message);
       } else {
@@ -38,6 +40,7 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
           member_id: memberId,
           mentor_team: teamName || 'TOOMTAM',
           issue_text: issueText,
+          action_plan: actionPlan,
           status: 'open',
         });
         if (error) return errResponse(error.message);
@@ -173,10 +176,12 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
       const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const memberName = String(p.memberName || p.name || '').trim();
-      const notes      = String(p.notes || '').trim();
-      const nextActions= String(p.nextActions || '').trim();
-      const teamName   = String(p.teamName || auth.teamName || '').trim();
+      const memberName = String(p.memberName || p.menteeName || p.name || '').trim();
+      // Frontend sends activity (type) and notes (extra comments) separately.
+      // Store activity in `notes` column (displayed as activity) and notes in `next_actions`.
+      const notes      = String(p.activity || p.notes || '').trim();
+      const nextActions= String(p.nextActions || (p.activity ? String(p.notes || '') : '') || '').trim();
+      const teamName   = String(p.teamName || p.team || auth.teamName || '').trim();
 
       if (!memberName) return errResponse('memberName required');
 
@@ -218,7 +223,7 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
       if (error) return errResponse(error.message);
 
       type LogRow = { id: string; mentor_team: string; session_date: string; notes: string | null; next_actions: string | null; created_at: string; members: { name: string; nickname: string | null } | null };
-      const logs = ((data || []) as LogRow[]).map((row) => {
+      const logs = ((data || []) as unknown as LogRow[]).map((row) => {
         const dateStr = row.session_date || row.created_at || '';
         const d = new Date(dateStr);
         const week = isNaN(d.getTime()) ? '' : `${d.getFullYear()}-W${String(Math.ceil((d.getMonth() * 4.33 + Math.ceil(d.getDate() / 7)))).padStart(2, '0')}`;

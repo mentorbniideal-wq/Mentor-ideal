@@ -2800,8 +2800,13 @@ function startMonthlySync(){
           _setSyncStep(9,r.mtlOk?(hasMTL?'done':'skip'):'error');
           var coreOk=r.nonMentorOk&&r.counterOk&&r.grOk&&r.r2ySyncOk&&r.renewalOk&&r.mtlOk;
           var period=(r.scoreYear&&r.scoreMonth)?(' · คะแนนล่าสุด '+r.scoreMonth+'/'+r.scoreYear):'';
+          var enrolled=r.autoEnrolled>0?' · เพิ่ม New Member อัตโนมัติ '+r.autoEnrolled+' คน':'';
           var errTxt=(r.errors&&r.errors.length)?(' · '+r.errors.join(' | ')):'';
-          btn.textContent=coreOk?'✅ Sync สำเร็จ!'+period+' (คลิกปิดแล้วรีเฟรช)':'⚠️ บางขั้นตอนมีข้อผิดพลาด'+errTxt;
+          var unmatchedTxt='';
+          if(r.r2yUnmatched&&r.r2yUnmatched.length){
+            unmatchedTxt=' · ⚠️ ชื่อใน R2Y ไม่ match ในระบบ ('+r.r2yUnmatched.length+' คน): '+r.r2yUnmatched.join(', ');
+          }
+          btn.textContent=coreOk?'✅ Sync สำเร็จ!'+period+enrolled+unmatchedTxt+' (คลิกปิดแล้วรีเฟรช)':'⚠️ บางขั้นตอนมีข้อผิดพลาด'+errTxt+unmatchedTxt;
           btn.disabled=false;
           if(coreOk){setTimeout(function(){manualReload();},800);}
         });
@@ -3266,7 +3271,7 @@ function renderKPI(){
     {l:'Green Zone',v:sm.green||0,s:pct(sm.green,total)+'%',c:'gr',i:'🟢'},
     {l:'Yellow Zone',v:sm.yellow||0,s:pct(sm.yellow,total)+'%',c:'ye',i:'🟡'},
     {l:'Red Zone',v:sm.red||0,s:pct(sm.red,total)+'%',c:'re',i:'🔴'},
-    {l:'Blue Zone',v:sm.blue||0,s:pct(sm.blue,total)+'%',c:'bl',i:'🔵'},
+    {l:'Black Zone',v:sm.black||0,s:pct(sm.black,total)+'%',c:'bl',i:'⚫'},
     {l:'BNI Avg Score',v:avg,s:'คะแนนเฉลี่ย',c:'te',i:'📊'},
     {l:'Risk Members',v:risk,s:'ขาด≥'+rt+' หรือ BNI<'+rs,c:'re',i:'⚠️'},
     {l:'Renewal ≤90 วัน',v:soon,s:'รายการ',c:'ye',i:'📅'},
@@ -3276,8 +3281,8 @@ function renderKPI(){
 function pct(v,t){return t?Math.round((v||0)*100/t):0;}
 
 function renderDonut(){
-  var sm=D.sm,data=[sm.green||0,sm.yellow||0,sm.red||0,sm.blue||0,sm.noData||0];
-  var colors=['#00d4aa','#ffc14d','#ff6b6b','#60a5fa','#4b5563'],labels=['🟢 Green','🟡 Yellow','🔴 Red','🔵 Blue','⚪ N/A'];
+  var sm=D.sm,data=[sm.green||0,sm.yellow||0,sm.red||0,sm.black||0,sm.none||0];
+  var colors=['#00d4aa','#ffc14d','#ff6b6b','#8b92b8','#4b5563'],labels=['🟢 Green','🟡 Yellow','🔴 Red','⚫ Black','⚪ N/A'];
   if(dc)dc.destroy();
   dc=new Chart(document.getElementById('donut').getContext('2d'),{type:'doughnut',
     data:{labels:labels,datasets:[{data:data,backgroundColor:colors,borderWidth:2,borderColor:'#1a1d27'}]},
@@ -3344,6 +3349,10 @@ function renderMem(){
   });
   document.getElementById('mtb').innerHTML=list.length?list.map(function(m,i){
     var c=m.cats||{},ft=m.fastTrack&&m.fastTrack.length?m.fastTrack[0]:null;
+    var ftTop2=(m.fastTrack||[]).slice(0,2);
+    var ftGain2=ftTop2.reduce(function(a,f){return a+f.gain;},0);
+    var ftTargetLabel=m.bniTl==='red'?'🟡':m.bniTl==='yellow'?'🟢':'';
+    var ftProjected=m.bniScore+ftGain2;
     var chkd=bulkSel[m.name]?'checked':'';
     var isCmp=cmpState.indexOf(m.name)>=0;
     var safeName=m.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
@@ -3361,12 +3370,17 @@ function renderMem(){
       '<td>'+cb(c.ref,15,'#00d4aa')+'</td><td>'+cb(c.tyfcb,15,'#ffc14d')+'</td>'+
       '<td>'+cb(c.visitor,20,'#f472b6')+'</td><td>'+cb(c.one21,15,'#60a5fa')+'</td>'+
       '<td>'+cb(c.training,20,'#a78bfa')+'</td>'+
-      '<td style="font-size:11px">'+(ft?'<span style="color:var(--gr);font-weight:600">+'+ft.gain+'pt</span> '+esc(ft.cat):'—')+'</td>'+
+      '<td style="min-width:110px">'+(ftTop2.length&&m.bniTl!=='green'?
+        '<div style="font-size:9px;color:var(--sub);margin-bottom:1px">🎯→'+ftTargetLabel+' +'+ftGain2+'pt</div>'+
+        '<div style="font-size:10px;color:var(--tx);white-space:nowrap">'+esc(ftTop2.map(function(f){return f.cat;}).join(' + '))+'</div>'+
+        '<div style="font-size:10px;color:'+(ftProjected>=(m.bniTl==='red'?50:70)?'var(--gr)':'var(--ye)')+';font-weight:700">→ '+ftProjected+'pt</div>'
+        :'<span style="color:var(--sub);font-size:11px">'+(m.bniTl==='green'?'✅ Green':'—')+'</span>')+'</td>'+
       '<td onclick="event.stopPropagation()"><button class="cmp-tog'+(isCmp?' on':'')+'" onclick="toggleCmp(\''+esc(m.name)+'\')">🔍</button></td>'+
       '<td style="white-space:nowrap" onclick="event.stopPropagation()">'
       +(D.lineMembers&&D.lineMembers[m.name]?'<button class="bx" onclick="openDeskLineCompose(\''+safeName+'\',\''+esc(m.nick||m.name.split(' ')[0])+'\')" style="font-size:11px;padding:4px 7px;background:rgba(6,199,85,.12);border-color:rgba(6,199,85,.3);color:#06C755;margin-right:4px">📲</button>':'')
       +'<button class="bx" onclick="openIMD(\''+esc(m.name)+'\')" style="font-size:11px;padding:4px 9px">📊 Dashboard</button>'
       +(S.role==='mc'?'<button class="bx" onclick="moveMemberTeamDlg(\''+safeName+'\',\''+esc(m.mentor||'')+'\',\''+esc(m.id||'')+'\')" style="font-size:11px;padding:4px 7px;background:rgba(96,165,250,.1);border-color:rgba(96,165,250,.3);color:#60a5fa;margin-left:4px">⇄ ทีม</button>':'')
+      +(S.role==='mc'?'<button class="bx" onclick="archiveMemberDlg(\''+safeName+'\')" style="font-size:11px;padding:4px 7px;background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#ef4444;margin-left:4px">🗑️</button>':'')
       +'</td></tr>';
   }).join(''):'<tr><td colspan="16" class="es">ไม่พบข้อมูล</td></tr>';
   document.getElementById('mcnt').textContent='แสดง '+list.length+' / '+D.mem.length+' คน';
@@ -4069,9 +4083,9 @@ function nmSave(){
   if(!name||!nick||!mentor||!date){toast('❌ กรุณากรอกข้อมูลที่มี * ให้ครบ','err');return;}
   var btn=document.getElementById('nm-d-save');
   if(btn.disabled)return;
-  btn.disabled=true;btn.textContent='⏳ กำลังสร้างไฟล์ใน Drive...';
+  btn.disabled=true;btn.textContent='⏳ กำลังเพิ่มสมาชิก...';
   var res=document.getElementById('nm-result');res.style.display='none';
-  gsr('addNewMember',{role:'mc',name:name,nick:nick,business:biz,mentor:mentor,startDate:date,email:email,phone:phone},function(r){
+  gsr('addNewMember',{role:'mc',name:name,nick:nick,business:biz,mentorTeam:mentor,joinDate:date,email:email,phone:phone},function(r){
     btn.disabled=false;btn.textContent='✅ สร้างและเพิ่มสมาชิก';
     if(!r||!r.ok){
       res.style.display='block';res.style.color='var(--re)';
@@ -4080,9 +4094,14 @@ function nmSave(){
     }
     // แสดงผลสำเร็จ
     res.style.display='block';res.style.color='var(--gr)';
-    res.innerHTML='✅ เพิ่ม <strong>'+esc(r.name)+'</strong> เข้าระบบแล้ว!<br>'
-      +(r.fileUrl?'📂 <a href="'+r.fileUrl+'" target="_blank" style="color:var(--ac)">เปิด Checklist ใน Drive</a><br>':'')
-      +(r.warnings&&r.warnings.length?'<br>⚠️ '+r.warnings.join('<br>⚠️ '):'');
+    res.innerHTML='✅ เพิ่ม <strong>'+esc(r.name)+'</strong> เข้าระบบแล้ว!'
+      +'<div style="font-size:11px;margin-top:6px;display:flex;flex-direction:column;gap:3px;color:var(--sub)">'
+      +(r.joinedDate?'<span>🗓️ วันเข้า BNI: '+esc(r.joinedDate)+'</span>':'')
+      +(r.w8Date?'<span>⏰ ครบ 8W: '+esc(r.w8Date)+'</span>':'')
+      +(r.expiryDate?'<span>💳 Renewal: '+esc(r.expiryDate)+'</span>':'')
+      +'<span>📋 8W Checklist: พร้อมใช้งาน (0/41 ข้อ)</span>'
+      +'</div>'
+      +(r.warnings&&r.warnings.length?'<br><span style="color:var(--ye)">⚠️ '+r.warnings.join(' | ')+'</span>':'');
     // Reload dashboard data
     toast('✅ เพิ่ม '+r.name+' แล้ว — กำลังโหลดข้อมูลใหม่...','ok');
     setTimeout(function(){
@@ -4374,6 +4393,33 @@ function load8WProgress(force){
     render8WProgress(r.members||[]);
   });
 }
+function archiveMemberDlg(name){
+  var choice=prompt(
+    '📁 จัดการสมาชิก: "'+name+'"\n\n'+
+    'พิมพ์ตัวเลขเพื่อเลือก:\n'+
+    '  1 = Archive (ซ่อน — กู้คืนได้)\n'+
+    '  2 = ลบถาวร (ลบทั้งหมด — ไม่สามารถกู้คืนได้)\n'+
+    '\n0 = ยกเลิก'
+  );
+  if(!choice||choice.trim()==='0')return;
+  if(choice.trim()==='1'){
+    call('archiveMember',{memberName:name},function(r){
+      if(!r.ok){toast('❌ '+(r.error||'เกิดข้อผิดพลาด'),'err');return;}
+      toast('✅ Archive เรียบร้อย: '+name,'ok');
+      gsr('getDesktopDashboard',{role:'mc'},function(r2){if(r2.ok){D.mem=r2.members||[];D.sm=r2.summary||{};D.teams=r2.teams||[];D.ren=r2.renewal||[];}renderMem();renderKPI();renderDonut();renderMTTeams();});
+    });
+  } else if(choice.trim()==='2'){
+    if(!confirm('⚠️ ลบ "'+name+'" ถาวร?\n\nจะลบข้อมูลทั้งหมด: คะแนน, Checklist, Notes, Renewal\n\nไม่สามารถกู้คืนได้! ยืนยันอีกครั้ง?'))return;
+    call('deleteMember',{memberName:name},function(r){
+      if(!r.ok){toast('❌ '+(r.error||'เกิดข้อผิดพลาด'),'err');return;}
+      toast('✅ ลบถาวร: '+name,'ok');
+      _8wLoaded=false;
+      gsr('getDesktopDashboard',{role:'mc'},function(r2){if(r2.ok){D.mem=r2.members||[];D.sm=r2.summary||{};D.teams=r2.teams||[];D.ren=r2.renewal||[];}renderMCAll();load8WProgress();});
+    });
+  } else {
+    toast('ไม่รู้จักคำสั่ง: '+choice,'err');
+  }
+}
 function w8Remove(rowNum,memberName){
   if(!memberName){toast('ไม่พบชื่อสมาชิก','err');return;}
   var modal=document.getElementById('w8-del-modal');
@@ -4497,15 +4543,21 @@ function render8WProgress(nmList){
       // Meta
       +'<div style="display:flex;gap:12px;font-size:11px;color:var(--sub);margin-bottom:8px;flex-wrap:wrap;">'
       +'<span>👥 '+esc(m.mentor||nm.mentor||'—')+'</span>'
-      +'<span>📅 สัปดาห์ที่ '+weeks+'/'+maxWk+'</span>'
-      +(nm.startDate?'<span>เริ่ม: '+esc(nm.startDate)+'</span>':'')
-      +(bniDays>0?'<span>'+bniDays+' วันใน BNI</span>':'')
+      +'<span>📅 W'+weeks+'/'+maxWk+'</span>'
+      +(nm.joinedDate||nm.startDate?'<span>🗓️ เข้า BNI: '+esc(nm.joinedDate||nm.startDate)+'</span>':'')
+      +(nm.w8Date?'<span style="color:'+(new Date()<new Date(nm.w8Date)?'var(--ye)':'var(--re)')+'">⏰ ครบ 8W: '+esc(nm.w8Date)+'</span>':'')
+      +(bniDays>0?'<span>'+bniDays+' วัน</span>':'')
       +'</div>'
       // Timeline bar
       +'<div class="w8-tl-lbl"><span>สัปดาห์ที่ 1</span><span style="font-weight:700;color:'+tc+'">Week '+weeks+'/'+maxWk+'</span><span>สัปดาห์ที่ 12</span></div>'
       +'<div class="w8-tl"><div class="w8-tl-fill" style="width:'+tlPct+'%;background:'+tc+'"></div></div>'
-      +'<div style="display:flex;gap:4px;margin-bottom:10px;font-size:10px;">'
-      +[1,2,3,4,6,8,12].map(function(wk){var passed=weeks>=wk;return'<span style="padding:1px 5px;border-radius:8px;background:'+(passed?'rgba(16,185,129,.2)':'var(--sf2)')+';color:'+(passed?'#10b981':'var(--sub)')+'">'+(passed?'✓ W'+wk:'W'+wk)+'</span>';}).join('')
+      // Week badges — clickable to filter checklist
+      +'<div style="display:flex;gap:4px;margin-bottom:10px;font-size:10px;flex-wrap:wrap;">'
+      +[1,2,3,4,6,8,12].map(function(wk){
+        var passed=weeks>=wk;
+        var safeN=m.name.replace(/'/g,"\\'");
+        return'<span onclick="event.stopPropagation();openNMCL(\''+safeN+'\','+wk+')" style="cursor:pointer;padding:2px 7px;border-radius:8px;background:'+(passed?'rgba(16,185,129,.2)':'var(--sf2)')+';color:'+(passed?'#10b981':'var(--sub)')+';border:1px solid '+(passed?'rgba(16,185,129,.25)':'var(--bd)')+'">'+  (passed?'✓ W'+wk:'W'+wk)+'</span>';
+      }).join('')
       +'</div>'
       // Milestones
       +'<div style="font-size:10px;font-weight:700;color:var(--sub);margin-bottom:5px;letter-spacing:.05em;">MILESTONES ('+msDone+'/5)</div>'
@@ -4524,15 +4576,16 @@ function render8WProgress(nmList){
         return'<div class="w8-cat"><div class="w8-cat-pts" style="color:'+col+'">'+cd.s+'</div><div class="w8-cat-lbl">/'+cd.m+'<br>'+cd.l+'</div></div>';
       }).join('')
       +'</div>'
-      // Footer: NM checklist + fast track
+      // Footer: NM checklist — entire section clickable
       +'<div class="w8-footer">'
-      +'<div><div style="font-size:10px;color:var(--sub);margin-bottom:2px">NM Checklist</div>'
+      +'<div style="flex:1;cursor:pointer" onclick="event.stopPropagation();openNMCL(\''+m.name.replace(/'/g,"\\'")+'\')">'
+      +'<div style="font-size:10px;color:var(--sub);margin-bottom:2px">📋 NM Checklist <span style="font-size:9px;opacity:.6">(กดเพื่อดู/แก้ไข)</span></div>'
       +'<div style="display:flex;align-items:center;gap:6px;">'
       +'<div class="w8-prog-bar"><div class="w8-prog-fill" style="width:'+nmProg+'%"></div></div>'
-      +'<span style="font-size:11px;font-weight:700">'+nmProg+'%</span>'
-      +(nmStatus?'<span style="font-size:10px;color:var(--sub)">'+esc(nmStatus)+'</span>':'')
+      +'<span style="font-size:12px;font-weight:800;color:'+(nmProg>=100?'var(--gr)':nmProg>0?'var(--ye)':'var(--sub)')+'">'+nmProg+'%</span>'
+      +(nmStatus&&nmProg>0?'<span style="font-size:10px;color:var(--sub)">'+esc(nmStatus)+'</span>':'')
       +'</div></div>'
-      +(act.absent>4?'<span style="font-size:11px;font-weight:700;color:#ef4444">⚠️ ขาด '+act.absent+' ครั้ง</span>':'')
+      +(act.absent>4?'<span style="font-size:11px;font-weight:700;color:#ef4444">⚠️ ขาด '+act.absent+'</span>':'')
       +'</div>'
       +(ftTip?'<div class="w8-ft">'+esc(ftTip)+'</div>':'')
       +'</div>'
@@ -4540,6 +4593,152 @@ function render8WProgress(nmList){
   }).join('');
   document.getElementById('mc-8w-list').innerHTML='<div class="w8-grid">'+html+'</div>';
 }
+
+// ── NM Checklist Modal (MC + Mentor) ──────────────────────────
+// Week-number → timeline strings mapping (from 41-task template)
+var NMCL_WEEK_TL={
+  1:['Orientation','1st Week'],
+  2:['2nd Week'],
+  3:['3rd Week'],
+  4:['4th Week'],
+  6:['5th Week','6th Week'],
+  8:['7th Week','8th Week','60 Days'],
+  12:['3 Months','12 Months']
+};
+var _nmclCurName='';
+var _nmclCurData=null; // cached last loaded checklist data
+
+function openNMCL(name,weekFilter){
+  _nmclCurName=name;
+  var el=document.getElementById('nmcl-body');
+  var ttl=document.getElementById('nmcl-title');
+  if(!el||!ttl)return;
+  ttl.textContent='📋 Checklist: '+name+(weekFilter?' · W'+weekFilter:'');
+  document.getElementById('nmcl-modal').style.display='flex';
+
+  function renderNMCLData(d,wf){
+    _nmclCurData=d;
+    var pctColor=d.pct>=100?'var(--gr)':d.pct>=50?'var(--ye)':'var(--re)';
+    var tlFilter=wf?NMCL_WEEK_TL[wf]||[]:null;
+    var allTasks=d.tasks||[];
+    var filtered=tlFilter?allTasks.filter(function(t){return tlFilter.indexOf(t.timeline)>=0;}):allTasks;
+
+    var html='<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:10px 12px;background:var(--sf2);border-radius:8px">'
+      +'<div style="flex:1"><div style="height:6px;background:var(--bd);border-radius:3px"><div id="nmcl-pbar" style="height:100%;border-radius:3px;background:'+pctColor+';width:'+d.pct+'%;transition:width .3s"></div></div></div>'
+      +'<span id="nmcl-pcnt" style="font-weight:700;color:'+pctColor+';font-size:12px;white-space:nowrap">'+d.done+'/'+d.total+' ('+d.pct+'%)</span>'
+      +'<span id="nmcl-saved" style="font-size:10px;color:var(--sub);margin-left:6px"></span>'
+      +'</div>';
+
+    // Week filter chips
+    html+='<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">';
+    html+='<span onclick="openNMCL(\''+name+'\')" style="cursor:pointer;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;'
+      +(!wf?'background:rgba(108,99,255,.25);color:var(--ac)':'background:var(--sf2);color:var(--sub)')
+      +';border:1px solid var(--bd)">ทั้งหมด</span>';
+    [1,2,3,4,6,8,12].forEach(function(w){
+      var act=wf===w;
+      var tls=NMCL_WEEK_TL[w]||[];
+      var wTasks=allTasks.filter(function(t){return tls.indexOf(t.timeline)>=0;});
+      var wDone=wTasks.filter(function(t){return t.pass;}).length;
+      var wAll=wTasks.length;
+      var wColor=wAll===0?'var(--sub)':wDone===wAll?'var(--gr)':wDone>0?'var(--ye)':'var(--re)';
+      html+='<span onclick="openNMCL(\''+name+'\','+w+')" style="cursor:pointer;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;'
+        +(act?'background:rgba(108,99,255,.25);color:var(--ac)':'background:var(--sf2);color:'+wColor)
+        +';border:1px solid var(--bd)">W'+w+(wAll>0?' '+wDone+'/'+wAll:'')+'</span>';
+    });
+    html+='</div>';
+
+    if(!filtered.length){html+='<div style="text-align:center;padding:20px;color:var(--sub)">ไม่มีข้อที่ตรงกับ W'+wf+'</div>';}
+
+    var phases={},phaseOrder=[];
+    filtered.forEach(function(t){if(!phases[t.phase]){phases[t.phase]=[];phaseOrder.push(t.phase);}phases[t.phase].push(t);});
+    phaseOrder.forEach(function(phase){
+      var pt=phases[phase];
+      var pd=pt.filter(function(t){return t.pass;}).length;
+      html+='<div style="font-size:11px;font-weight:700;color:var(--ac);margin:12px 0 6px;padding:4px 8px;background:rgba(108,99,255,.1);border-radius:5px;display:flex;justify-content:space-between">'
+        +'<span>'+esc(phase)+'</span><span style="color:var(--sub)">'+pd+'/'+pt.length+'</span></div>';
+      pt.forEach(function(t){
+        var safeKey=t.itemKey.replace(/[^a-zA-Z0-9_]/g,'_');
+        var tBg=t.pass?'rgba(16,185,129,.06)':t.nopass?'rgba(239,68,68,.06)':'transparent';
+        html+='<div id="nmclrow_'+safeKey+'" style="display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border-radius:6px;margin-bottom:4px;background:'+tBg+';border:1px solid var(--bd)">'
+          +'<span style="font-size:14px;flex-shrink:0">'+(t.pass?'✅':t.nopass?'❌':'⏳')+'</span>'
+          +'<div style="flex:1">'
+          +'<div style="font-size:12px;font-weight:'+(t.pass||t.nopass?'600':'400')+'">'+esc(t.task)+'</div>'
+          +(t.timeline?'<div style="font-size:10px;color:var(--sub)">'+esc(t.timeline)+'</div>':'')
+          +(t.comment?'<div style="font-size:11px;color:var(--sub);margin-top:3px" id="nmclcmt_'+safeKey+'">💬 '+esc(t.comment)+'</div>':'<div style="font-size:11px;color:var(--sub);margin-top:3px;display:none" id="nmclcmt_'+safeKey+'"></div>')
+          +'</div>'
+          +'<div style="display:flex;gap:4px;flex-shrink:0">'
+          +'<button id="nmclbtn_'+safeKey+'_p" onclick="nmclTick(\''+name+'\',\''+t.itemKey+'\',true,'+!!t.pass+','+!!t.nopass+')" style="font-size:10px;padding:2px 6px;border-radius:4px;border:1px solid rgba(16,185,129,.3);background:'+(t.pass?'rgba(16,185,129,.3)':'rgba(16,185,129,.1)')+';color:#10b981;cursor:pointer">'+(t.pass?'✅':'Pass')+'</button>'
+          +'<button id="nmclbtn_'+safeKey+'_n" onclick="nmclTick(\''+name+'\',\''+t.itemKey+'\',false,'+!!t.pass+','+!!t.nopass+')" style="font-size:10px;padding:2px 6px;border-radius:4px;border:1px solid rgba(239,68,68,.3);background:'+(t.nopass?'rgba(239,68,68,.2)':'rgba(239,68,68,.08)')+';color:#ef4444;cursor:pointer">'+(t.nopass?'❌':'No')+'</button>'
+          +'</div>'
+          +'</div>';
+      });
+    });
+    el.innerHTML=html;
+    // Auto-save notice
+    var s=document.getElementById('nmcl-saved');
+    if(s)s.textContent='💾 บันทึกอัตโนมัติ';
+  }
+
+  if(_nmclCurData&&_nmclCurData._forMember===name){
+    renderNMCLData(_nmclCurData,weekFilter);
+    return;
+  }
+  el.innerHTML='<div style="text-align:center;padding:30px;color:var(--sub)">⏳ กำลังโหลด...</div>';
+  gsr('getNMChecklist',{memberName:name},function(r){
+    if(!r.ok){el.innerHTML='<div style="color:var(--re);padding:20px">❌ '+(r.error||'')+'</div>';return;}
+    r._forMember=name;
+    renderNMCLData(r,weekFilter);
+  });
+}
+
+function nmclTick(memberName,itemKey,pass,wasPass,wasNopass){
+  var safeKey=itemKey.replace(/[^a-zA-Z0-9_]/g,'_');
+  var pBtn=document.getElementById('nmclbtn_'+safeKey+'_p');
+  var nBtn=document.getElementById('nmclbtn_'+safeKey+'_n');
+  var rowEl=document.getElementById('nmclrow_'+safeKey);
+  if(pBtn){pBtn.disabled=true;pBtn.textContent='⏳';}
+  if(nBtn){nBtn.disabled=true;}
+
+  gsr('saveNMCheckItem',{memberName:memberName,itemKey:itemKey,pass:pass,nopass:!pass},function(r){
+    if(pBtn){pBtn.disabled=false;}
+    if(nBtn){nBtn.disabled=false;}
+    if(!r.ok){toast('❌ '+(r.error||''),'err');
+      if(pBtn){pBtn.textContent=wasPass?'✅':'Pass';}
+      if(nBtn){nBtn.textContent=wasNopass?'❌':'No';}
+      return;
+    }
+    // Update row visually in-place
+    if(pass){
+      if(pBtn){pBtn.textContent='✅';pBtn.style.background='rgba(16,185,129,.3)';}
+      if(nBtn){nBtn.textContent='No';nBtn.style.background='rgba(239,68,68,.08)';}
+      if(rowEl){rowEl.style.background='rgba(16,185,129,.06)';}
+    } else {
+      if(pBtn){pBtn.textContent='Pass';pBtn.style.background='rgba(16,185,129,.1)';}
+      if(nBtn){nBtn.textContent='❌';nBtn.style.background='rgba(239,68,68,.2)';}
+      if(rowEl){rowEl.style.background='rgba(239,68,68,.06)';}
+    }
+    // Update icon in row
+    if(rowEl){var ico=rowEl.querySelector('span:first-child');if(ico)ico.textContent=pass?'✅':'❌';}
+    // Update saved badge
+    var s=document.getElementById('nmcl-saved');if(s){s.textContent='✅ บันทึกแล้ว';s.style.color='#10b981';}
+    // Invalidate cache so next open reloads fresh data
+    if(_nmclCurData&&_nmclCurData._forMember===memberName){
+      var t=(_nmclCurData.tasks||[]).find(function(x){return x.itemKey===itemKey;});
+      if(t){t.pass=pass;t.nopass=!pass;}
+      // Recalculate pct
+      var done=(_nmclCurData.tasks||[]).filter(function(x){return x.pass;}).length;
+      var pct=Math.round(done/41*100);
+      _nmclCurData.done=done;_nmclCurData.pct=pct;
+      var pb=document.getElementById('nmcl-pbar');var pc=document.getElementById('nmcl-pcnt');
+      var pc2=pct>=100?'var(--gr)':pct>=50?'var(--ye)':'var(--re)';
+      if(pb){pb.style.width=pct+'%';pb.style.background=pc2;}
+      if(pc){pc.textContent=done+'/41 ('+pct+'%)';pc.style.color=pc2;}
+    }
+    // Refresh 8W card progress after 1s
+    setTimeout(function(){_8wLoaded=false;load8WProgress();},1200);
+  });
+}
+function closeNMCL(){document.getElementById('nmcl-modal').style.display='none';}
 
 // ── 8W sub-tab switcher ───────────────────────────────────────
 function sw8wSub(id){
@@ -5724,16 +5923,16 @@ function enterMeeting(){
     {l:'สมาชิกทั้งหมด',v:total,c:'#6c63ff'},{l:'🟢 Green Zone',v:sm.green||0,c:'#00d4aa'},
     {l:'BNI Score เฉลี่ย',v:avg,c:'#60a5fa'},{l:'⚠️ Risk Members',v:risk,c:'#ff6b6b'},
     {l:'🟡 Yellow',v:sm.yellow||0,c:'#ffc14d'},{l:'🔴 Red',v:sm.red||0,c:'#ff6b6b'},
-    {l:'🔵 Blue',v:sm.blue||0,c:'#60a5fa'},{l:'📋 Reports รอ',v:D.reps.filter(function(r){return!r.status||r.status==='';}).length,c:'#f97316'}
+    {l:'⚫ Black',v:sm.black||0,c:'#8b92b8'},{l:'📋 Reports รอ',v:D.reps.filter(function(r){return!r.status||r.status==='';}).length,c:'#f97316'}
   ].map(function(k){return'<div class="mt-kc"><div class="mt-kv" style="color:'+k.c+'">'+k.v+'</div><div class="mt-kl">'+k.l+'</div></div>';}).join('');
   var riskList=D.mem.filter(function(m){return m.absent>4||(m.bniTl!=='none'&&m.bniScore<30);});
   document.getElementById('mt-risk').innerHTML=riskList.length?riskList.slice(0,6).map(function(m){
     return'<div class="ac2 risk" style="margin-bottom:8px"><div style="font-size:19px">⚠️</div><div class="ai"><div class="an">'+esc(m.name)+'</div><div class="at">'+esc(m.mentor||'')+'</div></div><span class="badge b-'+tlK(m.bniTl)+'">'+tlL(m.bniTl)+'</span></div>';
   }).join(''):'<div class="es">ไม่มี ✅</div>';
   if(mdc)mdc.destroy();
-  var data=[sm.green||0,sm.yellow||0,sm.red||0,sm.blue||0,sm.noData||0];
+  var data=[sm.green||0,sm.yellow||0,sm.red||0,sm.black||0,sm.none||0];
   mdc=new Chart(document.getElementById('mt-donut').getContext('2d'),{type:'doughnut',
-    data:{labels:['Green','Yellow','Red','Blue','N/A'],datasets:[{data:data,backgroundColor:['#00d4aa','#ffc14d','#ff6b6b','#60a5fa','#4b5563'],borderWidth:2,borderColor:'#1a1d27'}]},
+    data:{labels:['Green','Yellow','Red','Black','N/A'],datasets:[{data:data,backgroundColor:['#00d4aa','#ffc14d','#ff6b6b','#8b92b8','#4b5563'],borderWidth:2,borderColor:'#1a1d27'}]},
     options:{cutout:'60%',plugins:{legend:{display:true,position:'bottom',labels:{color:'#8b92b8',font:{size:11}}}}}});
   document.getElementById('meeting').style.display='flex';
 }
@@ -6325,12 +6524,39 @@ function imdSw(idx,btn){
   var s=document.getElementById('imd-s'+idx);if(s)s.classList.add('on');
 }
 function buildIMDScore(m){
+  var ftHtml='';
+  if(m.fastTrack&&m.fastTrack.length&&m.bniTl!=='green'&&m.bniTl!=='none'){
+    var ftTarget=m.bniTl==='red'?50:70;
+    var ftTargetName=m.bniTl==='red'?'🟡 Yellow':'🟢 Green';
+    var ftNeeded=Math.max(0,ftTarget-m.bniScore);
+    var ftTop=m.fastTrack.slice(0,3);
+    var ftGainTotal=ftTop.reduce(function(a,f){return a+f.gain;},0);
+    ftHtml='<div style="background:rgba(0,212,170,.07);border:1px solid rgba(0,212,170,.22);border-radius:10px;padding:12px 14px;margin-top:4px">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
+        '<span style="font-size:12px;font-weight:700;color:var(--gr)">🎯 ขึ้น '+ftTargetName+' ต้องเพิ่ม +'+ftNeeded+' pt</span>'+
+        '<button onclick="document.querySelectorAll(\'#imd-tabs .tb\')[3].click()" style="font-size:10px;padding:3px 8px;background:rgba(0,212,170,.12);border:1px solid rgba(0,212,170,.3);border-radius:5px;color:var(--gr);cursor:pointer">ดูทั้งหมด →</button>'+
+      '</div>'+
+      ftTop.map(function(ft){
+        return'<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px">'+
+          '<span>'+(ft.icon||'💡')+' <strong>'+esc(ft.cat)+'</strong> — '+esc(ft.action)+'</span>'+
+          '<span style="color:var(--gr);font-weight:700;flex-shrink:0;margin-left:10px">+'+ft.gain+'pt</span>'+
+        '</div>';
+      }).join('')+
+      '<div style="margin-top:8px;font-size:11px;color:var(--sub)">'+
+        'ทำทั้งหมด → ได้ +'+ftGainTotal+'pt → <strong style="color:'+(m.bniScore+ftGainTotal>=ftTarget?'var(--gr)':'var(--ye)')+'">'+
+        (m.bniScore+ftGainTotal)+'pt</strong>'+
+        (m.bniScore+ftGainTotal>=ftTarget?' <span style="color:var(--gr)">= '+ftTargetName+' ✅</span>':' (ยังขาด '+(ftTarget-m.bniScore-ftGainTotal)+'pt)')+
+      '</div>'+
+    '</div>';
+  } else if(m.bniTl==='green'){
+    ftHtml='<div style="background:rgba(0,212,170,.07);border:1px solid rgba(0,212,170,.2);border-radius:10px;padding:10px 14px;margin-top:4px;font-size:12px;color:var(--gr)">🎉 Green Zone แล้ว — รักษาระดับต่อไป!</div>';
+  }
   return'<div class="sh"><h2>BNI Score History</h2></div>'+
     '<div class="cc" style="margin-bottom:20px"><div class="imd-ch-wrap"><canvas id="idc1"></canvas></div></div>'+
     '<div class="m360g">'+
       '<div class="m360c"><div class="m360l">คะแนนปัจจุบัน</div><div style="font-size:36px;font-weight:800;color:'+tlC(m.bniTl)+'">'+m.bniScore+'</div><span class="badge b-'+tlK(m.bniTl)+'">'+tlL(m.bniTl)+'</span></div>'+
       '<div class="m360c"><div class="m360l">Avg ('+((m.hist&&m.hist.length)||0)+' เดือน) / ขาด</div><div style="font-size:28px;font-weight:700">'+(m.scoreAvg||'—')+'</div><div style="font-size:12px;color:'+(m.absent>=riskThresh.absent?'var(--re)':'var(--sub)')+'">ขาด '+m.absent+' ครั้ง</div></div>'+
-    '</div>';
+    '</div>'+ftHtml;
 }
 function buildIMDCats(m){
   var c=m.cats||{};
@@ -6839,20 +7065,20 @@ function renderTrendSection(){
   renderMovers();
 }
 function _renderBarTrend(ctx,label,key,color,ymin,ymax){
-  var list=[].concat(G.mem).sort(function(a,b){return(parseFloat(b[key])||0)-(parseFloat(a[key])||0);}).slice(0,25);
+  var list=[].concat(G.mem).sort(function(a,b){return(parseFloat(b[key])||0)-(parseFloat(a[key])||0);});
   var labs=list.map(function(m){return m.nick||m.name;});
   var data=list.map(function(m){return parseFloat(m[key])||0;});
   var bg=data.map(function(v){
     if(key==='attendRate')return v>=80?'rgba(0,212,170,.7)':v>=60?'rgba(255,193,77,.7)':'rgba(255,107,107,.7)';
     return color+'cc';
   });
-  document.getElementById('trend-main-note').textContent='Top 25 คน (เรียงจากมากสุด)';
+  document.getElementById('trend-main-note').textContent='ทั้งหมด '+list.length+' คน (เรียงจากมากสุด)';
   tdc2=new Chart(ctx.getContext('2d'),{type:'bar',data:{labels:labs,datasets:[{label:label,data:data,backgroundColor:bg,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#8b92b8',font:{size:9},maxRotation:45}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#8b92b8'},min:ymin||0,suggestedMax:ymax||undefined}}}});
 }
 function _renderZoneDist(ctx){
-  var z={green:0,yellow:0,red:0,blue:0,none:0};
+  var z={green:0,yellow:0,red:0,black:0,none:0};
   G.mem.forEach(function(m){z[m.tl]=(z[m.tl]||0)+1;});
-  tdc2=new Chart(ctx.getContext('2d'),{type:'doughnut',data:{labels:['🟢 Green','🟡 Yellow','🔴 Red','🔵 Blue','⚪ No Data'],datasets:[{data:[z.green,z.yellow,z.red,z.blue,z.none||0],backgroundColor:['#00d4aa','#ffc14d','#ff6b6b','#60a5fa','#4b5563'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#8b92b8',font:{size:11}}}}}});
+  tdc2=new Chart(ctx.getContext('2d'),{type:'doughnut',data:{labels:['🟢 Green','🟡 Yellow','🔴 Red','⚫ Black','⚪ No Data'],datasets:[{data:[z.green,z.yellow,z.red,z.black||0,z.none||0],backgroundColor:['#00d4aa','#ffc14d','#ff6b6b','#8b92b8','#4b5563'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#8b92b8',font:{size:11}}}}}});
 }
 
 // ══ F6: SCORE MOVERS ══════════════════════════════
@@ -6927,7 +7153,7 @@ function generateSnapshot(){
     var avg=sc.length?Math.round(sc.reduce(function(a,m){return a+m.bniScore;},0)/sc.length):0;
     txt+='👥 สมาชิกทั้งหมด: '+( sm.total||0)+' คน\n';
     txt+='📊 BNI Avg Score: '+avg+' pt\n';
-    txt+='🟢 Green: '+(sm.green||0)+' · 🟡 Yellow: '+(sm.yellow||0)+' · 🔴 Red: '+(sm.red||0)+' · 🔵 Blue: '+(sm.blue||0)+'\n';
+    txt+='🟢 Green: '+(sm.green||0)+' · 🟡 Yellow: '+(sm.yellow||0)+' · 🔴 Red: '+(sm.red||0)+' · ⚫ Black: '+(sm.black||0)+'\n';
     txt+='⚠️  Risk Members: '+risk+' คน\n';
     txt+='📋 Open Reports: '+D.reps.filter(function(r){return!r.status||r.status==='';}).length+' รายการ\n';
     txt+='📩 Active Messages: '+D.msgs.length+' รายการ\n';
@@ -9010,6 +9236,16 @@ function deskSetupRichMenu() {
 </script>
 
 <!-- 8W Delete Confirm Modal -->
+<div id="nmcl-modal" onclick="if(event.target===this)closeNMCL()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9998;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 0">
+  <div style="background:var(--sf);border:1px solid var(--bd);border-radius:16px;padding:20px;width:90%;max-width:580px;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.5);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-shrink:0">
+      <div id="nmcl-title" style="font-size:15px;font-weight:700"></div>
+      <button onclick="closeNMCL()" style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px;font-family:inherit">✕ ปิด</button>
+    </div>
+    <div id="nmcl-body"></div>
+  </div>
+</div>
+
 <div id="w8-del-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;">
   <div style="background:var(--sf);border:1px solid var(--bd);border-radius:16px;padding:24px;max-width:340px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.4);">
     <div style="font-size:15px;font-weight:700;margin-bottom:8px;">🗑️ ลบสมาชิก</div>

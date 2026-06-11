@@ -68,7 +68,7 @@ const ROUTES: Record<string, string> = {
   'addNewMembersBatch': 'members', 'assignToTeam': 'members',
   'moveMemberToTeam': 'members', 'getMembersByTeam': 'members',
   'getTeamHistory': 'members',
-  'archiveMember': 'members', 'unarchiveMember': 'members',
+  'archiveMember': 'members', 'unarchiveMember': 'members', 'deleteMember': 'members',
   'removeNewMember': 'members', 'getArchivedMembers': 'members',
   'getNewMembers': 'members', 'saveMemberNote': 'members',
   'getMemberNote': 'members', 'saveScore': 'members',

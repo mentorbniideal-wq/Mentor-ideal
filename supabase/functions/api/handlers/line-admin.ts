@@ -68,52 +68,55 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
   switch (action) {
 
-    // ── SAVE: register a member's LINE user ID ────────────────
+    // ── SAVE: store role LINE User ID in settings table ──────────
+    // Frontend sends { target: roleKey, lineId: lineUserId }
+    // roleKey: 'mc' | 'TOOMTAM' | 'Aof' | 'Draft' | 'PHAI' | 'AMP' | 'growth'
     case 'saveLineId': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const memberName = String(p.memberName || '').trim();
-      const lineUserId = String(p.lineUserId || '').trim();
-      if (!memberName || !lineUserId) return errResponse('memberName and lineUserId required');
+      const target  = String(p.target  || p.memberName || '').trim();
+      const lineId  = String(p.lineId  || p.lineUserId || '').trim();
+      if (!target || !lineId) return errResponse('target and lineId required');
 
-      const memberId = await findMemberId(db, memberName);
-      if (!memberId) return errResponse(`ไม่พบสมาชิก: ${memberName}`);
-
-      const { error } = await db.from('line_members').upsert(
-        { line_user_id: lineUserId, member_id: memberId, registered_at: new Date().toISOString() },
-        { onConflict: 'line_user_id' },
+      const settingKey = `LINE_ID_${target.toUpperCase()}`;
+      const { error } = await db.from('settings').upsert(
+        { key: settingKey, value: lineId },
+        { onConflict: 'key' },
       );
       if (error) return errResponse(error.message);
 
       return jsonResponse({ ok: true });
     }
 
-    // ── GET: all registered LINE members with member info (MC) ─
+    // ── GET: role LINE IDs from settings table (MC settings panel) ─
+    // Returns { ids: { mc: 'Uxxxx', TOOMTAM: 'Uxxxx', ... }, hasToken: bool }
     case 'getLineIds': {
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
 
+      const ROLE_KEYS = ['mc', 'TOOMTAM', 'Aof', 'Draft', 'PHAI', 'AMP', 'growth'];
+      const settingKeys = ROLE_KEYS.map(k => `LINE_ID_${k.toUpperCase()}`);
+
       const { data, error } = await db
-        .from('line_members')
-        .select('line_user_id, registered_at, members(name, nickname, mentor_team)');
+        .from('settings')
+        .select('key, value')
+        .in('key', settingKeys);
       if (error) return errResponse(error.message);
 
-      const members = ((data || []) as Record<string, unknown>[]).map(row => {
-        const m = (row.members || {}) as Record<string, unknown>;
-        return {
-          lineUserId:   String(row.line_user_id || ''),
-          memberName:   String(m.name || ''),
-          nick:         String(m.nickname || ''),
-          mentorTeam:   String(m.mentor_team || ''),
-          registeredAt: String(row.registered_at || ''),
-        };
-      });
+      const ids: Record<string, string> = {};
+      for (const role of ROLE_KEYS) {
+        const dbKey  = `LINE_ID_${role.toUpperCase()}`;
+        const row    = ((data || []) as Record<string, unknown>[]).find(r => r.key === dbKey);
+        ids[role]    = row ? String(row.value || '') : '';
+      }
 
-      return jsonResponse({ ok: true, members });
+      const hasToken = !!LINE_TOKEN;
+      return jsonResponse({ ok: true, ids, hasToken });
     }
 
     // ── GET: simpler LINE members list (any auth) ─────────────
+    // Returns both an array (list) and a name-keyed map (members) for S.lineMembers[name] lookups
     case 'getLineMembers': {
       const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
@@ -123,7 +126,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         .select('line_user_id, members(name, nickname, mentor_team)');
       if (error) return errResponse(error.message);
 
-      const members = ((data || []) as Record<string, unknown>[]).map(row => {
+      const list = ((data || []) as Record<string, unknown>[]).map(row => {
         const m = (row.members || {}) as Record<string, unknown>;
         return {
           lineUserId: String(row.line_user_id || ''),
@@ -133,7 +136,11 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         };
       });
 
-      return jsonResponse({ ok: true, members });
+      // Build name-keyed map so frontend can do S.lineMembers[member.name]
+      const members: Record<string, unknown> = {};
+      for (const item of list) members[item.name] = item;
+
+      return jsonResponse({ ok: true, members, list });
     }
 
     // ── GET: LINE members with dashboard scores (MC only) ──────

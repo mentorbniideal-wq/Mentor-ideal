@@ -158,24 +158,32 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
       return jsonResponse({ ok: true });
     }
 
-    // ── Set PT Member Status (update power_teams record) ─────────
+    // ── Set PT Member Status (active / departed) ─────────────────
+    // Frontend sends { nick, status } where status is 'active' or 'departed'.
+    // 'departed' maps to is_archived=true; 'active' maps to is_archived=false.
     case 'setPTMemberStatus': {
       const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const memberId = String(p.memberId || '');
-      const status   = String(p.status || 'active');
+      const nick   = String(p.nick || p.name || p.memberName || '').trim();
+      const status = String(p.status || 'active');
 
-      if (!memberId) return errResponse('memberId required');
+      if (!nick) return errResponse('nick required');
 
-      // Update all pairs involving this member
-      const { error: e1 } = await db.from('power_teams')
-        .update({ status }).eq('member_a_id', memberId);
-      const { error: e2 } = await db.from('power_teams')
-        .update({ status }).eq('member_b_id', memberId);
+      // Look up member by nickname or name
+      let memberId = '';
+      const { data: byNick } = await db.from('members').select('id').eq('nickname', nick).maybeSingle();
+      if (byNick) {
+        memberId = String((byNick as Record<string, unknown>).id);
+      } else {
+        const { data: byName } = await db.from('members').select('id').eq('name', nick).maybeSingle();
+        if (byName) memberId = String((byName as Record<string, unknown>).id);
+      }
+      if (!memberId) return errResponse(`ไม่พบสมาชิก: ${nick}`);
 
-      if (e1) return errResponse(e1.message);
-      if (e2) return errResponse(e2.message);
+      const isArchived = status === 'departed';
+      const { error } = await db.from('members').update({ is_archived: isArchived }).eq('id', memberId);
+      if (error) return errResponse(error.message);
 
       return jsonResponse({ ok: true });
     }
@@ -189,21 +197,30 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
     }
 
     // ── Move PT Member to different mentor team ──────────────────
+    // movePTMember: frontend sends { nick, newTeam }
+    // moveSynMember: frontend sends { name, nick, newTeamId }
     case 'movePTMember':
     case 'moveSynMember': {
       const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const memberName = String(p.memberName || '').trim();
-      const newTeam    = String(p.newTeam || '').trim();
+      const memberIdent = String(p.memberName || p.name || p.nick || '').trim();
+      // moveSynMember sends newTeamId (= team name string); movePTMember sends newTeam
+      const newTeam = String(p.newTeam || p.newTeamId || '').trim();
 
-      if (!memberName) return errResponse('memberName required');
-      if (!newTeam)    return errResponse('newTeam required');
+      if (!memberIdent) return errResponse('memberName/name/nick required');
+      if (!newTeam)     return errResponse('newTeam required');
 
-      // Look up member by name
-      const { data: member } = await db.from('members').select('id').eq('name', memberName).single();
-      if (!member) return errResponse(`ไม่พบสมาชิก: ${memberName}`);
-      const memberId = String((member as Record<string, unknown>).id);
+      // Look up member by name first, then by nickname
+      let memberId = '';
+      const { data: byName } = await db.from('members').select('id').eq('name', memberIdent).maybeSingle();
+      if (byName) {
+        memberId = String((byName as Record<string, unknown>).id);
+      } else {
+        const { data: byNick } = await db.from('members').select('id').eq('nickname', memberIdent).maybeSingle();
+        if (byNick) memberId = String((byNick as Record<string, unknown>).id);
+      }
+      if (!memberId) return errResponse(`ไม่พบสมาชิก: ${memberIdent}`);
 
       // Use atomic team-move function
       const { data, error } = await db.rpc('fn_move_member_team', {
@@ -228,7 +245,7 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
       // Saved pairs from cross_team_synergy
       const { data: savedRows, error } = await db
         .from('cross_team_synergy')
-        .select('id, member_a_id, member_b_id, notes, created_at')
+        .select('id, member_a_id, member_b_id, status, notes, created_at')
         .order('created_at', { ascending: false });
       if (error) return errResponse(error.message);
 
@@ -258,94 +275,124 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
         }
       }
 
-      const saved = pairRows.map(r => {
+      // Build savedPairs in flat format expected by both frontends
+      const savedPairs = pairRows.map(r => {
         const a = memberDataMap[String(r.member_a_id)] || { name: '', nick: '', team: '', score: 0 };
         const b = memberDataMap[String(r.member_b_id)] || { name: '', nick: '', team: '', score: 0 };
         return {
-          id: r.id,
-          memberA: { id: r.member_a_id, name: a.name, nick: a.nick, team: a.team, score: a.score },
-          memberB: { id: r.member_b_id, name: b.name, nick: b.nick, team: b.team, score: b.score },
-          notes: r.notes,
-          createdAt: r.created_at,
+          row:    r.id,                                        // UUID used as row key for update/delete
+          id:     r.id,
+          nick1:  a.nick || a.name,
+          nick2:  b.nick || b.name,
+          team1:  a.team,
+          team2:  b.team,
+          status: r.status ? String(r.status) : 'pending',   // requires status column in DB
+          notes:  r.notes,
         };
       });
 
+      // Build a set of already-saved nick pairs for isSaved check
+      const savedSet = new Set(savedPairs.map(p => [p.nick1, p.nick2].sort().join('||')));
+
       // Suggested cross-team pairs: members from different teams with complementary scores
-      // Heuristic: pair a lower-score member with a higher-score member from another team
       const { data: allMems } = await db
         .from('v_member_dashboard')
         .select('id, name, nickname, mentor_team, display_score, traffic_light')
         .eq('is_archived', false);
 
-      const suggested: {
+      const recommendations: {
         nick1: string; nick2: string; team1: string; team2: string;
-        score: number; reasons: string[];
+        score: number; reasons: string[]; isSaved: boolean;
       }[] = [];
 
       const allMArr = ((allMems || []) as Record<string, unknown>[]).filter(
         m => Number(m.display_score) > 0
       );
 
-      // Find cross-team pairs where scores are complementary
-      for (let i = 0; i < allMArr.length && suggested.length < 10; i++) {
-        const ma   = allMArr[i];
+      for (let i = 0; i < allMArr.length && recommendations.length < 20; i++) {
+        const ma    = allMArr[i];
         const teamA = String(ma.mentor_team || '');
         const scoreA = Number(ma.display_score) || 0;
         if (!teamA) continue;
 
-        for (let j = i + 1; j < allMArr.length && suggested.length < 10; j++) {
+        for (let j = i + 1; j < allMArr.length && recommendations.length < 20; j++) {
           const mb    = allMArr[j];
           const teamB = String(mb.mentor_team || '');
           const scoreB = Number(mb.display_score) || 0;
           if (!teamB || teamA === teamB) continue;
 
           const scoreDiff = Math.abs(scoreA - scoreB);
-          if (scoreDiff < 20 || scoreDiff > 50) continue; // want meaningful but not extreme gap
+          if (scoreDiff < 20 || scoreDiff > 50) continue;
 
+          const n1 = String(ma.nickname || ma.name);
+          const n2 = String(mb.nickname || mb.name);
           const reasons: string[] = [];
-          if (scoreA >= 70 && scoreB < 50) reasons.push(`${String(ma.nickname || ma.name)} (${teamA}) สามารถช่วย ${String(mb.nickname || mb.name)} (${teamB}) เพิ่มคะแนน`);
-          else if (scoreB >= 70 && scoreA < 50) reasons.push(`${String(mb.nickname || mb.name)} (${teamB}) สามารถช่วย ${String(ma.nickname || ma.name)} (${teamA}) เพิ่มคะแนน`);
+          if (scoreA >= 70 && scoreB < 50) reasons.push(`${n1} (${teamA}) สามารถช่วย ${n2} (${teamB}) เพิ่มคะแนน`);
+          else if (scoreB >= 70 && scoreA < 50) reasons.push(`${n2} (${teamB}) สามารถช่วย ${n1} (${teamA}) เพิ่มคะแนน`);
           else reasons.push('คะแนนต่างกัน — โอกาสเรียนรู้จากกัน');
 
-          const combinedScore = scoreA + scoreB;
-          suggested.push({
-            nick1: String(ma.nickname || ma.name),
-            nick2: String(mb.nickname || mb.name),
-            team1: teamA, team2: teamB,
-            score: combinedScore,
-            reasons,
-          });
+          const isSaved = savedSet.has([n1, n2].sort().join('||'));
+          recommendations.push({ nick1: n1, nick2: n2, team1: teamA, team2: teamB, score: scoreA + scoreB, reasons, isSaved });
         }
       }
 
-      suggested.sort((a, b) => b.score - a.score);
+      recommendations.sort((a, b) => b.score - a.score);
 
-      return jsonResponse({ ok: true, saved, suggested: suggested.slice(0, 8) });
+      return jsonResponse({ ok: true, savedPairs, recommendations: recommendations.slice(0, 15) });
     }
 
-    // ── Save Cross-Team Pair ─────────────────────────────────────
+    // ── Save / Update / Delete Cross-Team Pair ───────────────────
     case 'saveCrossTeamPair': {
       const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const memberAName = String(p.memberAName || '').trim();
-      const memberBName = String(p.memberBName || '').trim();
-      const notes       = p.notes ? String(p.notes).trim() : null;
+      const rowId = p.row ? String(p.row).trim() : null;
 
-      if (!memberAName || !memberBName) return errResponse('memberAName and memberBName required');
-      if (memberAName === memberBName) return errResponse('Cannot pair a member with themselves');
+      // Handle status update
+      if (p.field === 'status' && rowId) {
+        const validStatuses = ['pending', 'in-progress', 'done', 'cancelled'];
+        const newStatus = validStatuses.includes(String(p.value)) ? String(p.value) : 'pending';
+        const { error } = await db.from('cross_team_synergy')
+          .update({ status: newStatus })
+          .eq('id', rowId);
+        if (error) return errResponse(error.message);
+        return jsonResponse({ ok: true });
+      }
 
-      // Look up both member IDs
-      const { data: memA } = await db.from('members').select('id').eq('name', memberAName).single();
-      const { data: memB } = await db.from('members').select('id').eq('name', memberBName).single();
+      // Handle delete
+      if (p.field === 'delete' && rowId) {
+        const { error } = await db.from('cross_team_synergy').delete().eq('id', rowId);
+        if (error) return errResponse(error.message);
+        return jsonResponse({ ok: true });
+      }
 
-      if (!memA) return errResponse(`ไม่พบสมาชิก: ${memberAName}`);
-      if (!memB) return errResponse(`ไม่พบสมาชิก: ${memberBName}`);
+      // Handle creation: accept nick1/nick2, name1/name2, or memberAName/memberBName
+      const rawA = String(p.memberAName || p.name1 || p.nick1 || '').trim();
+      const rawB = String(p.memberBName || p.name2 || p.nick2 || '').trim();
+      const notes = p.notes ? String(p.notes).trim() : null;
+
+      if (!rawA || !rawB) return errResponse('member names required');
+      if (rawA === rawB) return errResponse('Cannot pair a member with themselves');
+
+      // Look up by exact name first, then by nickname
+      const lookupMember = async (nameOrNick: string) => {
+        const { data: byName } = await db.from('members').select('id').eq('name', nameOrNick).maybeSingle();
+        if (byName) return byName;
+        const { data: byNick } = await db.from('members').select('id').ilike('nickname', nameOrNick).maybeSingle();
+        return byNick;
+      };
+
+      const memA = await lookupMember(rawA);
+      const memB = await lookupMember(rawB);
+
+      if (!memA) return errResponse(`ไม่พบสมาชิก: ${rawA}`);
+      if (!memB) return errResponse(`ไม่พบสมาชิก: ${rawB}`);
 
       const idA = String((memA as Record<string, unknown>).id);
       const idB = String((memB as Record<string, unknown>).id);
 
-      // Ensure canonical order: a_id < b_id (required by CHECK constraint)
+      if (idA === idB) return errResponse('Cannot pair a member with themselves');
+
       const [aId, bId] = idA < idB ? [idA, idB] : [idB, idA];
 
       const { error } = await db.from('cross_team_synergy').upsert({
@@ -356,6 +403,28 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
       if (error) return errResponse(error.message);
 
       return jsonResponse({ ok: true });
+    }
+
+    // ── Growth Power Teams overview ──────────────────────────────
+    case 'getGrowthPowerTeams': {
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const { teams, error } = await fetchTeamGroups(db);
+      if (error || !teams) return errResponse(error || 'Failed to fetch teams');
+
+      // Compute chapter-level summary
+      let activeTotal = 0, departedTotal = 0, scoreSum = 0, scoredCount = 0;
+      for (const t of teams) {
+        const count = Number(t.count) || 0;
+        const avgScore = Number(t.avgScore) || 0;
+        activeTotal   += count;
+        scoreSum      += avgScore * count;
+        scoredCount   += count;
+      }
+      const overallPct = scoredCount > 0 ? Math.round(scoreSum / scoredCount) : 0;
+
+      return jsonResponse({ ok: true, teams, summary: { overallPct, activeTotal, departedTotal } });
     }
 
     default:

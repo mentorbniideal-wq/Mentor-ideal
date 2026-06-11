@@ -46,12 +46,23 @@ export async function handleRenewal(p: Record<string, unknown>): Promise<Respons
       if (!auth.ok) return errResponse(auth.error!);
 
       const memberName = String(p.memberName || p.name || '').trim();
-      const newExpiry  = String(p.newExpiry || p.expiry || '').trim();
-      if (!memberName || !newExpiry) return errResponse('memberName and newExpiry required');
+      if (!memberName) return errResponse('memberName required');
 
       const { data: member } = await db.from('members').select('id').eq('name', memberName).single();
       if (!member) return errResponse(`ไม่พบสมาชิก: ${memberName}`);
       const memberId = String((member as Record<string, unknown>).id);
+
+      // If newExpiry not provided, extend current expiry by 1 year (or from today if no record)
+      let newExpiry = String(p.newExpiry || p.expiry || '').trim();
+      if (!newExpiry) {
+        const { data: existing } = await db.from('renewals').select('expiry_date').eq('member_id', memberId).maybeSingle();
+        const baseDate = existing
+          ? new Date(String((existing as Record<string, unknown>).expiry_date))
+          : new Date();
+        if (isNaN(baseDate.getTime())) baseDate.setTime(Date.now());
+        baseDate.setFullYear(baseDate.getFullYear() + 1);
+        newExpiry = baseDate.toISOString().split('T')[0];
+      }
 
       const { error } = await db.from('renewals').upsert({
         member_id:   memberId,
@@ -60,7 +71,7 @@ export async function handleRenewal(p: Record<string, unknown>): Promise<Respons
         notes: String(p.notes || ''),
       }, { onConflict: 'member_id' });
       if (error) return errResponse(error.message);
-      return jsonResponse({ ok: true });
+      return jsonResponse({ ok: true, newExpiry, newExpStr: newExpiry });
     }
 
     default:

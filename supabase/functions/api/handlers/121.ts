@@ -169,7 +169,7 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
           scheduled_date,
           created_at,
           initiator:members!one_to_one_logs_initiator_id_fkey(name, nickname, mentor_team),
-          partner:members!one_to_one_logs_partner_id_fkey(name, nickname)
+          partner:members!one_to_one_logs_partner_id_fkey(name, nickname, mentor_team)
         `)
         .order('created_at', { ascending: false })
         .limit(500);
@@ -177,31 +177,38 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
 
       const rows = (data || []) as Array<Record<string, unknown>>;
 
-      let met     = 0;
-      let pending = 0;
-      let gotRef  = 0;
+      let metCount  = 0;
+      let pending   = 0;
+      let gotRef    = 0;
 
       const list = rows.map((row) => {
-        const hasMet    = !!row.met_at;
+        const hasMet     = !!row.met_at;
         const outcomeStr = String(row.outcome || '');
-        const hasRef    = /ref/i.test(outcomeStr);
+        const hasRef     = /ref/i.test(outcomeStr) || outcomeStr === 'ได้ Referral';
 
-        if (hasMet) met++;  else pending++;
+        if (hasMet) metCount++; else pending++;
         if (hasRef) gotRef++;
 
         const initiator = row.initiator as Record<string, unknown> | null;
         const partner   = row.partner   as Record<string, unknown> | null;
 
+        const dateStr = String(row.met_at || row.created_at || '');
+        const statusThai = hasMet ? 'เจอแล้ว' : 'นัดแล้ว';
+
         return {
-          id:            row.id,
-          member:        String(initiator?.name        || ''),
-          partner:       String(partner?.name          || ''),
-          team:          String(initiator?.mentor_team || ''),
-          note:          String(row.notes              || ''),
-          nextStep:      outcomeStr,
+          id:          row.id,
+          name:        String(initiator?.name     || ''),
+          nick:        String(initiator?.nickname || initiator?.name || ''),
+          partner:     String(partner?.name       || ''),
+          partnerTeam: String(partner?.mentor_team || ''),
+          team:        String(initiator?.mentor_team || ''),
+          note:        String(row.notes           || ''),
+          outcome:     outcomeStr,
+          status:      statusThai,
+          date:        dateStr,
+          loggedAt:    dateStr,
           scheduledDate: row.scheduled_date ?? null,
-          loggedAt:      String(row.met_at             || row.created_at || ''),
-          met:           hasMet,
+          met:         hasMet,
         };
       });
 
@@ -211,7 +218,7 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
       return jsonResponse({
         ok: true,
         list,
-        stats: { total, met, pending, gotRef, convRate },
+        stats: { total, met: metCount, pending, gotRef, convRate },
       });
     }
 

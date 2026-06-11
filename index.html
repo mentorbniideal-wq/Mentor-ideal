@@ -392,6 +392,8 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
   margin-top:.75rem;transition:all .15s;
 }
 .btn-notif-ack:active{transform:scale(.98);}
+.notif-ack-btn{flex-shrink:0;background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:6px;color:var(--gray2);font-size:.62rem;padding:3px 8px;cursor:pointer;align-self:flex-start;margin-left:auto;font-family:'Sarabun',sans-serif;white-space:nowrap;}
+.notif-ack-btn:active{background:rgba(255,255,255,.15);}
 .notif-empty{
   text-align:center;padding:1.5rem;
   color:var(--gray2);font-size:.82rem;
@@ -850,6 +852,13 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
 .dpp-btn-info{flex:1;min-width:0;}
 .dpp-btn-label{font-size:.9rem;font-weight:600;}
 .dpp-btn-sub{font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.dpp-sec-title{font-size:.68rem;font-weight:700;color:var(--gray2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.4rem;}
+.dpp-palms{background:var(--card);border-radius:12px;padding:12px 14px;margin-bottom:12px;border:1px solid var(--border);}
+.dpp-cat-row{display:flex;align-items:center;gap:.4rem;margin-bottom:.35rem;}
+.dpp-cat-bar{width:52px;height:6px;background:var(--bg3);border-radius:4px;overflow:hidden;flex-shrink:0;}
+.dpp-ft{background:rgba(240,180,41,.07);border-radius:12px;padding:12px 14px;margin-bottom:12px;border:1px solid rgba(240,180,41,.2);}
+.dpp-ft-row{font-size:.8rem;padding:.3rem 0;border-bottom:1px solid rgba(255,255,255,.05);}
+.dpp-ft-row:last-child{border-bottom:none;}
 .dir-entry-sub{font-size:11px;color:var(--muted);margin-top:2px;}
 
 /* ── Power Team Revenue View ── */
@@ -1891,6 +1900,25 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--white);mi
   <div class="dp-content" id="dp-content"><div class="lt">⏳ กำลังโหลด...</div></div>
 </div>
 
+<!-- ── LINE Compose Modal ── -->
+<div id="lineModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:500;align-items:flex-end;justify-content:center;font-family:Sarabun,sans-serif;" onclick="if(event.target===this)closeLineModal()">
+  <div style="background:var(--bg);width:100%;max-width:520px;border-radius:1rem 1rem 0 0;padding:1rem;box-sizing:border-box;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;">
+      <span id="line-modal-title" style="font-weight:700;font-size:.95rem;color:var(--text);">📲 ส่ง LINE</span>
+      <button onclick="closeLineModal()" style="background:none;border:none;color:var(--gray2);font-size:1.2rem;cursor:pointer;line-height:1;">✕</button>
+    </div>
+    <div id="line-broadcast-info" style="display:none;margin-bottom:.5rem;padding:.35rem .6rem;background:rgba(6,199,85,.08);border:1px solid rgba(6,199,85,.2);border-radius:.5rem;font-size:.72rem;color:#06C755;">
+      📢 Broadcast ไปยัง mentee ทั้งทีมที่ลงทะเบียน LINE Bot แล้ว
+    </div>
+    <div style="margin-bottom:.6rem;display:flex;flex-wrap:wrap;gap:.35rem;" id="line-tpls"></div>
+    <textarea id="line-msg-txt" rows="5" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:.5rem;color:var(--text);padding:.6rem;font-size:.85rem;resize:none;box-sizing:border-box;font-family:Sarabun,sans-serif;" placeholder="พิมพ์ข้อความ..."></textarea>
+    <div style="display:flex;gap:.5rem;margin-top:.5rem;">
+      <button onclick="closeLineModal()" style="flex:1;padding:.55rem;background:var(--bg2);border:1px solid var(--border);border-radius:.5rem;color:var(--gray2);cursor:pointer;font-family:Sarabun,sans-serif;">ยกเลิก</button>
+      <button onclick="doSendLine()" style="flex:2;padding:.55rem;background:#06C755;border:none;border-radius:.5rem;color:#fff;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif;" id="line-send-btn">📤 ส่ง LINE</button>
+    </div>
+  </div>
+</div>
+
 <div class="detail-panel" id="talkPanel">
   <div class="dp-hdr">
     <button class="dp-back" onclick="closeTalk()">←</button>
@@ -1966,13 +1994,13 @@ function memberRow(m,clickFn){
 
 function mentorMemberRow(m,clickFn){
   var name=m.name||'';var nick=m.nick||'';
-  var score=m.bniScore||m.latest||0;
-  var tl=m.bniTl||m.tl||'none';
+  var score=Math.max(m.latest||0,m.bniScore||0)||0;
+  var tl=m.tl||m.bniTl||'none';
   // Last Mentor Contact badge
   var contactBadge='';
   if(m.noMentorContact){
     var days=m.mentorContactDays;
-    var label=days===null?'ยังไม่มี Log':'นาน '+days+' วันแล้ว';
+    var label=(days===null||days===undefined)?'ยังไม่มี Log':'นาน '+days+' วันแล้ว';
     contactBadge='<span style="font-size:.62rem;font-weight:700;color:#F59E0B;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.25);border-radius:99px;padding:1px 6px;flex-shrink:0;">📆 '+label+'</span>';
   }
   var initials=nick?nick.slice(0,2):name.slice(0,2);
@@ -1998,7 +2026,7 @@ function mentorMemberRow(m,clickFn){
     +'</div>'
     +'<div style="text-align:right">'
       +'<div class="msc" style="color:'+scoreColor+'">'+scoreDisp+'</div>'
-      +'<div class="mt">'+(m.trend||'')+'</div>'
+      +(function(){var sc2=m.scores?m.scores.filter(function(s){return s.score&&s.score>0;}):[];var avg=sc2.length?Math.round(sc2.reduce(function(a,s){return a+s.score;},0)/sc2.length):0;return avg>0?'<div class="mt" style="color:var(--gray2)">avg '+avg+'</div>':'';}())
     +'</div>'
     +'<div class="tld" style="background:'+tlc(tl)+'"></div>'
     +'</div>';
@@ -2050,6 +2078,7 @@ function enterApp(r){
     loadGrowthTasksForMentor();
     loadMyTeam();
   }
+  loadLineMembers();
 }
 function logout(){
   S={role:null,isMC:false,teamName:null,displayName:null,pin:'',pending:null,allMembers:[],teamMembers:[],curFilter:'all',curMFilter:'all',curMentorFilter:'all',curSort:'score-desc'};
@@ -2298,7 +2327,7 @@ function loadMentorActivity(){
         rpt='<span class="ma-err">ยังไม่มีรายงานเลย</span>';
       } else if(t.daysSince===0){
         rpt='<span class="ma-ok">รายงานวันนี้</span>';
-      } else if(t.daysSince!==null){
+      } else if(t.daysSince!=null){
         var cls=t.daysSince<=7?'ma-ok':t.daysSince<=14?'ma-warn':'ma-err';
         rpt='<span class="'+cls+'">รายงาน '+t.daysSince+' วันที่แล้ว</span>';
       }
@@ -2783,16 +2812,16 @@ function _buildMentorSummary(members,teamName){
   var tl={green:0,yellow:0,red:0,black:0,none:0};
   var totScore=0,scoreCt=0,totAbsent=0;
   members.forEach(function(m){
-    var effTl=m.bniTl||m.tl||'none';
+    var effTl=m.tl||m.bniTl||'none';
     tl[effTl]=(tl[effTl]||0)+1;
-    var effScore=m.bniScore||m.latest||0;
+    var effScore=Math.max(m.latest||0,m.bniScore||0)||0;
     if(effScore){totScore+=effScore;scoreCt++;}
     totAbsent+=m.absent||0;
   });
   var avg=scoreCt?Math.round(totScore/scoreCt):0;
 
   // Members needing attention (red/black)
-  var urgent=members.filter(function(m){var t=m.bniTl||m.tl;return t==='red'||t==='black'||m.absent>4;});
+  var urgent=members.filter(function(m){var t=m.tl||m.bniTl;return t==='red'||t==='black'||m.absent>4;});
 
   // Members with core issues recorded
   var hasCoreIssue=members.filter(function(m){return m.core&&m.core.trim();});
@@ -2841,7 +2870,7 @@ function _buildMentorSummary(members,teamName){
         else if(typeof parsed==='object'&&parsed){coreTxt=' — '+String(parsed.coreIssue||'').substring(0,30);}
         else{coreTxt=' — '+String(m.core).substring(0,30);}
       }
-      lines.push(tlEmoji+' '+(m.nick||m.name.split(' ')[0])+' ('+(m.bniScore||m.latest||0)+'pts)'+absTxt+coreTxt);
+      lines.push(tlEmoji+' '+(m.nick||m.name.split(' ')[0])+' ('+(Math.max(m.latest||0,m.bniScore||0)||0)+'pts)'+absTxt+coreTxt);
     });
     lines.push('');
   }
@@ -2882,15 +2911,15 @@ function renderMembers(){
   var sqEl=document.getElementById('mc-search');
   var sq=sqEl?(sqEl.value||'').trim().toLowerCase():'';
   var list=S.allMembers.filter(function(m){
-    var effTl=m.bniTl||m.tl||'none';
+    var effTl=m.tl||m.bniTl||'none';
     var tlOk=(f==='all')||(f==='alert'?(effTl==='black'||(m.absent>4&&effTl!=='none')):(effTl===f));
     var mentorOk=(mf==='all')||(m.mentor===mf);
     var srchOk=!sq||(m.name||'').toLowerCase().indexOf(sq)>=0||(m.nick||'').toLowerCase().indexOf(sq)>=0;
     return tlOk&&mentorOk&&srchOk;
   });
   list=list.slice().sort(function(a,b){
-    var aS=a.bniScore||a.latest||a.score||0;
-    var bS=b.bniScore||b.latest||b.score||0;
+    var aS=Math.max(a.latest||0,a.bniScore||0)||a.score||0;
+    var bS=Math.max(b.latest||0,b.bniScore||0)||b.score||0;
     if(so==='score-asc')return aS-bS;
     if(so==='name')return(a.name||'').localeCompare(b.name||'');
     if(so==='absent')return(b.absent||0)-(a.absent||0);
@@ -2961,7 +2990,7 @@ function loadMyTeam(){
 function renderMentorMembers(){
   var f=S.curMFilter;
   var list=S.teamMembers.filter(function(m){
-    var effTl=m.bniTl||m.tl||'none';
+    var effTl=m.tl||m.bniTl||'none';
     if(f==='all')return true;
     if(f==='absent')return (m.absent||0)>0;
     if(f==='none')return effTl==='none';
@@ -2974,9 +3003,9 @@ function renderMentorMembers(){
   var tlCount={green:0,yellow:0,red:0,black:0,none:0};
   var totScore=0,scoreCt=0,abCount=0;
   all.forEach(function(m){
-    var effTl=m.bniTl||m.tl||'none';
+    var effTl=m.tl||m.bniTl||'none';
     tlCount[effTl]=(tlCount[effTl]||0)+1;
-    var effScore=m.bniScore||m.latest||0;
+    var effScore=Math.max(m.latest||0,m.bniScore||0)||0;
     if(effTl!=='none'&&effScore){totScore+=effScore;scoreCt++;}
     abCount+=m.absent||0;
   });
@@ -2991,7 +3020,10 @@ function renderMentorMembers(){
     +(tlCount.none>0?'<div class="th-stat"><div class="th-num" style="color:#A78BFA;">'+tlCount.none+'</div><div class="th-lbl">⭐ ใหม่</div></div>':'')
     +(abCount>0?'<div class="th-stat"><div class="th-num" style="color:#EF4444">'+abCount+'</div><div class="th-lbl">ขาด</div></div>':'')
     +'</div>';
-  html+='<div class="card" style="background:rgba(240,180,41,.08);border-color:rgba(240,180,41,.2);margin-bottom:.5rem;"><div style="font-size:.78rem;color:var(--gold);">📋 ส่งรายงาน Line ตูมตามก่อน 18:00 วันพฤหัส</div></div>';
+  html+='<div class="card" style="background:rgba(240,180,41,.08);border-color:rgba(240,180,41,.2);margin-bottom:.5rem;display:flex;align-items:center;justify-content:space-between;gap:.5rem;">'
+      +'<div style="font-size:.78rem;color:var(--gold);">📋 ส่งรายงาน Line ตูมตามก่อน 18:00 วันพฤหัส</div>'
+      +'<button onclick="openLineBroadcast(\''+((S.teamName)||'').replace(/'/g,"\\'")+'\');" style="flex-shrink:0;padding:.25rem .6rem;background:rgba(6,199,85,.15);border:1px solid rgba(6,199,85,.3);border-radius:.4rem;color:#06C755;font-size:.7rem;cursor:pointer;font-family:Sarabun,sans-serif;">📢 LINE ทีม</button>'
+      +'</div>';
   list.forEach(function(m){
     html+=mentorMemberRow(m,"openDetail('"+m.name.replace(/'/g,"\\'")+"')");
     if(m.mcMsg)html+=
@@ -3042,6 +3074,10 @@ function buildDetail(d){
     }else if(S._detailRow===null){
       actBtns+='<button class="action-btn" style="background:rgba(240,180,41,.15);border:1px solid rgba(240,180,41,.3);color:var(--gold);" onclick="promoteToActive(\''+d.name.replace(/'/g,"\\'")+'\',\''+S._detailNick.replace(/'/g,"\\'")+'\');closeDetail();">🏆 Promote to Active</button>';
     }
+  }
+  if(S.lineMembers&&S.lineMembers[d.name]){
+    var _safen=d.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'"),_safenk=(d.nick||d.name.split(' ')[0]).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    actBtns+='<button class="action-btn" style="background:rgba(6,199,85,.12);border:1px solid rgba(6,199,85,.3);color:#06C755;" onclick="openLineCompose(\''+_safen+'\',\''+_safenk+'\')">📲 LINE</button>';
   }
   if(S.isMC){
     actBtns+='<button class="action-btn" style="background:rgba(108,99,255,.15);border:1px solid rgba(108,99,255,.3);color:#a78bfa;" onclick="openTalk(\'mc\')">💬 MC TALK</button>';
@@ -3186,7 +3222,7 @@ function buildDetail(d){
     +'<div class="hero-name">'+escHtml(d.name)+' ('+escHtml(d.nick)+')</div>'
     +'<div class="hero-meta">'+escHtml(d.mentor)+' · '+d.actual.bniDays+' วันใน BNI · '+d.weeks+' สัปดาห์</div>'
     +'<div class="hero-row"><div class="hero-score" style="color:'+sc(score)+'">'+score+'</div>'
-    +'<div><div style="font-size:1rem;">'+(score>=70?'🟢 เขียว':score>=50?'🟡 เหลือง':score>=30?'🔴 แดง':'⚫ ดำ')+'</div>'
+    +'<div><div style="font-size:1rem;">'+(score>=70?'🟢 เขียว':score>=40?'🟡 เหลือง':score>=25?'🔴 แดง':'⚫ ดำ')+'</div>'
     +'<div style="font-size:.72rem;color:var(--gray2);">Balance: '+escHtml(d.balance)+'</div></div></div>'
     +'<div class="attend-pill" style="background:'+attendBg+';color:'+attendC+'">'+attendTxt+'</div>'
     +renewalBadge+'</div>';
@@ -5693,11 +5729,11 @@ function _ssTlLabel(tl){return tl==='green'?'🟢 Green':tl==='yellow'?'🟡 Yel
 function _ssCalc(a){
   var d=a.bniDays||1,ew=Math.max(1,Math.min(Math.floor(d/7),26));
   function scAb(x){return x===0?15:x===1?10:x===2?5:0;}
-  function scRf(x){var r=x/ew;return r>=1.7?15:r>=0.9?10:r>=0.44?5:0;}
+  function scRf(x){var r=x/ew;return r>=2?15:r>=1?10:0;}
   function scTy(x){var r=x/ew;return r>=15000?15:r>=5000?10:r>=1500?5:0;}
   function scVi(x){return x>=4?20:x>=1?10:0;}
-  function sc12(x){var r=x/ew;return r>=1.7?15:r>=0.9?10:r>=0.44?5:0;}
-  function scCe(x){var r=x/ew;return r>=0.15?20:r>=0.08?10:r>=0.04?5:0;}
+  function sc12(x){var r=x/ew;return r>=2?15:r>=1?10:r>0?5:0;}
+  function scCe(x){return x>=4?20:x>=3?15:x>=2?10:x>=1?5:0;}
   var s={absent:scAb(a.absent||0),ref:scRf(a.rg||0),tyfcb:scTy(a.tyfcb||0),visitor:scVi(a.visitor||0),one21:sc12(a.oToOne||0),training:scCe(a.ceu||0)};
   s.total=s.absent+s.ref+s.tyfcb+s.visitor+s.one21+s.training;
   s.tl=s.total>=70?'green':s.total>=50?'yellow':s.total>=30?'red':'blue';
@@ -5926,35 +5962,84 @@ function buildDirCard(m) {
     +'</div></div>';
 }
 function openDirProfile(name) {
-  var m = null;
-  for (var i=0;i<DIR.members.length;i++){if(DIR.members[i].name===name){m=DIR.members[i];break;}}
-  if (!m) return;
-  var bg=avbg(m.tl), bc=tlc(m.tl);
-  var tlFull={green:'🟢 เขียว',yellow:'🟡 เหลือง',red:'🔴 แดง',black:'⚫ ดำ',none:'—'}[m.tl]||'—';
-  document.getElementById('dpp-name').textContent = m.name+(m.nick?' ('+m.nick+')':'');
-  document.getElementById('dpp-content').innerHTML =
-    '<div class="dpp-hero">'
-    +'<div class="dpp-badge" style="background:'+bg+';border:2px solid '+bc+';">'
-    +'<div style="font-size:1.8rem;font-weight:800;color:'+bc+';line-height:1;">'+(m.score||'—')+'</div>'
-    +'<div style="font-size:.75rem;margin-top:3px;">'+tlFull+'</div>'
-    +'</div>'
-    +'<div>'
-    +'<div class="dpp-iname">'+escHtml(m.name)+'</div>'
-    +(m.nick?'<div class="dpp-nick">('+escHtml(m.nick)+')</div>':'')
-    +(m.mentor?'<div class="dpp-mentor">👥 '+escHtml(m.mentor)+'</div>':'')
-    +'</div></div>'
-    +'<div class="dpp-actions">'
-    +(m.phone?'<a class="dpp-btn call" href="tel:'+escHtml(m.phone)+'" target="_top">'
-      +'<div class="dpp-btn-icon">📞</div>'
-      +'<div class="dpp-btn-info"><div class="dpp-btn-label">โทรหา</div><div class="dpp-btn-sub">'+escHtml(m.phone)+'</div></div>'
-      +'</a>':'')
-    +(m.email?'<a class="dpp-btn email" href="mailto:'+escHtml(m.email)+'" target="_top">'
-      +'<div class="dpp-btn-icon">✉️</div>'
-      +'<div class="dpp-btn-info"><div class="dpp-btn-label">ส่งอีเมล</div><div class="dpp-btn-sub">'+escHtml(m.email)+'</div></div>'
-      +'</a>':'')
-    +((!m.phone&&!m.email)?'<div style="color:var(--muted);font-size:.85rem;text-align:center;padding:1rem;">ไม่มีข้อมูลติดต่อในระบบ</div>':'')
-    +'</div>';
+  var m=null;
+  for(var i=0;i<DIR.members.length;i++){if(DIR.members[i].name===name){m=DIR.members[i];break;}}
+  if(!m)return;
+  document.getElementById('dpp-name').textContent=m.name+(m.nick?' ('+m.nick+')':'');
+  document.getElementById('dpp-content').innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
   document.getElementById('dirProfilePanel').classList.add('on');
+
+  function renderDetail(dm){
+    var tl=(dm&&dm.bniTl)||m.tl;
+    var score=(dm&&dm.bniScore)||m.score||0;
+    var bg=avbg(tl),bc=tlc(tl);
+    var tlFull={green:'🟢 เขียว',yellow:'🟡 เหลือง',red:'🔴 แดง',black:'⚫ ดำ',none:'—'}[tl]||'—';
+    var html='<div class="dpp-hero">'
+      +'<div class="dpp-badge" style="background:'+bg+';border:2px solid '+bc+';">'
+      +'<div style="font-size:1.8rem;font-weight:800;color:'+bc+';line-height:1;">'+(score||'—')+'</div>'
+      +'<div style="font-size:.75rem;margin-top:3px;">'+tlFull+'</div>'
+      +'</div><div>'
+      +'<div class="dpp-iname">'+escHtml(m.name)+'</div>'
+      +(m.nick?'<div class="dpp-nick">('+escHtml(m.nick)+')</div>':'')
+      +(m.mentor?'<div class="dpp-mentor">👥 '+escHtml(m.mentor)+'</div>':'')
+      +'</div></div>';
+
+    if(dm&&dm.cats){
+      var cats=dm.cats;
+      var items=[
+        {label:'Attendance',pts:cats.absent,  max:15},
+        {label:'Referral',  pts:cats.ref,     max:15},
+        {label:'TYFB',      pts:cats.tyfcb,   max:15},
+        {label:'Visitor',   pts:cats.visitor, max:20},
+        {label:'1-2-1',     pts:cats.one21,   max:15},
+        {label:'CEU',       pts:cats.training,max:20}
+      ];
+      html+='<div class="dpp-palms"><div class="dpp-sec-title">🎯 BNI Score — '+score+'/100</div>';
+      items.forEach(function(it){
+        var done=it.pts>=it.max;
+        var col=done?'#10B981':it.pts>0?'#F59E0B':'#64748B';
+        var pct=Math.min(100,Math.round(it.pts/it.max*100));
+        html+='<div class="dpp-cat-row">'
+          +'<span style="font-size:.78rem;width:1.1rem;flex-shrink:0;">'+(done?'✅':it.pts>0?'🟡':'⚫')+'</span>'
+          +'<div style="flex:1;font-size:.8rem;">'+it.label+'</div>'
+          +'<div class="dpp-cat-bar"><div style="height:6px;border-radius:4px;background:'+col+';width:'+pct+'%"></div></div>'
+          +'<div style="font-size:.72rem;font-family:\'IBM Plex Mono\',monospace;color:'+col+';min-width:32px;text-align:right">'+it.pts+'/'+it.max+'</div>'
+          +'</div>';
+      });
+      html+='</div>';
+      if(dm.fastTrack&&dm.fastTrack.length){
+        html+='<div class="dpp-ft"><div class="dpp-sec-title">⚡ ต้องทำอะไรเพิ่ม</div>';
+        dm.fastTrack.slice(0,3).forEach(function(ft){
+          html+='<div class="dpp-ft-row">'+(ft.icon||'⚡')+' '+escHtml(ft.action||'')+' <span style="color:#10B981;font-weight:700">+'+ft.gain+' pt</span></div>';
+        });
+        html+='</div>';
+      }else if(tl==='green'){
+        html+='<div class="dpp-ft"><div class="dpp-ft-row">✅ Green Zone แล้ว! ทำต่อไปเรื่อยๆ</div></div>';
+      }
+    }
+
+    html+='<div class="dpp-actions">'
+      +(m.phone?'<a class="dpp-btn call" href="tel:'+escHtml(m.phone)+'" target="_top"><div class="dpp-btn-icon">📞</div><div class="dpp-btn-info"><div class="dpp-btn-label">โทรหา</div><div class="dpp-btn-sub">'+escHtml(m.phone)+'</div></div></a>':'')
+      +(m.email?'<a class="dpp-btn email" href="mailto:'+escHtml(m.email)+'" target="_top"><div class="dpp-btn-icon">✉️</div><div class="dpp-btn-info"><div class="dpp-btn-label">ส่งอีเมล</div><div class="dpp-btn-sub">'+escHtml(m.email)+'</div></div></a>':'')
+      +((!m.phone&&!m.email)?'<div style="color:var(--muted);font-size:.85rem;text-align:center;padding:1rem;">ไม่มีข้อมูลติดต่อในระบบ</div>':'')
+      +'</div>';
+    document.getElementById('dpp-content').innerHTML=html;
+  }
+
+  function findAndRender(members){
+    var dm=null;
+    for(var i=0;i<members.length;i++){if(members[i].name===name){dm=members[i];break;}}
+    renderDetail(dm);
+  }
+
+  if(_ssLoaded&&_ssMembers.length){
+    findAndRender(_ssMembers);
+  }else{
+    call('getSimulateData',{},function(err,r){
+      if(!err&&r&&r.ok){_ssMembers=r.members||[];_ssLoaded=true;}
+      findAndRender(_ssMembers);
+    });
+  }
 }
 function closeDirProfile() {
   document.getElementById('dirProfilePanel').classList.remove('on');
@@ -6234,7 +6319,7 @@ function loadAlertCenter(){
 }
 
 // ── Notification Center (MC) ─────────────────────────────────
-var NOTIF={loaded:false};
+var NOTIF={loaded:false, dismissed:{}};
 
 function openNotifPanel(){
   document.getElementById('notifPanel').classList.add('on');
@@ -6251,12 +6336,13 @@ function loadNotifPanel(){
   var done=0, alertData=null, rptData=null;
   function tryRender(){
     done++;
-    if(done<2)return;
+    if(done<3)return;
     NOTIF.loaded=true;
     renderNotifPanel(alertData,rptData);
   }
   call('getAlertCenter',{},function(err,r){ alertData=(r&&r.ok)?r:{alerts:[],total:0}; tryRender(); });
   call('getReports',{},function(err,r){ rptData=(r&&r.ok)?r:{reports:[]}; tryRender(); });
+  call('getDismissedAlerts',{},function(err,r){ if(r&&r.ok) NOTIF.dismissed=r.dismissed||{}; tryRender(); });
 }
 
 function renderNotifPanel(alertData,rptData){
@@ -6265,8 +6351,8 @@ function renderNotifPanel(alertData,rptData){
   var totalCount=0;
 
   // ── Section 1: Emergency Alerts ──────────────────────────────
-  var emergency=(alertData.alerts||[]).filter(function(a){return a.level==='emergency';});
-  var warnings=(alertData.alerts||[]).filter(function(a){return a.level==='warning';});
+  var emergency=(alertData.alerts||[]).filter(function(a){return a.level==='emergency'&&!isNotifSnoozed(a);});
+  var warnings=(alertData.alerts||[]).filter(function(a){return a.level==='warning'&&!isNotifSnoozed(a);});
   totalCount+=emergency.length+warnings.length;
 
   if(emergency.length||warnings.length){
@@ -6320,14 +6406,51 @@ function renderNotifPanel(alertData,rptData){
 
 function buildNotifItem(a){
   var scoreColor=a.tl==='green'?'var(--green)':a.tl==='yellow'?'var(--yellow)':a.tl==='red'||a.tl==='black'?'var(--red)':'var(--gray2)';
-  return '<div class="notif-item '+a.level+'">'
+  var key=(a.team||'')+'|'+(a.name||'')+'|'+(a.type||'');
+  var safeKey=key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  return '<div class="notif-item '+a.level+'" onclick="notifNavigate(\''+escHtml(a.type||'')+'\')" style="cursor:pointer;">'
     +'<div class="ni-icon">'+a.icon+'</div>'
     +'<div class="ni-body">'
       +'<div class="ni-name">'+escHtml(a.name)+(a.score?'<span style="font-size:.68rem;color:'+scoreColor+';margin-left:.3rem;">'+a.score+'</span>':'')+'</div>'
       +'<div class="ni-detail">'+escHtml(a.detail)+'</div>'
       +'<div class="ni-team">'+escHtml(a.team)+'</div>'
     +'</div>'
+    +'<button class="notif-ack-btn" onclick="event.stopPropagation();snoozeNotif(\''+safeKey+'\');this.closest(\'.notif-item\').remove();updateNotifBadgeLocal();" title="รับทราบ 7 วัน">✓</button>'
   +'</div>';
+}
+function snoozeNotif(key){
+  NOTIF.dismissed[key]=Date.now();
+  call('dismissAlert',{key:key},function(){});
+}
+
+function notifNavigate(type){
+  closeNotifPanel();
+  if(type==='stale_case'){
+    var t=document.getElementById('mc-rpt-tab');
+    if(t) mct('reports',t);
+  } else if(type==='renewal'){
+    var tabs=document.querySelectorAll('.tb');
+    for(var i=0;i<tabs.length;i++){if(tabs[i].textContent.indexOf('Coaching')>=0){mct('coaching',tabs[i]);break;}}
+  } else {
+    var tabs=document.querySelectorAll('.tb');
+    for(var i=0;i<tabs.length;i++){if(tabs[i].textContent.indexOf('Mentor')>=0){mct('mentor',tabs[i]);break;}}
+  }
+}
+
+function isNotifSnoozed(a){
+  var key=(a.team||'')+'|'+(a.name||'')+'|'+(a.type||'');
+  var ts=NOTIF.dismissed[key];
+  return !!(ts&&(Date.now()-ts)<7*24*60*60*1000);
+}
+
+function updateNotifBadgeLocal(){
+  var items=document.querySelectorAll('#notif-content .notif-item');
+  var count=items.length;
+  var badgeEl=document.getElementById('notif-total');
+  if(badgeEl){
+    if(count>0){badgeEl.textContent=count>99?'99+':count;badgeEl.style.display='flex';}
+    else badgeEl.style.display='none';
+  }
 }
 
 function loadNotifBadge(){
@@ -6337,11 +6460,15 @@ function loadNotifBadge(){
     var rptBadgeEl=document.getElementById('rpt-badge');
     if(rptBadgeEl&&unreplied>0){rptBadgeEl.textContent=unreplied;rptBadgeEl.style.display='inline-flex';}
   });
-  call('getAlertCenter',{},function(err,r){
-    if(err||!r||!r.ok)return;
-    var total=(r.total||0);
-    var badgeEl=document.getElementById('notif-total');
-    if(badgeEl&&total>0){badgeEl.textContent=total>99?'99+':total;badgeEl.style.display='flex';}
+  call('getDismissedAlerts',{},function(err,r){
+    if(r&&r.ok) NOTIF.dismissed=r.dismissed||{};
+    call('getAlertCenter',{},function(err2,r2){
+      if(err2||!r2||!r2.ok)return;
+      var filtered=(r2.alerts||[]).filter(function(a){return !isNotifSnoozed(a);}).length;
+      var badgeEl=document.getElementById('notif-total');
+      if(badgeEl&&filtered>0){badgeEl.textContent=filtered>99?'99+':filtered;badgeEl.style.display='flex';}
+      else if(badgeEl) badgeEl.style.display='none';
+    });
   });
 }
 
@@ -7086,6 +7213,73 @@ function mobMlSave(){
   });
 }
 function mobMlClose(){document.getElementById('mob-ml-modal').classList.remove('open');}
+
+// ── LINE Compose ──────────────────────────────────────────────
+var _lineTarget = null;
+var LINE_TMPLS = [
+  {l:'📊 ติดตามคะแนน', t:'สวัสดีครับ คุณ{nick} 👋\n\nอยากติดตามคะแนน BNI ของคุณนะครับ\nพิมพ์ "สถานะ" ใน LINE Bot เพื่อดูคะแนน + Action Plan ได้เลยครับ 📊'},
+  {l:'📅 นัด 1-2-1',    t:'สวัสดีครับ คุณ{nick}\n\nสัปดาห์นี้มีเวลา 1-2-1 กันไหมครับ?\nอยากคุยเรื่องโอกาส Referral และ Action Plan ของคุณครับ 🤝'},
+  {l:'🔔 เตือนประชุม',  t:'สวัสดีครับ คุณ{nick} 👋\n\n⏰ เตือนนะครับ — ประชุม BNI IDEAL อาทิตย์นี้\nอย่าลืมมาด้วยนะครับ เชียร์กันอยู่! 🏆'},
+  {l:'💪 ให้กำลังใจ',   t:'สวัสดีครับ คุณ{nick} 💪\n\nอยากให้กำลังใจนะครับ ทำต่อเนื่องไปเรื่อยๆ\nBNI IDEAL เชียร์คุณอยู่เสมอครับ! 🚀'},
+  {l:'👋 ยินดีต้อนรับ',  t:'สวัสดีครับ คุณ{nick} 👋\n\nยินดีต้อนรับสู่ BNI IDEAL ครับ!\nยินดีให้คำปรึกษาและช่วยเหลือเสมอนะครับ 🙏'},
+];
+
+function _renderLineTpls(nick) {
+  document.getElementById('line-tpls').innerHTML = LINE_TMPLS.map(function(t,i){
+    return '<button style="font-size:.68rem;padding:.22rem .45rem;background:var(--bg2);border:1px solid var(--border);border-radius:.4rem;color:var(--text);cursor:pointer;font-family:Sarabun,sans-serif;" onclick="lineUseTpl('+i+',\''+escHtml(nick)+'\')">'+t.l+'</button>';
+  }).join('');
+}
+
+function lineUseTpl(i, nick) {
+  document.getElementById('line-msg-txt').value = LINE_TMPLS[i].t.replace(/\{nick\}/g, nick);
+}
+
+function openLineCompose(name, nick) {
+  _lineTarget = {name:name, nick:nick, broadcast:false};
+  document.getElementById('line-modal-title').textContent = '📲 ส่ง LINE — '+(nick||name.split(' ')[0]);
+  document.getElementById('line-broadcast-info').style.display = 'none';
+  document.getElementById('line-msg-txt').value = '';
+  _renderLineTpls(nick||name.split(' ')[0]);
+  document.getElementById('lineModal').style.display = 'flex';
+}
+
+function openLineBroadcast(teamName) {
+  _lineTarget = {broadcast:true, teamName:teamName};
+  document.getElementById('line-modal-title').textContent = '📢 Broadcast'+(teamName?' — ทีม '+teamName:' — ทุกทีม');
+  document.getElementById('line-broadcast-info').style.display = 'block';
+  document.getElementById('line-msg-txt').value = '';
+  _renderLineTpls('ทีม');
+  document.getElementById('lineModal').style.display = 'flex';
+}
+
+function closeLineModal() { document.getElementById('lineModal').style.display = 'none'; }
+
+function doSendLine() {
+  var text = (document.getElementById('line-msg-txt').value||'').trim();
+  if (!text) { toast('กรุณาพิมพ์ข้อความครับ','err'); return; }
+  var t = _lineTarget; if (!t) return;
+  var btn = document.getElementById('line-send-btn');
+  btn.disabled = true; btn.textContent = '⏳ กำลังส่ง...';
+  if (t.broadcast) {
+    call('sendLineBroadcast', {teamName:t.teamName||'', message:text}, function(err,r){
+      btn.disabled=false; btn.textContent='📤 ส่ง LINE';
+      if (err||!r.ok) { toast((r&&r.error)||'ส่งไม่สำเร็จ','err'); return; }
+      toast('📢 ส่งถึง '+r.sent+' คน ✅','ok'); closeLineModal();
+    });
+  } else {
+    call('sendLineMessage', {memberName:t.name, message:text}, function(err,r){
+      btn.disabled=false; btn.textContent='📤 ส่ง LINE';
+      if (err||!r.ok) { toast((r&&r.error)||'ส่งไม่สำเร็จ','err'); return; }
+      toast('📲 ส่งสำเร็จ ✅','ok'); closeLineModal();
+    });
+  }
+}
+
+function loadLineMembers() {
+  call('getLineMembers', {}, function(err,r){
+    if (!err && r.ok) S.lineMembers = r.members||{};
+  });
+}
 
 </script>
 <!-- Checklist Panel -->

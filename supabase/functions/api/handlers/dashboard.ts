@@ -405,7 +405,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         fastestActions.splice(4);
       }
 
-      const nextTl = displayScore >= 70 ? 'green' : displayScore >= 50 ? 'green' : 'yellow';
+      const nextTl = displayScore >= 70 ? 'green' : displayScore >= 50 ? 'yellow' : displayScore >= 30 ? 'yellow' : 'red';
       const needed = displayScore >= 70 ? 0 : displayScore >= 50 ? 70 - displayScore : displayScore >= 30 ? 50 - displayScore : 30 - displayScore;
 
       const fastTrack = {
@@ -754,7 +754,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
           fastestActions.splice(4);
         }
 
-        const nextTl = score >= 50 ? 'green' : 'yellow';
+        const nextTl = score >= 70 ? 'green' : score >= 50 ? 'yellow' : score >= 30 ? 'yellow' : 'red';
         const needed = score >= 70 ? 0 : score >= 50 ? 70 - score : score >= 30 ? 50 - score : 30 - score;
 
         return {

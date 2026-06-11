@@ -92,6 +92,26 @@ function thursdayMorningAlert() {
   // ── 4. ส่งข้อความแยกให้แต่ละ Mentor Group ──────────────────
   _sendEachMentorAlert(teamData, dateStr);
 
+  // ── 5. Push สรุปคะแนนส่วนตัวให้สมาชิกที่ลงทะเบียน LINE Bot ─
+  try {
+    if (typeof thursdayBotPush === 'function') thursdayBotPush();
+  } catch(e3) { Logger.log('thursdayBotPush err: ' + e3.message); }
+
+  // ── 5b. Chapter Pulse → MC ─────────────────────────────────
+  try {
+    if (typeof _lineChapterPulse === 'function') _lineChapterPulse();
+  } catch(e5b) { Logger.log('_lineChapterPulse err: ' + e5b.message); }
+
+  // ── 6. Push แจ้งเตือน Renewal ให้สมาชิกที่ใกล้หมดอายุ ────────
+  try {
+    if (typeof _lineRenewalPush === 'function') _lineRenewalPush();
+  } catch(e4) { Logger.log('_lineRenewalPush err: ' + e4.message); }
+
+  // ── 7. ส่ง 8-week onboarding message ให้สมาชิกใหม่ ───────────
+  try {
+    if (typeof onboardingWeeklyPush === 'function') onboardingWeeklyPush();
+  } catch(e5) { Logger.log('onboardingWeeklyPush err: ' + e5.message); }
+
   Logger.log('Thursday alerts sent: ' + dateStr);
 }
 
@@ -270,13 +290,13 @@ function setupThursdayTrigger() {
   // สร้างใหม่
   ScriptApp.newTrigger('thursdayMorningAlert')
     .timeBased()
-    .onWeekDay(ScriptApp.WeekDay.THURSDAY)
+    .onWeekDay(ScriptApp.WeekDay.FRIDAY)
     .atHour(7)
     .create();
 
   Browser.msgBox(
     '✅ ตั้ง Trigger เรียบร้อย!\n\n' +
-    'ทุกวันพฤหัส 07:00 น. ระบบจะส่ง Line แจ้งเตือนอัตโนมัติ:\n\n' +
+    'ทุกวันศุกร์ 07:00 น. ระบบจะส่ง Line แจ้งเตือนอัตโนมัติ:\n\n' +
     '• กลุ่ม MC — สรุปภาพรวมทุกทีม\n' +
     '• กลุ่ม Mentor แต่ละทีม — เฉพาะ Mentee ที่ต้องดูแล\n\n' +
     '⚠️ อย่าลืมใส่ LINE_TOKENS ใน Script L ก่อนนะครับ!\n' +
@@ -297,7 +317,7 @@ function testLineNotify() {
   var ok = sendLineNotify(token,
     '\n✅ BNI IDEAL Test Message\n' +
     'ระบบ Line Notify ทำงานได้ปกติแล้วครับ!\n' +
-    'วันพฤหัสหน้าจะเริ่มส่งอัตโนมัติ 07:00 น.'
+    'วันศุกร์หน้าจะเริ่มส่งอัตโนมัติ 07:00 น.'
   );
 
   Browser.msgBox(ok ?

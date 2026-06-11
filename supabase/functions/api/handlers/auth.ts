@@ -103,33 +103,42 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
   }
 
   // ── changePIN ────────────────────────────────────────────────
+  // MC admin action: change any role's PIN without needing old PIN.
+  // Frontend sends { target: roleKey, newPin } from the Settings panel.
   if (action === 'changePIN') {
-    // Must provide current PIN to change it
-    const role    = String(p.role    || '').toLowerCase();
-    const oldPin  = String(p.oldPin  || '');
-    const newPin  = String(p.newPin  || '');
+    // Accept 'target' (frontend) or 'role' (canonical)
+    const targetRole = String(p.target || p.role || '').toLowerCase();
+    const newPin     = String(p.newPin || '');
 
-    if (!role || !oldPin || !newPin) {
-      return jsonResponse({ ok: false, error: 'ต้องระบุ role, oldPin, newPin' });
+    if (!targetRole || !newPin) {
+      return jsonResponse({ ok: false, error: 'ต้องระบุ target/role และ newPin' });
     }
-    if (newPin.length < 4) {
-      return jsonResponse({ ok: false, error: 'PIN ต้องมีอย่างน้อย 4 ตัว' });
+    if (!/^\d{4,8}$/.test(newPin)) {
+      return jsonResponse({ ok: false, error: 'PIN ต้องเป็นตัวเลข 4-8 หลัก' });
     }
 
-    // Verify old PIN first
-    const { data: verified } = await db
-      .rpc('fn_verify_pin', { p_role: role, p_pin: oldPin })
-      .single();
-    if (!verified) return jsonResponse({ ok: false, error: 'PIN เดิมไม่ถูกต้อง' });
+    // Verify caller is MC (via session role or Google OAuth token)
+    const callerRole = String(p.role || '').toLowerCase();
+    if (callerRole !== 'mc') {
+      const token = String(p.token || '').trim();
+      if (token) {
+        const result = await verifyToken(db, token);
+        if (!result.ok || !result.isMC) {
+          return jsonResponse({ ok: false, error: 'เฉพาะ MC เท่านั้นที่เปลี่ยน PIN ได้' });
+        }
+      } else {
+        return jsonResponse({ ok: false, error: 'เฉพาะ MC เท่านั้นที่เปลี่ยน PIN ได้' });
+      }
+    }
 
-    // Update with new bcrypt hash
+    // Update with new bcrypt hash via DB function
     const { error: updateErr } = await db.rpc('fn_update_pin', {
-      p_role:    role,
+      p_role:    targetRole,
       p_new_pin: newPin,
     });
     if (updateErr) return jsonResponse({ ok: false, error: updateErr.message });
 
-    return jsonResponse({ ok: true });
+    return jsonResponse({ ok: true, message: `เปลี่ยน PIN ของ ${targetRole} แล้ว` });
   }
 
   // ── getMyRole ────────────────────────────────────────────────

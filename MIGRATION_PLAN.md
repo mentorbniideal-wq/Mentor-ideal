@@ -388,6 +388,8 @@ After 30 days of stable Supabase operation:
 
 If Supabase fails at any point, revert in under 5 minutes:
 
+> NOTE: Until the Supabase LINE webhook is fully finished and verified, keep the LINE webhook URL on the legacy GAS WebApp. Do not switch LINE to Supabase until the new handler is ready.
+
 ### Rollback steps
 
 1. **LINE webhook**: Go to LINE Developers Console → revert webhook URL to old GAS URL, or disable webhook (LINE messages go to the old GAS handler immediately)

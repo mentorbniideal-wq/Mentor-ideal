@@ -13,5 +13,13 @@ ALTER TABLE sprint_board
   ADD COLUMN IF NOT EXISTS pairs   TEXT,
   ADD COLUMN IF NOT EXISTS status  TEXT     NOT NULL DEFAULT 'pending';
 
-ALTER TABLE sprint_board
-  ADD CONSTRAINT sprint_board_team_month_key UNIQUE(mentor_team, year, month);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'sprint_board_team_month_key'
+  ) THEN
+    ALTER TABLE sprint_board
+      ADD CONSTRAINT sprint_board_team_month_key UNIQUE(mentor_team, year, month);
+  END IF;
+END $$;

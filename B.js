@@ -263,6 +263,34 @@ function syncScoresFromCSV() {
     updateMasterListScores(masterSheet, scoreMap, debugLog);
   }
 
+  // Sync latest scores to Reporting2You r2y[7] (Points) so display stays consistent
+  try {
+    var r2ySyncSh = ss.getSheetByName('Reporting2You');
+    if (r2ySyncSh && r2ySyncSh.getLastRow() > 1) {
+      var r2ySyncData = r2ySyncSh.getRange(2, 1, r2ySyncSh.getLastRow()-1, 8).getValues();
+      var r2yUpdated = false;
+      r2ySyncData.forEach(function(row) {
+        var rn = String(row[0]||'').replace(/\s*\(BNI Ideal\)\s*/gi,'').trim();
+        if (!rn || !scoreMap[rn]) return;
+        var latestMonthKey2 = Object.keys(scoreMap[rn]).sort(function(a,b){
+          // MM/YY keys — convert to YYYY*100+MM for correct chronological sort
+          var pa=a.split('/'),pb=b.split('/');
+          var ya=parseInt(pa[1]||0)+2000,yb=parseInt(pb[1]||0)+2000;
+          var ma=parseInt(pa[0]||0),mb=parseInt(pb[0]||0);
+          return (ya*100+ma)-(yb*100+mb);
+        }).pop();
+        var latestSyncScore = scoreMap[rn][latestMonthKey2];
+        if (!isNaN(latestSyncScore) && latestSyncScore > 0) {
+          row[7] = latestSyncScore;
+          r2yUpdated = true;
+        }
+      });
+      if (r2yUpdated) {
+        r2ySyncSh.getRange(2, 1, r2ySyncData.length, 8).setValues(r2ySyncData);
+      }
+    }
+  } catch(r2ySyncErr) { Logger.log('R2Y sync err: ' + r2ySyncErr.message); }
+
   // Update sync timestamp
   var now = new Date();
   var ts = Utilities.formatDate(now, Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
@@ -302,6 +330,13 @@ function syncScoresFromCSV() {
   });
 
   Browser.msgBox(msg);
+
+  // Feature B — แจ้งสมาชิกที่ลงทะเบียน LINE Bot หลัง import คะแนน
+  try {
+    if (typeof _lineNotifyScoreUpdate === 'function') {
+      _lineNotifyScoreUpdate(latestMonthKey);
+    }
+  } catch(lineErr) { Logger.log('LINE notify after import error: ' + lineErr.message); }
 }
 
 /**

@@ -56,7 +56,47 @@ export async function handleUsage(p: Record<string, unknown>): Promise<Response>
         .limit(limit);
       if (error) return errResponse(error.message);
 
-      return jsonResponse({ ok: true, logs: data || [] });
+      const now = Date.now();
+      const DAYS = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+
+      const teamStats: Record<string, { count7: number; count30: number; lastDate: string; daysAgoLast: number; lastPlatform: string }> = {};
+
+      const logs = ((data || []) as Record<string, unknown>[]).map(row => {
+        const ts = new Date(String(row.logged_at || ''));
+        const msAgo = Number.isFinite(ts.getTime()) ? now - ts.getTime() : Infinity;
+        const daysAgo = Number.isFinite(msAgo) ? Math.floor(msAgo / 86400000) : 999;
+        const dateStr = Number.isFinite(ts.getTime()) ? ts.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '';
+        const dayStr  = Number.isFinite(ts.getTime()) ? DAYS[ts.getDay()] : '';
+        const timeStr = Number.isFinite(ts.getTime()) ? ts.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '';
+
+        // Build per-team stats
+        const key = String(row.team || row.role || 'unknown').toLowerCase();
+        if (!teamStats[key]) teamStats[key] = { count7: 0, count30: 0, lastDate: '', daysAgoLast: 999, lastPlatform: '' };
+        const ts2 = teamStats[key];
+        if (daysAgo <= 7) ts2.count7++;
+        if (daysAgo <= 30) ts2.count30++;
+        if (daysAgo < ts2.daysAgoLast) {
+          ts2.daysAgoLast = daysAgo;
+          ts2.lastDate = dateStr;
+          ts2.lastPlatform = String(row.platform || '');
+        }
+
+        return {
+          id:       row.id,
+          loggedAt: String(row.logged_at || ''),
+          date:     dateStr,
+          day:      dayStr,
+          time:     timeStr,
+          daysAgo,
+          role:     String(row.role || ''),
+          team:     String(row.team || row.role || ''),
+          platform: String(row.platform || ''),
+          action:   String(row.action || ''),
+          detail:   String(row.detail || ''),
+        };
+      });
+
+      return jsonResponse({ ok: true, logs, teamStats });
     }
 
     default:

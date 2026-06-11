@@ -319,7 +319,11 @@ async function upsertR2YStats(db: ReturnType<typeof getServiceClient>, rows: Arr
   return imported;
 }
 
-function parseR2YRows(rows: string[][], memberMap: Record<string, string>): Array<Record<string, unknown>> {
+function parseR2YRows(
+  rows: string[][],
+  memberMap: Record<string, string>,
+  unmatched?: string[],
+): Array<Record<string, unknown>> {
   if (!rows || rows.length < 2) return [];
   const dataRows = rows.slice(1);
   const parsed: Array<Record<string, unknown>> = [];
@@ -328,7 +332,11 @@ function parseR2YRows(rows: string[][], memberMap: Record<string, string>): Arra
     const rawName = normalizeName(row[0]);
     if (!rawName) continue;
     const memberId = memberMap[rawName];
-    if (!memberId) continue;
+    if (!memberId) {
+      // Track names that exist in R2Y but have no matching member in DB
+      if (unmatched && rawName.length > 1) unmatched.push(row[0]?.trim() || rawName);
+      continue;
+    }
 
     parsed.push({
       member_id:  memberId,
@@ -383,6 +391,46 @@ async function updateMembersContactInfo(db: ReturnType<typeof getServiceClient>,
     if (!error) updated++;
   }
   return updated;
+}
+
+// Auto-enroll members whose bni_days < 56 (not yet 8 weeks) as is_new_member = true.
+// Sets joined_date from bni_days if not already set.
+async function autoEnrollNewMembers(db: ReturnType<typeof getServiceClient>): Promise<number> {
+  // Find members with bni_days < 56 who are not yet enrolled and not archived
+  const { data: rows } = await db
+    .from('r2y_stats')
+    .select('member_id, bni_days')
+    .gt('bni_days', 0)
+    .lt('bni_days', 56);
+  if (!rows || !rows.length) return 0;
+
+  const today = new Date();
+  let enrolled = 0;
+  for (const row of rows as Array<{ member_id: string; bni_days: number }>) {
+    const joinedDate = new Date(today);
+    joinedDate.setDate(today.getDate() - row.bni_days);
+    const joinedDateStr = joinedDate.toISOString().split('T')[0];
+
+    // Only update if not already a new member
+    const { data: m } = await db
+      .from('members')
+      .select('id, is_new_member, is_archived, joined_date')
+      .eq('id', row.member_id)
+      .maybeSingle();
+    if (!m || (m as Record<string, unknown>).is_archived) continue;
+    if ((m as Record<string, unknown>).is_new_member) continue;
+
+    const upd: Record<string, unknown> = {
+      is_new_member: true,
+      updated_at: new Date().toISOString(),
+    };
+    if (!(m as Record<string, unknown>).joined_date) {
+      upd.joined_date = joinedDateStr;
+    }
+    const { error } = await db.from('members').update(upd).eq('id', row.member_id);
+    if (!error) enrolled++;
+  }
+  return enrolled;
 }
 
 async function updateMembersGivenReceived(db: ReturnType<typeof getServiceClient>, data: Record<string, { given: number; received: number }>, memberMap: Record<string, string>): Promise<number> {
@@ -877,8 +925,9 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       }
 
       // Steps 5+6: upsert R2Y stats from R2Y CSV
+      const r2yUnmatched: string[] = [];
       if (r2yRows.length) {
-        const r2yParsed = parseR2YRows(r2yRows, memberMap);
+        const r2yParsed = parseR2YRows(r2yRows, memberMap, r2yUnmatched);
         if (r2yParsed.length) {
           try {
             importedR2Y += await upsertR2YStats(db, r2yParsed);
@@ -936,12 +985,22 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         }
       }
 
+      // Auto-enroll new members: anyone with bni_days < 56 who isn't already enrolled
+      let autoEnrolled = 0;
+      try {
+        autoEnrolled = await autoEnrollNewMembers(db);
+      } catch (e) {
+        stepErrors.push(`autoEnroll: ${(e as Error).message}`);
+      }
+
       return jsonResponse({
         ok: true,
         nonMentorOk, counterOk, r2yOk, r2ySyncOk, renewalOk, grOk, mtlOk,
         importedScores, importedR2Y, updatedGivenReceived: updatedGR,
+        autoEnrolled,
         scoreYear: scoreRows.length ? scorePeriod.year : null,
         scoreMonth: scoreRows.length ? scorePeriod.month : null,
+        ...(r2yUnmatched.length ? { r2yUnmatched } : {}),
         ...(stepErrors.length ? { errors: stepErrors } : {}),
       });
     }

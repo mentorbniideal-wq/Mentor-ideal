@@ -159,7 +159,17 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
       const result = data as { ok: boolean; error?: string; changed?: boolean; member?: string; from_team?: string; to_team?: string };
       if (!result.ok) return errResponse(result.error || 'Move failed');
-      return jsonResponse(result);
+
+      // If expDate provided, upsert into renewals table
+      const expDate = textValue(p.expDate || p.expiryDate || p.expiry);
+      if (expDate) {
+        await db.from('renewals').upsert(
+          { member_id: memberId, expiry_date: expDate },
+          { onConflict: 'member_id' },
+        );
+      }
+
+      return jsonResponse({ ...result, warnings: [] });
     }
 
     // ── GET: team move history for a member ──────────────────
@@ -181,33 +191,39 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
     }
 
     // ── ARCHIVE member ────────────────────────────────────────
+    // Frontend sends { memberName: name } — resolve by name then archive
     case 'archiveMember': {
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const memberId = String(p.memberId || p.member_id || '');
-      if (!memberId) return errResponse('memberId required');
+      const lookup = await findMemberByLegacyPayload(db, p);
+      if (lookup.error || !lookup.member) return errResponse(lookup.error || 'member not found');
 
       const { error } = await db
         .from('members')
-        .update({ is_archived: true, archived_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-        .eq('id', memberId);
+        .update({ is_archived: true, is_new_member: false, archived_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq('id', lookup.member.id);
       if (error) return errResponse(error.message);
       return jsonResponse({ ok: true });
     }
 
     // ── UNARCHIVE member ──────────────────────────────────────
+    // Frontend sends { memberName: name } — resolve by name then unarchive
     case 'unarchiveMember': {
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const memberId = String(p.memberId || p.member_id || '');
-      if (!memberId) return errResponse('memberId required');
+      // For unarchive, allow searching archived members too
+      const memberNameRaw = textValue(p.memberName || p.name);
+      if (!memberNameRaw) return errResponse('memberName required');
+      const { data: mRow, error: mErr } = await db.from('members').select('id').ilike('name', memberNameRaw).maybeSingle();
+      if (mErr) return errResponse(mErr.message);
+      if (!mRow) return errResponse(`ไม่พบสมาชิก: ${memberNameRaw}`);
 
       const { error } = await db
         .from('members')
         .update({ is_archived: false, archived_at: null, updated_at: new Date().toISOString() })
-        .eq('id', memberId);
+        .eq('id', String((mRow as Record<string, unknown>).id));
       if (error) return errResponse(error.message);
       return jsonResponse({ ok: true });
     }
@@ -222,6 +238,9 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       const mentorTeam = normalizeTeam(p.mentorTeam ?? p.mentor ?? p.targetTeam);
       const email      = textValue(p.email) || null;
       const phone      = textValue(p.phone) || null;
+      // joinDate: the actual BNI join date (YYYY-MM-DD) — distinct from created_at
+      const joinDateRaw = textValue(p.joinDate || p.startDate);
+      const joinDate    = joinDateRaw && /^\d{4}-\d{2}-\d{2}$/.test(joinDateRaw) ? joinDateRaw : null;
 
       if (!name) return errResponse('name required');
       if (mentorTeam && !VALID_TEAMS.has(mentorTeam)) {
@@ -239,11 +258,63 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
           is_new_member: true,
           email,
           phone,
+          joined_date:   joinDate,
         })
-        .select('id, name, nickname, mentor_team, email, phone')
+        .select('id, name, nickname, mentor_team, email, phone, joined_date')
         .single();
       if (error) return errResponse(error.message);
-      return jsonResponse({ ok: true, member: data });
+      const d = data as Record<string, unknown>;
+      const memberId = d.id as string;
+
+      // Auto-create renewal record: expiry = joined_date + 365 days
+      const warnings: string[] = [];
+      if (joinDate) {
+        const expiryDate = new Date(joinDate);
+        expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+        const expiryStr = expiryDate.toISOString().split('T')[0];
+        const { error: renErr } = await db.from('renewals').insert({
+          member_id:   memberId,
+          expiry_date: expiryStr,
+          notes:       'Auto-created on member add',
+        });
+        if (renErr) warnings.push(`renewal: ${renErr.message}`);
+      } else {
+        warnings.push('ไม่ได้ระบุ joinDate — ไม่ได้สร้าง Renewal record');
+      }
+
+      // Calculate 8W end date for display
+      const w8Date = joinDate ? (() => {
+        const d2 = new Date(joinDate); d2.setDate(d2.getDate() + 56);
+        return d2.toISOString().split('T')[0];
+      })() : null;
+
+      return jsonResponse({
+        ok: true,
+        name:       d.name,
+        nick:       d.nickname,
+        joinedDate: d.joined_date,
+        w8Date,
+        expiryDate: joinDate ? (() => { const d2 = new Date(joinDate); d2.setFullYear(d2.getFullYear()+1); return d2.toISOString().split('T')[0]; })() : null,
+        member: data,
+        ...(warnings.length ? { warnings } : {}),
+      });
+    }
+
+    // ── DELETE member permanently (MC only) ──────────────────
+    case 'deleteMember': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const lookup = await findMemberByLegacyPayload(db, p);
+      if (lookup.error || !lookup.member) return errResponse(lookup.error || 'member not found');
+
+      const { error } = await db
+        .from('members')
+        .delete()
+        .eq('id', lookup.member.id);
+      if (error) return errResponse(error.message);
+      // ON DELETE CASCADE removes all child rows automatically
+      return jsonResponse({ ok: true, deleted: lookup.member.name });
     }
 
     // ── SAVE monthly score ────────────────────────────────────
@@ -414,9 +485,13 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
     case 'saveNMCheckItem': {
       const memberName = String(p.memberName || p.fileUrl || '').trim();
       const itemKey    = String(p.itemKey || '').trim();
-      // isDone: true=pass, false=no-pass, null/undefined=reset → stored as false
-      const isDoneRaw  = p.isDone;
-      const isDone     = isDoneRaw === null || isDoneRaw === undefined ? false : Boolean(isDoneRaw);
+      // pass=true → passed, pass=false+nopass=true → no-pass, pass=null → reset
+      const passRaw    = p.pass;
+      const nopassRaw  = p.nopass;
+      const pass       = passRaw  === null || passRaw  === undefined ? false : Boolean(passRaw);
+      const nopass     = nopassRaw === null || nopassRaw === undefined ? false : Boolean(nopassRaw);
+      const isDone     = pass;
+      const comment    = p.mentor_comment !== undefined ? String(p.mentor_comment || '').trim() : undefined;
       if (!memberName || !itemKey) return errResponse('memberName and itemKey required');
 
       const { data: member, error: mErr } = await db
@@ -430,15 +505,20 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       const memberId = member.id as string;
 
       const now = new Date().toISOString();
+      const upsertData: Record<string, unknown> = {
+        member_id:  memberId,
+        item_key:   itemKey,
+        is_done:    isDone,
+        pass,
+        nopass,
+        done_at:    isDone ? now : null,
+        updated_at: now,
+      };
+      if (comment !== undefined) upsertData.mentor_comment = comment;
+
       const { error } = await db
         .from('new_member_checklist')
-        .upsert({
-          member_id:  memberId,
-          item_key:   itemKey,
-          is_done:    isDone,
-          done_at:    isDone ? now : null,
-          updated_at: now,
-        }, { onConflict: 'member_id,item_key' });
+        .upsert(upsertData, { onConflict: 'member_id,item_key' });
       if (error) return errResponse(error.message);
       return jsonResponse({ ok: true });
     }
@@ -460,52 +540,94 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       const m = member as Record<string, unknown>;
       const memberId = String(m.id);
 
-      // Standard BNI 8-week new member checklist template
+      // BNI Chapter Ideal — Full 41-task mentoring program template
       const TEMPLATE = [
-        { itemKey: 'orientation',   phase: 'สัปดาห์ที่ 1-2', timeline: 'W1', task: 'ปฐมนิเทศสมาชิกใหม่ (BNI Orientation)' },
-        { itemKey: 'bni_profile',   phase: 'สัปดาห์ที่ 1-2', timeline: 'W1', task: 'ตั้งค่าโปรไฟล์ BNI Connect และนามบัตร' },
-        { itemKey: 'mentor_121_1',  phase: 'สัปดาห์ที่ 1-2', timeline: 'W2', task: 'นัด 1-2-1 ครั้งแรกกับ Mentor' },
-        { itemKey: 'biz_pitch',     phase: 'สัปดาห์ที่ 1-2', timeline: 'W2', task: 'ฝึก 60-second pitch และ Weekly Presentation' },
-        { itemKey: 'pt_intro',      phase: 'สัปดาห์ที่ 3-4', timeline: 'W3', task: 'รู้จัก Power Team และนัด 1-2-1 กับสมาชิก' },
-        { itemKey: 'first_ref',     phase: 'สัปดาห์ที่ 3-4', timeline: 'W3', task: 'ให้ Referral ครั้งแรกในทีม' },
-        { itemKey: 'ceu_1',         phase: 'สัปดาห์ที่ 3-4', timeline: 'W4', task: 'เข้าอบรม BNI (CEU อย่างน้อย 1 หน่วย)' },
-        { itemKey: 'visitor_1',     phase: 'สัปดาห์ที่ 3-4', timeline: 'W4', task: 'พา Visitor มาเยี่ยม Chapter อย่างน้อย 1 คน' },
-        { itemKey: 'palms_review',  phase: 'สัปดาห์ที่ 5-6', timeline: 'W5', task: 'ทบทวนระบบคะแนน PALMS กับ Mentor' },
-        { itemKey: 'pt_121x2',      phase: 'สัปดาห์ที่ 5-6', timeline: 'W5', task: 'ทำ 1-2-1 กับสมาชิก Power Team อย่างน้อย 2 คน' },
-        { itemKey: 'mentor_121_2',  phase: 'สัปดาห์ที่ 5-6', timeline: 'W6', task: 'นัด 1-2-1 ครั้งที่ 2 กับ Mentor' },
-        { itemKey: 'chapter_role',  phase: 'สัปดาห์ที่ 5-6', timeline: 'W6', task: 'รับบทบาท/หน้าที่ใน Chapter' },
-        { itemKey: 'score_check',   phase: 'สัปดาห์ที่ 7-8', timeline: 'W7', task: 'ตรวจสอบคะแนน PALMS และวางแผนปรับปรุง' },
-        { itemKey: 'plan_90d',      phase: 'สัปดาห์ที่ 7-8', timeline: 'W7', task: 'วางแผน 90 วันสำหรับ BNI' },
-        { itemKey: 'complete_8w',   phase: 'สัปดาห์ที่ 7-8', timeline: 'W8', task: 'ครบหลักสูตรสมาชิกใหม่ 8 สัปดาห์' },
-        { itemKey: 'team_assigned', phase: 'สัปดาห์ที่ 7-8', timeline: 'W8', task: 'เข้าสังกัดทีม Mentor อย่างเป็นทางการ' },
+        // 8-Week Mentoring Program
+        { itemKey: 'orientation',     phase: '🗓 8-Week Program', timeline: 'Orientation', task: 'New Member Orientation', link: '' },
+        { itemKey: 'w1_visitor_day',  phase: '🗓 8-Week Program', timeline: '1st Week',    task: 'Visitor Day — นำสมาชิกมาร่วมประชุม', link: '' },
+        { itemKey: 'w2_30sec',        phase: '🗓 8-Week Program', timeline: '2nd Week',    task: '30 Seconds Presentation', link: '' },
+        { itemKey: 'w3_referral',     phase: '🗓 8-Week Program', timeline: '3rd Week',    task: 'Referral — ส่งงานให้สมาชิก', link: '' },
+        { itemKey: 'w4_121',          phase: '🗓 8-Week Program', timeline: '4th Week',    task: '121 Meeting — จัดนัด 1-2-1', link: '' },
+        { itemKey: 'w5_121_followup', phase: '🗓 8-Week Program', timeline: '5th Week',    task: '121 Follow Up', link: '' },
+        { itemKey: 'w6_5min_feature', phase: '🗓 8-Week Program', timeline: '6th Week',    task: '5 Minutes Feature Presentation', link: '' },
+        { itemKey: 'w7_power_team',   phase: '🗓 8-Week Program', timeline: '7th Week',    task: 'Power Team — สร้างกลุ่มอาชีพ', link: '' },
+        { itemKey: 'w8_substitute',   phase: '🗓 8-Week Program', timeline: '8th Week',    task: 'Substitute — ส่งตัวแทนเข้าประชุม', link: '' },
+        // Needed Training
+        { itemKey: 't_msp',           phase: '📚 Needed Training', timeline: '60 Days', task: 'MSP — Member Success Program', link: '' },
+        { itemKey: 't_lcd_review',    phase: '📚 Needed Training', timeline: '60 Days', task: 'Review LCD After MSP', link: '' },
+        { itemKey: 't_adv_msp',       phase: '📚 Needed Training', timeline: '60 Days', task: 'Advanced MSP', link: '' },
+        { itemKey: 't_1yr_club',      phase: '📚 Needed Training', timeline: '60 Days', task: '1st Year Club', link: '' },
+        // New Member Tools
+        { itemKey: 'tool_one_page',   phase: '🛠 New Member Tools', timeline: '60 Days', task: 'One Page (Business Profile)', link: '' },
+        { itemKey: 'tool_bni_app',    phase: '🛠 New Member Tools', timeline: '60 Days', task: 'BNI Connect Mobile App', link: '' },
+        { itemKey: 'tool_r2y',        phase: '🛠 New Member Tools', timeline: '60 Days', task: 'Reporting2You App', link: 'https://bit.ly/r2you' },
+        { itemKey: 'tool_slide_121',  phase: '🛠 New Member Tools', timeline: '60 Days', task: 'Slide Template สำหรับ 1-2-1', link: '' },
+        { itemKey: 'tool_30s_script', phase: '🛠 New Member Tools', timeline: '60 Days', task: '30s Script — สคริปต์นำเสนอ', link: '' },
+        { itemKey: 'tool_passport',   phase: '🛠 New Member Tools', timeline: '60 Days', task: 'Passport Program', link: '' },
+        { itemKey: 'tool_sunshine',   phase: '🛠 New Member Tools', timeline: '60 Days', task: 'Sunshine Concept', link: '' },
+        { itemKey: 'tool_ref_partner',phase: '🛠 New Member Tools', timeline: '60 Days', task: 'Referral Partner Setup', link: '' },
+        { itemKey: 'tool_goal_form',  phase: '🛠 New Member Tools', timeline: '60 Days', task: 'Member Goal Setting Form', link: '' },
+        { itemKey: 'tool_green_2mo',  phase: '🛠 New Member Tools', timeline: '60 Days', task: 'Green Member — ภายใน 2 เดือน', link: '' },
+        // 3 Months
+        { itemKey: 'm3_gains_121',    phase: '📊 3 Months Program', timeline: '3 Months', task: 'Review : GAINS & 121 Meeting', link: '' },
+        { itemKey: 'm3_msp_review',   phase: '📊 3 Months Program', timeline: '3 Months', task: 'Review : MSP & Advanced MSP', link: '' },
+        { itemKey: 'm3_survey',       phase: '📊 3 Months Program', timeline: '3 Months', task: 'Member Survey : 3 Months', link: '' },
+        // 6 Months
+        { itemKey: 'm6_pd_care',      phase: '📈 6 Months Program', timeline: '6 Months', task: 'PD & Support Care Call', link: '' },
+        { itemKey: 'm6_adv_skill',    phase: '📈 6 Months Program', timeline: '6 Months', task: 'Advanced Skill Training', link: '' },
+        { itemKey: 'm6_lt_support',   phase: '📈 6 Months Program', timeline: '6 Months', task: 'Assist Leadership Team Support', link: '' },
+        { itemKey: 'm6_survey',       phase: '📈 6 Months Program', timeline: '6 Months', task: 'Member Survey : 6 Months', link: '' },
+        // 7 Months
+        { itemKey: 'm7_become_mentor',phase: '🚀 7 Months Program', timeline: '7 Months', task: 'Become a Mentor', link: '' },
+        { itemKey: 'm7_sponsor',      phase: '🚀 7 Months Program', timeline: '7 Months', task: 'Sponsor a New Member', link: '' },
+        { itemKey: 'm7_power_team',   phase: '🚀 7 Months Program', timeline: '7 Months', task: 'Engage in Power Team', link: '' },
+        // 9 Months
+        { itemKey: 'm9_renewal_ann',  phase: '🔄 9 Months Program', timeline: '9 Months', task: 'ST : Renewal Announcement', link: '' },
+        { itemKey: 'm9_renewal_int',  phase: '🔄 9 Months Program', timeline: '9 Months', task: 'MCC : Renewal Interview', link: '' },
+        { itemKey: 'm9_renewal_pay',  phase: '🔄 9 Months Program', timeline: '9 Months', task: 'Renewal Payment & Process', link: '' },
+        // 10 Months
+        { itemKey: 'm10_renewal_fu',  phase: '💎 10 Months Program', timeline: '10 Months', task: 'MCC : Renewal Follow Up', link: '' },
+        // 12 Months
+        { itemKey: 'm12_refresh_msp', phase: '🎓 12 Months Program', timeline: '12 Months', task: 'Refresh MSP', link: '' },
+        { itemKey: 'm12_adv_msp',     phase: '🎓 12 Months Program', timeline: '12 Months', task: 'Refresh Advanced MSP', link: '' },
+        { itemKey: 'm12_1yr_club',    phase: '🎓 12 Months Program', timeline: '12 Months', task: 'Refresh 1st Year Club', link: '' },
+        { itemKey: 'm12_survey',      phase: '🎓 12 Months Program', timeline: '12 Months', task: 'Member Survey : 12 Months', link: '' },
       ];
 
       const { data: clData, error: clErr } = await db
         .from('new_member_checklist')
-        .select('item_key, is_done, done_at, updated_at')
+        .select('item_key, is_done, done_at, pass, nopass, mentor_comment, updated_at')
         .eq('member_id', memberId);
       if (clErr) return errResponse(clErr.message);
 
-      const doneMap: Record<string, { isDone: boolean; doneAt: string | null }> = {};
+      const doneMap: Record<string, { isDone: boolean; pass: boolean; nopass: boolean; doneAt: string | null; comment: string }> = {};
       for (const r of (clData || []) as Record<string, unknown>[]) {
-        doneMap[String(r.item_key)] = { isDone: Boolean(r.is_done), doneAt: r.done_at ? String(r.done_at) : null };
+        doneMap[String(r.item_key)] = {
+          isDone:  Boolean(r.is_done),
+          pass:    Boolean(r.pass),
+          nopass:  Boolean(r.nopass),
+          doneAt:  r.done_at ? String(r.done_at) : null,
+          comment: String(r.mentor_comment || ''),
+        };
       }
 
       const tasks = TEMPLATE.map((t) => {
         const state = doneMap[t.itemKey];
-        const isDone = state?.isDone ?? false;
+        const pass   = state?.pass   ?? false;
+        const nopass = state?.nopass ?? false;
         const doneAt = state?.doneAt ?? null;
         return {
           itemKey:  t.itemKey,
           phase:    t.phase,
           timeline: t.timeline,
           task:     t.task,
-          pass:     isDone,
-          nopass:   false,
+          link:     t.link || '',
+          pass,
+          nopass,
           date:     doneAt ? doneAt.split('T')[0] : '',
           by:       '',
-          comment:  '',
-          status:   isDone ? 'ผ่านแล้ว' : 'ยังไม่ดำเนินการ',
+          comment:  state?.comment || '',
+          status:   pass ? 'ผ่านแล้ว' : nopass ? 'ยังไม่ผ่าน' : 'ยังไม่ดำเนินการ',
         };
       });
 
@@ -538,38 +660,68 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       const rawMembers = Array.isArray(p.members) ? p.members as Record<string, unknown>[] : [];
       if (!rawMembers.length) return errResponse('members array required');
 
-      const rows = rawMembers.map((m) => ({
-        name:        String(m.name || '').trim(),
-        nickname:    String(m.nick || m.nickname || '').trim(),
-        mentor_team: m.mentorTeam ? String(m.mentorTeam) : null,
-        is_new_member: true,
-        is_archived:   false,
-      })).filter((m) => m.name);
+      const rows = rawMembers.map((m) => {
+        const jd = String(m.joined_date || m.startDate || m.joinDate || '').trim();
+        return {
+          name:          String(m.name || '').trim(),
+          nickname:      String(m.nick || m.nickname || '').trim(),
+          mentor_team:   m.mentor_team || m.mentorTeam ? String(m.mentor_team || m.mentorTeam) : null,
+          is_new_member: true,
+          is_archived:   false,
+          joined_date:   /^\d{4}-\d{2}-\d{2}$/.test(jd) ? jd : null,
+        };
+      }).filter((m) => m.name);
 
-      const { error } = await db
+      const { data: inserted, error } = await db
         .from('members')
-        .upsert(rows, { onConflict: 'name', ignoreDuplicates: false });
+        .upsert(rows, { onConflict: 'name', ignoreDuplicates: false })
+        .select('id, joined_date');
       if (error) return errResponse(error.message);
+
+      // Auto-create renewal records for members with joined_date
+      const renewalRows = (inserted || [])
+        .filter((m: Record<string, unknown>) => m.joined_date)
+        .map((m: Record<string, unknown>) => {
+          const exp = new Date(String(m.joined_date));
+          exp.setFullYear(exp.getFullYear() + 1);
+          return { member_id: m.id, expiry_date: exp.toISOString().split('T')[0], notes: 'Auto-created on batch add' };
+        });
+      if (renewalRows.length) {
+        await db.from('renewals').upsert(renewalRows, { onConflict: 'member_id', ignoreDuplicates: true });
+      }
       return jsonResponse({ ok: true, count: rows.length });
     }
 
     // ── GET new members with checklist progress + latest note ─
     case 'getNewMembers': {
-      const { data: members, error: mErr } = await db
+      // Mentors see only their own team; MC sees everyone
+      let callerTeam: string | null = null;
+      if (p.token || p.role) {
+        const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+        if (auth.ok && auth.role && auth.role !== 'mc' && auth.role !== 'growth') {
+          callerTeam = auth.teamName ?? null;
+        }
+      }
+
+      let query = db
         .from('members')
-        .select('id, name, nickname, mentor_team, created_at')
+        .select('id, name, nickname, mentor_team, created_at, joined_date')
         .eq('is_new_member', true)
-        .eq('is_archived', false)
-        .order('name');
+        .eq('is_archived', false);
+      if (callerTeam) {
+        query = query.eq('mentor_team', callerTeam);
+      }
+      const { data: members, error: mErr } = await query.order('name');
       if (mErr) return errResponse(mErr.message);
       if (!members || members.length === 0) return jsonResponse({ ok: true, members: [] });
 
       const memberIds = (members as Record<string, unknown>[]).map((m) => m.id as string);
 
       // Fetch checklist rows for all these members
+      const CHECKLIST_TOTAL = 41; // must match TEMPLATE.length in getNMChecklist
       const { data: clRows, error: clErr } = await db
         .from('new_member_checklist')
-        .select('member_id, is_done')
+        .select('member_id, is_done, pass')
         .in('member_id', memberIds);
       if (clErr) return errResponse(clErr.message);
 
@@ -580,6 +732,16 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
         .in('member_id', memberIds)
         .order('updated_at', { ascending: false });
       if (noteErr) return errResponse(noteErr.message);
+
+      // Fetch renewal/expiry dates
+      const { data: renewalRows } = await db
+        .from('renewals')
+        .select('member_id, expiry_date')
+        .in('member_id', memberIds);
+      const expiryMap: Record<string, string> = {};
+      for (const r of (renewalRows || []) as Record<string, unknown>[]) {
+        expiryMap[String(r.member_id)] = String(r.expiry_date || '');
+      }
 
       // Build lookup maps
       type ClRow = { member_id: string; is_done: boolean };
@@ -600,20 +762,21 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
         const id      = m.id as string;
         const items   = clByMember[id] || [];
         const done    = items.filter((r) => r.is_done).length;
-        const total   = items.length;
-        const pct     = total > 0 ? Math.round(done / total * 100) : 0;
+        const total   = CHECKLIST_TOTAL; // always 41, never items.length
+        const pct     = Math.round(done / total * 100);
 
-        // Derive dates from created_at (best proxy for join date)
+        // Use joined_date (actual BNI join date), fall back to created_at
+        const joinedDate = String(m.joined_date || '').split('T')[0];
         const createdAt  = String(m.created_at || '');
-        const startDate  = createdAt.split('T')[0] || '';
+        const startDate  = joinedDate || createdAt.split('T')[0] || '';
         let w8Date = '';
         if (startDate) {
           const d = new Date(startDate);
-          d.setDate(d.getDate() + 56); // 8 weeks
+          d.setDate(d.getDate() + 56); // 8 weeks = 56 days
           w8Date = d.toISOString().split('T')[0];
         }
 
-        const statusText = pct >= 100 ? 'ครบทุกข้อ' : total > 0 ? `${done}/${total} ข้อ` : 'ยังไม่ได้เริ่ม';
+        const statusText = pct >= 100 ? 'ครบทุกข้อ' : done > 0 ? `${done}/${total} ข้อ` : 'ยังไม่ได้เริ่ม';
 
         return {
           id,
@@ -624,9 +787,10 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
           checklistDone:  done,
           checklistTotal: total,
           progress:       pct,
-          startDate,
+          joinedDate:     startDate,       // actual BNI join date
+          startDate,                       // alias kept for backward compat
           w8Date,
-          expDate:        '',  // expiry date not tracked on new members
+          expDate:        expiryMap[id] || '',
           status:         statusText,
           fileUrl:        String(m.name),  // used as identifier for checklist panel
           latestNote:     latestNoteByMember[id] || '',

@@ -4,7 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a **Google Apps Script (GAS)** project for BNI IDEAL Chapter — a mentor management system deployed as a WebApp backed by Google Sheets. All `.js` files are GAS scripts; there is no Node.js, no package manager, and no local runtime.
+This repository currently contains both the legacy Google Apps Script (GAS) version and a Supabase migration path.
+
+- Legacy GAS app: `WEBAPP.js`, other `.js` scripts, `dashboard.html`, `index.html`.
+- Supabase migration: `supabase/migrations`, `supabase/seed`, `supabase/functions`.
+- Static frontend for Supabase / Vercel: `public/`.
+
+The repo is best described as a hybrid migration workspace, where the old GAS app remains available while new Supabase infrastructure is built and tested.
 
 ## Deployment
 
@@ -22,6 +28,17 @@ There are no tests, no build step, and no linter. Changes go live after `clasp p
 ```bash
 clasp push && clasp deploy --deploymentId AKfycbwPXGSB6qHYBAtXlkNxwB6bPbUFoUyoN_gLPr323U2wQRD7Vm_ru1bWqNEo4QiBH2HK
 ```
+
+## Supabase + Vercel migration
+
+This repo also includes a migration path from GAS to Supabase:
+
+- `supabase/migrations/` contains Postgres schema and data migrations.
+- `supabase/seed/` contains seed scripts for roles, settings, and cron jobs.
+- `supabase/functions/` contains Edge Functions for the new API.
+- `public/` contains the static frontend for deployment on Vercel.
+
+Use `.env` and `DEV_MODE=true` for local Supabase testing. In production, set `DEV_MODE=false` and deploy your Supabase functions with `supabase functions deploy`.
 
 ## Architecture
 
@@ -123,3 +140,15 @@ Snooze uses `localStorage['notif_snoozed']` keyed by `"team|name|type"` string. 
 ## LINE Notify setup
 
 Tokens in `L.js` (`LINE_TOKENS` object) are placeholders. Replace `YOUR_*_TOKEN_HERE` values with real tokens from notify-bot.line.me, then run `setupThursdayTrigger()` once to install the weekly trigger.
+
+## Audit Rules (auto-appended by /audit)
+
+- Always verify `ROUTES` in `index.ts` has an entry for every `case` in every handler. Missing routes cause silent `{ok:false}` errors — the handler exists but is unreachable.
+- `months = weeks / 4` — never 4.333 in any scoring path (PALMS spec).
+- `nextTl` in fast-track responses = the **current** tier color of the member (where they are now), not the goal tier. Use: `score >= 70 ? 'green' : score >= 50 ? 'yellow' : score >= 30 ? 'yellow' : 'red'`.
+- Anthropic model IDs: use `claude-haiku-4-5`, `claude-3-5-sonnet-20241022`, etc. Never invent a date suffix — only use IDs from the official Anthropic API docs.
+- `requireAuth` must be called before any write or sensitive read in every handler case. Growth/mentor read endpoints that are currently open (F-06, F-07 in AUDIT_LOG) are known issues.
+- After relaxing role restrictions on `requireAuth`, always add data-level team filtering for mentor roles (`callerTeam = auth.isMC ? null : auth.teamName`).
+- NM Checklist denominator is always 41 (`CHECKLIST_TOTAL` constant) — never dynamic (`items.length`).
+- GAS files (`WEBAPP.js`, `B.js`, `L.js`, etc.) must NOT be modified during Supabase migration work — they are the live production system.
+- After each `/audit` run, update `AUDIT_LOG.md` with new findings and re-check prior "Known issues".
