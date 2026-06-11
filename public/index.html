@@ -1008,6 +1008,52 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
 .sim-tile:active{transform:scale(.98);}
 .sim-tile-title{font-size:1.35rem;font-weight:900;letter-spacing:.55em;padding-left:.55em;color:var(--gold);margin-bottom:.2rem;}
 .sim-tile-sub{font-size:.68rem;color:var(--gray2);}
+
+/* Premium gateway */
+.gateway-shell{width:100%;max-width:440px;position:relative;z-index:1}
+.gateway-top{margin-bottom:1.15rem;text-align:left}
+.gateway-kicker{display:inline-flex;align-items:center;gap:7px;background:rgba(215,254,250,.08);border:1px solid rgba(215,254,250,.15);color:var(--gold);border-radius:999px;padding:5px 12px;font-size:.62rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin-bottom:1rem}
+.gateway-title{font-size:2.35rem;font-weight:900;line-height:.98;letter-spacing:-.055em;margin-bottom:.75rem}
+.gateway-title span{color:var(--gold)}
+.gateway-sub{color:var(--gray2);font-size:.82rem;line-height:1.65;max-width:360px}
+.login-panel{background:linear-gradient(180deg,rgba(36,40,39,.96),rgba(29,33,32,.94));border:1px solid rgba(215,254,250,.12);border-radius:22px;padding:1rem;box-shadow:0 24px 80px rgba(0,0,0,.28);margin-bottom:.9rem}
+.login-panel-h{display:flex;align-items:center;gap:10px;margin-bottom:.9rem}
+.login-panel-mark{width:38px;height:38px;border-radius:12px;background:rgba(215,254,250,.1);border:1px solid rgba(215,254,250,.16);display:flex;align-items:center;justify-content:center;font-weight:900;color:var(--gold);font-size:.72rem}
+.login-panel-title{font-size:.9rem;font-weight:800}
+.login-panel-sub{font-size:.68rem;color:var(--gray2);margin-top:2px}
+.google-login-pro{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;background:#fff;color:#111827;border:none;border-radius:14px;padding:13px 16px;font-size:.92rem;font-weight:800;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.18);transition:transform .15s,box-shadow .15s,opacity .15s;font-family:'Poppins',sans-serif}
+.google-login-pro:active{transform:scale(.985)}
+.google-login-pro:hover{transform:translateY(-1px);box-shadow:0 12px 32px rgba(0,0,0,.22)}
+.public-panel{background:rgba(255,255,255,.025);border:1px solid rgba(215,254,250,.08);border-radius:22px;padding:.85rem}
+.public-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:.7rem}
+.public-panel-title{font-size:.7rem;font-weight:800;color:var(--gray2);letter-spacing:.12em;text-transform:uppercase}
+.public-panel-note{font-size:.62rem;color:var(--gray2)}
+.gateway-actions{display:grid;grid-template-columns:1fr;gap:.62rem}
+.gateway-tile{position:relative;overflow:hidden;background:var(--bg2);border:1px solid rgba(215,254,250,.1);border-radius:16px;padding:1rem;display:flex;align-items:center;gap:.82rem;text-align:left;cursor:pointer;transition:transform .18s,border-color .18s,background .18s}
+.gateway-tile::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(215,254,250,.08),transparent 55%);opacity:0;transition:opacity .18s}
+.gateway-tile:hover{border-color:rgba(215,254,250,.25);background:var(--bg3);transform:translateY(-1px)}
+.gateway-tile:hover::after{opacity:1}
+.gateway-tile:active{transform:scale(.985)}
+.gateway-ico{width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(215,254,250,.08);border:1px solid rgba(215,254,250,.12);font-size:1.2rem}
+.gateway-info{position:relative;z-index:1;flex:1;min-width:0}
+.gateway-name{font-size:.88rem;font-weight:850;color:var(--white);margin-bottom:2px}
+.gateway-desc{font-size:.68rem;color:var(--gray2);line-height:1.35}
+.gateway-arrow{position:relative;z-index:1;color:var(--gold);font-size:1rem;font-weight:800}
+.sim-tile.gateway-tile{grid-column:auto;background:linear-gradient(135deg,rgba(99,102,241,.12),rgba(215,254,250,.045));border-color:rgba(129,140,248,.28)!important}
+.sim-tile .gateway-ico{background:rgba(129,140,248,.12);border-color:rgba(129,140,248,.24)}
+@media(min-width:760px){
+  .gateway-shell{max-width:860px}
+  .gateway-grid{display:grid;grid-template-columns:minmax(0,.95fr) minmax(340px,.72fr);gap:1rem;align-items:end}
+  .gateway-top{margin-bottom:0}
+  .gateway-title{font-size:3.35rem}
+  .public-panel{grid-column:1/-1}
+  .gateway-actions{grid-template-columns:1fr 1fr}
+}
+@media(max-width:380px){
+  .gateway-title{font-size:2rem}
+  .gateway-sub{font-size:.76rem}
+  .gateway-tile{padding:.86rem}
+}
 /* ── Simulate Screen ── */
 #simulateScreen{position:fixed;inset:0;background:var(--bg);z-index:200;display:none;flex-direction:column;overflow:hidden;}
 .ss-hdr{background:var(--bg2);padding:14px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);flex-shrink:0;}
@@ -1203,20 +1249,53 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
 
 <!-- Login -->
 <div id="loginScreen">
-  <div class="login-badge">BNI IDEAL · MENTOR SYSTEM 2026</div>
-  <div class="login-title">Mentor <span>&</span> Mentee</div>
-  <div class="login-sub">เข้าสู่ระบบด้วย Google Account ของ BNI IDEAL</div>
-  <button onclick="signInWithGoogle()" id="google-login-btn" style="display:flex;align-items:center;gap:10px;background:#fff;color:#1f1f1f;border:none;border-radius:12px;padding:12px 24px;font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.25);transition:all .2s;margin:1.5rem 0 .5rem;">
-    <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.08 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-3.59-13.46-8.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-    Sign in with Google
-  </button>
-  <div id="login-err" style="color:var(--red);font-size:.78rem;text-align:center;min-height:1.2em;margin-bottom:.5rem;"></div>
-  <!-- Public access (no login required) -->
-  <div class="role-grid" style="margin-top:1rem;">
-    <div class="role-card" onclick="openDirectory()" style="border-color:rgba(96,165,250,.3);"><span class="icon">👥</span><div class="rn">BNI MEMBER</div><div class="rd">รายชื่อสมาชิก · ไม่ต้องรหัส</div></div>
-    <div class="sim-tile" onclick="openSimulate()">
-      <div class="sim-tile-title">S I M U L A T E</div>
-      <div class="sim-tile-sub">จำลองคะแนน BNI PALMS · ไม่ต้องรหัส</div>
+  <div class="gateway-shell">
+    <div class="gateway-grid">
+      <div class="gateway-top">
+        <div class="gateway-kicker">BNI IDEAL · 2026</div>
+        <div class="gateway-title">Mentor <span>Operations</span></div>
+        <div class="gateway-sub">ศูนย์ทำงานสำหรับ Mentor, MC และ Growth พร้อมพื้นที่ public สำหรับสมาชิกดูข้อมูลและทดลองคะแนนได้โดยไม่ต้องเข้าสู่ระบบ</div>
+      </div>
+
+      <div class="login-panel">
+        <div class="login-panel-h">
+          <div class="login-panel-mark">MC</div>
+          <div>
+            <div class="login-panel-title">Secure Workspace</div>
+            <div class="login-panel-sub">สำหรับ Mentor, MC และ Growth Committee</div>
+          </div>
+        </div>
+        <button onclick="signInWithGoogle()" id="google-login-btn" class="google-login-pro">
+          <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.08 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-3.59-13.46-8.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+          Continue with Google
+        </button>
+        <div id="login-err" style="color:var(--red);font-size:.78rem;text-align:center;min-height:1.2em;margin-top:.65rem;"></div>
+      </div>
+
+      <div class="public-panel">
+        <div class="public-panel-head">
+          <div class="public-panel-title">Public Tools</div>
+          <div class="public-panel-note">ไม่ต้อง Login</div>
+        </div>
+        <div class="gateway-actions">
+          <button class="gateway-tile" onclick="openDirectory()">
+            <span class="gateway-ico">👥</span>
+            <span class="gateway-info">
+              <span class="gateway-name">BNI Member</span>
+              <span class="gateway-desc">รายชื่อสมาชิกและสถานะคะแนนแบบ read-only</span>
+            </span>
+            <span class="gateway-arrow">›</span>
+          </button>
+          <button class="gateway-tile sim-tile" onclick="openSimulate()">
+            <span class="gateway-ico">◎</span>
+            <span class="gateway-info">
+              <span class="gateway-name">PALMS Simulator</span>
+              <span class="gateway-desc">ทดลองคะแนนและดูผลกระทบก่อนทำ action</span>
+            </span>
+            <span class="gateway-arrow">›</span>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </div>

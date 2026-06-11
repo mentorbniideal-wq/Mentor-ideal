@@ -1067,6 +1067,135 @@ tbody tr:hover{background:rgba(215,254,250,.025)}
 .sp2{padding:4px 12px;border-radius:20px;border:1px solid var(--bd);font-size:11px;font-weight:600;background:transparent;color:var(--sub)}
 .sp2.on{color:#0A1612;border-color:transparent;background:var(--ac)}
 .sp2[data-s=done].on{background:var(--gr)}.sp2[data-s=pending].on{background:var(--re);color:#fff}.sp2[data-s=reopened].on{background:var(--ye)}
+
+/* Command Center Shell */
+#app{
+  display:none;
+  min-height:100vh;
+  background:
+    linear-gradient(180deg,rgba(215,254,250,.035),transparent 260px),
+    radial-gradient(circle at 78% 0%,rgba(16,185,129,.07),transparent 360px),
+    var(--bg);
+  grid-template-columns:252px minmax(0,1fr);
+  grid-template-rows:72px minmax(0,1fr);
+}
+header.command-top{
+  grid-column:1 / -1;
+  height:72px;
+  padding:0 22px;
+  background:rgba(29,33,32,.94);
+  backdrop-filter:blur(18px);
+  border-bottom:1px solid rgba(215,254,250,.09);
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+.cmd-brand{display:flex;align-items:center;gap:12px;min-width:238px}
+.cmd-mark{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(135deg,rgba(215,254,250,.16),rgba(16,185,129,.08));border:1px solid rgba(215,254,250,.16);font-size:18px}
+.cmd-title{font-size:15px;font-weight:800;letter-spacing:.04em;line-height:1}
+.cmd-subtitle{font-size:10px;color:var(--sub);font-weight:600;letter-spacing:.08em;margin-top:4px;text-transform:uppercase}
+.cmd-status{display:flex;align-items:center;gap:8px;padding:7px 10px;background:rgba(255,255,255,.025);border:1px solid var(--bd);border-radius:10px;color:var(--sub);font-size:11px;white-space:nowrap}
+.cmd-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+.cmd-actions .bsm{height:32px}
+.tabs{
+  grid-column:1;
+  grid-row:2;
+  position:sticky;
+  top:72px;
+  height:calc(100vh - 72px);
+  align-self:start;
+  flex-direction:column;
+  gap:4px;
+  padding:18px 12px;
+  overflow-y:auto;
+  overflow-x:hidden;
+  border-right:1px solid rgba(215,254,250,.08);
+  border-bottom:none;
+  background:linear-gradient(180deg,rgba(36,40,39,.96),rgba(26,29,29,.96));
+}
+.tabs::before{padding:0 10px 10px;color:var(--sub);font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+#mc-tabs::before{content:"MC Command"}
+#gr-tabs::before{content:"Growth Command"}
+.tabs .tb{
+  width:100%;
+  min-height:36px;
+  border:1px solid transparent;
+  border-radius:10px;
+  border-bottom:none;
+  padding:9px 11px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:8px;
+  text-align:left;
+  font-size:12px;
+}
+.tabs .tb.on{
+  color:var(--tx);
+  background:rgba(215,254,250,.085);
+  border-color:rgba(215,254,250,.16);
+  box-shadow:inset 3px 0 0 var(--ac);
+}
+.tabs .tb:hover:not(.on){background:rgba(255,255,255,.035);border-color:rgba(215,254,250,.08)}
+main{
+  grid-column:2;
+  grid-row:2;
+  max-width:none;
+  width:100%;
+  margin:0;
+  padding:24px;
+  overflow:auto;
+}
+.command-hero{
+  background:linear-gradient(135deg,rgba(36,40,39,.92),rgba(29,33,32,.76));
+  border:1px solid rgba(215,254,250,.1);
+  border-radius:18px;
+  padding:20px 22px;
+  margin-bottom:18px;
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:18px;
+}
+.command-eyebrow{font-size:10px;color:var(--ac);font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px}
+.command-heading{font-size:26px;font-weight:900;letter-spacing:-.02em;line-height:1.05}
+.command-copy{font-size:12px;color:var(--sub);margin-top:8px;max-width:680px;line-height:1.6}
+.command-quick{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.command-pill{background:rgba(255,255,255,.035);border:1px solid var(--bd);color:var(--sub);border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700;white-space:nowrap}
+#mc-ov.sec.on{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 318px;
+  gap:18px;
+  align-items:start;
+}
+#mc-ov > *{grid-column:1}
+.command-rail{
+  grid-column:2!important;
+  grid-row:1 / span 8;
+  position:sticky;
+  top:96px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.rail-card{background:rgba(36,40,39,.9);border:1px solid rgba(215,254,250,.09);border-radius:16px;padding:15px}
+.rail-title{font-size:11px;font-weight:800;color:var(--sub);letter-spacing:.09em;text-transform:uppercase;margin-bottom:12px}
+.rail-action{width:100%;display:flex;align-items:center;gap:9px;background:var(--sf2);border:1px solid var(--bd);border-radius:10px;color:var(--tx);padding:9px 10px;margin-top:7px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;text-align:left}
+.rail-action:hover{border-color:var(--ac);background:rgba(215,254,250,.06)}
+.rail-signal{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid rgba(215,254,250,.06);font-size:12px}
+.rail-signal:last-child{border-bottom:none}
+.rail-num{font-weight:900;color:var(--tx);font-variant-numeric:tabular-nums}
+.sec:not(#mc-ov){max-width:1560px}
+@media(max-width:1180px){
+  #app{grid-template-columns:1fr;grid-template-rows:auto auto minmax(0,1fr)}
+  header.command-top{grid-row:1;height:auto;min-height:68px;flex-wrap:wrap;padding:12px 14px}
+  .tabs{grid-column:1;grid-row:2;position:sticky;top:0;height:auto;flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:10px 14px;border-right:none;border-bottom:1px solid var(--bd)}
+  .tabs::before{display:none}
+  .tabs .tb{width:auto;white-space:nowrap}
+  main{grid-column:1;grid-row:3;padding:16px}
+  #mc-ov.sec.on{display:block}
+  .command-rail{position:static;margin-bottom:18px}
+}
 </style>
 </head>
 <body>
@@ -1088,22 +1217,30 @@ tbody tr:hover{background:rgba(215,254,250,.025)}
 
 <!-- App -->
 <div id="app">
-  <header>
-    <span class="hl">🏆</span><span class="ht">BNI IDEAL Desktop</span>
+  <header class="command-top">
+    <div class="cmd-brand">
+      <div class="cmd-mark">BNI</div>
+      <div>
+        <div class="cmd-title">IDEAL COMMAND</div>
+        <div class="cmd-subtitle">Chapter Operations Center</div>
+      </div>
+    </div>
     <span class="hbadge" id="hrole"></span>
-    <span class="hup" id="hup"></span>
+    <span class="cmd-status"><span>Data freshness</span><strong id="hup" style="color:var(--tx);font-weight:700"></strong></span>
     <div class="gs-wrap" style="margin-left:auto">
       <input id="gs-input" type="text" placeholder="🔍 ค้นหาสมาชิก..." oninput="onGS(this.value)" onblur="setTimeout(closeGS,200)" autocomplete="off">
       <div class="gs-drop" id="gs-drop"></div>
     </div>
-    <div class="ar-wrap"><span class="ar-dot live" id="ar-dot"></span><span id="ar-txt">5:00</span></div>
-    <button class="bsm" id="btn-ar" onclick="toggleAR()" title="Auto-refresh">⏸</button>
-    <button class="bsm bac" id="btn-meeting" onclick="enterMeeting()" style="display:none">🖥️ Meeting</button>
-    <button class="bsm" onclick="toggleLight()" title="Light/Dark">☀️</button>
-    <button class="bsm" id="btn-monthly-sync" onclick="openSyncModal()" style="display:none;background:rgba(240,180,41,.15);border-color:rgba(240,180,41,.4);color:#F0B429;font-weight:700;" title="Monthly Sync วันที่ 5">📅 Sync</button>
-    <button class="bsm bac" onclick="manualReload()">↺ รีเฟรช</button>
-    <button onclick="window.open('index.html','_blank')" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818CF8;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">📱 Mobile</button>
-    <button class="bsm blo" onclick="logout()">ออก</button>
+    <div class="cmd-actions">
+      <div class="ar-wrap"><span class="ar-dot live" id="ar-dot"></span><span id="ar-txt">5:00</span></div>
+      <button class="bsm" id="btn-ar" onclick="toggleAR()" title="Auto-refresh">⏸</button>
+      <button class="bsm bac" id="btn-meeting" onclick="enterMeeting()" style="display:none">Meeting</button>
+      <button class="bsm" onclick="toggleLight()" title="Light/Dark">Theme</button>
+      <button class="bsm" id="btn-monthly-sync" onclick="openSyncModal()" style="display:none;background:rgba(240,180,41,.15);border-color:rgba(240,180,41,.4);color:#F0B429;font-weight:700;" title="Monthly Sync วันที่ 5">Sync</button>
+      <button class="bsm bac" onclick="manualReload()">Refresh</button>
+      <button onclick="window.open('index.html','_blank')" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818CF8;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">Mobile</button>
+      <button class="bsm blo" onclick="logout()">ออก</button>
+    </div>
   </header>
 
   <!-- MC Tabs -->
@@ -1146,6 +1283,42 @@ tbody tr:hover{background:rgba(215,254,250,.025)}
 
     <!-- MC Overview — Redesigned -->
     <div id="mc-ov" class="sec on">
+      <div class="command-hero">
+        <div>
+          <div class="command-eyebrow">Live Chapter Intelligence</div>
+          <div class="command-heading">BNI IDEAL Command Center</div>
+          <div class="command-copy">Monitor chapter health, mentor activity, risk signals, reports, renewal pressure, and member movement from one operational cockpit.</div>
+        </div>
+        <div class="command-quick">
+          <span class="command-pill">MC View</span>
+          <span class="command-pill">Auto Refresh</span>
+          <span class="command-pill">Member 360 Ready</span>
+        </div>
+      </div>
+
+      <aside class="command-rail">
+        <div class="rail-card">
+          <div class="rail-title">Priority Signals</div>
+          <div id="cc-priority-signals">
+            <div class="rail-signal"><span>Risk Members</span><span class="rail-num">—</span></div>
+            <div class="rail-signal"><span>Open Reports</span><span class="rail-num">—</span></div>
+            <div class="rail-signal"><span>Renewal ≤30 วัน</span><span class="rail-num">—</span></div>
+          </div>
+        </div>
+        <div class="rail-card">
+          <div class="rail-title">Quick Actions</div>
+          <button class="rail-action" onclick="openMeetingPrep()">Meeting Prep</button>
+          <button class="rail-action" onclick="openActionCenter('pq')">Action Center</button>
+          <button class="rail-action" onclick="openSyncModal()">Monthly Sync</button>
+          <button class="rail-action" onclick="generateSnapshot()">Weekly Snapshot</button>
+        </div>
+        <div class="rail-card">
+          <div class="rail-title">Operating Mode</div>
+          <div class="rail-signal"><span>Workspace</span><span class="rail-num">Desktop</span></div>
+          <div class="rail-signal"><span>Search</span><span class="rail-num">Global</span></div>
+          <div class="rail-signal"><span>Role</span><span class="rail-num" id="cc-role-mini">—</span></div>
+        </div>
+      </aside>
 
       <!-- ─ Zone A : Chapter Pulse ─ -->
       <div id="mc-pulse"></div>
@@ -1349,9 +1522,9 @@ tbody tr:hover{background:rgba(215,254,250,.025)}
       </div>
       <!-- Upload card -->
       <div style="background:var(--sf2);border-radius:12px;padding:20px;margin-bottom:16px;text-align:center">
-        <div style="font-size:13px;color:var(--sub);margin-bottom:14px">รองรับไฟล์ <strong style="color:var(--tx)">.csv</strong> และ <strong style="color:var(--tx)">.pdf</strong> จากระบบ BNI</div>
-        <input type="file" id="dci-file-input" accept=".csv,.pdf" style="display:none" onchange="deskCiFileSelected(event)">
-        <button class="btn" onclick="document.getElementById('dci-file-input').click()" style="max-width:220px;margin:0 auto;display:block">📂 เลือกไฟล์ .csv / .pdf</button>
+        <div style="font-size:13px;color:var(--sub);margin-bottom:14px">รองรับไฟล์ <strong style="color:var(--tx)">.csv</strong> จากระบบ BNI</div>
+        <input type="file" id="dci-file-input" accept=".csv,text/csv" style="display:none" onchange="deskCiFileSelected(event)">
+        <button class="btn" onclick="document.getElementById('dci-file-input').click()" style="max-width:220px;margin:0 auto;display:block">📂 เลือกไฟล์ .csv</button>
         <div id="dci-filename" style="font-size:12px;color:var(--sub);margin-top:10px;min-height:1.2em"></div>
       </div>
       <!-- Preview -->
@@ -2473,8 +2646,9 @@ function enterApp(r){
   gsr('logUsage',{role:S.role,team:r.teamName||S.role,platform:'desktop',logAction:'login',detail:r.displayName||S.role},function(){});
   var nm={mc:'👑 Mentor Co',growth:'📈 Growth Committee'};
   document.getElementById('hrole').textContent=nm[S.role]||S.role;
+  var mini=document.getElementById('cc-role-mini');if(mini)mini.textContent=nm[S.role]||S.role;
   document.getElementById('login').style.display='none';
-  document.getElementById('app').style.display='flex';
+  document.getElementById('app').style.display='grid';
   document.getElementById(S.role==='mc'?'mc-tabs':'gr-tabs').style.display='flex';
   document.getElementById('btn-meeting').style.display=S.role==='mc'?'':'none';
   document.getElementById('btn-monthly-sync').style.display=S.role==='mc'?'':'none';
@@ -2911,6 +3085,16 @@ function renderFocusBar(){
         +'<div><div class="fi-val">'+it.val+'</div><div class="fi-lbl">'+it.lbl+'</div></div>'
         +'</div>';
     }).join('')+'</div></div>';
+  renderCommandRail(risk.length,pend.length,ren30.length);
+}
+
+function renderCommandRail(riskCount,reportCount,renewalCount){
+  var el=document.getElementById('cc-priority-signals');if(!el)return;
+  function tone(v,hi){return v>=hi?'var(--re)':v>0?'var(--ye)':'var(--gr)';}
+  el.innerHTML=''
+    +'<div class="rail-signal"><span>Risk Members</span><span class="rail-num" style="color:'+tone(riskCount,4)+'">'+riskCount+'</span></div>'
+    +'<div class="rail-signal"><span>Open Reports</span><span class="rail-num" style="color:'+tone(reportCount,3)+'">'+reportCount+'</span></div>'
+    +'<div class="rail-signal"><span>Renewal ≤30 วัน</span><span class="rail-num" style="color:'+tone(renewalCount,2)+'">'+renewalCount+'</span></div>';
 }
 
 // ══ ZONE D: Intelligence Grid ══════════════════════════════
@@ -3302,36 +3486,18 @@ function deskCiFileSelected(e){var file=e.target.files[0];if(file)deskCiReadFile
 function deskCiReadFile(file){
   var name=file.name.toLowerCase();
   var fnEl=document.getElementById('dci-filename');
-  if(!name.endsWith('.csv')&&!name.endsWith('.pdf')){toast('❌ รองรับเฉพาะ .csv และ .pdf');return;}
+  if(!name.endsWith('.csv')){toast('❌ รองรับเฉพาะไฟล์ .csv');return;}
   if(fnEl)fnEl.textContent='⏳ กำลังอ่าน '+file.name+'...';
-  if(name.endsWith('.pdf')){
-    var reader=new FileReader();
-    reader.onload=function(ev){
-      var typedArr=new Uint8Array(ev.target.result);
-      pdfjsLib.getDocument({data:typedArr}).promise.then(function(pdf){
-        var pages=[];for(var i=1;i<=pdf.numPages;i++)pages.push(pdf.getPage(i));return Promise.all(pages);
-      }).then(function(pages){
-        return Promise.all(pages.map(function(pg){return pg.getTextContent().then(function(tc){return tc.items.map(function(it){return it.str;}).join(' ');});}));
-      }).then(function(pageTexts){
-        var result=deskCiParsePDFText(pageTexts.join('\n'));
-        if(!result.ok){toast('❌ '+result.error);if(fnEl)fnEl.textContent='';return;}
-        DCI.parsed=result.members;DCI.date=result.date;DCI.week=result.week;
-        deskCiRenderResult(result);if(fnEl)fnEl.innerHTML='✅ <strong>'+esc(file.name)+'</strong>';
-      }).catch(function(err){toast('❌ อ่าน PDF ไม่ได้: '+err.message);if(fnEl)fnEl.textContent='';});
-    };
-    reader.readAsArrayBuffer(file);
-  } else {
-    var reader2=new FileReader();
-    reader2.onload=function(ev2){
-      var text=ev2.target.result;
-      if(text.charCodeAt(0)===0xFEFF)text=text.slice(1);
-      var result=deskCiParseCSVText(text);
-      if(!result.ok){toast('❌ '+result.error);if(fnEl)fnEl.textContent='';return;}
-      DCI.parsed=result.members;DCI.date=result.date;DCI.week=result.week;
-      deskCiRenderResult(result);if(fnEl)fnEl.innerHTML='✅ <strong>'+esc(file.name)+'</strong>';
-    };
-    reader2.readAsText(file,'UTF-8');
-  }
+  var reader2=new FileReader();
+  reader2.onload=function(ev2){
+    var text=ev2.target.result;
+    if(text.charCodeAt(0)===0xFEFF)text=text.slice(1);
+    var result=deskCiParseCSVText(text);
+    if(!result.ok){toast('❌ '+result.error);if(fnEl)fnEl.textContent='';return;}
+    DCI.parsed=result.members;DCI.date=result.date;DCI.week=result.week;
+    deskCiRenderResult(result);if(fnEl)fnEl.innerHTML='✅ <strong>'+esc(file.name)+'</strong>';
+  };
+  reader2.readAsText(file,'UTF-8');
 }
 function deskCiParsePDFText(text){
   var lines=text.split(/\n/).map(function(l){return l.trim();}).filter(Boolean);
