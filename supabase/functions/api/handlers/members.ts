@@ -6,6 +6,85 @@ import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts
 
 const VALID_TEAMS = new Set(['TOOMTAM', 'Aof', 'Draft', 'PHAI', 'AMP']);
 
+type MemberRef = {
+  id: string;
+  name: string;
+  nickname: string | null;
+  mentor_team: string | null;
+};
+
+function textValue(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeTeam(value: unknown): string | null {
+  const raw = textValue(value);
+  if (!raw) return null;
+  const found = [...VALID_TEAMS].find(team => team.toLowerCase() === raw.toLowerCase());
+  return found || raw;
+}
+
+function currentBangkokYear(): number {
+  const year = new Intl.DateTimeFormat('en', {
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric',
+  }).format(new Date());
+  return Number(year);
+}
+
+async function findMemberByLegacyPayload(
+  db: ReturnType<typeof getServiceClient>,
+  p: Record<string, unknown>,
+): Promise<{ member?: MemberRef; error?: string }> {
+  const directId = textValue(p.memberId || p.member_id);
+  if (directId) {
+    const { data, error } = await db
+      .from('members')
+      .select('id, name, nickname, mentor_team')
+      .eq('id', directId)
+      .maybeSingle();
+    if (error) return { error: error.message };
+    if (!data) return { error: `Member not found: ${directId}` };
+    return { member: data as MemberRef };
+  }
+
+  const name = textValue(p.memberName || p.name);
+  const nick = textValue(p.nick || p.nickname);
+  const team = normalizeTeam(p.teamName || p.mentor || p.mentorTeam || p.targetTeam);
+  if (!name && !nick) return { error: 'memberId or memberName required' };
+
+  let query = db
+    .from('members')
+    .select('id, name, nickname, mentor_team')
+    .eq('is_archived', false);
+  if (team && VALID_TEAMS.has(team)) query = query.eq('mentor_team', team);
+  if (name) query = query.ilike('name', name);
+  else query = query.ilike('nickname', nick);
+
+  const { data, error } = await query.limit(2);
+  if (error) return { error: error.message };
+  const rows = (data || []) as MemberRef[];
+  if (rows.length === 1) return { member: rows[0] };
+
+  if (!rows.length && nick) {
+    let nickQuery = db
+      .from('members')
+      .select('id, name, nickname, mentor_team')
+      .eq('is_archived', false)
+      .ilike('nickname', nick);
+    if (team && VALID_TEAMS.has(team)) nickQuery = nickQuery.eq('mentor_team', team);
+
+    const { data: nickData, error: nickError } = await nickQuery.limit(2);
+    if (nickError) return { error: nickError.message };
+    const nickRows = (nickData || []) as MemberRef[];
+    if (nickRows.length === 1) return { member: nickRows[0] };
+    if (nickRows.length > 1) return { error: `พบสมาชิกชื่อเล่นซ้ำ: ${nick}` };
+  }
+
+  if (rows.length > 1) return { error: `พบสมาชิกชื่อซ้ำ: ${name || nick}` };
+  return { error: `Member not found: ${name || nick}` };
+}
+
 export async function handleMembers(p: Record<string, unknown>): Promise<Response> {
   const db  = getServiceClient();
   const action = String(p.action || '');
@@ -55,11 +134,14 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const memberId   = String(p.memberId   || p.member_id   || '');
-      const targetTeam = p.targetTeam != null ? String(p.targetTeam) : null;
-      const note       = p.note ? String(p.note) : null;
+      const lookup = await findMemberByLegacyPayload(db, p);
+      if (lookup.error || !lookup.member) return errResponse(lookup.error || 'member not found');
 
-      if (!memberId) return errResponse('memberId required');
+      const memberId   = lookup.member.id;
+      const targetTeam = normalizeTeam(p.targetTeam ?? p.mentor ?? p.mentorTeam);
+      const note       = textValue(p.note) || null;
+
+      if (action === 'assignToTeam' && !targetTeam) return errResponse('targetTeam required');
 
       // Validate team name if provided
       if (targetTeam !== null && !VALID_TEAMS.has(targetTeam)) {
@@ -135,9 +217,11 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const name       = String(p.name || '').trim();
-      const nickname   = String(p.nickname || '').trim() || null;
-      const mentorTeam = p.mentorTeam ? String(p.mentorTeam) : null;
+      const name       = textValue(p.name || p.memberName);
+      const nickname   = textValue(p.nickname || p.nick) || null;
+      const mentorTeam = normalizeTeam(p.mentorTeam ?? p.mentor ?? p.targetTeam);
+      const email      = textValue(p.email) || null;
+      const phone      = textValue(p.phone) || null;
 
       if (!name) return errResponse('name required');
       if (mentorTeam && !VALID_TEAMS.has(mentorTeam)) {
@@ -153,8 +237,10 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
           is_mentored:   mentorTeam !== null,
           is_archived:   false,
           is_new_member: true,
+          email,
+          phone,
         })
-        .select('id, name, nickname, mentor_team')
+        .select('id, name, nickname, mentor_team, email, phone')
         .single();
       if (error) return errResponse(error.message);
       return jsonResponse({ ok: true, member: data });
@@ -165,8 +251,11 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const memberId = String(p.memberId || p.member_id || '');
-      const year     = Number(p.year);
+      const lookup = await findMemberByLegacyPayload(db, p);
+      if (lookup.error || !lookup.member) return errResponse(lookup.error || 'member not found');
+
+      const memberId = lookup.member.id;
+      const year     = Number(p.year || currentBangkokYear());
       const month    = Number(p.month);
       const score    = Number(p.score);
 
@@ -190,9 +279,11 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const memberId = String(p.memberId || p.member_id || '');
-      const status   = String(p.status || '').trim();
-      if (!memberId) return errResponse('memberId required');
+      const lookup = await findMemberByLegacyPayload(db, p);
+      if (lookup.error || !lookup.member) return errResponse(lookup.error || 'member not found');
+
+      const memberId = lookup.member.id;
+      const status   = textValue(p.status);
 
       const { error } = await db
         .from('members')
@@ -321,9 +412,11 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
     // ── SAVE new-member checklist item ────────────────────────
     case 'saveNMCheckItem': {
-      const memberName = String(p.memberName || '').trim();
+      const memberName = String(p.memberName || p.fileUrl || '').trim();
       const itemKey    = String(p.itemKey || '').trim();
-      const isDone     = Boolean(p.isDone);
+      // isDone: true=pass, false=no-pass, null/undefined=reset → stored as false
+      const isDoneRaw  = p.isDone;
+      const isDone     = isDoneRaw === null || isDoneRaw === undefined ? false : Boolean(isDoneRaw);
       if (!memberName || !itemKey) return errResponse('memberName and itemKey required');
 
       const { data: member, error: mErr } = await db
@@ -358,26 +451,83 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
       const { data: member, error: mErr } = await db
         .from('members')
-        .select('id')
+        .select('id, name, nickname, mentor_team, created_at')
         .eq('name', memberName)
         .limit(1)
         .maybeSingle();
       if (mErr) return errResponse(mErr.message);
-      if (!member) return jsonResponse({ ok: true, checklist: [] });
-      const memberId = member.id as string;
+      if (!member) return jsonResponse({ ok: true, checklist: [], tasks: [], total: 0, done: 0, pct: 0 });
+      const m = member as Record<string, unknown>;
+      const memberId = String(m.id);
 
-      const { data, error } = await db
+      // Standard BNI 8-week new member checklist template
+      const TEMPLATE = [
+        { itemKey: 'orientation',   phase: 'สัปดาห์ที่ 1-2', timeline: 'W1', task: 'ปฐมนิเทศสมาชิกใหม่ (BNI Orientation)' },
+        { itemKey: 'bni_profile',   phase: 'สัปดาห์ที่ 1-2', timeline: 'W1', task: 'ตั้งค่าโปรไฟล์ BNI Connect และนามบัตร' },
+        { itemKey: 'mentor_121_1',  phase: 'สัปดาห์ที่ 1-2', timeline: 'W2', task: 'นัด 1-2-1 ครั้งแรกกับ Mentor' },
+        { itemKey: 'biz_pitch',     phase: 'สัปดาห์ที่ 1-2', timeline: 'W2', task: 'ฝึก 60-second pitch และ Weekly Presentation' },
+        { itemKey: 'pt_intro',      phase: 'สัปดาห์ที่ 3-4', timeline: 'W3', task: 'รู้จัก Power Team และนัด 1-2-1 กับสมาชิก' },
+        { itemKey: 'first_ref',     phase: 'สัปดาห์ที่ 3-4', timeline: 'W3', task: 'ให้ Referral ครั้งแรกในทีม' },
+        { itemKey: 'ceu_1',         phase: 'สัปดาห์ที่ 3-4', timeline: 'W4', task: 'เข้าอบรม BNI (CEU อย่างน้อย 1 หน่วย)' },
+        { itemKey: 'visitor_1',     phase: 'สัปดาห์ที่ 3-4', timeline: 'W4', task: 'พา Visitor มาเยี่ยม Chapter อย่างน้อย 1 คน' },
+        { itemKey: 'palms_review',  phase: 'สัปดาห์ที่ 5-6', timeline: 'W5', task: 'ทบทวนระบบคะแนน PALMS กับ Mentor' },
+        { itemKey: 'pt_121x2',      phase: 'สัปดาห์ที่ 5-6', timeline: 'W5', task: 'ทำ 1-2-1 กับสมาชิก Power Team อย่างน้อย 2 คน' },
+        { itemKey: 'mentor_121_2',  phase: 'สัปดาห์ที่ 5-6', timeline: 'W6', task: 'นัด 1-2-1 ครั้งที่ 2 กับ Mentor' },
+        { itemKey: 'chapter_role',  phase: 'สัปดาห์ที่ 5-6', timeline: 'W6', task: 'รับบทบาท/หน้าที่ใน Chapter' },
+        { itemKey: 'score_check',   phase: 'สัปดาห์ที่ 7-8', timeline: 'W7', task: 'ตรวจสอบคะแนน PALMS และวางแผนปรับปรุง' },
+        { itemKey: 'plan_90d',      phase: 'สัปดาห์ที่ 7-8', timeline: 'W7', task: 'วางแผน 90 วันสำหรับ BNI' },
+        { itemKey: 'complete_8w',   phase: 'สัปดาห์ที่ 7-8', timeline: 'W8', task: 'ครบหลักสูตรสมาชิกใหม่ 8 สัปดาห์' },
+        { itemKey: 'team_assigned', phase: 'สัปดาห์ที่ 7-8', timeline: 'W8', task: 'เข้าสังกัดทีม Mentor อย่างเป็นทางการ' },
+      ];
+
+      const { data: clData, error: clErr } = await db
         .from('new_member_checklist')
         .select('item_key, is_done, done_at, updated_at')
         .eq('member_id', memberId);
-      if (error) return errResponse(error.message);
-      const checklist = (data || []).map((r: Record<string, unknown>) => ({
-        itemKey:   r.item_key,
-        isDone:    r.is_done,
-        doneAt:    r.done_at,
-        updatedAt: r.updated_at,
-      }));
-      return jsonResponse({ ok: true, checklist });
+      if (clErr) return errResponse(clErr.message);
+
+      const doneMap: Record<string, { isDone: boolean; doneAt: string | null }> = {};
+      for (const r of (clData || []) as Record<string, unknown>[]) {
+        doneMap[String(r.item_key)] = { isDone: Boolean(r.is_done), doneAt: r.done_at ? String(r.done_at) : null };
+      }
+
+      const tasks = TEMPLATE.map((t) => {
+        const state = doneMap[t.itemKey];
+        const isDone = state?.isDone ?? false;
+        const doneAt = state?.doneAt ?? null;
+        return {
+          itemKey:  t.itemKey,
+          phase:    t.phase,
+          timeline: t.timeline,
+          task:     t.task,
+          pass:     isDone,
+          nopass:   false,
+          date:     doneAt ? doneAt.split('T')[0] : '',
+          by:       '',
+          comment:  '',
+          status:   isDone ? 'ผ่านแล้ว' : 'ยังไม่ดำเนินการ',
+        };
+      });
+
+      const totalCount = tasks.length;
+      const doneCount  = tasks.filter((t) => t.pass).length;
+      const pct        = totalCount > 0 ? Math.round(doneCount / totalCount * 100) : 0;
+
+      const createdAt = String(m.created_at || '');
+      const startDate = createdAt.split('T')[0] || '';
+
+      return jsonResponse({
+        ok:         true,
+        memberName: String(m.name),
+        nick:       String(m.nickname || ''),
+        mentor:     String(m.mentor_team || ''),
+        startDate,
+        total:      totalCount,
+        done:       doneCount,
+        pct,
+        tasks,
+        fileUrl:    String(m.name),
+      });
     }
 
     // ── BATCH add new members (MC only) ──────────────────────

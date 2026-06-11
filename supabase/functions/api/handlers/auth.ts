@@ -67,6 +67,41 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
     return jsonResponse({ ok: false, error: 'PIN ไม่ถูกต้อง' });
   }
 
+  // ── viewAsRole ───────────────────────────────────────────────
+  // Lets MC/TOOMTAM switch to any role view without knowing that role's PIN.
+  // Requires a valid Google OAuth token. Subsequent API calls still use the
+  // original token (authenticating as TOOMTAM/MC) which works because growth.ts
+  // allows 'toomtam' in allowedRoles for all growth actions.
+  if (action === 'viewAsRole') {
+    const token      = String(p.token || '').trim();
+    const targetRole = String(p.targetRole || '').toLowerCase();
+    if (!token)      return jsonResponse({ ok: false, error: 'token required' });
+    if (!targetRole) return jsonResponse({ ok: false, error: 'targetRole required' });
+
+    const result = await verifyToken(db, token);
+    if (!result.ok) return jsonResponse({ ok: false, error: result.error });
+    if (!result.isMC && result.role !== 'toomtam') {
+      return jsonResponse({ ok: false, error: 'ต้องเป็น MC หรือ TOOMTAM จึงจะสลับ Role ได้โดยไม่ใช้ PIN' });
+    }
+
+    const RINFO: Record<string, { displayName: string; teamName: string | null; isMC: boolean; isMentor: boolean }> = {
+      mc:      { displayName: 'MC',      teamName: null,      isMC: true,  isMentor: false },
+      toomtam: { displayName: 'TOOMTAM', teamName: 'TOOMTAM', isMC: false, isMentor: true  },
+      aof:     { displayName: 'Aof',     teamName: 'Aof',     isMC: false, isMentor: true  },
+      draft:   { displayName: 'Draft',   teamName: 'Draft',   isMC: false, isMentor: true  },
+      phai:    { displayName: 'PHAI',    teamName: 'PHAI',    isMC: false, isMentor: true  },
+      amp:     { displayName: 'AMP',     teamName: 'AMP',     isMC: false, isMentor: true  },
+      growth:  { displayName: 'Growth',  teamName: null,      isMC: false, isMentor: false },
+    };
+    const info = RINFO[targetRole];
+    if (!info) return jsonResponse({ ok: false, error: `Unknown role: ${targetRole}` });
+
+    const { data: ver } = await db.from('settings').select('key, value').in('key', ['APP_VERSION']);
+    const version = ver?.find((r: { key: string }) => r.key === 'APP_VERSION')?.value || 'v4.0';
+
+    return jsonResponse({ ok: true, role: targetRole, ...info, version });
+  }
+
   // ── changePIN ────────────────────────────────────────────────
   if (action === 'changePIN') {
     // Must provide current PIN to change it

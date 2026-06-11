@@ -3527,23 +3527,48 @@ function deskCiParsePDFText(text){
 function deskCiParseCSVText(text){
   var lines=text.split(/\r?\n/).filter(Boolean);
   if(!lines.length)return{ok:false,error:'ไฟล์ว่างเปล่า'};
-  var headers=deskCiParseLine(lines[0]).map(function(h){return h.trim().toLowerCase();});
-  var nameIdx=headers.indexOf('name'),statusIdx=headers.indexOf('status'),subIdx=headers.indexOf('sub_for'),lfIdx=headers.indexOf('looking_for'),dateIdx=headers.indexOf('date'),weekIdx=headers.indexOf('week');
-  if(nameIdx<0)return{ok:false,error:'ไม่พบคอลัมน์ "name" ใน CSV'};
   var members=[],date='',week='';
-  for(var i=1;i<lines.length;i++){
+  var firstFields=deskCiParseLine(lines[0]).map(function(h){return h.trim().toLowerCase();});
+  // Detect if first row is a header (contains 'name','ชื่อ', etc.)
+  var hasHeader=firstFields.some(function(h){return h==='name'||h==='ชื่อ'||h==='member name'||h==='member'||h==='status'||h==='สถานะ';});
+  var nameIdx,statusIdx,subIdx,lfIdx,dateIdx,weekIdx;
+  var dataStart;
+  if(hasHeader){
+    var headers=firstFields;
+    nameIdx=_ciCol(headers,['name','ชื่อ','member name','member']);
+    statusIdx=_ciCol(headers,['status','สถานะ','state']);
+    subIdx=_ciCol(headers,['sub_for','sub for','แทน']);
+    lfIdx=_ciCol(headers,['looking_for','looking for','ต้องการ']);
+    dateIdx=_ciCol(headers,['date','วันที่']);
+    weekIdx=_ciCol(headers,['week','สัปดาห์']);
+    dataStart=1;
+  } else {
+    // Headerless: col 0=name, 1=status, 2=sub_for, 3=looking_for (GAS format)
+    nameIdx=0;statusIdx=1;subIdx=2;lfIdx=3;dateIdx=-1;weekIdx=-1;dataStart=0;
+  }
+  if(nameIdx<0)return{ok:false,error:'ไม่พบคอลัมน์ชื่อสมาชิกใน CSV'};
+  for(var i=dataStart;i<lines.length;i++){
     var f=deskCiParseLine(lines[i]);
     var name=f[nameIdx]?f[nameIdx].trim():'';if(!name)continue;
     var status=statusIdx>=0&&f[statusIdx]?f[statusIdx].trim():'สมาชิก';
+    // Accept both Thai and English status values
+    if(status!=='สมาชิก'&&status!=='ตัวแทน'){
+      var sl=status.toLowerCase();
+      status=(sl==='sub'||sl==='substitute'||sl==='ตัวแทน')?'ตัวแทน':'สมาชิก';
+    }
     var sub=subIdx>=0&&f[subIdx]?f[subIdx].trim():'';
     var lf=lfIdx>=0&&f[lfIdx]?f[lfIdx].trim():'';
     if(!date&&dateIdx>=0&&f[dateIdx])date=f[dateIdx].trim();
     if(!week&&weekIdx>=0&&f[weekIdx])week=f[weekIdx].trim();
-    members.push({no:String(i),name:name,status:status,sub_for:sub||null,looking_for:lf});
+    members.push({no:String(members.length+1),name:name,status:status,sub_for:sub||null,looking_for:lf});
   }
   if(!week){var now=new Date();var soy=new Date(now.getFullYear(),0,1);var wn=Math.ceil((((now-soy)/86400000)+soy.getDay()+1)/7);week=('0'+wn).slice(-2)+'/'+now.getFullYear();}
   if(!members.length)return{ok:false,error:'ไม่พบข้อมูลสมาชิกใน CSV'};
   return{ok:true,members:members,date:date,week:week};
+}
+function _ciCol(headers,candidates){
+  for(var i=0;i<candidates.length;i++){var idx=headers.indexOf(candidates[i]);if(idx>=0)return idx;}
+  return -1;
 }
 function deskCiParseLine(line){
   var fields=[],cur='',inQ=false;

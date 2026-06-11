@@ -44,10 +44,11 @@ const PUBLIC_ACTIONS = new Set([
 // Mirrors dispatch() in WEBAPP.js lines 3400-3551
 const ROUTES: Record<string, string> = {
   // Auth
-  'login':     'auth',
-  'verifyPin': 'auth',
-  'changePIN': 'auth',
-  'getMyRole': 'auth',
+  'login':      'auth',
+  'verifyPin':  'auth',
+  'changePIN':  'auth',
+  'getMyRole':  'auth',
+  'viewAsRole': 'auth',
 
   // Dashboard & scores
   'getDashboard': 'dashboard', 'getDesktopDashboard': 'dashboard',

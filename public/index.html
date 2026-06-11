@@ -4289,53 +4289,71 @@ function ciParsePDFText(text){
 }
 
 function ciParseCSVText(text){
-  var lines=text.replace(/\r/g,'').split('\n');
+  var lines=text.replace(/\r/g,'').split('\n').filter(function(l){return l.trim();});
+  if(!lines.length)return{ok:false,error:'ไฟล์ว่างเปล่า'};
   var members=[];
   var date='';
-  for(var i=0;i<lines.length;i++){
-    var line=lines[i].trim();
-    if(!line) continue;
-    var fields=ciParseLine(line);
-    if(fields.length<4) continue;
-    var type=fields[0].trim();
-    if(type!=='Member'&&type!=='Substitute') continue;
-    var firstName=fields[1].trim();
-    var lastName=fields[2].trim();
-    if(!firstName) continue;
-    var fullName=(firstName+' '+lastName).trim();
-    var subFor=fields.length>3?fields[3].trim():'';
-    var lookingFor=fields.length>4?fields[4].trim():'';
-    var dateStr=fields.length>6?fields[6].trim():'';
-    if(dateStr&&!date) date=dateStr;
-    members.push({
-      no:String(members.length+1),
-      name:fullName,
-      status:type==='Member'?'สมาชิก':'ตัวแทน',
-      sub_for:subFor||null,
-      looking_for:lookingFor
-    });
-  }
-  if(!members.length) return{ok:false,error:'อ่านข้อมูลไม่ได้ — ตรวจสอบว่าไฟล์มีคอลัมน์ Member/Substitute'};
-  var weekStr='';
-  if(date){
-    var dp=date.split('/');
-    if(dp.length===3){
-      var d=new Date(parseInt(dp[2]),parseInt(dp[1])-1,parseInt(dp[0]));
-      if(!isNaN(d.getTime())){
-        var soy=new Date(d.getFullYear(),0,1);
-        var wn=Math.ceil((((d-soy)/86400000)+soy.getDay()+1)/7);
-        weekStr=('0'+wn).slice(-2)+'/'+d.getFullYear();
-      }
+
+  // Detect format from first non-empty line
+  var first=ciParseLine(lines[0]).map(function(c){return c.trim().toLowerCase();});
+  // Format A: BNI Connect export — col 0 = "Member"/"Substitute"
+  var isBNIConnect=first[0]==='member'||first[0]==='substitute'||
+    lines.some(function(l){var f=ciParseLine(l);return f[0]==='Member'||f[0]==='Substitute';});
+  // Format B: has header row (contains 'name' or 'ชื่อ')
+  var hasHeader=first.some(function(h){return h==='name'||h==='ชื่อ'||h==='member name'||h==='status'||h==='สถานะ';});
+
+  if(isBNIConnect&&!hasHeader){
+    // BNI Connect: Member/Substitute, FirstName, LastName, SubFor, LookingFor, ..., Date
+    for(var i=0;i<lines.length;i++){
+      var f=ciParseLine(lines[i]);
+      var type=(f[0]||'').trim();
+      if(type!=='Member'&&type!=='Substitute')continue;
+      var firstName=(f[1]||'').trim();
+      var lastName=(f[2]||'').trim();
+      if(!firstName)continue;
+      var fullName=(firstName+' '+lastName).trim();
+      var subFor=(f[3]||'').trim();
+      var lookingFor=(f[4]||'').trim();
+      var dateStr=(f[6]||'').trim();
+      if(dateStr&&!date)date=dateStr;
+      members.push({no:String(members.length+1),name:fullName,status:type==='Member'?'สมาชิก':'ตัวแทน',sub_for:subFor||null,looking_for:lookingFor});
+    }
+  } else if(hasHeader){
+    // Header row: name/ชื่อ, status, sub_for, looking_for
+    var nameIdx=_ciIdxOf(first,['name','ชื่อ','member name','member']);
+    var statusIdx=_ciIdxOf(first,['status','สถานะ']);
+    var subIdx=_ciIdxOf(first,['sub_for','sub for','แทน']);
+    var lfIdx=_ciIdxOf(first,['looking_for','looking for','ต้องการ']);
+    var dateIdx=_ciIdxOf(first,['date','วันที่']);
+    if(nameIdx<0)return{ok:false,error:'ไม่พบคอลัมน์ชื่อใน CSV'};
+    for(var j=1;j<lines.length;j++){
+      var g=ciParseLine(lines[j]);
+      var nm=(g[nameIdx]||'').trim();if(!nm)continue;
+      var st=statusIdx>=0?(g[statusIdx]||'').trim():'สมาชิก';
+      if(st!=='สมาชิก'&&st!=='ตัวแทน')st=(st.toLowerCase()==='sub'||st.toLowerCase()==='substitute')?'ตัวแทน':'สมาชิก';
+      var ds=dateIdx>=0?(g[dateIdx]||'').trim():'';if(ds&&!date)date=ds;
+      members.push({no:String(members.length+1),name:nm,status:st,sub_for:subIdx>=0?(g[subIdx]||'').trim()||null:null,looking_for:lfIdx>=0?(g[lfIdx]||'').trim():''});
+    }
+  } else {
+    // GAS format (headerless): ชื่อ-สกุล, สมาชิก/ตัวแทน, sub_for, looking_for
+    for(var k=0;k<lines.length;k++){
+      var h=ciParseLine(lines[k]);
+      var name=(h[0]||'').trim();if(!name||name.length<2)continue;
+      var status=(h[1]||'').trim();
+      if(status!=='สมาชิก'&&status!=='ตัวแทน')continue; // skip non-member rows
+      var sub=(h[2]||'').trim();
+      var lf=(h[3]||'').trim();
+      members.push({no:String(members.length+1),name:name,status:status,sub_for:sub||null,looking_for:lf});
     }
   }
-  if(!weekStr){
-    var now=new Date();
-    var soy2=new Date(now.getFullYear(),0,1);
-    var wn2=Math.ceil((((now-soy2)/86400000)+soy2.getDay()+1)/7);
-    weekStr=('0'+wn2).slice(-2)+'/'+now.getFullYear();
-  }
+
+  if(!members.length)return{ok:false,error:'อ่านข้อมูลไม่ได้ — รองรับ 3 format:\n1) GAS: ชื่อ,สมาชิก,,Looking For\n2) BNI Connect: Member,FirstName,LastName,...\n3) Header: name,status,...'};
+  var weekStr='';
+  if(date){var dp=date.split('/');if(dp.length===3){var d=new Date(parseInt(dp[2]),parseInt(dp[1])-1,parseInt(dp[0]));if(!isNaN(d.getTime())){var soy=new Date(d.getFullYear(),0,1);var wn=Math.ceil((((d-soy)/86400000)+soy.getDay()+1)/7);weekStr=('0'+wn).slice(-2)+'/'+d.getFullYear();}}}
+  if(!weekStr){var now=new Date();var soy2=new Date(now.getFullYear(),0,1);var wn2=Math.ceil((((now-soy2)/86400000)+soy2.getDay()+1)/7);weekStr=('0'+wn2).slice(-2)+'/'+now.getFullYear();}
   return{ok:true,members:members,date:date,week:weekStr,total:members.length};
 }
+function _ciIdxOf(headers,candidates){for(var i=0;i<candidates.length;i++){var idx=headers.indexOf(candidates[i]);if(idx>=0)return idx;}return -1;}
 
 function ciParseLine(line){
   var fields=[],cur='',inQ=false;
@@ -5080,16 +5098,17 @@ function renderChecklist(d) {
         : t.nopass ? '❌ ยังไม่ผ่าน'
         : '⏳ ' + escHtml(t.status);
 
-      html += '<div class="cl-task ' + taskClass + '" id="task-' + t.rowNum + '">'
+      var safeKey = encodeURIComponent(t.itemKey||'');
+      html += '<div class="cl-task ' + taskClass + '" id="task-' + safeKey + '">'
         + '<div class="cl-task-top">'
         + (t.timeline ? '<span class="cl-task-tl">' + escHtml(t.timeline) + '</span>' : '')
         + '<span class="cl-task-name">' + escHtml(t.task) + '</span>'
         + '</div>'
         + '<div class="cl-task-status">' + statusTxt + '</div>'
         + '<div class="cl-task-actions">'
-        + '<button class="btn-pass' + (t.pass?' active':'') + '" onclick="tickTask(' + t.rowNum + ',true)">✅ Pass</button>'
-        + '<button class="btn-nopass' + (t.nopass?' active':'') + '" onclick="tickTask(' + t.rowNum + ',false)">❌ No Pass</button>'
-        + '<button class="btn-reset" onclick="tickTask(' + t.rowNum + ',null)">↺</button>'
+        + '<button class="btn-pass' + (t.pass?' active':'') + '" onclick="tickTask(\'' + safeKey + '\',true)">✅ Pass</button>'
+        + '<button class="btn-nopass' + (t.nopass?' active':'') + '" onclick="tickTask(\'' + safeKey + '\',false)">❌ No Pass</button>'
+        + '<button class="btn-reset" onclick="tickTask(\'' + safeKey + '\',null)">↺</button>'
         + '</div>'
         + (t.comment ? '<div class="cl-task-meta">💬 ' + escHtml(t.comment) + '</div>' : '')
         + '</div>';
@@ -5099,18 +5118,18 @@ function renderChecklist(d) {
   document.getElementById('cl-content').innerHTML = html;
 }
 
-function tickTask(rowNum, passVal) {
-  var btn = document.querySelector('#task-' + rowNum + ' .btn-pass');
+function tickTask(encodedKey, passVal) {
+  var itemKey = decodeURIComponent(encodedKey || '');
+  var btn = document.querySelector('#task-' + encodedKey + ' .btn-pass');
   if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
 
   call('saveNMCheckItem', {
-    fileUrl: NM.curFileUrl,
-    rowNum:  rowNum,
-    pass:    passVal
+    memberName: NM.curFileUrl,
+    itemKey:    itemKey,
+    isDone:     passVal === null ? false : Boolean(passVal)
   }, function(err, r) {
     if (r && r.ok) {
       toast('✅ บันทึกแล้ว');
-      // reload checklist
       call('getNMChecklist', { fileUrl: NM.curFileUrl }, function(err2, r2) {
         if (r2 && r2.ok) renderChecklist(r2);
       });
@@ -7754,6 +7773,34 @@ function closeSwitcher(){
 }
 function rsSwitchTo(role){
   if(_cachedRoles[role]){closeSwitcher();_doRoleSwitch(_cachedRoles[role]);return;}
+  // If user has a Google OAuth token and is MC/TOOMTAM, bypass PIN via viewAsRole
+  if(S.token&&(S.isMC||S.role==='toomtam')){
+    closeSwitcher();
+    fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'viewAsRole',token:S.token,targetRole:role})})
+      .then(function(res){return res.json();})
+      .then(function(r){
+        if(r.ok){_doRoleSwitch(r);}
+        else{// Fallback: show PIN entry
+          _rsSwitchTarget=role;
+          var el=document.getElementById('role-switcher-modal');
+          if(el)el.style.display='flex';
+          var rn=document.getElementById('rs-target-name');
+          if(rn)rn.textContent=role.toUpperCase();
+          var ps=document.getElementById('rs-pin-section');
+          if(ps)ps.style.display='block';
+          var pi=document.getElementById('rs-pin-input');
+          if(pi){pi.focus();pi.value='';}
+          var er=document.getElementById('rs-error');
+          if(er)er.textContent=r.error||'ต้องใช้ PIN';
+        }
+      })
+      .catch(function(){
+        _rsSwitchTarget=role;
+        var el=document.getElementById('role-switcher-modal');
+        if(el)el.style.display='flex';
+      });
+    return;
+  }
   _rsSwitchTarget=role;
   var rn=document.getElementById('rs-target-name');
   if(rn)rn.textContent=role.toUpperCase();

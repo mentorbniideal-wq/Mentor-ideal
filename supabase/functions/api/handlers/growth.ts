@@ -446,8 +446,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     }
 
     // ── Growth Data / Sheet (Growth Coordinator) ──────────────
-    case 'getGrowthData':
-    case 'getGrowthSheetData': {
+    case 'getGrowthData': {
+      // Flat member list for MC/mentor dashboard (not the growth sheet UI)
       const { data: rows, error } = await db
         .from('v_member_dashboard')
         .select('name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb, tyfcb_thb, absent, attend, rg, rr, visitors, one_to_one, ceu, bni_days')
@@ -479,35 +479,115 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         total121      += r121;
         chapterAttend += attend;
         chapterAbsent += absent;
-
-        if (total >= 5) {
-          if (giveRatio > 60) highGiverLowRecv++;
-          else if (giveRatio < 40) lowGiverHighRecv++;
-          else balanced++;
+        let zone: string;
+        if (total < 5) {
+          zone = 'insufficient';
+        } else if (giveRatio > 60) {
+          zone = 'highGiverLowRecv'; highGiverLowRecv++;
+        } else if (giveRatio < 40) {
+          zone = 'lowGiverHighRecv'; lowGiverHighRecv++;
+        } else {
+          zone = 'balanced'; balanced++;
         }
-
+        const bniDaysN = Number(m.bni_days) || 0;
         return {
           name: m.name, nick: m.nickname, mentor: m.mentor_team,
-          score: Number(m.display_score) || 0, tl, zone: tl,
+          score: Number(m.display_score) || 0, tl, zone,
           given, recv, tyfcb, absent, attend,
-          rg: rgCount, rr: rrCount,
-          rgCount, rrCount, giveRatio,
+          rg: rgCount, rr: rrCount, rgCount, rrCount, giveRatio,
           visitors: vis, r121, oToOne: r121, ceu,
-          bniDays: Number(m.bni_days) || 0,
+          bniDays: bniDaysN,
+          tyfcbPerDay: bniDaysN > 0 ? Math.round(tyfcb / bniDaysN) : 0,
+        };
+      });
+      const chapterAttendRate = (chapterAttend + chapterAbsent) > 0
+        ? Math.round(chapterAttend / (chapterAttend + chapterAbsent) * 100) : 0;
+      return jsonResponse({ ok: true, members, summary: {
+        total: members.length, totalTYFCB, totalVisitors, total121,
+        chapterAttend, chapterAbsent, chapterAttendRate,
+        highGiverLowRecv, lowGiverHighRecv, balanced,
+      }});
+    }
+
+    case 'getGrowthSheetData': {
+      // Grouped structure for the Growth Sheet UI
+      // Columns: 0=seq, 1=ชื่อ-สกุล, 2=ชื่อเล่น, 3=อายุสมาชิก, 4=หมายเหตุ, 5=เป้าหมาย ฿, 6=รับจริง ฿, 7=%ทำได้
+      const HEADERS = ['', 'ชื่อ-สกุล', 'ชื่อเล่น', 'อายุสมาชิก', 'หมายเหตุ', 'เป้าหมาย ฿', 'รับจริง ฿', '%ทำได้'];
+      const COL_MAP = { name: 1, nick: 2, memberAge: 3, note: 4, target: 5, received: 6, pct: 7 };
+
+      const { data: groupRows, error: gErr } = await db
+        .from('growth_referral_groups')
+        .select('id, name, sort_order')
+        .order('sort_order', { ascending: true });
+      if (gErr) return errResponse(gErr.message);
+
+      const { data: memberRows, error: mErr } = await db
+        .from('growth_referral_members')
+        .select('id, group_id, raw_name, nickname, seq_no, target_thb, received_thb, membership_age, note')
+        .order('seq_no', { ascending: true });
+      if (mErr) return errResponse(mErr.message);
+
+      const membersByGroup: Record<string, Record<string, unknown>[]> = {};
+      for (const m of (memberRows || []) as Record<string, unknown>[]) {
+        const gid = String(m.group_id);
+        if (!membersByGroup[gid]) membersByGroup[gid] = [];
+        membersByGroup[gid].push(m);
+      }
+
+      let totalTarget = 0, totalReceived = 0;
+      const groups = (groupRows || []).map((g: Record<string, unknown>) => {
+        const gid    = String(g.id);
+        const mems   = membersByGroup[gid] || [];
+        let gTarget = 0, gReceived = 0;
+
+        const members = mems.map((m: Record<string, unknown>) => {
+          const tgt  = Number(m.target_thb)   || 0;
+          const recv = Number(m.received_thb) || 0;
+          const pct  = tgt > 0 ? Math.round(recv / tgt * 100) : 0;
+          gTarget   += tgt;
+          gReceived += recv;
+          return {
+            sheetRow: String(m.id),
+            name:     String(m.raw_name || ''),
+            nick:     String(m.nickname || ''),
+            target:   tgt,
+            received: recv,
+            cells: [
+              Number(m.seq_no) || 0,    // 0
+              m.raw_name || '',          // 1 name
+              m.nickname || '',          // 2 nick
+              m.membership_age || '',    // 3
+              m.note || '',              // 4
+              tgt,                       // 5 target
+              recv,                      // 6 received
+              pct + '%',                 // 7 pct
+            ],
+          };
+        });
+
+        totalTarget   += gTarget;
+        totalReceived += gReceived;
+        const gPct = gTarget > 0 ? Math.round(gReceived / gTarget * 100) : 0;
+
+        return {
+          id: gid, name: String(g.name),
+          members,
+          totalRow: { received: gReceived, target: gTarget, pct: gPct, cells: ['รวม', '', '', '', '', gTarget, gReceived, gPct + '%'] },
         };
       });
 
-      const total = members.length;
-      const chapterAttendRate = (chapterAttend + chapterAbsent) > 0
-        ? Math.round(chapterAttend / (chapterAttend + chapterAbsent) * 100) : 0;
-
-      const summary = {
-        total, totalTYFCB, totalVisitors, total121,
-        chapterAttend, chapterAbsent, chapterAttendRate,
-        highGiverLowRecv, lowGiverHighRecv, balanced,
-      };
-
-      return jsonResponse({ ok: true, members, summary });
+      const overallPct = totalTarget > 0 ? Math.round(totalReceived / totalTarget * 100) : 0;
+      return jsonResponse({
+        ok: true,
+        headers: HEADERS,
+        colMap: COL_MAP,
+        groups,
+        summary: {
+          totalTarget, totalReceived, pct: overallPct,
+          groupCount: groups.length,
+          memberCount: (memberRows || []).length,
+        },
+      });
     }
 
     // ── Mentor Activity + Performance (Growth can view) ───────
@@ -535,27 +615,70 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
 
     // ── Growth Tasks ──────────────────────────────────────────
     case 'createGrowthTask': {
-      const auth = await requireAuth(db, p, ['mc']);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
-      const assignedTo = String(p.assignedTo || '');
-      const taskText   = String(p.taskText || p.task || '').trim();
-      if (!assignedTo || !taskText) return errResponse('assignedTo and taskText required');
-      const { error } = await db.from('growth_tasks').insert({ created_by: 'mc', assigned_to: assignedTo, task_text: taskText });
+      // Accept both old (assignedTo/taskText) and new (teamName/memberName/taskType/note) params
+      const assignedTo  = String(p.assignedTo || p.teamName || '').toLowerCase();
+      const taskText    = String(p.taskText || p.task || p.note || '').trim();
+      const memberName  = String(p.memberName || '').trim();
+      const taskType    = String(p.taskType || 'ทั่วไป').trim();
+      const priority    = String(p.priority || '📋');
+      if (!assignedTo) return errResponse('assignedTo or teamName required');
+
+      // Look up member_id if memberName provided
+      let memberId: string | null = null;
+      if (memberName) {
+        const { data: mem } = await db.from('members').select('id').eq('name', memberName).maybeSingle();
+        if (mem) memberId = (mem as Record<string, unknown>).id as string;
+      }
+
+      const { error } = await db.from('growth_tasks').insert({
+        created_by:  String(auth.role || 'growth'),
+        assigned_to: assignedTo,
+        task_text:   taskText,
+        member_id:   memberId,
+        member_name: memberName || null,
+        task_type:   taskType,
+        priority,
+      });
       if (error) return errResponse(error.message);
       return jsonResponse({ ok: true });
     }
 
     case 'getGrowthTasks': {
-      const role = String(p.role || '').toLowerCase();
-      let query = db.from('growth_tasks').select('id, created_by, assigned_to, task_text, response, responded_at, created_at');
+      const auth = await requireAuth(db, p);
+      if (!auth.ok) return errResponse(auth.error!);
+      const role = String(p.role || auth.role || '').toLowerCase();
+      const statusFilter = String(p.statusFilter || 'all');
+
+      let query = db.from('growth_tasks').select('id, created_by, assigned_to, task_text, response, responded_at, created_at, priority, task_type, member_name');
+      // Mentors only see tasks assigned to them; MC/growth see all
       if (role !== 'mc' && role !== 'growth') query = query.eq('assigned_to', role);
+      // Status filter
+      if (statusFilter === 'open')  query = query.is('responded_at', null);
+      if (statusFilter === 'done')  query = query.not('responded_at', 'is', null);
+
       const { data, error } = await query.order('created_at', { ascending: false }).limit(50);
       if (error) return errResponse(error.message);
-      return jsonResponse({ ok: true, tasks: data || [] });
+
+      const tasks = (data || []).map((t: Record<string, unknown>) => ({
+        id:          t.id,
+        memberName:  t.member_name  || '',
+        team:        t.assigned_to  || '',
+        taskType:    t.task_type    || 'ทั่วไป',
+        note:        t.task_text    || '',
+        priority:    t.priority     || '📋',
+        status:      t.responded_at ? 'done' : 'open',
+        response:    t.response     || '',
+        respondedAt: t.responded_at ? String(t.responded_at).split('T')[0] : '',
+        createdAt:   t.created_at   ? String(t.created_at).split('T')[0] : '',
+      }));
+
+      return jsonResponse({ ok: true, tasks });
     }
 
     case 'respondGrowthTask': {
-      const taskId   = String(p.taskId || '');
+      const taskId   = String(p.taskId || p.id || '');
       const response = String(p.response || '').trim();
       if (!taskId) return errResponse('taskId required');
       const { error } = await db.from('growth_tasks')
@@ -567,7 +690,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
 
     // ── Monthly sync from CSV uploads ─────────────────────────────
     case 'monthlySync': {
-      const auth = await requireAuth(db, p, ['mc', 'growth']);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const tlCsv = typeof p.tlCsv === 'string' ? p.tlCsv : null;
@@ -669,12 +792,89 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       });
     }
 
-    // ── Stubs ─────────────────────────────────────────────────
-    case 'updateGrowthMember':
-    case 'addGrowthMember':
-    case 'moveGrowthMember':
-    case 'getGrowthPowerTeams':
-      return jsonResponse({ ok: true, message: 'not yet implemented' });
+    case 'updateGrowthMember': {
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const memberId = String(p.sheetRow || '');
+      if (!memberId) return errResponse('sheetRow required');
+
+      // col is 1-based; map to DB field
+      const COL_TO_FIELD: Record<number, string> = {
+        3: 'nickname', 4: 'membership_age', 5: 'note',
+        6: 'target_thb', 7: 'received_thb',
+      };
+      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      for (const u of (Array.isArray(p.updates) ? p.updates : []) as { col: number; val: unknown }[]) {
+        const field = COL_TO_FIELD[u.col];
+        if (field) updates[field] = u.val;
+      }
+
+      const { error } = await db.from('growth_referral_members').update(updates).eq('id', memberId);
+      if (error) return errResponse(error.message);
+      return jsonResponse({ ok: true });
+    }
+
+    case 'addGrowthMember': {
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const name      = String(p.name      || '').trim();
+      const groupName = String(p.groupName || '').trim();
+      if (!name)      return errResponse('name required');
+      if (!groupName) return errResponse('groupName required');
+
+      const { data: grp, error: gErr } = await db
+        .from('growth_referral_groups')
+        .select('id')
+        .eq('name', groupName)
+        .single();
+      if (gErr || !grp) return errResponse('กลุ่ม "' + groupName + '" ไม่มีอยู่');
+
+      const { data: lastRow } = await db
+        .from('growth_referral_members')
+        .select('seq_no')
+        .eq('group_id', (grp as Record<string, unknown>).id)
+        .order('seq_no', { ascending: false })
+        .limit(1)
+        .single();
+      const nextSeq = lastRow ? (Number((lastRow as Record<string, unknown>).seq_no) || 0) + 1 : 1;
+
+      const { error } = await db.from('growth_referral_members').insert({
+        group_id:     (grp as Record<string, unknown>).id,
+        raw_name:     name,
+        nickname:     String(p.nick || ''),
+        target_thb:   Number(p.target) || 0,
+        received_thb: 0,
+        seq_no:       nextSeq,
+      });
+      if (error) return errResponse(error.message);
+      return jsonResponse({ ok: true });
+    }
+
+    case 'moveGrowthMember': {
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const memberId  = String(p.sheetRow    || '');
+      const groupName = String(p.targetGroup || '').trim();
+      if (!memberId)  return errResponse('sheetRow required');
+      if (!groupName) return errResponse('targetGroup required');
+
+      const { data: grp, error: gErr } = await db
+        .from('growth_referral_groups')
+        .select('id')
+        .eq('name', groupName)
+        .single();
+      if (gErr || !grp) return errResponse('กลุ่ม "' + groupName + '" ไม่มีอยู่');
+
+      const { error } = await db
+        .from('growth_referral_members')
+        .update({ group_id: (grp as Record<string, unknown>).id, updated_at: new Date().toISOString() })
+        .eq('id', memberId);
+      if (error) return errResponse(error.message);
+      return jsonResponse({ ok: true });
+    }
 
     default:
       return errResponse(`Unknown growth action: ${action}`);
