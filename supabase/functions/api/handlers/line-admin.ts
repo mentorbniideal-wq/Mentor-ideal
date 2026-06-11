@@ -470,17 +470,24 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         weekCounts[mid] = (weekCounts[mid] || 0) + 1;
       }
 
-      const enrolled = ((enrolledRows || []) as Record<string, unknown>[]).map(r => {
+      const members = ((enrolledRows || []) as Record<string, unknown>[]).map(r => {
         const m = (r.members || {}) as Record<string, unknown>;
+        const weekSent = weekCounts[String(r.member_id)] || 0;
+        const enrolledAt = String(r.enrolled_at || '');
         return {
+          name:       String(m.name || ''),
+          nick:       String(m.nickname || ''),
+          weekSent,
+          completed:  weekSent >= 8,
+          startDate:  enrolledAt.split('T')[0] || enrolledAt,
+          enrolledAt,
+          // Keep canonical aliases
           memberName:     String(m.name || ''),
-          nick:           String(m.nickname || ''),
-          weeksCompleted: weekCounts[String(r.member_id)] || 0,
-          enrolledAt:     String(r.enrolled_at || ''),
+          weeksCompleted: weekSent,
         };
       });
 
-      return jsonResponse({ ok: true, enrolled });
+      return jsonResponse({ ok: true, members, enrolled: members });
     }
 
     // ── GET: onboarding message templates ─────────────────────
@@ -494,12 +501,19 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         .order('week_number', { ascending: true });
       if (error) return errResponse(error.message);
 
-      const messages = ((data || []) as Record<string, unknown>[]).map(r => ({
-        weekNum:     Number(r.week_number) || 0,
-        messageText: String(r.message_text || ''),
-      }));
+      // Frontend reads r.messages[weekNum] and r.defaults[weekNum] as dicts
+      const messages: Record<number, string> = {};
+      const defaults: Record<number, string> = {};
+      for (const r of ((data || []) as Record<string, unknown>[])) {
+        const wk = Number(r.week_number) || 0;
+        if (wk > 0) messages[wk] = String(r.message_text || '');
+      }
+      // Provide empty defaults for weeks 1-8 if not customized
+      for (let w = 1; w <= 8; w++) {
+        defaults[w] = messages[w] || `[Week ${w} — กำหนดข้อความได้ที่นี่]`;
+      }
 
-      return jsonResponse({ ok: true, messages });
+      return jsonResponse({ ok: true, messages, defaults });
     }
 
     // ── GET: preview a specific onboarding week message ───────
@@ -1049,7 +1063,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       const { data: recentLogs } = await db
         .from('one_to_one_logs')
         .select('initiator_id')
-        .gte('meeting_date', weekStart.toISOString().split('T')[0]);
+        .gte('met_at', weekStart.toISOString());
 
       const doneIds = new Set(((recentLogs || []) as Record<string, unknown>[]).map(r => String(r.initiator_id)));
 
@@ -1075,6 +1089,6 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
     // ── Default stub ──────────────────────────────────────────
     default:
-      return jsonResponse({ ok: true, message: 'not yet implemented' });
+      return errResponse(`unknown action: ${p.action}`);
   }
 }

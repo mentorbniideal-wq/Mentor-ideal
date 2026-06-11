@@ -149,9 +149,10 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
         .insert({
           name,
           nickname,
-          mentor_team:  mentorTeam,
-          is_mentored:  mentorTeam !== null,
-          is_archived:  false,
+          mentor_team:   mentorTeam,
+          is_mentored:   mentorTeam !== null,
+          is_archived:   false,
+          is_new_member: true,
         })
         .select('id, name, nickname, mentor_team')
         .single();
@@ -351,7 +352,8 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
     // ── GET new-member checklist ──────────────────────────────
     case 'getNMChecklist': {
-      const memberName = String(p.memberName || '').trim();
+      // fileUrl = member name (legacy identifier from GAS version)
+      const memberName = String(p.memberName || p.fileUrl || '').trim();
       if (!memberName) return errResponse('memberName required');
 
       const { data: member, error: mErr } = await db
@@ -405,7 +407,7 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
     case 'getNewMembers': {
       const { data: members, error: mErr } = await db
         .from('members')
-        .select('id, name, nickname, mentor_team')
+        .select('id, name, nickname, mentor_team, created_at')
         .eq('is_new_member', true)
         .eq('is_archived', false)
         .order('name');
@@ -445,10 +447,24 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       }
 
       const enriched = (members as Record<string, unknown>[]).map((m) => {
-        const id    = m.id as string;
-        const items = clByMember[id] || [];
-        const done  = items.filter((r) => r.is_done).length;
-        const total = items.length;
+        const id      = m.id as string;
+        const items   = clByMember[id] || [];
+        const done    = items.filter((r) => r.is_done).length;
+        const total   = items.length;
+        const pct     = total > 0 ? Math.round(done / total * 100) : 0;
+
+        // Derive dates from created_at (best proxy for join date)
+        const createdAt  = String(m.created_at || '');
+        const startDate  = createdAt.split('T')[0] || '';
+        let w8Date = '';
+        if (startDate) {
+          const d = new Date(startDate);
+          d.setDate(d.getDate() + 56); // 8 weeks
+          w8Date = d.toISOString().split('T')[0];
+        }
+
+        const statusText = pct >= 100 ? 'ครบทุกข้อ' : total > 0 ? `${done}/${total} ข้อ` : 'ยังไม่ได้เริ่ม';
+
         return {
           id,
           name:           m.name,
@@ -457,8 +473,12 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
           mentorTeam:     m.mentor_team,
           checklistDone:  done,
           checklistTotal: total,
-          progress:       total > 0 ? Math.round(done / total * 100) : 0,
-          startDate:      '',              // not tracked yet; placeholder
+          progress:       pct,
+          startDate,
+          w8Date,
+          expDate:        '',  // expiry date not tracked on new members
+          status:         statusText,
+          fileUrl:        String(m.name),  // used as identifier for checklist panel
           latestNote:     latestNoteByMember[id] || '',
         };
       });
@@ -478,6 +498,52 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
         .from('members')
         .update({ is_new_member: false, updated_at: new Date().toISOString() })
         .eq('name', memberName);
+      if (error) return errResponse(error.message);
+      return jsonResponse({ ok: true });
+    }
+
+    // ── Admin: email whitelist (MC + TOOMTAM only) ───────────────
+    case 'getAdminEmails': {
+      const auth = await requireAuth(db, p, ['mc', 'toomtam']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const { data, error } = await db
+        .from('allowed_emails')
+        .select('id, email, label, added_by, added_at')
+        .order('added_at', { ascending: false });
+      if (error) return errResponse(error.message);
+
+      return jsonResponse({ ok: true, emails: data || [] });
+    }
+
+    case 'addAdminEmail': {
+      const auth = await requireAuth(db, p, ['mc', 'toomtam']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const email = String(p.email || '').trim().toLowerCase();
+      const label = String(p.label || '').trim() || null;
+      if (!email || !email.includes('@')) return errResponse('อีเมลไม่ถูกต้อง');
+
+      const { error } = await db.from('allowed_emails').insert({
+        email, label,
+        added_by: auth.role || 'unknown',
+        added_at: new Date().toISOString(),
+      });
+      if (error) {
+        if (error.code === '23505') return errResponse('อีเมลนี้มีอยู่แล้ว');
+        return errResponse(error.message);
+      }
+      return jsonResponse({ ok: true });
+    }
+
+    case 'removeAdminEmail': {
+      const auth = await requireAuth(db, p, ['mc', 'toomtam']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const email = String(p.email || '').trim().toLowerCase();
+      if (!email) return errResponse('email required');
+
+      const { error } = await db.from('allowed_emails').delete().eq('email', email);
       if (error) return errResponse(error.message);
       return jsonResponse({ ok: true });
     }

@@ -72,6 +72,7 @@ const ROUTES: Record<string, string> = {
   'getMemberNote': 'members', 'saveScore': 'members',
   'saveStatus': 'members', 'ensureSlot': 'members',
   'getNMChecklist': 'members', 'saveNMCheckItem': 'members',
+  'getAdminEmails': 'members', 'addAdminEmail': 'members', 'removeAdminEmail': 'members',
 
   // Coaching / Core Issue
   'saveCoreIssue': 'coaching', 'getCoachingGuide': 'coaching',

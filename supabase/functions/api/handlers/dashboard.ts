@@ -86,37 +86,152 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     case 'getDesktopDashboard': {
       const { data: rows, error } = await db
         .from('v_member_dashboard')
-        .select('id, name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb, tyfcb_thb, absent, palms_detail, expiry_date, days_to_expiry, bni_days')
+        .select('id, name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb, tyfcb_thb, absent, attend, rg, rr, visitors, one_to_one, ceu, palms_detail, expiry_date, days_to_expiry, bni_days')
         .eq('is_archived', false)
         .order('display_score', { ascending: false });
       if (error) return errResponse(error.message);
 
-      const summary = { green: 0, yellow: 0, red: 0, black: 0, none: 0 };
-      const teamAgg: Record<string, { team: string; count: number; scoreSum: number; scored: number; green: number; yellow: number; red: number; black: number; none: number }> = {};
+      const memberIds = (rows || []).map((m: Record<string, unknown>) => String(m.id));
+
+      // ── Batch-fetch monthly score history for sparklines ──
+      const { data: allScores } = memberIds.length
+        ? await db.from('monthly_scores').select('member_id, score, year, month')
+            .in('member_id', memberIds)
+            .order('year', { ascending: true })
+            .order('month', { ascending: true })
+        : { data: [] };
+      const histMap: Record<string, number[]> = {};
+      for (const s of (allScores || []) as Record<string, unknown>[]) {
+        const mid = String(s.member_id);
+        if (!histMap[mid]) histMap[mid] = [];
+        histMap[mid].push(Number(s.score) || 0);
+      }
+
+      // ── Batch-fetch phone/email/is_new_member (not in view) ──
+      const { data: contactRows } = memberIds.length
+        ? await db.from('members').select('id, phone, email, is_new_member').in('id', memberIds)
+        : { data: [] };
+      const contactMap: Record<string, { phone: string; email: string; isNew: boolean }> = {};
+      for (const c of (contactRows || []) as Record<string, unknown>[]) {
+        contactMap[String(c.id)] = { phone: String(c.phone || ''), email: String(c.email || ''), isNew: Boolean(c.is_new_member) };
+      }
+
+      const summary: Record<string, number> = { green: 0, yellow: 0, red: 0, black: 0, none: 0 };
+      type TeamAgg = { team: string; count: number; scoreSum: number; scored: number; green: number; yellow: number; red: number; black: number; none: number; nmCount: number; tyfcbTotal: number; givenTotal: number; recvTotal: number; absentTotal: number };
+      const teamAgg: Record<string, TeamAgg> = {};
 
       const members = (rows || []).map((m: Record<string, unknown>) => {
-        const tl    = String(m.traffic_light || 'none');
-        const score = Number(m.display_score) || 0;
-        const team  = String(m.mentor_team || '');
+        const mid     = String(m.id);
+        const tl      = String(m.traffic_light || 'none');
+        const score   = Number(m.display_score) || 0;
+        const team    = String(m.mentor_team || '');
+        const bniDays = Number(m.bni_days) || 0;
+        const recv    = Number(m.received_thb) || 0;
+        const given   = Number(m.given_thb) || 0;
+        const tyfcbV  = Number(m.tyfcb_thb) || 0;
+        const absentV = Number(m.absent) || 0;
+        const contact = contactMap[mid] || { phone: '', email: '', isNew: false };
 
-        if (tl in summary) (summary as Record<string, number>)[tl]++;
+        if (tl in summary) summary[tl]++;
 
         if (team) {
-          if (!teamAgg[team]) teamAgg[team] = { team, count: 0, scoreSum: 0, scored: 0, green: 0, yellow: 0, red: 0, black: 0, none: 0 };
+          if (!teamAgg[team]) teamAgg[team] = { team, count: 0, scoreSum: 0, scored: 0, green: 0, yellow: 0, red: 0, black: 0, none: 0, nmCount: 0, tyfcbTotal: 0, givenTotal: 0, recvTotal: 0, absentTotal: 0 };
           const ta = teamAgg[team];
           ta.count++;
           if (score > 0) { ta.scoreSum += score; ta.scored++; }
-          if (tl in ta) (ta as Record<string, number>)[tl]++;
+          if (tl in ta) (ta as unknown as Record<string, number>)[tl]++;
+          if (contact.isNew) ta.nmCount++;
+          ta.tyfcbTotal  += tyfcbV;
+          ta.givenTotal  += given;
+          ta.recvTotal   += recv;
+          ta.absentTotal += absentV;
+        }
+
+        // Map palms_detail keys to frontend naming convention
+        const pd   = (m.palms_detail || {}) as Record<string, unknown>;
+        const cats = pd && Object.keys(pd).length > 0 ? {
+          absent:   Number(pd.absence)  || 0,
+          ref:      Number(pd.referral) || 0,
+          tyfcb:    Number(pd.tyfb)     || 0,
+          visitor:  Number(pd.visitor)  || 0,
+          one21:    Number(pd.oneToOne) || 0,
+          training: Number(pd.ceu)      || 0,
+        } : null;
+
+        const actual = {
+          rg:      Number(m.rg)         || 0,
+          rr:      Number(m.rr)         || 0,
+          visitor: Number(m.visitors)   || 0,
+          oToOne:  Number(m.one_to_one) || 0,
+          ceu:     Number(m.ceu)        || 0,
+          tyfcb:   tyfcbV,
+          bniDays, absent: absentV,
+          attend:  Number(m.attend)     || 0,
+        };
+
+        const roi = given > 0 ? Math.round(recv / 28000 * 100) : 0;
+        const hist = histMap[mid] || [];
+
+        // Fast Track: suggest highest-gain next actions per PALMS tier
+        const fastTrack: { icon: string; cat: string; action: string; gain: number; curVal: string; tgtVal: string }[] = [];
+        if (cats) {
+          const wks = Math.max(1, Math.floor(bniDays / 7));
+          const mos = Math.max(1, wks / 4);
+          const fmt = (v: number) => v >= 1000000 ? (v / 1000000).toFixed(1) + 'M' : v >= 1000 ? Math.round(v / 1000) + 'K' : String(Math.round(v));
+
+          // Absence (15pts): 0abs→15, 1→10, 2→5, 3+→0
+          if (cats.absent < 15) {
+            const gain = cats.absent < 5 ? 5 : cats.absent < 10 ? 5 : 5;
+            const tgt  = cats.absent < 5 ? '2 ครั้ง' : cats.absent < 10 ? '1 ครั้ง' : '0 ครั้ง';
+            fastTrack.push({ icon: '📅', cat: 'ลดการขาด', gain, action: 'ลดการขาดประชุมให้เหลือน้อยกว่าเป้า', curVal: `ขาด ${actual.absent} ครั้ง`, tgtVal: `ขาด ≤${tgt}` });
+          }
+          // Referral (15pts): ≥2/wk→15, ≥1/wk→10, else→0
+          if (cats.ref < 15) {
+            const gain = cats.ref === 0 ? 10 : 5;
+            const tgt  = cats.ref === 0 ? '1 ใบ/สัปดาห์' : '2 ใบ/สัปดาห์';
+            fastTrack.push({ icon: '💡', cat: 'Referral', gain, action: 'ให้ Referral เพิ่มขึ้น', curVal: `${(actual.rg / wks).toFixed(1)} ใบ/สัปดาห์`, tgtVal: tgt });
+          }
+          // Visitor (20pts): ≥1/mo→20, any→10, else→0
+          if (cats.visitor < 20) {
+            const gain = cats.visitor === 0 ? 10 : 10;
+            const tgt  = cats.visitor === 0 ? 'พา Visitor อย่างน้อย 1 คน' : '≥1 คน/เดือน';
+            fastTrack.push({ icon: '👥', cat: 'Visitor', gain, action: 'พาคนนอกมาเยี่ยม Chapter', curVal: `${actual.visitor} คน (${(actual.visitor / mos).toFixed(1)}/เดือน)`, tgtVal: tgt });
+          }
+          // 1-2-1 (15pts): ≥2/wk→15, ≥1/wk→10, >0→5
+          if (cats.one21 < 15) {
+            const gain = cats.one21 === 0 ? 5 : 5;
+            const tgt  = cats.one21 === 0 ? 'ทำ 1-2-1 อย่างน้อย 1 ครั้ง' : cats.one21 < 10 ? '1 ครั้ง/สัปดาห์' : '2 ครั้ง/สัปดาห์';
+            fastTrack.push({ icon: '🤝', cat: '1-2-1', gain, action: 'เพิ่มการนัด 1-2-1 กับ Chapter', curVal: `${(actual.oToOne / wks).toFixed(1)} ครั้ง/สัปดาห์`, tgtVal: tgt });
+          }
+          // CEU (20pts): ≥4→20, 3→15, ≥2→10, ≥1→5
+          if (cats.training < 20) {
+            const gain = 5;
+            const tgt  = cats.training === 0 ? '1 CEU' : cats.training < 10 ? '2 CEU' : cats.training < 15 ? '3 CEU' : '4+ CEU';
+            fastTrack.push({ icon: '📚', cat: 'CEU/Training', gain, action: 'เข้าร่วม Training / CEU เพิ่ม', curVal: `${actual.ceu} CEU`, tgtVal: tgt });
+          }
+          // TYFCB (15pts): ≥500k→15, ≥200k→10, ≥100k→5
+          if (cats.tyfcb < 15) {
+            const gain = 5;
+            const tgt  = cats.tyfcb === 0 ? '฿100K' : cats.tyfcb < 10 ? '฿200K' : '฿500K';
+            fastTrack.push({ icon: '💰', cat: 'TYFCB', gain, action: 'เพิ่ม Closed Business จาก BNI', curVal: `฿${fmt(actual.tyfcb)}`, tgtVal: tgt });
+          }
+          fastTrack.sort((a, b) => b.gain - a.gain);
+          fastTrack.splice(4); // top 4 only
         }
 
         return {
+          id: mid,
           name: m.name, nick: m.nickname, mentor: m.mentor_team,
-          score, tl,
-          given: Number(m.given_thb) || 0, recv: Number(m.received_thb) || 0,
-          tyfcb: Number(m.tyfcb_thb) || 0, absent: Number(m.absent) || 0,
+          score, tl, roi, hist,
+          given, recv,
+          tyfcb: tyfcbV, absent: absentV,
           bniScore: score, bniTl: tl,
-          cats: m.palms_detail || null,
-          bniDays: Number(m.bni_days) || 0,
+          palmsScore: score,
+          cats, actual, bniDays,
+          fastTrack,
+          phone: contact.phone, email: contact.email,
+          noMentorContact: false, mentorContactDays: null as number | null,
+          scoreAvg: hist.length ? Math.round(hist.reduce((a, v) => a + v, 0) / hist.length) : score,
         };
       });
 
@@ -126,13 +241,15 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       for (const a of activityData) actMap[a.team] = a as unknown as Record<string, unknown>;
 
       const teams = TEAMS.map(teamName => {
-        const ta  = teamAgg[teamName] || { team: teamName, count: 0, scoreSum: 0, scored: 0, green: 0, yellow: 0, red: 0, black: 0, none: 0 };
+        const ta  = teamAgg[teamName] || { team: teamName, count: 0, scoreSum: 0, scored: 0, green: 0, yellow: 0, red: 0, black: 0, none: 0, nmCount: 0, tyfcbTotal: 0, givenTotal: 0, recvTotal: 0, absentTotal: 0 };
         const act = actMap[teamName]  || {};
         return {
           team: teamName,
           count: ta.count,
           avg: ta.scored ? Math.round(ta.scoreSum / ta.scored) : 0,
           green: ta.green, yellow: ta.yellow, red: ta.red, black: ta.black, none: ta.none,
+          nmCount: ta.nmCount, tyfcbTotal: ta.tyfcbTotal,
+          givenTotal: ta.givenTotal, recvTotal: ta.recvTotal, absentTotal: ta.absentTotal,
           ...act,
         };
       });
@@ -189,6 +306,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         name: m.name, nick: m.nickname, mentor: m.mentor_team,
       }));
 
+      summary['total'] = members.length;
       return jsonResponse({ ok: true, members, summary, teams, renewal, health, nmList, updatedAt: new Date().toISOString() });
     }
 
@@ -231,10 +349,87 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       const displayScore = Number(mv.display_score) || 0;
       const tl = String(mv.traffic_light || 'none');
 
+      const absent = actual.absent;
+      const attendRisk = absent >= 5 ? 'critical' : absent >= 3 ? 'danger' : absent >= 1 ? 'warning' : 'ok';
+
+      // Build PALMS component scores from palms_detail
+      const pd = (mv.palms_detail || {}) as Record<string, unknown>;
+      const cats = Object.keys(pd).length > 0 ? {
+        absent:   Number(pd.absence)  || 0,
+        ref:      Number(pd.referral) || 0,
+        tyfcb:    Number(pd.tyfb)     || 0,
+        visitor:  Number(pd.visitor)  || 0,
+        one21:    Number(pd.oneToOne) || 0,
+        training: Number(pd.ceu)      || 0,
+      } : null;
+
+      // Fast Track actions (same algorithm as getDashboard)
+      const fmt = (v: number) => v >= 1000000 ? (v / 1000000).toFixed(1) + 'M' : v >= 1000 ? Math.round(v / 1000) + 'K' : String(Math.round(v));
+      const wks = Math.max(1, Math.floor(bniDays / 7));
+      const mos = Math.max(1, wks / 4);
+      const fastestActions: { icon: string; cat: string; action: string; gain: number; curVal: string; tgtVal: string }[] = [];
+      if (cats) {
+        if (cats.absent < 15) {
+          const gain = cats.absent < 10 ? 5 : 5;
+          fastestActions.push({ icon: '📅', cat: 'ลดการขาด', gain, action: 'ลดการขาดประชุมให้เหลือน้อยกว่าเป้า', curVal: `ขาด ${absent} ครั้ง`, tgtVal: cats.absent < 5 ? 'ขาด ≤2 ครั้ง' : 'ขาด 0 ครั้ง' });
+        }
+        if (cats.ref < 15) {
+          fastestActions.push({ icon: '💡', cat: 'Referral', gain: cats.ref === 0 ? 10 : 5, action: 'ให้ Referral เพิ่มขึ้น', curVal: `${(actual.rg / wks).toFixed(1)} ใบ/สัปดาห์`, tgtVal: cats.ref === 0 ? '1 ใบ/สัปดาห์' : '2 ใบ/สัปดาห์' });
+        }
+        if (cats.visitor < 20) {
+          fastestActions.push({ icon: '👥', cat: 'Visitor', gain: 10, action: 'พาคนนอกมาเยี่ยม Chapter', curVal: `${actual.visitor} คน (${(actual.visitor / mos).toFixed(1)}/เดือน)`, tgtVal: cats.visitor === 0 ? 'พา Visitor อย่างน้อย 1 คน' : '≥1 คน/เดือน' });
+        }
+        if (cats.one21 < 15) {
+          fastestActions.push({ icon: '🤝', cat: '1-2-1', gain: 5, action: 'เพิ่มการนัด 1-2-1 กับ Chapter', curVal: `${(actual.oToOne / wks).toFixed(1)} ครั้ง/สัปดาห์`, tgtVal: cats.one21 === 0 ? 'ทำ 1-2-1 อย่างน้อย 1 ครั้ง' : '1 ครั้ง/สัปดาห์' });
+        }
+        if (cats.training < 20) {
+          fastestActions.push({ icon: '📚', cat: 'CEU/Training', gain: 5, action: 'เข้าร่วม Training / CEU เพิ่ม', curVal: `${actual.ceu} CEU`, tgtVal: cats.training === 0 ? '1 CEU' : cats.training < 10 ? '2 CEU' : '4+ CEU' });
+        }
+        if (cats.tyfcb < 15) {
+          fastestActions.push({ icon: '💰', cat: 'TYFCB', gain: 5, action: 'เพิ่ม Closed Business จาก BNI', curVal: `฿${fmt(actual.tyfcb)}`, tgtVal: cats.tyfcb === 0 ? '฿100K' : cats.tyfcb < 10 ? '฿200K' : '฿500K' });
+        }
+        fastestActions.sort((a, b) => b.gain - a.gain);
+        fastestActions.splice(4);
+      }
+
+      const nextTl = displayScore >= 70 ? 'green' : displayScore >= 50 ? 'green' : 'yellow';
+      const needed = displayScore >= 70 ? 0 : displayScore >= 50 ? 70 - displayScore : displayScore >= 30 ? 50 - displayScore : 30 - displayScore;
+
+      const fastTrack = {
+        score: {
+          tl,
+          total: displayScore,
+          absent:   cats?.absent   ?? 0,
+          ref:      cats?.ref      ?? 0,
+          tyfcb:    cats?.tyfcb    ?? 0,
+          visitor:  cats?.visitor  ?? 0,
+          one21:    cats?.one21    ?? 0,
+          training: cats?.training ?? 0,
+        },
+        nextTl,
+        needed,
+        gaps:           fastestActions,
+        fastestActions,
+      };
+
+      // Balance: given - received (formatted string)
+      const givenThb = Number(mv.given_thb) || 0;
+      const recvThb  = Number(mv.received_thb) || 0;
+      const balVal   = givenThb - recvThb;
+      const balance  = (balVal >= 0 ? '+฿' : '-฿') + fmt(Math.abs(balVal));
+
+      // Build priorities array for the coaching card (mapped from fastestActions)
+      const priorities = fastestActions.map(fa => ({
+        type:   fa.gain >= 10 ? 'emergency' : fa.gain >= 5 ? 'warning' : 'quick',
+        title:  fa.cat,
+        action: `${fa.action}\n${fa.curVal} → ${fa.tgtVal}`,
+        target: fa.tgtVal,
+      }));
+
       return jsonResponse({
         ok: true, name: mv.name, nick: mv.nickname, mentor: mv.mentor_team,
         score: displayScore, tl, bniScore: displayScore, bniTl: tl,
-        cats: mv.palms_detail,
+        cats, attendRisk, fastTrack, priorities, balance,
         given: Number(mv.given_thb) || 0, recv: Number(mv.received_thb) || 0,
         actual, target, weeks, scoreHistory,
         coreIssue: mv.open_core_issue ? { coreIssue: mv.open_core_issue, savedAt: mv.core_issue_opened_at } : null,
@@ -266,7 +461,8 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         histMap[mid].push({ month: MONTH_LABELS[Number(s.month)] || '', score: Number(s.score) || null });
       }
 
-      const memberList = (members || []).map((m: Record<string, unknown>) => ({
+      const memberList = (members || []).map((m: Record<string, unknown>, idx: number) => ({
+        row: idx + 1,   // 1-based numeric row — used by saveMCMessage
         name: m.name, nick: m.nickname,
         score: Number(m.display_score) || 0, tl: String(m.traffic_light || 'none'),
         absent: Number(m.absent) || 0, tyfcb: Number(m.tyfcb_thb) || 0,
@@ -303,7 +499,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     case 'getChapterPulse': {
       const { data: rows, error } = await db
         .from('v_member_dashboard')
-        .select('nickname, mentor_team, display_score, traffic_light, given_thb, received_thb')
+        .select('name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb')
         .eq('is_archived', false);
       if (error) return errResponse(error.message);
 
@@ -331,10 +527,11 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       }
 
       const movers = (rows || []).map((m: Record<string, unknown>) => {
-        const nick = String(m.nickname || '');
+        const nick = String(m.nickname || m.name || '');
+        const name = String(m.name || nick);
         const t = trendMap[nick];
         if (!t || !t.prev) return null;
-        return { nick, tl: m.traffic_light, score: t.curr, prev: t.prev, delta: t.curr - t.prev };
+        return { nick, name, tl: m.traffic_light, score: t.curr, prev: t.prev, delta: t.curr - t.prev };
       }).filter(Boolean) as Record<string, unknown>[];
 
       const risers  = movers.filter(m => Number(m.delta) > 2).sort((a, b) => Number(b.delta) - Number(a.delta)).slice(0, 3);
@@ -358,33 +555,204 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     }
 
     case 'getScorecard': {
-      const teamName = String(p.teamName || p.team || '');
-      let query = db.from('v_member_dashboard')
-        .select('name, nickname, mentor_team, display_score, traffic_light, absent, given_thb, received_thb')
-        .eq('is_archived', false);
-      if (teamName) query = query.eq('mentor_team', teamName);
-      const { data, error } = await query.order('display_score', { ascending: false });
-      if (error) return errResponse(error.message);
-      const members = (data || []).map((m: Record<string, unknown>) => ({
+      // ── 1. Fetch all active members with current scores ──────
+      const { data: memRows, error: memErr } = await db
+        .from('v_member_dashboard')
+        .select('id, name, nickname, mentor_team, display_score, traffic_light, absent, given_thb, received_thb')
+        .eq('is_archived', false)
+        .order('display_score', { ascending: false });
+      if (memErr) return errResponse(memErr.message);
+
+      const allMem = (memRows || []) as Record<string, unknown>[];
+      const memberIds = allMem.map(m => String(m.id));
+
+      // ── 2. Fetch last 2 months of monthly_scores for movement ─
+      const { data: scoreRows } = memberIds.length
+        ? await db.from('monthly_scores')
+            .select('member_id, score, year, month')
+            .in('member_id', memberIds)
+            .order('year', { ascending: false })
+            .order('month', { ascending: false })
+        : { data: [] };
+
+      // Group: keep only last 2 scores per member (desc order already)
+      const scoreMap: Record<string, { score: number; year: number; month: number }[]> = {};
+      for (const s of (scoreRows || []) as Record<string, unknown>[]) {
+        const mid = String(s.member_id);
+        if (!scoreMap[mid]) scoreMap[mid] = [];
+        if (scoreMap[mid].length < 2) scoreMap[mid].push({ score: Number(s.score)||0, year: Number(s.year), month: Number(s.month) });
+      }
+
+      // Determine this/prev month labels from data
+      let thisYear = new Date().getFullYear(), thisMonth = new Date().getMonth() + 1;
+      let prevYear = thisYear, prevMonth = thisMonth === 1 ? 12 : thisMonth - 1;
+      if (thisMonth === 1) prevYear--;
+
+      // Try to infer from actual score data
+      const allMonths: { year: number; month: number }[] = [];
+      for (const scores of Object.values(scoreMap)) {
+        if (scores[0]) allMonths.push({ year: scores[0].year, month: scores[0].month });
+      }
+      if (allMonths.length) {
+        allMonths.sort((a, b) => b.year * 100 + b.month - (a.year * 100 + a.month));
+        thisYear  = allMonths[0].year;  thisMonth  = allMonths[0].month;
+        prevYear  = thisMonth === 1 ? thisYear - 1 : thisYear;
+        prevMonth = thisMonth === 1 ? 12 : thisMonth - 1;
+      }
+
+      const thisMonthLabel = MONTH_LABELS[thisMonth] || String(thisMonth);
+      const prevMonthLabel = MONTH_LABELS[prevMonth] || String(prevMonth);
+
+      function tlZone(score: number): string {
+        if (score >= 70) return 'green';
+        if (score >= 50) return 'yellow';
+        if (score >= 30) return 'red';
+        return 'black';
+      }
+      function teamGrade(avg: number): string {
+        if (avg >= 75) return 'A+';
+        if (avg >= 70) return 'A';
+        if (avg >= 60) return 'B+';
+        if (avg >= 50) return 'B';
+        if (avg >= 30) return 'C';
+        return 'D';
+      }
+
+      // ── 3. Compute per-member movement ───────────────────────
+      let mvUp = 0, mvSame = 0, mvDown = 0;
+      const zoneUp: Record<string, unknown>[] = [];
+      const zoneDn: Record<string, unknown>[] = [];
+      const movers: { nick: string; team: string; from: number; to: number; diff: number }[] = [];
+
+      for (const m of allMem) {
+        const mid = String(m.id);
+        const sc = scoreMap[mid] || [];
+        if (sc.length < 2) continue;
+        const curr = sc[0].score, prev = sc[1].score;
+        const diff = curr - prev;
+        if (diff > 2) mvUp++;
+        else if (diff < -2) mvDown++;
+        else mvSame++;
+
+        const currZone = tlZone(curr), prevZone = tlZone(prev);
+        const entry = { nick: String(m.nickname||m.name), team: String(m.mentor_team||''), from: prev, to: curr, diff };
+        if (currZone !== prevZone) {
+          const zoneOrder: Record<string, number> = { black: 0, red: 1, yellow: 2, green: 3 };
+          if ((zoneOrder[currZone]||0) > (zoneOrder[prevZone]||0)) zoneUp.push(entry);
+          else zoneDn.push(entry);
+        }
+        movers.push(entry);
+      }
+
+      movers.sort((a, b) => b.diff - a.diff);
+      const topImproved = movers.slice(0, 3).filter(m => m.diff > 0);
+      const topDeclined = movers.slice(-3).filter(m => m.diff < 0).reverse();
+
+      // ── 4. Team aggregates with grades ───────────────────────
+      const teamAgg: Record<string, { count: number; scoreSum: number; scored: number; prevSum: number; prevScored: number; redBlk: number; diving: number }> = {};
+      for (const t of TEAMS) teamAgg[t] = { count: 0, scoreSum: 0, scored: 0, prevSum: 0, prevScored: 0, redBlk: 0, diving: 0 };
+
+      for (const m of allMem) {
+        const team = String(m.mentor_team || '');
+        if (!teamAgg[team]) continue;
+        const ta = teamAgg[team];
+        ta.count++;
+        const mid = String(m.id);
+        const sc = scoreMap[mid] || [];
+        const curr = sc[0]?.score ?? Number(m.display_score) ?? 0;
+        const prev = sc[1]?.score ?? 0;
+        const tl   = String(m.traffic_light || 'none');
+        if (curr > 0) { ta.scoreSum += curr; ta.scored++; }
+        if (prev > 0) { ta.prevSum  += prev; ta.prevScored++; }
+        if (tl === 'red' || tl === 'black') ta.redBlk++;
+        if (sc.length >= 2 && curr < prev - 2) ta.diving++;
+      }
+
+      const teams = TEAMS.map(t => {
+        const ta = teamAgg[t];
+        const thisAvg = ta.scored   ? Math.round(ta.scoreSum / ta.scored)   : 0;
+        const prevAvg = ta.prevScored ? Math.round(ta.prevSum / ta.prevScored) : 0;
+        return {
+          name: t, team: t, count: ta.count,
+          thisAvg, prevAvg, diff: thisAvg - prevAvg,
+          grade: teamGrade(thisAvg),
+          redBlk: ta.redBlk, diving: ta.diving,
+        };
+      });
+
+      const members = allMem.map(m => ({
         name: m.name, nick: m.nickname, mentor: m.mentor_team,
         score: Number(m.display_score) || 0, tl: String(m.traffic_light || 'none'),
         absent: Number(m.absent) || 0, given: Number(m.given_thb) || 0, recv: Number(m.received_thb) || 0,
       }));
-      return jsonResponse({ ok: true, members });
+
+      return jsonResponse({
+        ok: true, members,
+        movement: {
+          total: mvUp + mvSame + mvDown,
+          up: mvUp, same: mvSame, down: mvDown,
+          zoneUp, zoneDn,
+        },
+        prevMonth: prevMonthLabel, thisMonth: thisMonthLabel,
+        topImproved, topDeclined,
+        teams,
+      });
     }
 
     case 'getMCCoaching': {
       const { data: rows, error } = await db
         .from('v_member_dashboard')
-        .select('name, nickname, mentor_team, display_score, traffic_light, open_core_issue, palms_detail')
+        .select('name, nickname, mentor_team, display_score, traffic_light, open_core_issue, palms_detail, rg, visitors, one_to_one, ceu, tyfcb_thb, bni_days, absent')
         .eq('is_archived', false).order('display_score', { ascending: true });
       if (error) return errResponse(error.message);
+
+      const fmtThb = (v: number) => v >= 1000000 ? (v / 1000000).toFixed(1) + 'M' : v >= 1000 ? Math.round(v / 1000) + 'K' : String(Math.round(v));
+
       const guides = (rows || []).map((m: Record<string, unknown>) => {
-        const score = Number(m.display_score) || 0;
-        const bniTl = String(m.traffic_light || 'none');
-        return { name: m.name, nick: m.nickname, mentor: m.mentor_team, score, bniTl, bniScore: score,
+        const score  = Number(m.display_score) || 0;
+        const bniTl  = String(m.traffic_light || 'none');
+        const pd     = (m.palms_detail || {}) as Record<string, unknown>;
+        const cats   = Object.keys(pd).length > 0 ? {
+          absent: Number(pd.absence)  || 0, ref:      Number(pd.referral) || 0,
+          tyfcb:  Number(pd.tyfb)    || 0, visitor:  Number(pd.visitor)  || 0,
+          one21:  Number(pd.oneToOne)|| 0, training: Number(pd.ceu)      || 0,
+        } : null;
+
+        const bniDays = Number(m.bni_days) || 0;
+        const wks     = Math.max(1, Math.min(26, Math.floor(bniDays / 7)));
+        const mos     = Math.max(1, wks / 4);
+        const absent  = Number(m.absent)     || 0;
+        const rg      = Number(m.rg)         || 0;
+        const vis     = Number(m.visitors)   || 0;
+        const oto     = Number(m.one_to_one) || 0;
+        const ceu     = Number(m.ceu)        || 0;
+        const tyfcb   = Number(m.tyfcb_thb)  || 0;
+
+        type FA = { icon: string; cat: string; action: string; gain: number; curVal: string; tgtVal: string };
+        const fastestActions: FA[] = [];
+        if (cats) {
+          if (cats.absent   < 15) fastestActions.push({ icon: '📅', cat: 'ลดการขาด',    gain: 5,                     action: 'ลดการขาดประชุม',                   curVal: `ขาด ${absent} ครั้ง`,                          tgtVal: 'ขาด 0 ครั้ง' });
+          if (cats.ref      < 15) fastestActions.push({ icon: '💡', cat: 'Referral',     gain: cats.ref === 0 ? 10 : 5, action: 'ให้ Referral เพิ่มขึ้น',            curVal: `${(rg / wks).toFixed(1)} ใบ/สัปดาห์`,         tgtVal: cats.ref === 0 ? '1 ใบ/สัปดาห์' : '2 ใบ/สัปดาห์' });
+          if (cats.visitor  < 20) fastestActions.push({ icon: '👥', cat: 'Visitor',      gain: 10,                    action: 'พาคนนอกมาเยี่ยม Chapter',           curVal: `${vis} คน (${(vis / mos).toFixed(1)}/เดือน)`, tgtVal: '≥1 คน/เดือน' });
+          if (cats.one21    < 15) fastestActions.push({ icon: '🤝', cat: '1-2-1',        gain: 5,                     action: 'เพิ่มการนัด 1-2-1',                   curVal: `${(oto / wks).toFixed(1)} ครั้ง/สัปดาห์`,     tgtVal: '1 ครั้ง/สัปดาห์' });
+          if (cats.training < 20) fastestActions.push({ icon: '📚', cat: 'CEU/Training', gain: 5,                     action: 'เข้าร่วม Training / CEU เพิ่ม',       curVal: `${ceu} CEU`,                                   tgtVal: '4+ CEU' });
+          if (cats.tyfcb    < 15) fastestActions.push({ icon: '💰', cat: 'TYFCB',        gain: 5,                     action: 'เพิ่ม Closed Business',               curVal: `฿${fmtThb(tyfcb)}`,                           tgtVal: '฿500K' });
+          fastestActions.sort((a, b) => b.gain - a.gain);
+          fastestActions.splice(4);
+        }
+
+        const nextTl = score >= 50 ? 'green' : 'yellow';
+        const needed = score >= 70 ? 0 : score >= 50 ? 70 - score : score >= 30 ? 50 - score : 30 - score;
+
+        return {
+          name: m.name, nick: m.nickname, mentor: m.mentor_team, score, bniTl, bniScore: score,
           coreIssue: m.open_core_issue || null, noData: score === 0,
-          fastTrack: { score: { tl: bniTl, total: score } }, palms: m.palms_detail };
+          fastTrack: {
+            score: { tl: bniTl, total: score, absent: cats?.absent ?? 0, ref: cats?.ref ?? 0, tyfcb: cats?.tyfcb ?? 0, visitor: cats?.visitor ?? 0, one21: cats?.one21 ?? 0, training: cats?.training ?? 0 },
+            nextTl, needed, fastestActions, gaps: fastestActions,
+          },
+          palms: m.palms_detail,
+        };
       });
       return jsonResponse({ ok: true, guides });
     }
@@ -406,15 +774,35 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     case 'verifyScoring':
       return jsonResponse({ ok: true, results: [] });
 
-    case 'getChapterRevenue':
-    case 'getChapterTrend':
-    case 'getChapterActions':
-    case 'getVisitorTracker':
-    case 'getSprintBoard':
-    case 'saveSprintPlan':
-    case 'getCrossTeamSynergy':
-    case 'saveCrossTeamPair':
-      return jsonResponse({ ok: true, teams: [], sprints: [], recommendations: [], savedPairs: [], chapterPct: 0, totalRecv: 0, chapterGoal: 0, gap: 0 });
+    case 'getChapterTrend': {
+      const auth = await requireAuth(db, p);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const { data: scores, error: sErr } = await db
+        .from('monthly_scores')
+        .select('score, year, month')
+        .order('year', { ascending: true })
+        .order('month', { ascending: true });
+      if (sErr) return errResponse(sErr.message);
+
+      // Group by year+month, bucket by score tier
+      const grouped: Record<string, { green: number; yellow: number; red: number; black: number; scoreSum: number; total: number }> = {};
+      const keyOrder: string[] = [];
+      for (const s of (scores || []) as Record<string, unknown>[]) {
+        const yr = Number(s.year), mo = Number(s.month), sc = Number(s.score) || 0;
+        const key = `${yr}-${String(mo).padStart(2,'0')}`;
+        if (!grouped[key]) { grouped[key] = { green:0, yellow:0, red:0, black:0, scoreSum:0, total:0 }; keyOrder.push(key); }
+        const g = grouped[key];
+        g.total++; g.scoreSum += sc;
+        if (sc >= 70) g.green++; else if (sc >= 50) g.yellow++; else if (sc >= 30) g.red++; else g.black++;
+      }
+      const trend = keyOrder.map(key => {
+        const [yr, mo] = key.split('-').map(Number);
+        const g = grouped[key];
+        return { month: MONTH_LABELS[mo] || String(mo), year: yr, green: g.green, yellow: g.yellow, red: g.red, black: g.black, avg: g.total > 0 ? Math.round(g.scoreSum / g.total) : 0 };
+      });
+      return jsonResponse({ ok: true, trend });
+    }
 
     default:
       return errResponse(`Unknown dashboard action: ${action}`);

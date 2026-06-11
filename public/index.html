@@ -1192,6 +1192,8 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
 
 /* Section headers */
 .sh{color:var(--gray2);letter-spacing:.1em}
+.rs-role-btn{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#e2e8f0;border-radius:8px;padding:10px 8px;font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s;}
+.rs-role-btn:active{background:rgba(255,255,255,.14);}
 </style>
 </head>
 <body>
@@ -1258,7 +1260,7 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
 <div class="app" id="mcApp">
   <div class="hdr">
     <div class="hdr-l"><div class="hdr-logo">BNI <span>IDEAL</span></div><div class="hdr-role" id="mcRoleLbl">MC</div></div>
-    <div style="display:flex;align-items:center;gap:4px;"><button class="notif-bell-btn" id="notif-bell" onclick="openNotifPanel()">🔔<span class="notif-count" id="notif-total" style="display:none">0</span></button><button onclick="window.open('dashboard.html','_blank')" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818CF8;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif;">💻 Desktop</button><button class="theme-btn" onclick="toggleTheme()" id="themeBtn">☀️</button><button class="btn-out" onclick="logout()">ออก</button></div>
+    <div style="display:flex;align-items:center;gap:4px;"><button class="notif-bell-btn" id="notif-bell" onclick="openNotifPanel()">🔔<span class="notif-count" id="notif-total" style="display:none">0</span></button><button onclick="window.open('dashboard.html','_blank')" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818CF8;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif;">💻 Desktop</button><button class="theme-btn" onclick="toggleTheme()" id="themeBtn">☀️</button><button onclick="openAdminPanel()" style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:#F59E0B;border-radius:8px;padding:4px 8px;font-size:.78rem;cursor:pointer;font-family:'Sarabun',sans-serif;" title="Admin">⚙️</button><button onclick="openRoleSwitcher()" style="background:none;border:1px solid var(--border);color:var(--gray2);border-radius:8px;padding:4px 8px;font-size:.82rem;cursor:pointer;font-family:'Sarabun',sans-serif;" title="สลับ Role">⇄</button><button class="btn-out" onclick="logout()">ออก</button></div>
   </div>
   <div class="tabs">
     <button class="tb on" onclick="mct('dashboard',this)"><span class="ti">📊</span>Dashboard</button>
@@ -1498,14 +1500,14 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
 <div class="app" id="mentorApp">
   <div class="hdr">
     <div class="hdr-l"><div class="hdr-logo">BNI <span>IDEAL</span></div><div class="hdr-role m" id="mentorRoleLbl">Mentor</div></div>
-    <div style="display:flex;align-items:center;"><button class="theme-btn" onclick="toggleTheme()">☀️</button><button class="btn-out" onclick="logout()">ออก</button></div>
+    <div style="display:flex;align-items:center;gap:4px;"><button class="theme-btn" onclick="toggleTheme()">☀️</button><button id="mentor-admin-btn" onclick="openAdminPanel()" style="display:none;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:#F59E0B;border-radius:8px;padding:4px 8px;font-size:.78rem;cursor:pointer;font-family:'Sarabun',sans-serif;" title="Admin">⚙️ Admin</button><button onclick="openRoleSwitcher()" style="background:none;border:1px solid var(--border);color:var(--gray2);border-radius:8px;padding:4px 8px;font-size:.82rem;cursor:pointer;font-family:'Sarabun',sans-serif;" title="สลับ Role">⇄</button><button class="btn-out" onclick="logout()">ออก</button></div>
   </div>
   <div class="tabs">
     <button class="tb on" onclick="mnt('myteam',this)"><span class="ti">👥</span>ทีมฉัน</button>
     <button class="tb" onclick="mnt('report',this)"><span class="ti">📝</span>รายงาน</button>
     <button class="tb" onclick="mnt('mentorlog',this);mobMlLoad()"><span class="ti">📓</span>Mentor Log</button>
     <button class="tb" onclick="mnt('coaching',this)"><span class="ti">💡</span>Coach</button>
-    <button class="tb" onclick="mnt('mcmsg',this)"><span class="ti">💬</span>MC Msg</button>
+    <button class="tb" onclick="mnt('mcmsg',this)"><span class="ti">💬</span>MC Msg<span id="mentor-msg-badge" style="display:none;background:#EF4444;color:#fff;font-size:.58rem;font-weight:700;border-radius:999px;padding:1px 5px;margin-left:4px;vertical-align:middle;"></span></button>
     <button class="tb" onclick="mnt('newmembers',this)"><span class="ti">👶</span>New Members</button>
     <button class="tb" onclick="mnt('renewal',this)"><span class="ti">💳</span>Renewal</button>
     <button class="tb" onclick="mnt('msummary',this)"><span class="ti">📱</span>Summary</button>
@@ -1676,7 +1678,7 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
 <div class="app" id="growthApp">
   <div class="hdr">
     <div class="hdr-l"><div class="hdr-logo">BNI <span>IDEAL</span></div><div class="hdr-role" style="background:#8B5CF6;">Growth</div></div>
-    <div style="display:flex;align-items:center;gap:4px;"><button onclick="window.open('dashboard.html','_blank')" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818CF8;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif;">💻 Desktop</button><button class="theme-btn" onclick="toggleTheme()">☀️</button><button class="btn-out" onclick="logout()">ออก</button></div>
+    <div style="display:flex;align-items:center;gap:4px;"><button onclick="window.open('dashboard.html','_blank')" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818CF8;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif;">💻 Desktop</button><button class="theme-btn" onclick="toggleTheme()">☀️</button><button onclick="openRoleSwitcher()" style="background:none;border:1px solid var(--border);color:var(--gray2);border-radius:8px;padding:4px 8px;font-size:.82rem;cursor:pointer;font-family:'Sarabun',sans-serif;" title="สลับ Role">⇄</button><button class="btn-out" onclick="logout()">ออก</button></div>
   </div>
   <div class="tabs">
     <button class="tb on" onclick="gtab('dashboard',this)"><span class="ti">📈</span>Dashboard</button>
@@ -2137,7 +2139,7 @@ function memberRow(m,clickFn){
 
 function mentorMemberRow(m,clickFn){
   var name=m.name||'';var nick=m.nick||'';
-  var score=Math.max(m.latest||0,m.bniScore||0)||0;
+  var score=Math.max(m.latest||0,m.bniScore||0,m.score||0)||0;
   var tl=m.tl||m.bniTl||'none';
   // Last Mentor Contact badge
   var contactBadge='';
@@ -2156,7 +2158,7 @@ function mentorMemberRow(m,clickFn){
   if(!sub&&m.trend)sub=m.trend;
   // Badges: Core Issue + Renewal soon
   var badges='';
-  if(m.core)badges+='<span style="font-size:.58rem;background:rgba(239,68,68,.13);color:#EF4444;border-radius:4px;padding:1px 5px;margin-right:3px;">⚠️ Core Issue</span>';
+  if(m.core||m.hasOpenCase)badges+='<span style="font-size:.58rem;background:rgba(239,68,68,.13);color:#EF4444;border-radius:4px;padding:1px 5px;margin-right:3px;">⚠️ Core Issue</span>';
   if(m.renewalSoon)badges+='<span style="font-size:.58rem;background:rgba(245,158,11,.13);color:#F59E0B;border-radius:4px;padding:1px 5px;margin-right:3px;">💳 Renewal ใกล้</span>';
   if(contactBadge)badges+=contactBadge;
   var badgeRow=badges?'<div style="margin-top:3px;display:flex;gap:3px;flex-wrap:wrap;">'+badges+'</div>':'';
@@ -2169,7 +2171,7 @@ function mentorMemberRow(m,clickFn){
     +'</div>'
     +'<div style="text-align:right">'
       +'<div class="msc" style="color:'+scoreColor+'">'+scoreDisp+'</div>'
-      +(function(){var sc2=m.scores?m.scores.filter(function(s){return s.score&&s.score>0;}):[];var avg=sc2.length?Math.round(sc2.reduce(function(a,s){return a+s.score;},0)/sc2.length):0;return avg>0?'<div class="mt" style="color:var(--gray2)">avg '+avg+'</div>':'';}())
+      +(function(){var sc2=(m.scoreHistory||m.scores||[]).filter(function(s){return s.score&&s.score>0;});var avg=sc2.length?Math.round(sc2.reduce(function(a,s){return a+s.score;},0)/sc2.length):0;return avg>0?'<div class="mt" style="color:var(--gray2)">avg '+avg+'</div>':'';}())
     +'</div>'
     +'<div class="tld" style="background:'+tlc(tl)+'"></div>'
     +'</div>';
@@ -2178,6 +2180,8 @@ var roleNames={mc:'ตูมตาม (MC)',toomtam:'TOOMTAM',aof:'Aof',draft:'D
 
 function enterApp(r){
   S.role=r.role;S.isMC=r.isMC;S.teamName=r.teamName;S.displayName=r.displayName;
+  // Cache for quick role-switching (survives within same page session)
+  _cachedRoles[r.role]={role:r.role,isMC:r.isMC,teamName:r.teamName,displayName:r.displayName,token:r.token||S.token,version:r.version,versionDate:r.versionDate};
   // Log usage — direct dispatch, avoid call() overwriting role with S.role
   try{fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'logUsage',role:r.role,team:r.teamName||r.role,platform:'mobile',logAction:'login',detail:r.displayName||r.role})}).catch(function(){});}catch(e){}
   // แสดง Version ทุก role
@@ -2205,9 +2209,13 @@ function enterApp(r){
   } else {
     document.getElementById('mentorRoleLbl').textContent=r.displayName;
     document.getElementById('mentorApp').classList.add('on');
+    // Show admin button for TOOMTAM
+    var adminBtn=document.getElementById('mentor-admin-btn');
+    if(adminBtn)adminBtn.style.display=(r.role==='toomtam'||r.role==='mc')?'inline-flex':'none';
     loadWeeklyActions();
     loadGrowthTasksForMentor();
     loadMyTeam();
+    loadMentorNotifBadge();
   }
   loadLineMembers();
 }
@@ -2244,7 +2252,7 @@ function mcsub(sub,btn){
   if(sub==='renewal')loadRenewal('mc');
   if(sub==='rpts')loadReports();
 }
-function mnt(tab,btn){_swTab('#mentorApp',tab,btn);if(tab==='report')loadReportForm();if(tab==='renewal')loadRenewal('mentor');if(tab==='mcmsg'){loadBroadcasts('mentor');loadMessages('mentor');loadMentorAssignments();}if(tab==='newmembers')loadNewMembers('mentor');if(tab==='coaching')loadCoachingGuide();if(tab==='msummary'){document.getElementById('mentor-sum-output').style.display='none';}}
+function mnt(tab,btn){_swTab('#mentorApp',tab,btn);if(tab==='report')loadReportForm();if(tab==='renewal')loadRenewal('mentor');if(tab==='mcmsg'){loadBroadcasts('mentor');loadMessages('mentor');loadMentorAssignments();var b=document.getElementById('mentor-msg-badge');if(b)b.style.display='none';}if(tab==='newmembers')loadNewMembers('mentor');if(tab==='coaching')loadCoachingGuide();if(tab==='msummary'){document.getElementById('mentor-sum-output').style.display='none';}}
 function gtab(tab,btn){
   document.querySelectorAll('#growthApp .tb').forEach(function(b){b.classList.remove('on');});
   document.querySelectorAll('#growthApp .pane').forEach(function(p){p.classList.remove('on');});
@@ -2948,7 +2956,7 @@ function _buildMentorSummary(members,teamName){
   members.forEach(function(m){
     var effTl=m.tl||m.bniTl||'none';
     tl[effTl]=(tl[effTl]||0)+1;
-    var effScore=Math.max(m.latest||0,m.bniScore||0)||0;
+    var effScore=Math.max(m.latest||0,m.bniScore||0,m.score||0)||0;
     if(effScore){totScore+=effScore;scoreCt++;}
     totAbsent+=m.absent||0;
   });
@@ -2958,10 +2966,10 @@ function _buildMentorSummary(members,teamName){
   var urgent=members.filter(function(m){var t=m.tl||m.bniTl;return t==='red'||t==='black'||m.absent>4;});
 
   // Members with core issues recorded
-  var hasCoreIssue=members.filter(function(m){return m.core&&m.core.trim();});
+  var hasCoreIssue=members.filter(function(m){return m.hasOpenCase||m.core;});
 
   // Members with no core issue yet (score>0)
-  var noIssue=members.filter(function(m){return (!m.core||!m.core.trim())&&(m.bniScore||m.latest);});
+  var noIssue=members.filter(function(m){return (!m.hasOpenCase&&!m.core)&&(m.bniScore||m.latest||m.score);});
 
   // Renewal check (within 60 days)
   var renewSoon=[];
@@ -2997,14 +3005,8 @@ function _buildMentorSummary(members,teamName){
       var tlEmoji={red:'🔴',black:'⚫',green:'🟢',yellow:'🟡'}[m.tl]||'⬜';
       var absTxt=m.absent>4?' (ขาด '+m.absent+' ครั้ง)':'';
       var coreTxt='';
-      if(m.core){
-        var parsed=null;
-        try{parsed=JSON.parse(m.core);}catch(e){}
-        if(parsed&&Array.isArray(parsed)&&parsed.length){coreTxt=' — '+String(parsed[parsed.length-1].coreIssue||'').substring(0,30);}
-        else if(typeof parsed==='object'&&parsed){coreTxt=' — '+String(parsed.coreIssue||'').substring(0,30);}
-        else{coreTxt=' — '+String(m.core).substring(0,30);}
-      }
-      lines.push(tlEmoji+' '+(m.nick||m.name.split(' ')[0])+' ('+(Math.max(m.latest||0,m.bniScore||0)||0)+'pts)'+absTxt+coreTxt);
+      if(m.hasOpenCase||m.core){coreTxt=' — มี Core Issue';}
+      lines.push(tlEmoji+' '+(m.nick||m.name.split(' ')[0])+' ('+(Math.max(m.latest||0,m.bniScore||0,m.score||0)||0)+'pts)'+absTxt+coreTxt);
     });
     lines.push('');
   }
@@ -3139,7 +3141,7 @@ function renderMentorMembers(){
   all.forEach(function(m){
     var effTl=m.tl||m.bniTl||'none';
     tlCount[effTl]=(tlCount[effTl]||0)+1;
-    var effScore=Math.max(m.latest||0,m.bniScore||0)||0;
+    var effScore=Math.max(m.latest||0,m.bniScore||0,m.score||0)||0;
     if(effTl!=='none'&&effScore){totScore+=effScore;scoreCt++;}
     abCount+=m.absent||0;
   });
@@ -3329,7 +3331,7 @@ function buildDetail(d){
   }
   var keys=[{icon:'🤝',label:'1-2-1',act:d.actual.oToOne,tgt:d.target.oToOne,unit:'ครั้ง'},{icon:'💡',label:'Referral ให้',act:d.actual.rg,tgt:d.target.referral,unit:'ใบ'},{icon:'📨',label:'Referral รับ',act:d.actual.rr,tgt:d.target.referral,unit:'ใบ'},{icon:'👥',label:'Visitor',act:d.actual.visitor,tgt:d.target.visitor,unit:'คน'},{icon:'📚',label:'CEU',act:d.actual.ceu,tgt:d.target.ceu,unit:'แต้ม'}];
   var keysHTML=keys.map(function(k){var rawPct=Math.round(k.act/Math.max(1,k.tgt)*100);var pct=Math.min(100,rawPct);var col=bc(rawPct);var pctLbl='<div class="kpct" style="color:'+col+'">'+rawPct+'%</div>';return '<div class="kr"><div class="ki">'+k.icon+'</div><div class="kl">'+k.label+'</div><div class="kbw"><div class="kb" style="width:'+pct+'%;background:'+col+'"></div></div><div class="kv">'+k.act+'/'+k.tgt+'</div>'+pctLbl+'</div>';}).join('');
-  var prHTML=d.priorities.map(function(p,i){var bg=p.type==='emergency'?'var(--redl)':p.type==='warning'?'rgba(245,158,11,.1)':p.type==='quick'?'rgba(240,180,41,.1)':'rgba(59,130,246,.1)';var brd=p.type==='emergency'?'#EF4444':p.type==='warning'?'#F59E0B':p.type==='quick'?'#F0B429':'#3B82F6';return '<div class="pc" style="background:'+bg+';border-left-color:'+brd+'"><div class="pn">Priority '+(i+1)+'</div><div class="pt">'+p.title+'</div><div class="pa">'+p.action.replace(/\n/g,'<br>')+'</div><div class="pg">🎯 '+p.target+'</div></div>';}).join('');
+  var prHTML=(d.priorities||[]).map(function(p,i){var bg=p.type==='emergency'?'var(--redl)':p.type==='warning'?'rgba(245,158,11,.1)':p.type==='quick'?'rgba(240,180,41,.1)':'rgba(59,130,246,.1)';var brd=p.type==='emergency'?'#EF4444':p.type==='warning'?'#F59E0B':p.type==='quick'?'#F0B429':'#3B82F6';return '<div class="pc" style="background:'+bg+';border-left-color:'+brd+'"><div class="pn">Priority '+(i+1)+'</div><div class="pt">'+p.title+'</div><div class="pa">'+p.action.replace(/\n/g,'<br>')+'</div><div class="pg">🎯 '+p.target+'</div></div>';}).join('');
 
   // Renewal badge
   var renewalBadge = d.renewal ? '<div style="font-size:.75rem;color:var(--gray2);margin-top:.25rem;">💳 Renewal: <span style="color:var(--white);font-weight:600;">'+escHtml(d.renewal)+'</span></div>' : '';
@@ -3543,8 +3545,9 @@ function sendMsg(){
 function loadReportForm(){
   var members=S.teamMembers.filter(function(m){return !!m.name;});
   var opts=members.map(function(m){
-    var tl=m.tl==='none'?'⭐':!m.latest?'—':m.latest>=70?'🟢':m.latest>=50?'🟡':m.latest>=30?'🔴':'⚫';
-    return '<option value="'+(m.row||'null')+'|'+m.name+'|'+m.nick+'">'+(m.row?'':'⭐ ')+m.name+' ('+m.nick+') · '+tl+(m.latest?' '+m.latest:'')+'</option>';
+    var sc=m.score||m.latest||0;
+    var tl=m.tl==='none'?'⭐':!sc?'—':sc>=70?'🟢':sc>=50?'🟡':sc>=30?'🔴':'⚫';
+    return '<option value="'+(m.row||'null')+'|'+m.name+'|'+m.nick+'">'+(m.row?'':'⭐ ')+m.name+' ('+m.nick+') · '+tl+(sc?' '+sc:'')+'</option>';
   });
   document.getElementById('mentor-report-c').innerHTML='<div class="card"><div class="ct">📝 กรอก Core Issue</div><div class="fg"><label class="fl">Mentee</label><select class="fs" id="rc-mem"><option value="">— เลือก —</option>'+opts.join('')+'</select></div><div class="fg"><label class="fl">Core Issue หลัก</label><select class="fs" id="rc-core"><option value="">— เลือก —</option><option>ขาดประชุม / มาสาย</option><option>ยอด Referral ต่ำ</option><option>ไม่ทำ 1-2-1 / ทำไม่ครบ</option><option>รอการต่ออายุ</option><option>ธุรกิจยุ่ง / ไม่มีเวลาทำ 5 Keys</option><option>ยังไม่เรียน CEU</option></select></div><div class="fg"><label class="fl">Action ที่ทำแล้ว</label><textarea class="ft" id="rc-act" placeholder="เช่น: โทรคุยแล้ว นัด 1:1 วันศุกร์"></textarea></div><div class="fg"><label class="fl">แผนสัปดาห์ถัดไป</label><textarea class="ft" id="rc-plan" placeholder="เช่น: ติดตามผลหลังประชุม ช่วยหา Visitor"></textarea></div><button class="btn-p" onclick="submitReport()">ส่งรายงาน →</button></div>';
 }
@@ -6454,6 +6457,9 @@ function loadAlertCenter(){
 
 // ── Notification Center (MC) ─────────────────────────────────
 var NOTIF={loaded:false, dismissed:{}};
+// localStorage helpers — dismissed alerts survive page reload
+function _notifLoad(){try{return JSON.parse(localStorage.getItem('bni_notif_snoozed')||'{}');}catch(e){return{};}}
+function _notifSave(d){try{localStorage.setItem('bni_notif_snoozed',JSON.stringify(d));}catch(e){}}
 
 function openNotifPanel(){
   document.getElementById('notifPanel').classList.add('on');
@@ -6465,18 +6471,18 @@ function closeNotifPanel(){
 
 function loadNotifPanel(){
   NOTIF.loaded=false;
+  NOTIF.dismissed=_notifLoad(); // load from localStorage — survives page reload
   var el=document.getElementById('notif-content');
   el.innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
   var done=0, alertData=null, rptData=null;
   function tryRender(){
     done++;
-    if(done<3)return;
+    if(done<2)return;
     NOTIF.loaded=true;
     renderNotifPanel(alertData,rptData);
   }
   call('getAlertCenter',{},function(err,r){ alertData=(r&&r.ok)?r:{alerts:[],total:0}; tryRender(); });
   call('getReports',{},function(err,r){ rptData=(r&&r.ok)?r:{reports:[]}; tryRender(); });
-  call('getDismissedAlerts',{},function(err,r){ if(r&&r.ok) NOTIF.dismissed=r.dismissed||{}; tryRender(); });
 }
 
 function renderNotifPanel(alertData,rptData){
@@ -6554,6 +6560,7 @@ function buildNotifItem(a){
 }
 function snoozeNotif(key){
   NOTIF.dismissed[key]=Date.now();
+  _notifSave(NOTIF.dismissed); // persist to localStorage
   call('dismissAlert',{key:key},function(){});
 }
 
@@ -6573,8 +6580,10 @@ function notifNavigate(type){
 
 function isNotifSnoozed(a){
   var key=(a.team||'')+'|'+(a.name||'')+'|'+(a.type||'');
-  var ts=NOTIF.dismissed[key];
-  return !!(ts&&(Date.now()-ts)<7*24*60*60*1000);
+  var dismissed=NOTIF.dismissed;
+  var ts=dismissed[key];
+  // 90-day snooze — "dismissed is dismissed"
+  return !!(ts&&(Date.now()-ts)<90*24*60*60*1000);
 }
 
 function updateNotifBadgeLocal(){
@@ -6587,22 +6596,48 @@ function updateNotifBadgeLocal(){
   }
 }
 
+function loadMentorNotifBadge(){
+  var badgeEl=document.getElementById('mentor-msg-badge');
+  if(!badgeEl)return;
+  var readKeys={};
+  var pending=0;
+  var done=0;
+  function tryShow(){
+    done++;
+    if(done<3)return;
+    if(pending>0){badgeEl.textContent=pending>99?'99+':pending;badgeEl.style.display='inline';}
+    else badgeEl.style.display='none';
+  }
+  // Count pending (unacknowledged) assignments
+  call('getMentorAssignments',{},function(err,r){
+    if(r&&r.ok)(r.assignments||[]).forEach(function(a){if(!a.acknowledgedAt&&a.status==='pending')pending++;});
+    tryShow();
+  });
+  // Count unread messages
+  call('getReadMsgKeys',{},function(err,r){
+    if(r&&r.ok)(r.keys||[]).forEach(function(k){readKeys[k]=true;});
+    tryShow();
+  });
+  call('getMessages',{},function(err,r){
+    if(r&&r.ok)(r.messages||[]).forEach(function(m){if(!readKeys[m.key||m.id])pending++;});
+    tryShow();
+  });
+}
+
 function loadNotifBadge(){
+  NOTIF.dismissed=_notifLoad(); // always read latest from localStorage
   call('getReports',{},function(err,r){
     if(err||!r||!r.ok)return;
     var unreplied=(r.reports||[]).filter(function(x){return !x.reply&&x.status!=='done';}).length;
     var rptBadgeEl=document.getElementById('rpt-badge');
     if(rptBadgeEl&&unreplied>0){rptBadgeEl.textContent=unreplied;rptBadgeEl.style.display='inline-flex';}
   });
-  call('getDismissedAlerts',{},function(err,r){
-    if(r&&r.ok) NOTIF.dismissed=r.dismissed||{};
-    call('getAlertCenter',{},function(err2,r2){
-      if(err2||!r2||!r2.ok)return;
-      var filtered=(r2.alerts||[]).filter(function(a){return !isNotifSnoozed(a);}).length;
-      var badgeEl=document.getElementById('notif-total');
-      if(badgeEl&&filtered>0){badgeEl.textContent=filtered>99?'99+':filtered;badgeEl.style.display='flex';}
-      else if(badgeEl) badgeEl.style.display='none';
-    });
+  call('getAlertCenter',{},function(err,r){
+    if(err||!r||!r.ok)return;
+    var filtered=(r.alerts||[]).filter(function(a){return !isNotifSnoozed(a);}).length;
+    var badgeEl=document.getElementById('notif-total');
+    if(badgeEl&&filtered>0){badgeEl.textContent=filtered>99?'99+':filtered;badgeEl.style.display='flex';}
+    else if(badgeEl) badgeEl.style.display='none';
   });
 }
 
@@ -7559,6 +7594,183 @@ function loadLineMembers() {
     },500);
   }
 })();
+
+// ── Admin Panel ────────────────────────────────────────────────
+function openAdminPanel(){
+  var el=document.getElementById('admin-panel-modal');
+  if(!el)return;
+  el.style.display='flex';
+  var cr=document.getElementById('admin-cur-role');
+  if(cr)cr.textContent=(S.role||'').toUpperCase();
+  var vi=document.getElementById('admin-ver-info');
+  if(vi){var vn=document.getElementById('verNum');vi.textContent=vn?vn.textContent:'—';}
+  _adminLoadEmails();
+}
+function closeAdminPanel(){
+  var el=document.getElementById('admin-panel-modal');
+  if(el)el.style.display='none';
+}
+function _adminLoadEmails(){
+  var el=document.getElementById('admin-email-list');
+  if(!el)return;
+  el.textContent='⏳ กำลังโหลด...';
+  call('getAdminEmails',{},function(err,r){
+    if(err||!r||!r.ok){el.textContent='❌ '+(err?err.message:(r&&r.error)||'โหลดไม่ได้');return;}
+    var emails=r.emails||[];
+    if(!emails.length){el.innerHTML='<div style="color:#64748b;font-style:italic;padding:4px 0;">ยังไม่มีอีเมล</div>';return;}
+    el.innerHTML=emails.map(function(e){
+      return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.06);">'
+        +'<div style="flex:1;">'
+        +'<div style="color:#e2e8f0;font-size:12px;">'+escHtml(e.email)+'</div>'
+        +(e.label?'<div style="color:#94a3b8;font-size:11px;">'+escHtml(e.label)+'</div>':'')
+        +'</div>'
+        +'<button onclick="adminRemoveEmail(\''+escHtml(e.email)+'\')" style="background:none;border:1px solid rgba(239,68,68,.3);color:#f87171;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:\'Sarabun\',sans-serif;">ลบ</button>'
+        +'</div>';
+    }).join('');
+  });
+}
+function adminAddEmail(){
+  var emailEl=document.getElementById('admin-email-input');
+  var labelEl=document.getElementById('admin-email-label');
+  var errEl=document.getElementById('admin-email-error');
+  var email=(emailEl?emailEl.value.trim().toLowerCase():'');
+  var label=(labelEl?labelEl.value.trim():'');
+  if(errEl)errEl.textContent='';
+  if(!email||!email.includes('@')){if(errEl)errEl.textContent='กรุณากรอกอีเมลที่ถูกต้อง';return;}
+  call('addAdminEmail',{email:email,label:label},function(err,r){
+    if(err||!r||!r.ok){if(errEl)errEl.textContent=(err?err.message:(r&&r.error)||'เพิ่มไม่สำเร็จ');return;}
+    if(emailEl)emailEl.value='';
+    if(labelEl)labelEl.value='';
+    _adminLoadEmails();
+  });
+}
+function adminRemoveEmail(email){
+  if(!confirm('ลบ '+email+' ออกจาก whitelist?'))return;
+  call('removeAdminEmail',{email:email},function(err,r){
+    if(err||!r||!r.ok){toast('❌ ลบไม่สำเร็จ');return;}
+    _adminLoadEmails();
+  });
+}
+
+// ── Quick Role Switcher ─────────────────────────────────────────
+var _cachedRoles={};  // role -> {role,isMC,teamName,displayName,token,version,versionDate}
+var _rsSwitchTarget=null;
+
+function openRoleSwitcher(){
+  var el=document.getElementById('role-switcher-modal');
+  if(!el)return;
+  // Mark buttons that are cached (no PIN needed)
+  el.querySelectorAll('.rs-role-btn[data-role]').forEach(function(b){
+    var r=b.getAttribute('data-role');
+    b.querySelector('.rs-cached-dot').style.display=_cachedRoles[r]?'inline':'none';
+  });
+  el.style.display='flex';
+}
+function closeSwitcher(){
+  var el=document.getElementById('role-switcher-modal');
+  if(el)el.style.display='none';
+  var ps=document.getElementById('rs-pin-section');
+  if(ps)ps.style.display='none';
+  var pi=document.getElementById('rs-pin-input');
+  if(pi)pi.value='';
+  var er=document.getElementById('rs-error');
+  if(er)er.textContent='';
+  _rsSwitchTarget=null;
+}
+function rsSwitchTo(role){
+  if(_cachedRoles[role]){closeSwitcher();_doRoleSwitch(_cachedRoles[role]);return;}
+  _rsSwitchTarget=role;
+  var rn=document.getElementById('rs-target-name');
+  if(rn)rn.textContent=role.toUpperCase();
+  var ps=document.getElementById('rs-pin-section');
+  if(ps)ps.style.display='block';
+  var pi=document.getElementById('rs-pin-input');
+  if(pi){pi.focus();pi.value='';}
+  var er=document.getElementById('rs-error');
+  if(er)er.textContent='';
+}
+function rsConfirmPin(){
+  var pin=(document.getElementById('rs-pin-input').value||'').trim();
+  if(!pin||!_rsSwitchTarget){return;}
+  var er=document.getElementById('rs-error');
+  if(er)er.textContent='';
+  fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'verifyPin',pin:pin})})
+    .then(function(res){return res.json();})
+    .then(function(r){
+      if(!r.ok){if(er)er.textContent='PIN ไม่ถูกต้อง';return;}
+      if(r.role!==_rsSwitchTarget){if(er)er.textContent='PIN นี้เป็นของ '+r.role.toUpperCase()+' ไม่ใช่ '+_rsSwitchTarget.toUpperCase();return;}
+      closeSwitcher();
+      _doRoleSwitch(r);
+    })
+    .catch(function(){if(er)er.textContent='เกิดข้อผิดพลาด กรุณาลองใหม่';});
+}
+function _doRoleSwitch(r){
+  document.getElementById('mcApp').classList.remove('on');
+  document.getElementById('mentorApp').classList.remove('on');
+  document.getElementById('growthApp').classList.remove('on');
+  S.role=null;S.isMC=false;S.teamName=null;S.displayName=null;
+  S.allMembers=[];S.teamMembers=[];S.curFilter='all';S.curMFilter='all';S.curMentorFilter='all';
+  GS={members:[],curFilter:'all',loaded:false,taskFilter:'all'};
+  enterApp(r);
+}
 </script>
+
+<!-- Admin Panel Modal -->
+<div id="admin-panel-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:flex-start;justify-content:center;overflow-y:auto;" onclick="if(event.target===this)closeAdminPanel()">
+  <div style="background:#1a1a2e;border-radius:0 0 16px 16px;padding:20px;width:100%;max-width:480px;min-height:60vh;box-shadow:0 4px 24px rgba(0,0,0,.6);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div style="font-size:15px;font-weight:700;color:#e2e8f0;">⚙️ Admin Panel</div>
+      <button onclick="closeAdminPanel()" style="background:none;border:none;color:#94a3b8;font-size:22px;cursor:pointer;padding:0;line-height:1;">×</button>
+    </div>
+
+    <!-- Email Access Section -->
+    <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:14px;margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:#F59E0B;margin-bottom:10px;">📧 อีเมลที่เข้าถึง Backend ได้</div>
+      <div style="display:flex;gap:6px;margin-bottom:10px;">
+        <input type="email" id="admin-email-input" placeholder="example@email.com" style="flex:1;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:8px 10px;color:#e2e8f0;font-size:13px;font-family:'Sarabun',sans-serif;outline:none;" onkeydown="if(event.key==='Enter')adminAddEmail()">
+        <input type="text" id="admin-email-label" placeholder="ชื่อ/ตำแหน่ง" style="width:90px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:8px 10px;color:#e2e8f0;font-size:13px;font-family:'Sarabun',sans-serif;outline:none;">
+        <button onclick="adminAddEmail()" style="background:#6366f1;border:none;color:#fff;border-radius:8px;padding:8px 12px;font-weight:700;cursor:pointer;font-family:'Sarabun',sans-serif;font-size:12px;white-space:nowrap;">+ เพิ่ม</button>
+      </div>
+      <div id="admin-email-error" style="color:#f87171;font-size:11px;min-height:14px;margin-bottom:6px;"></div>
+      <div id="admin-email-list" style="font-size:12px;color:#94a3b8;min-height:40px;">⏳ กำลังโหลด...</div>
+    </div>
+
+    <!-- System Info Section -->
+    <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:14px;">
+      <div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:8px;">🔧 ข้อมูลระบบ</div>
+      <div id="admin-sys-info" style="font-size:11px;color:#64748b;line-height:1.7;">
+        <div>Role ปัจจุบัน: <span id="admin-cur-role" style="color:#e2e8f0;font-weight:600;">—</span></div>
+        <div>Version: <span id="admin-ver-info" style="color:#e2e8f0;">—</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Role Switcher Modal -->
+<div id="role-switcher-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:flex-end;justify-content:center;" onclick="if(event.target===this)closeSwitcher()">
+  <div style="background:#1a1a2e;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:480px;box-shadow:0 -4px 24px rgba(0,0,0,.6);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="font-size:14px;font-weight:700;color:#e2e8f0;">⇄ สลับ Role</div>
+      <button onclick="closeSwitcher()" style="background:none;border:none;color:#94a3b8;font-size:22px;cursor:pointer;padding:0;line-height:1;">×</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+      <button class="rs-role-btn" data-role="toomtam" onclick="rsSwitchTo('toomtam')">🧑 TOOMTAM<span class="rs-cached-dot" style="display:none;color:#34d399;margin-left:4px;font-size:10px;">●</span></button>
+      <button class="rs-role-btn" data-role="aof" onclick="rsSwitchTo('aof')">🧑 Aof<span class="rs-cached-dot" style="display:none;color:#34d399;margin-left:4px;font-size:10px;">●</span></button>
+      <button class="rs-role-btn" data-role="draft" onclick="rsSwitchTo('draft')">🧑 Draft<span class="rs-cached-dot" style="display:none;color:#34d399;margin-left:4px;font-size:10px;">●</span></button>
+      <button class="rs-role-btn" data-role="phai" onclick="rsSwitchTo('phai')">🧑 PHAI<span class="rs-cached-dot" style="display:none;color:#34d399;margin-left:4px;font-size:10px;">●</span></button>
+      <button class="rs-role-btn" data-role="amp" onclick="rsSwitchTo('amp')">🧑 AMP<span class="rs-cached-dot" style="display:none;color:#34d399;margin-left:4px;font-size:10px;">●</span></button>
+      <button class="rs-role-btn" data-role="growth" onclick="rsSwitchTo('growth')" style="color:#a78bfa;border-color:rgba(167,139,250,.35);">📈 Growth<span class="rs-cached-dot" style="display:none;color:#34d399;margin-left:4px;font-size:10px;">●</span></button>
+      <button class="rs-role-btn" data-role="mc" onclick="rsSwitchTo('mc')" style="color:#34d399;border-color:rgba(52,211,153,.35);grid-column:span 2;">👑 MC (ตูมตาม)<span class="rs-cached-dot" style="display:none;color:#34d399;margin-left:4px;font-size:10px;">●</span></button>
+    </div>
+    <div id="rs-pin-section" style="display:none;margin-top:4px;padding-top:12px;border-top:1px solid rgba(255,255,255,.08);">
+      <div style="font-size:12px;color:#94a3b8;margin-bottom:8px;">ใส่ PIN สำหรับ <span id="rs-target-name" style="color:#e2e8f0;font-weight:700;"></span></div>
+      <div style="display:flex;gap:8px;">
+        <input type="password" id="rs-pin-input" placeholder="PIN" inputmode="numeric" style="flex:1;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:10px 12px;color:#e2e8f0;font-size:16px;font-family:'Sarabun',sans-serif;outline:none;" onkeydown="if(event.key==='Enter')rsConfirmPin()">
+        <button onclick="rsConfirmPin()" style="background:#6366f1;border:none;color:#fff;border-radius:8px;padding:10px 18px;font-weight:700;cursor:pointer;font-family:'Sarabun',sans-serif;font-size:13px;">เข้า</button>
+      </div>
+      <div id="rs-error" style="color:#f87171;font-size:11px;margin-top:6px;min-height:14px;"></div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
