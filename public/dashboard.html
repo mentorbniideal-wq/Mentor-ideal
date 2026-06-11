@@ -6237,39 +6237,25 @@ function buildIMDHistory(m){
   var reps=D.reps.filter(function(r){return r.memberName===m.name;});
   var msgs=D.msgs.filter(function(msg){return msg.name===m.name;});
   var html='<div class="sh"><h2>📋 History</h2></div>';
-  // Monthly score trend (m.hist = Mentor Sheet historical, m.bniScore = official R2Y)
+  // Monthly score trend comes from monthly_scores imported from Traffic Lights Evolution.
+  var scoreHistory=(m.scoreHistory||[]).filter(function(s){return s&&s.score!==null&&s.score!==undefined&&Number(s.score)>0;});
   var hist=(m.hist||[]).filter(function(v){return v>0;});
-  var officialScore=m.bniScore||0;
-  var hasTrend=hist.length>0||officialScore>0;
+  var hasTrend=scoreHistory.length>0||hist.length>0;
   if(hasTrend){
-    html+='<div class="sh" style="margin-bottom:8px"><h2 style="font-size:13px">📅 คะแนนรายเดือน ('+(hist.length+(officialScore>0?0:0))+' เดือน)</h2></div>';
-    // Note: ล่าสุด = official, history = Mentor Sheet
+    html+='<div class="sh" style="margin-bottom:8px"><h2 style="font-size:13px">📅 คะแนนรายเดือน ('+(scoreHistory.length||hist.length)+' เดือน)</h2></div>';
     html+='<div style="font-size:10px;color:var(--sub);margin-bottom:8px;padding:6px 10px;background:var(--sf2);border-radius:6px;border-left:3px solid var(--ac)">'
-      +'⭐ <b>ล่าสุด</b> = Official BNI Points จาก Reporting2You upload'
-      +(hist.length?' &nbsp;·&nbsp; <b>เดือน -1 ถึง -'+hist.length+'</b> = ประวัติจาก Mentor Sheet':'')
+      +'📈 ดึงจาก <b>Traffic Lights Evolution</b> / monthly score import เพื่อดูคะแนนแต่ละเดือนว่าขึ้นหรือลง'
       +'</div>';
     html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px;margin-bottom:18px">';
-    // ล่าสุด = official BNI score
-    if(officialScore>0){
-      var offTl=officialScore>=70?'green':officialScore>=50?'yellow':officialScore>=30?'red':'blue';
-      var sheetLatest=hist.length>0?hist[hist.length-1]:0;
-      var offArrow=sheetLatest>0?(officialScore>sheetLatest?'↑':officialScore<sheetLatest?'↓':''):'';
-      var offArrowC=offArrow==='↑'?'var(--gr)':offArrow==='↓'?'var(--re)':'var(--sub)';
-      html+='<div style="background:rgba(108,99,255,.12);border:1px solid rgba(108,99,255,.4);border-radius:8px;padding:8px 6px;text-align:center">';
-      html+='<div style="font-size:9px;color:var(--ac);font-weight:700;margin-bottom:2px">⭐ ล่าสุด</div>';
-      html+='<div style="font-size:20px;font-weight:800;color:'+tlC(offTl)+'">'+officialScore+'</div>';
-      html+='<div style="font-size:11px;color:'+offArrowC+'">'+offArrow+'</div>';
-      html+='</div>';
-    }
-    // Historical months from Mentor Sheet (newest → oldest)
-    var rev=[].concat(hist).reverse();
-    rev.forEach(function(sc,i){
+    var rev=scoreHistory.length?[].concat(scoreHistory).reverse():[].concat(hist).reverse().map(function(v,i){return{label:'เดือน -'+(i+1),score:v};});
+    rev.forEach(function(item,i){
+      var sc=Number(item.score)||0;
       var tl=sc>=70?'green':sc>=50?'yellow':sc>=30?'red':'blue';
-      var prev=rev[i+1];
+      var prev=rev[i+1]?Number(rev[i+1].score)||0:null;
       var arrow=prev!=null?(sc>prev?'↑':sc<prev?'↓':''):'';
       var arrowColor=arrow==='↑'?'var(--gr)':arrow==='↓'?'var(--re)':'var(--sub)';
       html+='<div style="background:var(--sf2);border-radius:8px;padding:8px 6px;text-align:center">';
-      html+='<div style="font-size:10px;color:var(--sub);margin-bottom:2px">เดือน -'+(i+1)+'</div>';
+      html+='<div style="font-size:10px;color:var(--sub);margin-bottom:2px">'+esc(item.label||('เดือน -'+(i+1)))+'</div>';
       html+='<div style="font-size:20px;font-weight:800;color:'+tlC(tl)+'">'+sc+'</div>';
       html+='<div style="font-size:11px;color:'+arrowColor+'">'+arrow+'</div>';
       html+='</div>';

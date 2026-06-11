@@ -101,10 +101,21 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
             .order('month', { ascending: true })
         : { data: [] };
       const histMap: Record<string, number[]> = {};
+      const scoreHistoryMap: Record<string, { year: number; month: number; label: string; score: number | null }[]> = {};
       for (const s of (allScores || []) as Record<string, unknown>[]) {
         const mid = String(s.member_id);
         if (!histMap[mid]) histMap[mid] = [];
-        histMap[mid].push(Number(s.score) || 0);
+        if (!scoreHistoryMap[mid]) scoreHistoryMap[mid] = [];
+        const year = Number(s.year) || 0;
+        const month = Number(s.month) || 0;
+        const scoreVal = Number(s.score) || 0;
+        histMap[mid].push(scoreVal);
+        scoreHistoryMap[mid].push({
+          year,
+          month,
+          label: `${MONTH_LABELS[month] || String(month)} ${year || ''}`.trim(),
+          score: scoreVal || null,
+        });
       }
 
       // ── Batch-fetch phone/email/is_new_member (not in view) ──
@@ -171,6 +182,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
 
         const roi = given > 0 ? Math.round(recv / 28000 * 100) : 0;
         const hist = histMap[mid] || [];
+        const scoreHistory = scoreHistoryMap[mid] || [];
 
         // Fast Track: suggest highest-gain next actions per PALMS tier
         const fastTrack: { icon: string; cat: string; action: string; gain: number; curVal: string; tgtVal: string }[] = [];
@@ -223,6 +235,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
           id: mid,
           name: m.name, nick: m.nickname, mentor: m.mentor_team,
           score, tl, roi, hist,
+          scoreHistory,
           given, recv,
           tyfcb: tyfcbV, absent: absentV,
           bniScore: score, bniTl: tl,
