@@ -45,6 +45,7 @@ const PUBLIC_ACTIONS = new Set([
 const ROUTES: Record<string, string> = {
   // Auth
   'login':     'auth',
+  'verifyPin': 'auth',
   'changePIN': 'auth',
   'getMyRole': 'auth',
 

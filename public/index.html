@@ -1755,10 +1755,10 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
         <!-- Upload Button -->
         <div class="card" style="margin-bottom:.5rem;text-align:center;">
           <div class="ct">📋 นำเข้าข้อมูล Check-In</div>
-          <div style="font-size:.75rem;color:var(--gray2);margin-bottom:.75rem;">รองรับไฟล์ .csv และ .pdf จากระบบ BNI</div>
-          <input type="file" id="ci-file-input" accept=".csv,.pdf" style="display:none" onchange="ciFileSelected(event)">
+          <div style="font-size:.75rem;color:var(--gray2);margin-bottom:.75rem;">รองรับไฟล์ .csv จากระบบ BNI</div>
+          <input type="file" id="ci-file-input" accept=".csv,text/csv" style="display:none" onchange="ciFileSelected(event)">
           <button class="btn-p" onclick="document.getElementById('ci-file-input').click()" style="max-width:240px;margin:0 auto;">
-            📂 เลือกไฟล์ .csv / .pdf
+            📂 เลือกไฟล์ .csv
           </button>
           <div id="ci-filename" style="font-size:.72rem;color:var(--gray2);margin-top:.5rem;min-height:1em;"></div>
         </div>
@@ -4097,24 +4097,20 @@ function ciFileSelected(e){
 function ciReadFile(file){
   var name=file.name.toLowerCase();
   var fnEl=document.getElementById('ci-filename');
-  if(!name.endsWith('.csv')&&!name.endsWith('.pdf')){toast('❌ รองรับเฉพาะไฟล์ .csv และ .pdf');return;}
+  if(!name.endsWith('.csv')){toast('❌ รองรับเฉพาะไฟล์ .csv');return;}
   if(fnEl) fnEl.textContent='⏳ กำลังอ่าน '+file.name+'...';
-  if(name.endsWith('.pdf')){
-    ciReadPDF(file,fnEl);
-  } else {
-    var reader=new FileReader();
-    reader.onload=function(e){
-      var text=e.target.result;
-      if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
-      var result=ciParseCSVText(text);
-      if(!result.ok){toast('❌ '+result.error);if(fnEl)fnEl.textContent='';return;}
-      CI.parsed=result.members; CI.date=result.date; CI.week=result.week;
-      ciRenderResult(result);
-      if(fnEl) fnEl.innerHTML='✅ <strong>'+file.name+'</strong>';
-    };
-    reader.onerror=function(){toast('❌ อ่านไฟล์ไม่ได้');if(fnEl)fnEl.textContent='';};
-    reader.readAsText(file,'UTF-8');
-  }
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var text=e.target.result;
+    if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
+    var result=ciParseCSVText(text);
+    if(!result.ok){toast('❌ '+result.error);if(fnEl)fnEl.textContent='';return;}
+    CI.parsed=result.members; CI.date=result.date; CI.week=result.week;
+    ciRenderResult(result);
+    if(fnEl) fnEl.innerHTML='✅ <strong>'+file.name+'</strong>';
+  };
+  reader.onerror=function(){toast('❌ อ่านไฟล์ไม่ได้');if(fnEl)fnEl.textContent='';};
+  reader.readAsText(file,'UTF-8');
 }
 
 function ciReadPDF(file,fnEl){
@@ -7694,7 +7690,7 @@ function rsConfirmPin(){
   if(!pin||!_rsSwitchTarget){return;}
   var er=document.getElementById('rs-error');
   if(er)er.textContent='';
-  fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'verifyPin',pin:pin})})
+  fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'login',role:_rsSwitchTarget,pin:pin})})
     .then(function(res){return res.json();})
     .then(function(r){
       if(!r.ok){if(er)er.textContent='PIN ไม่ถูกต้อง';return;}
