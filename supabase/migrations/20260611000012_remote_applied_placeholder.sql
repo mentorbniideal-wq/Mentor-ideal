@@ -1,0 +1,5 @@
+-- Migration 012 was already marked as applied in the remote Supabase project
+-- before this repository had a matching local file.
+--
+-- Keep this no-op placeholder so local migration history remains aligned with
+-- the remote migration table. Do not put new schema changes in this version.

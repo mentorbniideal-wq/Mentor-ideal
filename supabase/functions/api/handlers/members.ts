@@ -50,7 +50,7 @@ async function findMemberByLegacyPayload(
 
   const name = textValue(p.memberName || p.name);
   const nick = textValue(p.nick || p.nickname);
-  const team = normalizeTeam(p.teamName || p.mentor || p.mentorTeam || p.targetTeam);
+  const team = normalizeTeam(p.teamName || p.mentor || p.mentorTeam);
   if (!name && !nick) return { error: 'memberId or memberName required' };
 
   let query = db
@@ -152,7 +152,7 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       const { data, error } = await db.rpc('fn_move_member_team', {
         p_member_id:   memberId,
         p_target_team: targetTeam,
-        p_moved_by:    'mc',
+        p_moved_by:    String(auth.role || 'mc'),
         p_note:        note,
       });
       if (error) return errResponse(error.message);

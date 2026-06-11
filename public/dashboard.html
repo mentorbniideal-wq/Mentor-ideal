@@ -3365,9 +3365,34 @@ function renderMem(){
       '<td onclick="event.stopPropagation()"><button class="cmp-tog'+(isCmp?' on':'')+'" onclick="toggleCmp(\''+esc(m.name)+'\')">🔍</button></td>'+
       '<td style="white-space:nowrap" onclick="event.stopPropagation()">'
       +(D.lineMembers&&D.lineMembers[m.name]?'<button class="bx" onclick="openDeskLineCompose(\''+safeName+'\',\''+esc(m.nick||m.name.split(' ')[0])+'\')" style="font-size:11px;padding:4px 7px;background:rgba(6,199,85,.12);border-color:rgba(6,199,85,.3);color:#06C755;margin-right:4px">📲</button>':'')
-      +'<button class="bx" onclick="openIMD(\''+esc(m.name)+'\')" style="font-size:11px;padding:4px 9px">📊 Dashboard</button></td></tr>';
+      +'<button class="bx" onclick="openIMD(\''+esc(m.name)+'\')" style="font-size:11px;padding:4px 9px">📊 Dashboard</button>'
+      +(S.role==='mc'?'<button class="bx" onclick="moveMemberTeamDlg(\''+safeName+'\',\''+esc(m.mentor||'')+'\',\''+esc(m.id||'')+'\')" style="font-size:11px;padding:4px 7px;background:rgba(96,165,250,.1);border-color:rgba(96,165,250,.3);color:#60a5fa;margin-left:4px">⇄ ทีม</button>':'')
+      +'</td></tr>';
   }).join(''):'<tr><td colspan="16" class="es">ไม่พบข้อมูล</td></tr>';
   document.getElementById('mcnt').textContent='แสดง '+list.length+' / '+D.mem.length+' คน';
+}
+function moveMemberTeamDlg(name,currentTeam,memberId){
+  var opts=MENTOR_TEAMS.join(' / ');
+  var target=prompt('ย้าย "'+name+'" ไปทีมไหน?\n\nทีมที่ใช้ได้: '+opts+'\nเว้นว่าง = ถอนออกจากทีม',currentTeam||'');
+  if(target===null)return;
+  target=target.trim();
+  var normalized='';
+  if(target){
+    normalized=MENTOR_TEAMS.find(function(t){return t.toLowerCase()===target.toLowerCase();})||'';
+    if(!normalized){alert('ชื่อทีมไม่ถูกต้อง กรุณาใช้: '+opts);return;}
+  }
+  if((currentTeam||'')===normalized){toast('ยังอยู่ทีมเดิม ไม่มีอะไรต้องย้าย','ok');return;}
+  var note='Moved from '+(currentTeam||'unassigned')+' to '+(normalized||'unassigned')+' via Desktop MC';
+  gsr('moveMemberToTeam',{role:'mc',memberId:memberId,memberName:name,targetTeam:normalized,note:note},function(r){
+    if(!r||!r.ok){toast('❌ '+((r&&r.error)||'ย้ายทีมไม่สำเร็จ'),'err');return;}
+    var moved=r.moved||{};
+    var movedCount=Object.keys(moved).reduce(function(a,k){return a+(parseInt(moved[k],10)||0);},0);
+    toast('✅ ย้ายทีมแล้ว: '+name+' → '+(r.to_team||'ไม่มีทีม')+(movedCount?' · sync '+movedCount+' รายการ':''),'ok');
+    gsr('getDesktopDashboard',{role:'mc'},function(r2){
+      if(r2.ok){D.mem=r2.members||[];D.sm=r2.summary||{};D.teams=r2.teams||[];D.ren=r2.renewal||[];buildMCFilters();}
+      renderMem();renderKPI();renderDonut();renderMTTeams();renderCoach();renderRisk();
+    });
+  });
 }
 function cb(pts,max,color){var f=Math.min(100,Math.round((pts||0)/max*100));return'<div style="display:flex;align-items:center;gap:3px"><span style="font-size:10px;font-weight:600;width:16px;text-align:right">'+(pts||0)+'</span><div class="cb"><div class="cf" style="width:'+f+'%;background:'+color+'"></div></div></div>';}
 
