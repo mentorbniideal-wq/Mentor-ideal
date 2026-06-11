@@ -214,7 +214,7 @@ function parseMemberTLCurrentScores(
   for (const [name, item] of Object.entries(data)) {
     const memberId = memberMap[name];
     if (!memberId || !item.score) continue;
-    scores.push({ member_id: memberId, year, month, score: item.score, source: 'member_traffic_light_csv' });
+    scores.push({ member_id: memberId, year, month, score: item.score, source: 'traffic_light_csv' });
   }
   return scores;
 }
