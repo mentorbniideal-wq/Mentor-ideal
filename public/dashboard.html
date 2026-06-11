@@ -2240,7 +2240,7 @@ main{
 <div id="sync-modal" onclick="if(event.target===this)closeSyncModal()">
   <div class="sync-box">
     <div class="sync-title">📅 Monthly Sync — วันที่ 5</div>
-    <div class="sync-sub">อัปโหลด 2 ไฟล์จาก BNI Connect แล้วกดปุ่มเดียว ระบบจัดการเองทั้งหมด</div>
+    <div class="sync-sub">อัปโหลดไฟล์จาก BNI Connect แล้วกดปุ่มเดียว ระบบจะใช้ไฟล์ชุดนี้เป็นข้อมูลล่าสุด</div>
 
     <div class="sync-sect">
       <div class="sync-sect-title">1. Member Traffic Light CSV <span style="color:#EF4444;font-size:10px">* สำคัญที่สุด</span></div>
@@ -2268,9 +2268,9 @@ main{
 
     <div class="sync-progress" id="sync-progress">
       <div id="sync-s1" class="sync-step">⬜ อ่านและวิเคราะห์ Traffic Lights Evolution...</div>
-      <div id="sync-s2" class="sync-step">⬜ กระจายคะแนน Trend → Mentor Sheets...</div>
-      <div id="sync-s3" class="sync-step">⬜ อัปเดต Non-Mentor...</div>
-      <div id="sync-s4" class="sync-step">⬜ Refresh Summary Counter...</div>
+      <div id="sync-s2" class="sync-step">⬜ บันทึกคะแนนรายเดือนจากไฟล์ Sync...</div>
+      <div id="sync-s3" class="sync-step">⬜ อัปเดต Score Source of Truth...</div>
+      <div id="sync-s4" class="sync-step">⬜ Refresh Dashboard / Team Stats...</div>
       <div id="sync-s5" class="sync-step">⬜ Import Reporting2You (BNI Days + contacts)...</div>
       <div id="sync-s6" class="sync-step">⬜ Sync R2Y → Coaching Sheet...</div>
       <div id="sync-s7" class="sync-step">⬜ Update Renewal Status...</div>
@@ -2744,7 +2744,7 @@ function startMonthlySync(){
           _setSyncStep(7,r.renewalOk?'done':'error');
           _setSyncStep(8,r.grOk?(hasMTL?'done':'skip'):'error');
           _setSyncStep(9,r.mtlOk?(hasMTL?'done':'skip'):'error');
-          var coreOk=r.grOk&&r.r2ySyncOk&&r.renewalOk;
+          var coreOk=r.nonMentorOk&&r.counterOk&&r.grOk&&r.r2ySyncOk&&r.renewalOk;
           btn.textContent=coreOk?'✅ Sync สำเร็จ! (คลิกปิดแล้วรีเฟรช)':'⚠️ บางขั้นตอนมีข้อผิดพลาด';
           btn.disabled=false;
           if(coreOk){setTimeout(function(){manualReload();},800);}

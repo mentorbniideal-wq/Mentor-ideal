@@ -515,7 +515,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         if (!m) continue;
         const latest       = scores[0];
         const peak         = scores[streak]; // highest monthly score before streak
-        const displayScore = Number(m.display_score) || latest; // GREATEST(monthly, r2y official)
+        const displayScore = Number(m.display_score) || latest;
         risks.push({
           name: m.name, nick: m.nickname, team: m.mentor_team,
           score: displayScore, tl: String(m.traffic_light || 'none'),
