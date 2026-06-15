@@ -727,13 +727,11 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
         }
       }
 
-      // 90-day cutoff: include members explicitly flagged OR recently added/joined
-      const cutoff90 = new Date(Date.now() - 90 * 86400000).toISOString();
       let query = db
         .from('members')
         .select('id, name, nickname, mentor_team, created_at, joined_date')
-        .eq('is_archived', false)
-        .or(`is_new_member.eq.true,joined_date.gte.${cutoff90},created_at.gte.${cutoff90}`);
+        .eq('is_new_member', true)
+        .eq('is_archived', false);
       if (callerTeam) {
         query = query.eq('mentor_team', callerTeam);
       }

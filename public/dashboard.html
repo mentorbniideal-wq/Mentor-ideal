@@ -3211,7 +3211,7 @@ function renderFocusBar(){
   var lowRef=mem.filter(function(m){return m.bniTl!=='none'&&(m.cats||{}).ref<3;});
   var dropH=mem.filter(function(m){return _dropRisk(m)==='high';});
   var noContact=mem.filter(function(m){return m.noMentorContact;});
-  var nm=mem.filter(function(m){return m.actual&&m.actual.bniDays>0&&m.actual.bniDays<=84;});
+  var nm=mem.filter(function(m){return m.actual&&m.actual.bniDays>0&&m.actual.bniDays<=56;});
   function cls(v,hi,lo){return v>=hi?'alert':v>=lo?'warn':'ok';}
   var items=[
     {ico:'⚠️',val:risk.length,lbl:'Risk Members',c:cls(risk.length,4,1),fn:"sw('mc-risk',document.querySelector('#mc-tabs .tb:nth-child(6)'),\'mc\')"},
@@ -3280,7 +3280,7 @@ function renderIntelGrid(){
   dropH+='</div>';
 
   // New Members Mentoring Progress
-  // รวม: สมาชิกที่มี bniDays <= 84 (R2Y) + ทุกคนใน G.nm (NEW MEMBERS sheet)
+  // รวม: สมาชิกที่มี bniDays <= 56 (8 สัปดาห์) + ทุกคนใน G.nm (NEW MEMBERS sheet)
   var memByName={};
   mem.forEach(function(m){ memByName[m.name]=m; });
   var nmMap={};
@@ -3288,9 +3288,9 @@ function renderIntelGrid(){
   (G.nm||[]).forEach(function(nm){
     if(!nmMap[nm.name]) nmMap[nm.name]={ nm:nm, mem:memByName[nm.name]||null };
   });
-  // 2. จาก D.mem ที่ bniDays <= 84 (ยังไม่อยู่ใน nm)
+  // 2. จาก D.mem ที่ bniDays <= 56 (ยังไม่อยู่ใน nm)
   mem.forEach(function(m){
-    if(!nmMap[m.name]&&m.actual&&m.actual.bniDays>0&&m.actual.bniDays<=84){
+    if(!nmMap[m.name]&&m.actual&&m.actual.bniDays>0&&m.actual.bniDays<=56){
       nmMap[m.name]={ nm:null, mem:m };
     }
   });
@@ -4591,10 +4591,10 @@ function renderGrowthWatch(){
   // Empty state
   var emEl=document.getElementById('gw-empty');
   if(emEl)emEl.style.display=gwMems.length?'none':'block';
-  // Candidates: active members with score < 70, sorted by score asc, max 8
+  // Candidates: active members not in GW, score < 70 OR no data, sorted by score asc, max 10
   var candidates=(D.mem||[]).filter(function(m){
-    return m.mentoringMode!=='growth_watch'&&m.bniTl!=='none'&&(m.bniScore||0)>0&&(m.bniScore||0)<70&&(!tm||m.mentor===tm);
-  }).sort(function(a,b){return(a.bniScore||0)-(b.bniScore||0);}).slice(0,8);
+    return m.mentoringMode!=='growth_watch'&&(m.bniScore||0)<70&&(!tm||m.mentor===tm);
+  }).sort(function(a,b){return(a.bniScore||0)-(b.bniScore||0);}).slice(0,10);
   var candEl=document.getElementById('gw-candidates');
   if(candEl){
     if(candidates.length){
@@ -4733,7 +4733,7 @@ function render8WProgress(nmList){
   var memMap={};
   (D.mem||[]).forEach(function(m){if(m.name)memMap[m.name]=m;});
 
-  // Filter: members with bniDays <= 84 (12 weeks) OR in nmList
+  // Filter: members with bniDays <= 56 (8 weeks) OR in nmList
   var nmNames={},nmById={},nmByKey={};
   nmList.forEach(function(nm){
     if(nm.id)nmById[nm.id]=nm;
@@ -4741,7 +4741,7 @@ function render8WProgress(nmList){
     [nm.name,nm.nick].forEach(function(v){var k=nmKey(v);if(k&&!nmByKey[k])nmByKey[k]=nm;});
   });
 
-  // Combine: new members = anyone in NM list OR bniDays<=84
+  // Combine: new members = anyone in NM list OR bniDays<=56
   var newMems=[];
   var seen={};
   function matchNM(m){
@@ -4751,7 +4751,7 @@ function render8WProgress(nmList){
   // First from D.mem (has live PALMS data)
   (D.mem||[]).forEach(function(m){
     var nmMatch=matchNM(m);
-    if((m.actual&&m.actual.bniDays>0&&m.actual.bniDays<=84)||nmMatch){
+    if((m.actual&&m.actual.bniDays>0&&m.actual.bniDays<=56)||nmMatch){
       var key=m.id||m.name;
       if(!seen[key]){seen[key]=1;newMems.push(m);}
     }
@@ -6142,7 +6142,7 @@ function updateBadges(){
     badge('badge-risk',D.mem.filter(function(m){return m.absent>=rt||(m.bniTl!=='none'&&m.bniScore<rs);}).length);
     badge('badge-ren',D.ren.filter(function(r){return r.diffDays<=30;}).length);
     badge('badge-coach',D.mem.filter(function(m){return m.bniTl==='red'||m.bniTl==='yellow';}).length);
-    badge('badge-8w',D.mem.filter(function(m){return m.actual&&m.actual.bniDays>0&&m.actual.bniDays<=84;}).length);
+    badge('badge-8w',D.mem.filter(function(m){return m.actual&&m.actual.bniDays>0&&m.actual.bniDays<=56;}).length);
   }
   if(S.role==='growth'){
     badge('badge-task',G.tasks.filter(function(t){return t.status==='open';}).length);

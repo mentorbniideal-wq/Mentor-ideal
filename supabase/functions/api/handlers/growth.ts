@@ -464,7 +464,7 @@ async function autoEnrollNewMembers(db: ReturnType<typeof getServiceClient>): Pr
     .from('r2y_stats')
     .select('member_id, bni_days')
     .gt('bni_days', 0)
-    .lt('bni_days', 90);
+    .lt('bni_days', 56);
   if (!rows || !rows.length) return 0;
 
   const today = new Date();
