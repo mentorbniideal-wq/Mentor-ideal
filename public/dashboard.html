@@ -2630,6 +2630,12 @@ var SUPABASE_ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
 var SUPABASE_URL_AUTH='https://itwyjhlfemxsfbimshby.supabase.co';
 var API_HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_ANON};
 var _sbAuth=null;
+var DESKTOP_ROLE_TARGET=(function(){
+  try{
+    var r=(new URLSearchParams(window.location.search).get('role')||'').toLowerCase();
+    return (r==='mc'||r==='growth')?r:'';
+  }catch(e){return '';}
+})();
 function getSbAuth(){if(!_sbAuth&&window.supabase){_sbAuth=window.supabase.createClient(SUPABASE_URL_AUTH,SUPABASE_ANON,{auth:{autoRefreshToken:true,persistSession:true}});}return _sbAuth;}
 function signInWithGoogle(){
   var sb=getSbAuth();
@@ -2678,6 +2684,13 @@ function ld(v){document.getElementById('ov').style.display=v?'flex':'none';}
 function enterApp(r){
   S.role=r.role;S.isMC=r.isMC;S.teamName=r.teamName;S.displayName=r.displayName;
   S.canRoleSwitch=S.canRoleSwitch||S.isMC||S.role==='toomtam';
+  if(DESKTOP_ROLE_TARGET&&DESKTOP_ROLE_TARGET!==S.role&&(S.isMC||S.role==='toomtam')){
+    var target=DESKTOP_ROLE_TARGET;
+    DESKTOP_ROLE_TARGET='';
+    switchDesktopRole(target);
+    return;
+  }
+  DESKTOP_ROLE_TARGET='';
   gsr('logUsage',{role:S.role,team:r.teamName||S.role,platform:'desktop',logAction:'login',detail:r.displayName||S.role},function(){});
   var nm={mc:'👑 Mentor Co',growth:'📈 Growth Committee'};
   document.getElementById('hrole').textContent=nm[S.role]||S.role;

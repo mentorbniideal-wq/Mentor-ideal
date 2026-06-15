@@ -1024,6 +1024,23 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
 .google-login-pro{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;background:#fff;color:#111827;border:none;border-radius:14px;padding:13px 16px;font-size:.92rem;font-weight:800;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.18);transition:transform .15s,box-shadow .15s,opacity .15s;font-family:'Poppins',sans-serif}
 .google-login-pro:active{transform:scale(.985)}
 .google-login-pro:hover{transform:translateY(-1px);box-shadow:0 12px 32px rgba(0,0,0,.22)}
+.entry-chooser{position:fixed;inset:0;background:radial-gradient(circle at top,rgba(215,254,250,.08),transparent 34%),var(--bg);z-index:250;display:none;align-items:center;justify-content:center;padding:1.25rem}
+.entry-card{width:100%;max-width:560px;background:linear-gradient(180deg,rgba(36,40,39,.98),rgba(29,33,32,.96));border:1px solid rgba(215,254,250,.12);border-radius:24px;padding:1.1rem;box-shadow:0 24px 80px rgba(0,0,0,.36)}
+.entry-top{margin-bottom:1rem}
+.entry-kicker{font-size:.62rem;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);margin-bottom:.45rem}
+.entry-title{font-size:1.45rem;font-weight:900;line-height:1.15}
+.entry-sub{font-size:.78rem;color:var(--gray2);line-height:1.55;margin-top:.45rem}
+.entry-options{display:grid;grid-template-columns:1fr;gap:.65rem}
+.entry-option{background:var(--bg3);border:1px solid rgba(215,254,250,.1);border-radius:16px;padding:1rem;display:flex;align-items:center;gap:.85rem;text-align:left;color:var(--white);cursor:pointer;font-family:Sarabun,sans-serif;transition:transform .15s,border-color .15s,background .15s}
+.entry-option:active{transform:scale(.985)}
+.entry-option:hover{border-color:rgba(215,254,250,.24);background:rgba(215,254,250,.055)}
+.entry-ico{width:44px;height:44px;border-radius:13px;background:rgba(215,254,250,.09);border:1px solid rgba(215,254,250,.12);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0}
+.entry-name{font-size:.92rem;font-weight:900}
+.entry-desc{font-size:.7rem;color:var(--gray2);line-height:1.35;margin-top:2px}
+.entry-arrow{margin-left:auto;color:var(--gold);font-size:1.05rem;font-weight:900}
+.entry-option.growth{border-color:rgba(167,139,250,.24);background:rgba(167,139,250,.075)}
+.entry-option.toomtam{border-color:rgba(16,185,129,.24);background:rgba(16,185,129,.075)}
+@media(min-width:680px){.entry-options{grid-template-columns:1fr 1fr}.entry-option.wide{grid-column:1/-1}}
 .public-panel{background:rgba(255,255,255,.025);border:1px solid rgba(215,254,250,.08);border-radius:22px;padding:.85rem}
 .public-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:.7rem}
 .public-panel-title{font-size:.7rem;font-weight:800;color:var(--gray2);letter-spacing:.12em;text-transform:uppercase}
@@ -1352,6 +1369,51 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
           </button>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Post-login Entry Chooser (MC / TOOMTAM) -->
+<div class="entry-chooser" id="entryChooser">
+  <div class="entry-card">
+    <div class="entry-top">
+      <div class="entry-kicker">Choose Workspace</div>
+      <div class="entry-title" id="entry-title">เลือกหน้าที่ต้องการเข้า</div>
+      <div class="entry-sub" id="entry-sub">เลือก Desktop สำหรับศูนย์บัญชาการ หรือ Mobile สำหรับทำงานจากมือถือ</div>
+    </div>
+    <div class="entry-options">
+      <button class="entry-option" onclick="entryOpenDesktop('mc')">
+        <span class="entry-ico">💻</span>
+        <span>
+          <span class="entry-name">MC Desktop</span>
+          <span class="entry-desc">Dashboard หลักสำหรับ MC และภาพรวมทั้ง Chapter</span>
+        </span>
+        <span class="entry-arrow">›</span>
+      </button>
+      <button class="entry-option growth" onclick="entryOpenDesktop('growth')">
+        <span class="entry-ico">📈</span>
+        <span>
+          <span class="entry-name">Growth Desktop</span>
+          <span class="entry-desc">Growth command center, Power Team และ Analytics</span>
+        </span>
+        <span class="entry-arrow">›</span>
+      </button>
+      <button class="entry-option wide" onclick="entryOpenMobile('mc')">
+        <span class="entry-ico">📱</span>
+        <span>
+          <span class="entry-name">MC Mobile</span>
+          <span class="entry-desc">หน้า MC แบบมือถือ สำหรับเช็คงานและตอบสนองเร็ว</span>
+        </span>
+        <span class="entry-arrow">›</span>
+      </button>
+      <button class="entry-option toomtam wide" id="entry-toomtam-mobile" onclick="entryOpenMobile('toomtam')" style="display:none">
+        <span class="entry-ico">🧑</span>
+        <span>
+          <span class="entry-name">TOOMTAM Mobile</span>
+          <span class="entry-desc">หน้า Mentor ทีม TOOMTAM แบบมือถือ</span>
+        </span>
+        <span class="entry-arrow">›</span>
+      </button>
     </div>
   </div>
 </div>
@@ -2394,6 +2456,53 @@ function openChecklistFromTeam(name){
   }
 }
 var roleNames={mc:'ตูมตาม (MC)',toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP',growth:'Growth Coordinator'};
+var _entryAuth=null;
+
+function showEntryChooser(r){
+  _entryAuth=Object.assign({},r);
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('mcApp').classList.remove('on');
+  document.getElementById('mentorApp').classList.remove('on');
+  document.getElementById('growthApp').classList.remove('on');
+  var isToomtam=r.role==='toomtam';
+  var ttl=document.getElementById('entry-title');
+  var sub=document.getElementById('entry-sub');
+  var toom=document.getElementById('entry-toomtam-mobile');
+  if(ttl)ttl.textContent=isToomtam?'TOOMTAM ต้องการเข้าโหมดไหน?':'MC ต้องการเข้าโหมดไหน?';
+  if(sub)sub.textContent=isToomtam?'เลือก MC/Growth Desktop หรือเข้า Mobile ของ MC/TOOMTAM ได้ทันที':'เลือก Desktop สำหรับศูนย์บัญชาการ หรือ MC Mobile สำหรับทำงานจากมือถือ';
+  if(toom)toom.style.display=isToomtam?'flex':'none';
+  document.getElementById('entryChooser').style.display='flex';
+}
+function hideEntryChooser(){
+  var el=document.getElementById('entryChooser');
+  if(el)el.style.display='none';
+}
+function entryOpenDesktop(role){
+  role=String(role||'mc').toLowerCase();
+  window.location.href='dashboard.html?role='+encodeURIComponent(role);
+}
+function entryOpenMobile(role){
+  role=String(role||'mc').toLowerCase();
+  if(!_entryAuth)return;
+  if(role===_entryAuth.role||(role==='mc'&&_entryAuth.isMC)){
+    hideEntryChooser();
+    var direct=Object.assign({},_entryAuth,{_skipEntryChoice:true});
+    if(role==='mc'){direct.role='mc';direct.isMC=true;direct.teamName=null;direct.displayName=direct.displayName||'MC';}
+    enterApp(direct);
+    return;
+  }
+  showLoad();
+  fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'viewAsRole',token:S.token,targetRole:role})})
+    .then(function(res){return res.json();})
+    .then(function(r){
+      hideLoad();
+      if(!r||!r.ok){toast('❌ เข้าโหมดนี้ไม่ได้: '+((r&&r.error)||'ไม่ทราบสาเหตุ'));return;}
+      hideEntryChooser();
+      r._skipEntryChoice=true;
+      enterApp(r);
+    })
+    .catch(function(e){hideLoad();toast('❌ '+(e&&e.message?e.message:'เข้าโหมดนี้ไม่ได้'));});
+}
 
 function enterApp(r){
   S.role=r.role;S.isMC=r.isMC;S.teamName=r.teamName;S.displayName=r.displayName;
@@ -2407,6 +2516,11 @@ function enterApp(r){
     document.getElementById('verDate').textContent=r.versionDate||'';
     document.getElementById('verFooter').style.display='block';
   }
+  if(!r._skipEntryChoice&&(r.isMC||r.role==='toomtam')){
+    showEntryChooser(r);
+    return;
+  }
+  hideEntryChooser();
   document.getElementById('loginScreen').style.display='none';
   if(r.isMC){
     document.getElementById('mcRoleLbl').textContent='MC · ตูมตาม';
@@ -2444,6 +2558,8 @@ function logout(){
   document.getElementById('mcApp').classList.remove('on');
   document.getElementById('mentorApp').classList.remove('on');
   document.getElementById('growthApp').classList.remove('on');
+  hideEntryChooser();
+  _entryAuth=null;
   document.getElementById('login-err').textContent='';
   document.getElementById('loginScreen').style.display='flex';
 }
