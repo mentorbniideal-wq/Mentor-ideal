@@ -488,6 +488,7 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       // pass=true → passed, pass=false+nopass=true → no-pass, pass=null → reset
       const passRaw    = p.pass;
       const nopassRaw  = p.nopass;
+      const hasStatus  = passRaw !== null && passRaw !== undefined || nopassRaw !== null && nopassRaw !== undefined;
       const pass       = passRaw  === null || passRaw  === undefined ? false : Boolean(passRaw);
       const nopass     = nopassRaw === null || nopassRaw === undefined ? false : Boolean(nopassRaw);
       const isDone     = pass;
@@ -508,12 +509,14 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       const upsertData: Record<string, unknown> = {
         member_id:  memberId,
         item_key:   itemKey,
-        is_done:    isDone,
-        pass,
-        nopass,
-        done_at:    isDone ? now : null,
         updated_at: now,
       };
+      if (hasStatus) {
+        upsertData.is_done = isDone;
+        upsertData.pass = pass;
+        upsertData.nopass = nopass;
+        upsertData.done_at = isDone ? now : null;
+      }
       if (comment !== undefined) upsertData.mentor_comment = comment;
 
       const { error } = await db
@@ -744,7 +747,7 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       }
 
       // Build lookup maps
-      type ClRow = { member_id: string; is_done: boolean };
+      type ClRow = { member_id: string; is_done: boolean | null; pass?: boolean | null };
       type NoteRow = { member_id: string; note: string };
 
       const clByMember: Record<string, ClRow[]> = {};
@@ -761,7 +764,7 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       const enriched = (members as Record<string, unknown>[]).map((m) => {
         const id      = m.id as string;
         const items   = clByMember[id] || [];
-        const done    = items.filter((r) => r.is_done).length;
+        const done    = items.filter((r) => Boolean(r.pass) || Boolean(r.is_done)).length;
         const total   = CHECKLIST_TOTAL; // always 41, never items.length
         const pct     = Math.round(done / total * 100);
 

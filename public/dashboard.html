@@ -4454,26 +4454,38 @@ function w8Remove(rowNum,memberName){
   document.getElementById('w8-del-all').onclick=function(){doDelete(true);};
 }
 function render8WProgress(nmList){
+  function nmKey(v){return String(v||'').trim().toLowerCase().replace(/\s+/g,' ');}
   // Build map from D.mem by name
   var memMap={};
   (D.mem||[]).forEach(function(m){if(m.name)memMap[m.name]=m;});
 
   // Filter: members with bniDays <= 84 (12 weeks) OR in nmList
-  var nmNames={};
-  nmList.forEach(function(nm){nmNames[nm.name]=nm;});
+  var nmNames={},nmById={},nmByKey={};
+  nmList.forEach(function(nm){
+    if(nm.id)nmById[nm.id]=nm;
+    if(nm.name)nmNames[nm.name]=nm;
+    [nm.name,nm.nick].forEach(function(v){var k=nmKey(v);if(k&&!nmByKey[k])nmByKey[k]=nm;});
+  });
 
   // Combine: new members = anyone in NM list OR bniDays<=84
   var newMems=[];
   var seen={};
+  function matchNM(m){
+    if(m.id&&nmById[m.id])return nmById[m.id];
+    return nmByKey[nmKey(m.name)]||nmByKey[nmKey(m.nick)]||nmNames[m.name]||null;
+  }
   // First from D.mem (has live PALMS data)
   (D.mem||[]).forEach(function(m){
-    if((m.actual&&m.actual.bniDays>0&&m.actual.bniDays<=84)||nmNames[m.name]){
-      if(!seen[m.name]){seen[m.name]=1;newMems.push(m);}
+    var nmMatch=matchNM(m);
+    if((m.actual&&m.actual.bniDays>0&&m.actual.bniDays<=84)||nmMatch){
+      var key=m.id||m.name;
+      if(!seen[key]){seen[key]=1;newMems.push(m);}
     }
   });
   // Add any in NM list not yet in D.mem
   nmList.forEach(function(nm){
-    if(!seen[nm.name]){seen[nm.name]=1;newMems.push({name:nm.name,nick:nm.nick,mentor:nm.mentor,bniTl:'none',bniScore:0,cats:null,actual:null,fastTrack:[]});}
+    var key=nm.id||nm.name;
+    if(!seen[key]){seen[key]=1;newMems.push({id:nm.id,name:nm.name,nick:nm.nick,mentor:nm.mentor,bniTl:'none',bniScore:0,cats:null,actual:null,fastTrack:[]});}
   });
   newMems.sort(function(a,b){return(a.actual?a.actual.bniDays:0)-(b.actual?b.actual.bniDays:0);});
 
@@ -4500,7 +4512,7 @@ function render8WProgress(nmList){
   var tlL={green:'🟢 Green',yellow:'🟡 Yellow',red:'🔴 Red',black:'⚫ New',blue:'🔵 New',none:'ยังไม่มีข้อมูล'};
 
   var html=newMems.map(function(m){
-    var nm=nmNames[m.name]||{};
+    var nm=matchNM(m)||{};
     var act=m.actual||{rg:0,rr:0,visitor:0,oToOne:0,ceu:0,tyfcb:0,bniDays:0,absent:0};
     var cats=m.cats||{absent:0,ref:0,tyfcb:0,visitor:0,one21:0,training:0};
     var bniDays=act.bniDays||0;
