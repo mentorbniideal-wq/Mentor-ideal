@@ -138,7 +138,7 @@ export async function handleAlerts(p: Record<string, unknown>): Promise<Response
 
       const teamFilter = typeof p.teamName === 'string' && p.teamName ? p.teamName : null;
       let q = db.from('core_issues')
-        .select('id, member_id, mentor_team, issue_text, action_plan, status, opened_at')
+        .select('id, member_id, mentor_team, issue_text, action_plan, mc_reply, replied_at, status, opened_at, closed_at')
         .order('opened_at', { ascending: false });
       if (teamFilter) q = q.eq('mentor_team', teamFilter);
       const { data: issues, error: iErr } = await q;
@@ -163,7 +163,9 @@ export async function handleAlerts(p: Record<string, unknown>): Promise<Response
           coreIssue:  String(r.issue_text  || ''),
           actionTaken: '',
           plan:       String(r.action_plan || ''),
-          reply:      '',
+          reply:      String(r.mc_reply || ''),
+          repliedAt:  String(r.replied_at || ''),
+          doneAt:     String(r.closed_at || ''),
           savedAt:    String(r.opened_at   || ''),
         };
       });
@@ -199,7 +201,7 @@ export async function handleAlerts(p: Record<string, unknown>): Promise<Response
       if (!reply) return errResponse('reply text required');
 
       const { error } = await db.from('core_issues')
-        .update({ action_plan: reply, updated_at: new Date().toISOString() })
+        .update({ mc_reply: reply, replied_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq('id', row);
       if (error) return errResponse(error.message);
       return jsonResponse({ ok: true });

@@ -3126,7 +3126,7 @@ function renderFocusBar(){
   var el=document.getElementById('mc-focus');if(!el)return;
   var mem=D.mem,rt=riskThresh.absent||4,rs=riskThresh.score||30;
   var risk=mem.filter(function(m){return m.absent>=rt||(m.bniTl!=='none'&&m.bniScore<rs);});
-  var pend=D.reps.filter(function(r){return !r.status||r.status==='reopened';});
+  var pend=D.reps.filter(function(r){return repIsOpen(r);});
   var ren30=D.ren.filter(function(r){return r.diffDays<=30;});
   var noMsg=mem.filter(function(m){return m.bniTl==='red'&&!D.msgs.some(function(ms){return ms.name===m.name;});});
   var miss121=mem.filter(function(m){return m.bniTl!=='none'&&(m.cats||{}).one21<5;});
@@ -3476,7 +3476,7 @@ function renderMTTeams(){
     var avgC=t.avg>=70?'var(--gr)':t.avg>=50?'var(--ye)':t.avg>=30?'var(--re)':'var(--bl)';
     var tot=t.count||1;
     var gPct=Math.round((t.green||0)/tot*100);
-    var openIssues=D.reps.filter(function(r){return r.team===t.team&&(!r.status||r.status==='reopened');}).length;
+    var openIssues=D.reps.filter(function(r){return r.team===t.team&&repIsOpen(r);}).length;
     var tn=esc(t.team);
     var cardId='mt-card-'+t.team.replace(/[^a-zA-Z0-9]/g,'_');
 
@@ -4238,9 +4238,10 @@ function saveEdit(i,id){var v=document.getElementById('meatxt'+i).value.trim();i
 function delMsg(i,id){if(!confirm('ลบข้อความนี้?'))return;gsr('deleteMCMessage',{role:'mc',id:id},function(r){if(r.ok){gsr('getMessages',{role:'mc'},function(r2){if(r2.ok){D.msgs=r2.messages||[];renderMsgs();}});}else alert('ผิดพลาด: '+(r.error||''));});}
 
 // ── Reports ──────────────────────────────────────
+function repIsOpen(r){var s=(r&&r.status)||'';return !s||s==='open'||s==='reopened';}
 function srf(s,el){rff=s;document.querySelectorAll('.sp2').forEach(function(b){b.classList.remove('on');});el.classList.add('on');renderRep();}
 function bulkCloseRep(){
-  var pending=D.reps.filter(function(r){var s=r.status||'';return!s||s==='reopened';});
+  var pending=D.reps.filter(function(r){return repIsOpen(r);});
   if(!pending.length){toast('ไม่มี Report ที่รอดำเนินการ','ok');return;}
   if(!confirm('ปิดเคส '+pending.length+' รายการ?'))return;
   var done2=0;
@@ -4259,7 +4260,7 @@ function renderRep(){
     if(sq&&(r.memberName||'').toLowerCase().indexOf(sq)<0&&(r.nick||'').toLowerCase().indexOf(sq)<0)return false;
     var st=r.status||'';
     if(rff==='all')return true;
-    if(rff==='pending')return!st||st==='';
+    if(rff==='pending')return repIsOpen(r);
     return st===rff;
   });
   document.getElementById('repn').textContent=list.length;
@@ -4277,22 +4278,22 @@ function renderRep(){
       '</div>'+
       (r.reply?'<div class="rre"><div style="font-size:9px;color:var(--ac2);font-weight:600;margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px">💬 MC Reply</div>'+esc(r.reply)+'</div>':'')+
       '<div class="ra">'+
-        (st!=='done'?'<button class="bx pr" onclick="repDone(\''+esc(r.team)+'\','+r.row+','+i+')">✅ ปิดเคส</button>':'')+
-        (st==='done'?'<button class="bx" onclick="repReopen(\''+esc(r.team)+'\','+r.row+','+i+')">🔄 Reopen</button>':'')+
+        (st!=='done'?'<button class="bx pr" onclick="repDone(\''+esc(r.team)+'\',\''+esc(r.row)+'\','+i+')">✅ ปิดเคส</button>':'')+
+        (st==='done'?'<button class="bx" onclick="repReopen(\''+esc(r.team)+'\',\''+esc(r.row)+'\','+i+')">🔄 Reopen</button>':'')+
         '<button class="bx" onclick="togRepR('+i+')">💬 ตอบกลับ</button>'+
       '</div>'+
       '<div class="rrf" id="rrf'+i+'">'+
         '<textarea id="rrftxt'+i+'" placeholder="พิมพ์ข้อความตอบกลับ..."></textarea>'+
         '<div style="display:flex;gap:6px">'+
-          '<button class="bx pr" onclick="sendRepR(\''+esc(r.team)+'\','+r.row+','+i+',\''+esc(r.memberName)+'\')">ส่ง</button>'+
+          '<button class="bx pr" onclick="sendRepR(\''+esc(r.team)+'\',\''+esc(r.row)+'\','+i+',\''+esc(r.memberName)+'\')">ส่ง</button>'+
           '<button class="bx" onclick="togRepR('+i+')">ยกเลิก</button>'+
         '</div></div></div>';
   }).join(''):'<div class="es">ไม่มี Report ในกลุ่มนี้</div>';
 }
-function repDone(tm,row,i){gsr('setReportStatus',{role:'mc',teamName:tm,row:row,status:'done'},function(r){if(r.ok){gsr('getReports',{role:'mc'},function(r2){if(r2.ok){D.reps=r2.reports||[];renderRep();}});}else alert('ผิดพลาด: '+(r.error||''));});}
-function repReopen(tm,row,i){gsr('setReportStatus',{role:'mc',teamName:tm,row:row,status:'reopened'},function(r){if(r.ok){gsr('getReports',{role:'mc'},function(r2){if(r2.ok){D.reps=r2.reports||[];renderRep();}});}else alert('ผิดพลาด: '+(r.error||''));});}
+function repDone(tm,row,i){gsr('setReportStatus',{role:'mc',teamName:tm,row:row,status:'done'},function(r){if(r.ok){gsr('getReports',{role:'mc'},function(r2){if(r2.ok){D.reps=r2.reports||[];renderRep();updateBadges();}});}else alert('ผิดพลาด: '+(r.error||''));});}
+function repReopen(tm,row,i){gsr('setReportStatus',{role:'mc',teamName:tm,row:row,status:'reopened'},function(r){if(r.ok){gsr('getReports',{role:'mc'},function(r2){if(r2.ok){D.reps=r2.reports||[];renderRep();updateBadges();}});}else alert('ผิดพลาด: '+(r.error||''));});}
 function togRepR(i){var el=document.getElementById('rrf'+i);el.style.display=el.style.display==='block'?'none':'block';if(el.style.display==='block')document.getElementById('rrftxt'+i).focus();}
-function sendRepR(tm,row,i,mn){var txt=document.getElementById('rrftxt'+i).value.trim();if(!txt)return;gsr('saveReply',{role:'mc',teamName:tm,row:row,memberName:mn,reply:txt},function(r){if(r.ok){togRepR(i);gsr('getReports',{role:'mc'},function(r2){if(r2.ok){D.reps=r2.reports||[];renderRep();}});}else alert('ผิดพลาด: '+(r.error||''));});}
+function sendRepR(tm,row,i,mn){var txt=document.getElementById('rrftxt'+i).value.trim();if(!txt)return;gsr('saveReply',{role:'mc',teamName:tm,row:row,memberName:mn,reply:txt},function(r){if(r.ok){togRepR(i);gsr('getReports',{role:'mc'},function(r2){if(r2.ok){D.reps=r2.reports||[];renderRep();updateBadges();}});}else alert('ผิดพลาด: '+(r.error||''));});}
 
 // ════ SCORECARD ═══════════════════════════════════
 var _scLoaded=false;
@@ -5616,7 +5617,7 @@ function openModal(name){
     }
     // ── Core Issues ────────────────────────────────────────────────
     var reps=D.reps.filter(function(r){return r.memberName===name;});
-    var openRep=reps.find(function(r){return!r.status||r.status===''||r.status==='reopened';});
+    var openRep=reps.find(function(r){return repIsOpen(r);});
     var doneRep=reps.find(function(r){return r.status==='done';});
     if(openRep){_m360.repRow=openRep.row;_m360.repTeam=openRep.team;}
     else if(doneRep){_m360.repRow=doneRep.row;_m360.repTeam=doneRep.team;}
@@ -5848,9 +5849,8 @@ function m360SendTask(){
 function badge(id,n){var el=document.getElementById(id);if(!el)return;el.textContent=n;el.style.display=n>0?'flex':'none';}
 function updateBadges(){
   if(S.role==='mc'){
-    var pend=D.reps.filter(function(r){return!r.status||r.status==='';}).length;
-    var reop=D.reps.filter(function(r){return r.status==='reopened';}).length;
-    badge('badge-rep',pend+reop);
+    var openReports=D.reps.filter(function(r){return repIsOpen(r);}).length;
+    badge('badge-rep',openReports);
     badge('badge-msg',D.msgs.filter(function(m){return!_readMsgs[_msgKey(m)];}).length);
     var rt=riskThresh.absent||4,rs=riskThresh.score||30;
     badge('badge-risk',D.mem.filter(function(m){return m.absent>=rt||(m.bniTl!=='none'&&m.bniScore<rs);}).length);
@@ -5936,7 +5936,7 @@ function enterMeeting(){
     {l:'สมาชิกทั้งหมด',v:total,c:'#6c63ff'},{l:'🟢 Green Zone',v:sm.green||0,c:'#00d4aa'},
     {l:'BNI Score เฉลี่ย',v:avg,c:'#60a5fa'},{l:'⚠️ Risk Members',v:risk,c:'#ff6b6b'},
     {l:'🟡 Yellow',v:sm.yellow||0,c:'#ffc14d'},{l:'🔴 Red',v:sm.red||0,c:'#ff6b6b'},
-    {l:'⚫ Black',v:sm.black||0,c:'#8b92b8'},{l:'📋 Reports รอ',v:D.reps.filter(function(r){return!r.status||r.status==='';}).length,c:'#f97316'}
+    {l:'⚫ Black',v:sm.black||0,c:'#8b92b8'},{l:'📋 Reports รอ',v:D.reps.filter(function(r){return repIsOpen(r);}).length,c:'#f97316'}
   ].map(function(k){return'<div class="mt-kc"><div class="mt-kv" style="color:'+k.c+'">'+k.v+'</div><div class="mt-kl">'+k.l+'</div></div>';}).join('');
   var riskList=D.mem.filter(function(m){return m.absent>4||(m.bniTl!=='none'&&m.bniScore<30);});
   document.getElementById('mt-risk').innerHTML=riskList.length?riskList.slice(0,6).map(function(m){
@@ -6293,7 +6293,7 @@ function renderCoach(){
   });
   // Summary row
   var ng=list.filter(function(m){return m.bniTl!=='green'&&m.bniTl!=='none';});
-  var hasRep=ng.filter(function(m){return D.reps.some(function(r){return r.memberName===m.name&&(!r.status||r.status==='reopened');});});
+  var hasRep=ng.filter(function(m){return D.reps.some(function(r){return r.memberName===m.name&&repIsOpen(r);});});
   document.getElementById('co-sum').innerHTML=[
     {l:'Coaching ทั้งหมด',v:list.length,c:'var(--ac)'},{l:'ต้องพัฒนา',v:ng.length,c:'var(--ye)'},{l:'มี Open Report',v:hasRep.length,c:'var(--re)'}
   ].map(function(s){return'<div class="co-sum-card"><div style="font-size:22px;font-weight:800;color:'+s.c+'">'+s.v+'</div><div style="font-size:11px;color:var(--sub)">'+s.l+'</div></div>';}).join('');
@@ -6301,7 +6301,7 @@ function renderCoach(){
   document.getElementById('co-grid').innerHTML=list.length?list.map(function(m,i){
     var zc={green:'green-z',yellow:'yellow-z',red:'red-z',blue:'blue-z'}[m.bniTl]||'';
     var reps=D.reps.filter(function(r){return r.memberName===m.name;});
-    var openRep=reps.find(function(r){return!r.status||r.status==='reopened';});
+    var openRep=reps.find(function(r){return repIsOpen(r);});
     var ft=(m.fastTrack||[])[0];
     var isPinned=pinnedMembers[m.name]?1:0;
     var msgs=D.msgs.filter(function(msg){return msg.name===m.name;});
@@ -6685,7 +6685,7 @@ function buildIMDCoachPlan(m){
   if(cats.visitor<10)weakCats.push({l:'Visitor',v:cats.visitor,max:20,tip:'ลองเชิญ 1 คนจาก network ส่วนตัวมาเยี่ยม'});
   if(cats.one21<10)weakCats.push({l:'1-2-1',v:cats.one21,max:15,tip:'นัด 1-2-1 กับ member ที่ธุรกิจ overlap กัน'});
   if(ab>=(riskThresh.absent||4))weakCats.push({l:'Attendance',v:ab+'ครั้งที่ขาด',max:null,tip:'ตรวจสอบว่ามีตัวแทนได้หรือเปล่าในสัปดาห์ที่ติดงาน'});
-  var openRep=D.reps.find(function(r){return r.memberName===m.name&&(!r.status||r.status==='reopened');});
+  var openRep=D.reps.find(function(r){return r.memberName===m.name&&repIsOpen(r);});
   var questions=[
     'สัปดาห์ที่ผ่านมาธุรกิจเป็นยังไงบ้าง?',
     'มี Referral ที่อยากให้ member คนไหนช่วยบ้างไหม?',
@@ -6937,7 +6937,7 @@ function renderAlertDigest(){
   if(S.role!=='mc')return;
   var rt=riskThresh.absent||4,rs=riskThresh.score||30;
   var risk=D.mem.filter(function(m){return m.absent>=rt||(m.bniTl!=='none'&&m.bniScore<rs);});
-  var pend=D.reps.filter(function(r){return!r.status||r.status==='';});
+  var pend=D.reps.filter(function(r){return repIsOpen(r);});
   var ren=D.ren.filter(function(r){return r.diffDays<=30;});
   var noMsg=D.mem.filter(function(m){return m.bniTl==='red'&&!D.msgs.some(function(ms){return ms.name===m.name;});});
   var el=document.getElementById('mc-dig');if(!el)return;
@@ -7168,7 +7168,7 @@ function generateSnapshot(){
     txt+='📊 BNI Avg Score: '+avg+' pt\n';
     txt+='🟢 Green: '+(sm.green||0)+' · 🟡 Yellow: '+(sm.yellow||0)+' · 🔴 Red: '+(sm.red||0)+' · ⚫ Black: '+(sm.black||0)+'\n';
     txt+='⚠️  Risk Members: '+risk+' คน\n';
-    txt+='📋 Open Reports: '+D.reps.filter(function(r){return!r.status||r.status==='';}).length+' รายการ\n';
+    txt+='📋 Open Reports: '+D.reps.filter(function(r){return repIsOpen(r);}).length+' รายการ\n';
     txt+='📩 Active Messages: '+D.msgs.length+' รายการ\n';
     txt+='📅 Renewal ≤30 วัน: '+D.ren.filter(function(r){return r.diffDays<=30;}).length+' รายการ\n';
     var top=sc.sort(function(a,b){return b.bniScore-a.bniScore;}).slice(0,3);
@@ -7236,7 +7236,7 @@ function renderSmartAlerts(){
     {ico:'🔄',v:lowRef.length,l:'Low Referral (<3)',c:lowRef.length>5?'alert':lowRef.length>0?'warn':'ok',fn:"var t=document.querySelector('#mc-tabs .tb:nth-child(2)');if(t)sw('mc-mem',t,'mc')"},
     {ico:'📞',v:noContact.length,l:'ยังไม่ได้ติดต่อ',c:noContact.length>3?'alert':noContact.length>0?'warn':'ok',fn:"openActionCenter('pq')"},
     {ico:'⚖️',v:overloaded,l:'Mentor Overload',c:overloaded>0?'alert':'ok',fn:"var t=document.querySelector('#mc-tabs .tb:nth-child(4)');if(t)sw('mc-team',t,'mc')"},
-    {ico:'⚠️',v:D.reps.filter(function(r){return!r.status||r.status==='reopened';}).length,l:'Open Reports',c:D.reps.filter(function(r){return!r.status||r.status==='reopened';}).length>0?'warn':'ok',fn:"var t=document.querySelector('#mc-tabs .tb:nth-child(8)');if(t)sw('mc-rep',t,'mc')"},
+    {ico:'⚠️',v:D.reps.filter(function(r){return repIsOpen(r);}).length,l:'Open Reports',c:D.reps.filter(function(r){return repIsOpen(r);}).length>0?'warn':'ok',fn:"var t=document.querySelector('#mc-tabs .tb:nth-child(8)');if(t)sw('mc-rep',t,'mc')"},
   ];
   el.innerHTML=items.map(function(it){
     return'<div class="sa-card '+it.c+'" onclick="'+it.fn+'" title="คลิกเพื่อดูรายละเอียด">'+
@@ -7579,7 +7579,7 @@ function _calcPri(m){
   var rt=riskThresh.absent||4;
   if(m.absent>=rt){sc+=Math.min(3,m.absent-rt+1)*8;reasons.push('ขาด '+m.absent+' ครั้ง');}
   if(m.bniTl!=='none'&&m.bniScore<30){sc+=15;reasons.push('คะแนน <30');}
-  var openRep=D.reps.some(function(r){return r.memberName===m.name&&(!r.status||r.status==='reopened');});
+  var openRep=D.reps.some(function(r){return r.memberName===m.name&&repIsOpen(r);});
   if(openRep){sc+=20;reasons.push('📋 Report ค้าง');}
   var cd=_cDays(m.name);
   if(cd===null){sc+=12;reasons.push('ยังไม่ได้ติดต่อ');}
@@ -7669,7 +7669,7 @@ function openMeetingPrep(){
   var rt=riskThresh.absent||4,rs=riskThresh.score||30,mem=D.mem;
   var greens=mem.filter(function(m){return m.bniTl==='green';}).sort(function(a,b){return b.bniScore-a.bniScore;}).slice(0,5);
   var risk=mem.filter(function(m){return m.absent>=rt||(m.bniTl!=='none'&&m.bniScore<rs);});
-  var openReps=D.reps.filter(function(r){return!r.status||r.status==='reopened';});
+  var openReps=D.reps.filter(function(r){return repIsOpen(r);});
   var ren30=D.ren.filter(function(r){return r.diffDays<=30;});
   var noContact=mem.filter(function(m){return m.bniTl==='red'&&(_cDays(m.name)===null||_cDays(m.name)>7);});
   var sm=D.sm,sc=mem.filter(function(m){return m.bniTl!=='none';});
@@ -7759,11 +7759,11 @@ function copyMP(){
   D.mem.filter(function(m){return m.bniTl==='green';}).sort(function(a,b){return b.bniScore-a.bniScore;}).slice(0,5).forEach(function(m){txt+='  • '+m.name+' ('+m.bniScore+' pt)\n';});
   txt+='\n⚠️ Concerns\n';
   D.mem.filter(function(m){return m.absent>=rt||(m.bniTl!=='none'&&m.bniScore<rs);}).slice(0,8).forEach(function(m){txt+='  • '+m.name+' ['+tlL(m.bniTl)+' '+m.bniScore+'pt, ขาด '+m.absent+']\n';});
-  txt+='\n📋 Open Reports: '+D.reps.filter(function(r){return!r.status||r.status==='reopened';}).length+' รายการ\n';
+  txt+='\n📋 Open Reports: '+D.reps.filter(function(r){return repIsOpen(r);}).length+' รายการ\n';
   txt+='📅 Renewal ≤30 วัน: '+D.ren.filter(function(r){return r.diffDays<=30;}).length+' คน\n';
   txt+='\n📌 Actions\n';
   D.mem.filter(function(m){return m.bniTl==='red'&&(_cDays(m.name)===null||_cDays(m.name)>7);}).slice(0,5).forEach(function(m){txt+='  → ติดต่อ '+m.name+'\n';});
-  D.reps.filter(function(r){return!r.status||r.status==='reopened';}).slice(0,3).forEach(function(r){txt+='  → Reply Report: '+r.memberName+'\n';});
+  D.reps.filter(function(r){return repIsOpen(r);}).slice(0,3).forEach(function(r){txt+='  → Reply Report: '+r.memberName+'\n';});
   txt+='\n🤖 Generated by BNI IDEAL Desktop';
   navigator.clipboard.writeText(txt).then(function(){toast('Copy แล้ว 📋','ok');}).catch(function(){toast('ไม่สามารถ Copy ได้','err');});
 }
@@ -7778,7 +7778,7 @@ function openMCT(name){
     var pri=_calcPri(m);
     var cd=_cDays(name);
     var ren=D.ren.find(function(r){return r.name===name;});
-    var openRep=D.reps.find(function(r){return r.memberName===name&&(!r.status||r.status==='reopened');});
+    var openRep=D.reps.find(function(r){return r.memberName===name&&repIsOpen(r);});
     var contact=_contacts[name]||{};
     var h=(m.hist||[]).map(Number).filter(function(n){return!isNaN(n)&&n>0;});
     var delta=h.length>=2?h[h.length-1]-h[h.length-2]:null;

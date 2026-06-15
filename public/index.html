@@ -4854,6 +4854,7 @@ function createMatchTask(idx){
 // ── Reports (MC) ─────────────────────────────────────────────
 var RPT={all:[],filter:'all',statusFilter:'all'};
 var RPT_IDX={};  // เก็บ team/row/memberName แยกต่างหาก ไม่ต้อง escape ใน onclick
+function rptIsOpen(r){var s=(r&&r.status)||'';return !s||s==='open'||s==='reopened';}
 
 function loadReports(){
   document.getElementById('rpt-list').innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
@@ -4887,7 +4888,7 @@ function renderReports(){
   if(RPT.statusFilter!=='all'){
     list=list.filter(function(r){
       var s=r.status||'';
-      if(RPT.statusFilter==='open')    return !r.reply&&s!=='done';
+      if(RPT.statusFilter==='open')    return !r.reply&&rptIsOpen(r);
       if(RPT.statusFilter==='replied') return r.reply&&s!=='done';
       if(RPT.statusFilter==='done')    return s==='done';
       return true;
@@ -4901,14 +4902,14 @@ function renderReports(){
   document.getElementById('rpt-list').innerHTML=list.map(function(r,i){return buildRptCard(r,i);}).join('');
 }
 function bulkCloseReports(){
-  var pending=RPT.all.filter(function(r){return(r.status||'')==='';});
+  var pending=RPT.all.filter(function(r){return rptIsOpen(r);});
   if(!pending.length){alert('ไม่มี Report ที่รอดำเนินการ');return;}
   if(!confirm('ปิดเคส '+pending.length+' รายการ?'))return;
   var done2=0;
   pending.forEach(function(r){
     call('setReportStatus',{teamName:r.team,row:r.row,status:'done'},function(err,res){
       done2++;
-      if(done2===pending.length){loadReports();}
+      if(done2===pending.length){loadReports();loadNotifBadge();}
     });
   });
 }
@@ -4988,6 +4989,7 @@ function submitReply(idx){
     if(r&&r.ok){
       toast('✅ ส่ง Reply แล้ว');
       loadReports();
+      loadNotifBadge();
     } else {
       btn.disabled=false; btn.textContent='ส่ง Reply →';
       toast('❌ '+(err?err.message:r.error));
@@ -5005,6 +5007,7 @@ function setStatus(idx,status){
         var label=status==='done'?'✅ ปิดเคสแล้ว':'↩ Reopen แล้ว';
         toast(label);
         loadReports();
+        loadNotifBadge();
       } else {
         if(btn){ btn.disabled=false; btn.textContent=status==='done'?'✅ ปิดเคสนี้':'↩ Reopen'; }
         toast('❌ '+(err?err.message:r.error));
@@ -7016,7 +7019,7 @@ function renderNotifPanel(alertData,rptData){
 
   // ── Section 2: Unreplied Reports ─────────────────────────────
   var reports=rptData.reports||[];
-  var unreplied=reports.filter(function(r){return !r.reply&&r.status!=='done';});
+  var unreplied=reports.filter(function(r){return !r.reply&&rptIsOpen(r);});
   totalCount+=unreplied.length;
 
   if(unreplied.length){
@@ -7134,18 +7137,29 @@ function loadMentorNotifBadge(){
 
 function loadNotifBadge(){
   NOTIF.dismissed=_notifLoad(); // always read latest from localStorage
+  var reportCount=0, alertCount=0, done=0;
+  function updateBell(){
+    done++;
+    var total=reportCount+alertCount;
+    var badgeEl=document.getElementById('notif-total');
+    if(badgeEl){
+      if(total>0){badgeEl.textContent=total>99?'99+':total;badgeEl.style.display='flex';}
+      else if(done>=2)badgeEl.style.display='none';
+    }
+  }
   call('getReports',{},function(err,r){
-    if(err||!r||!r.ok)return;
-    var unreplied=(r.reports||[]).filter(function(x){return !x.reply&&x.status!=='done';}).length;
+    if(err||!r||!r.ok){updateBell();return;}
+    var unreplied=(r.reports||[]).filter(function(x){return !x.reply&&rptIsOpen(x);}).length;
+    reportCount=unreplied;
     var rptBadgeEl=document.getElementById('rpt-badge');
     if(rptBadgeEl&&unreplied>0){rptBadgeEl.textContent=unreplied;rptBadgeEl.style.display='inline-flex';}
+    else if(rptBadgeEl)rptBadgeEl.style.display='none';
+    updateBell();
   });
   call('getAlertCenter',{},function(err,r){
-    if(err||!r||!r.ok)return;
-    var filtered=(r.alerts||[]).filter(function(a){return !isNotifSnoozed(a);}).length;
-    var badgeEl=document.getElementById('notif-total');
-    if(badgeEl&&filtered>0){badgeEl.textContent=filtered>99?'99+':filtered;badgeEl.style.display='flex';}
-    else if(badgeEl) badgeEl.style.display='none';
+    if(err||!r||!r.ok){updateBell();return;}
+    alertCount=(r.alerts||[]).filter(function(a){return !isNotifSnoozed(a);}).length;
+    updateBell();
   });
 }
 
