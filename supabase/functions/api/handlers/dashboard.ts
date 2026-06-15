@@ -118,13 +118,17 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         });
       }
 
-      // ── Batch-fetch phone/email/is_new_member (not in view) ──
+      // ── Batch-fetch phone/email/is_new_member/mentoring_mode (not in all views) ──
       const { data: contactRows } = memberIds.length
-        ? await db.from('members').select('id, phone, email, is_new_member').in('id', memberIds)
+        ? await db.from('members').select('id, phone, email, is_new_member, mentoring_mode').in('id', memberIds)
         : { data: [] };
-      const contactMap: Record<string, { phone: string; email: string; isNew: boolean }> = {};
+      const contactMap: Record<string, { phone: string; email: string; isNew: boolean; mentoringMode: string }> = {};
       for (const c of (contactRows || []) as Record<string, unknown>[]) {
-        contactMap[String(c.id)] = { phone: String(c.phone || ''), email: String(c.email || ''), isNew: Boolean(c.is_new_member) };
+        contactMap[String(c.id)] = {
+          phone: String(c.phone || ''), email: String(c.email || ''),
+          isNew: Boolean(c.is_new_member),
+          mentoringMode: String(c.mentoring_mode || 'active'),
+        };
       }
 
       const summary: Record<string, number> = { green: 0, yellow: 0, red: 0, black: 0, none: 0 };
@@ -243,6 +247,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
           cats, actual, bniDays,
           fastTrack,
           phone: contact.phone, email: contact.email,
+          mentoringMode: contact.mentoringMode,
           noMentorContact: false, mentorContactDays: null as number | null,
           scoreAvg: hist.length ? Math.round(hist.reduce((a, v) => a + v, 0) / hist.length) : score,
         };

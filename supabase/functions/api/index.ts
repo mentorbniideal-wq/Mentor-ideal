@@ -31,7 +31,8 @@ import { handleAlerts }     from './handlers/alerts.ts';
 import { handleMeetings }   from './handlers/meetings.ts';
 import { handleComms }      from './handlers/comms.ts';
 import { handleLineAdmin }  from './handlers/line-admin.ts';
-import { handleUsage }      from './handlers/usage.ts';
+import { handleUsage }         from './handlers/usage.ts';
+import { handleNotifications } from './handlers/notifications.ts';
 
 // ── Public actions that require NO PIN ────────────────────────
 const PUBLIC_ACTIONS = new Set([
@@ -68,6 +69,7 @@ const ROUTES: Record<string, string> = {
   'addNewMembersBatch': 'members', 'assignToTeam': 'members',
   'moveMemberToTeam': 'members', 'getMembersByTeam': 'members',
   'getTeamHistory': 'members',
+  'setMentoringMode': 'members',
   'archiveMember': 'members', 'unarchiveMember': 'members', 'deleteMember': 'members',
   'removeNewMember': 'members', 'getArchivedMembers': 'members',
   'getNewMembers': 'members', 'saveMemberNote': 'members',
@@ -114,6 +116,10 @@ const ROUTES: Record<string, string> = {
   'getDismissedAlerts': 'alerts', 'getTeamNotifs': 'alerts',
   'ackTeamNotifs': 'alerts', 'getUnreadCounts': 'alerts',
   'getReports': 'alerts', 'setReportStatus': 'alerts', 'saveReply': 'alerts',
+
+  // Notifications (in-app persistent)
+  'getNotifications': 'notifications', 'markNotificationsRead': 'notifications',
+  'dismissNotification': 'notifications', 'dismissAllNotifications': 'notifications',
 
   // Meetings / Chapter
   'getMeetingPrep': 'meetings', 'getVisitorTracker': 'meetings',
@@ -164,7 +170,8 @@ const HANDLERS: Record<string, (p: Record<string, unknown>) => Promise<Response>
   'growth':      handleGrowth,
   'power-teams': handlePowerTeams,
   '121':         handle121,
-  'alerts':      handleAlerts,
+  'alerts':        handleAlerts,
+  'notifications': handleNotifications,
   'meetings':    handleMeetings,
   'comms':       handleComms,
   'line-admin':  handleLineAdmin,
