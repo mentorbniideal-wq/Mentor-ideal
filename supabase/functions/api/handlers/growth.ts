@@ -585,6 +585,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
 
     // ── Risk Monitor: คะแนนลดต่อเนื่อง ──────────────────────
     case 'getRiskMembers': {
+      const auth = await requireAuth(db, p);
+      if (!auth.ok) return errResponse(auth.error!);
       const { data: members } = await db
         .from('v_member_dashboard')
         .select('id, name, nickname, mentor_team, display_score, traffic_light')
@@ -646,7 +648,9 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
 
     // ── Weekly Action List (Mentor) ───────────────────────────
     case 'getWeeklyActions': {
-      const role = String(p.role || '').toLowerCase();
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const role = String(auth.role || p.role || '').toLowerCase();
       const teamName = TEAM_ROLE[role];
       if (!teamName) return errResponse('ไม่ใช่ Mentor role');
 
@@ -688,6 +692,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
 
     // ── Growth Data / Sheet (Growth Coordinator) ──────────────
     case 'getGrowthData': {
+      const auth = await requireAuth(db, p);
+      if (!auth.ok) return errResponse(auth.error!);
       // Flat member list for MC/mentor dashboard (not the growth sheet UI)
       const { data: rows, error } = await db
         .from('v_member_dashboard')
@@ -751,6 +757,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     }
 
     case 'getGrowthSheetData': {
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
       // Grouped structure for the Growth Sheet UI
       // Columns: 0=seq, 1=ชื่อ-สกุล, 2=ชื่อเล่น, 3=อายุสมาชิก, 4=หมายเหตุ, 5=เป้าหมาย ฿, 6=รับจริง ฿, 7=%ทำได้
       const HEADERS = ['', 'ชื่อ-สกุล', 'ชื่อเล่น', 'อายุสมาชิก', 'หมายเหตุ', 'เป้าหมาย ฿', 'รับจริง ฿', '%ทำได้'];
@@ -859,6 +867,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
 
     // ── Mentor Activity + Performance (Growth can view) ───────
     case 'getMentorActivity': {
+      const auth = await requireAuth(db, p);
+      if (!auth.ok) return errResponse(auth.error!);
       const teams = await getMentorActivityData(db);
       return jsonResponse({ ok: true, teams });
     }
@@ -945,6 +955,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     }
 
     case 'respondGrowthTask': {
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
       const taskId   = String(p.taskId || p.id || '');
       const response = String(p.response || '').trim();
       if (!taskId) return errResponse('taskId required');

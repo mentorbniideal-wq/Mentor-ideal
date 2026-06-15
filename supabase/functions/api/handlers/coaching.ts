@@ -98,7 +98,7 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
             fastestActions.sort((a, b) => b.gain - a.gain);
             fastestActions.splice(4);
           }
-          const nextTl2 = score >= 50 ? 'green' : 'yellow';
+          const nextTl2 = score >= 70 ? 'green' : score >= 50 ? 'yellow' : score >= 30 ? 'yellow' : 'red';
           const needed2 = score >= 70 ? 0 : score >= 50 ? 70 - score : score >= 30 ? 50 - score : 30 - score;
 
           return {
@@ -153,7 +153,7 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
         fastestActions.splice(4);
       }
 
-      const nextTl = score >= 70 ? 'green' : score >= 50 ? 'green' : 'yellow';
+      const nextTl = score >= 70 ? 'green' : score >= 50 ? 'yellow' : score >= 30 ? 'yellow' : 'red';
       const needed = score >= 70 ? 0 : score >= 50 ? 70 - score : score >= 30 ? 50 - score : 30 - score;
       const tl     = String(mv.traffic_light || 'none');
       const status = score >= 70 ? 'good' : score >= 50 ? 'attention' : score >= 30 ? 'warning' : 'critical';

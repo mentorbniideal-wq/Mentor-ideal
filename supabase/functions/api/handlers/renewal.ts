@@ -9,7 +9,9 @@ export async function handleRenewal(p: Record<string, unknown>): Promise<Respons
   switch (action) {
 
     case 'getRenewal': {
-      const role = String(p.role || '').toLowerCase();
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const role = String(auth.role || p.role || '').toLowerCase();
       const TEAM_MAP: Record<string, string> = { toomtam: 'TOOMTAM', aof: 'Aof', draft: 'Draft', phai: 'PHAI', amp: 'AMP' };
       const teamName = TEAM_MAP[role] || null;
 

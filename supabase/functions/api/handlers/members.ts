@@ -392,6 +392,8 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
     // ── ENSURE slot: look up or create a member row ───────────
     case 'ensureSlot': {
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
       const memberName = String(p.memberName || '').trim();
       const nick       = p.nick ? String(p.nick).trim() : '';
       if (!memberName) return errResponse('memberName required');
@@ -421,6 +423,8 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
     // ── GET archived members ──────────────────────────────────
     case 'getArchivedMembers': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
       const { data, error } = await db
         .from('members')
         .select('id, name, nickname, mentor_team')
@@ -438,6 +442,8 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
     // ── SAVE member note (upsert within 24 h) ─────────────────
     case 'saveMemberNote': {
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
       const memberName = String(p.memberName || '').trim();
       const note       = String(p.note ?? '');
       if (!memberName) return errResponse('memberName required');
@@ -483,6 +489,8 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
     // ── GET latest member note ────────────────────────────────
     case 'getMemberNote': {
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
       const memberName = String(p.memberName || '').trim();
       if (!memberName) return errResponse('memberName required');
 
@@ -509,6 +517,8 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
     // ── SAVE new-member checklist item ────────────────────────
     case 'saveNMCheckItem': {
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
       const memberName = String(p.memberName || p.fileUrl || '').trim();
       const itemKey    = String(p.itemKey || '').trim();
       // pass=true → passed, pass=false+nopass=true → no-pass, pass=null → reset
@@ -554,6 +564,8 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
     // ── GET new-member checklist ──────────────────────────────
     case 'getNMChecklist': {
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
       // fileUrl = member name (legacy identifier from GAS version)
       const memberName = String(p.memberName || p.fileUrl || '').trim();
       if (!memberName) return errResponse('memberName required');
@@ -724,12 +736,11 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
     // ── GET new members with checklist progress + latest note ─
     case 'getNewMembers': {
       // Mentors see only their own team; MC sees everyone
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
       let callerTeam: string | null = null;
-      if (p.token || p.role) {
-        const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
-        if (auth.ok && auth.role && auth.role !== 'mc' && auth.role !== 'growth') {
-          callerTeam = auth.teamName ?? null;
-        }
+      if (auth.role && auth.role !== 'mc' && auth.role !== 'growth') {
+        callerTeam = auth.teamName ?? null;
       }
 
       let query = db
