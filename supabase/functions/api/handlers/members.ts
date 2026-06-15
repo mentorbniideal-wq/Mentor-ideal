@@ -346,6 +346,27 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
     }
 
     // ── SAVE mentor status ────────────────────────────────────
+    // ── SET mentoring mode (Active / Growth Watch) ───────────
+    case 'setMentoringMode': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const mode = textValue(p.mode).toLowerCase();
+      if (!['active', 'growth_watch'].includes(mode)) return errResponse('mode must be active or growth_watch');
+
+      const lookup = await findMemberByLegacyPayload(db, p);
+      if (lookup.error || !lookup.member) return errResponse(lookup.error || 'member not found');
+
+      const { error } = await db.from('members').update({
+        mentoring_mode:  mode,
+        mode_changed_at: new Date().toISOString(),
+        mode_changed_by: textValue(p.changedBy || auth.displayName || auth.role),
+        updated_at:      new Date().toISOString(),
+      }).eq('id', lookup.member.id);
+      if (error) return errResponse(error.message);
+      return jsonResponse({ ok: true, mode, memberName: lookup.member.name });
+    }
+
     case 'saveStatus': {
       const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
@@ -706,11 +727,13 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
         }
       }
 
+      // 90-day cutoff: include members explicitly flagged OR recently added/joined
+      const cutoff90 = new Date(Date.now() - 90 * 86400000).toISOString();
       let query = db
         .from('members')
         .select('id, name, nickname, mentor_team, created_at, joined_date')
-        .eq('is_new_member', true)
-        .eq('is_archived', false);
+        .eq('is_archived', false)
+        .or(`is_new_member.eq.true,joined_date.gte.${cutoff90},created_at.gte.${cutoff90}`);
       if (callerTeam) {
         query = query.eq('mentor_team', callerTeam);
       }

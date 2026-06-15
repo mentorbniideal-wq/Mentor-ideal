@@ -464,7 +464,7 @@ async function autoEnrollNewMembers(db: ReturnType<typeof getServiceClient>): Pr
     .from('r2y_stats')
     .select('member_id, bni_days')
     .gt('bni_days', 0)
-    .lt('bni_days', 56);
+    .lt('bni_days', 90);
   if (!rows || !rows.length) return 0;
 
   const today = new Date();
@@ -764,9 +764,29 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
 
       const { data: memberRows, error: mErr } = await db
         .from('growth_referral_members')
-        .select('id, group_id, raw_name, nickname, seq_no, target_thb, received_thb, membership_age, note')
+        .select('id, group_id, member_id, raw_name, nickname, seq_no, target_thb, received_thb, membership_age, note')
         .order('seq_no', { ascending: true });
       if (mErr) return errResponse(mErr.message);
+
+      // Fetch bni_days for members who are linked (to compute membership age dynamically)
+      const linkedIds = ((memberRows || []) as Record<string, unknown>[])
+        .map(m => m.member_id).filter(Boolean) as string[];
+      const bniDaysMap: Record<string, number> = {};
+      if (linkedIds.length) {
+        const { data: r2yRows } = await db
+          .from('r2y_stats').select('member_id, bni_days').in('member_id', linkedIds);
+        for (const r of (r2yRows || []) as Record<string, unknown>[]) {
+          bniDaysMap[String(r.member_id)] = Number(r.bni_days) || 0;
+        }
+      }
+
+      function computeMemberAge(bniDays: number): string {
+        if (!bniDays) return '';
+        const months = Math.floor(bniDays / 30);
+        const years  = Math.floor(months / 12);
+        if (years >= 1) return years + ' ปี ' + (months % 12 ? (months % 12) + ' เดือน' : '');
+        return months + ' เดือน';
+      }
 
       const membersByGroup: Record<string, Record<string, unknown>[]> = {};
       for (const m of (memberRows || []) as Record<string, unknown>[]) {
@@ -787,6 +807,12 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           const pct  = tgt > 0 ? Math.round(recv / tgt * 100) : 0;
           gTarget   += tgt;
           gReceived += recv;
+          // Compute membership age from bni_days if linked, else use stored value (skip #REF! garbage)
+          const storedAge = String(m.membership_age || '');
+          const memberId  = String(m.member_id || '');
+          const bniDays   = memberId ? (bniDaysMap[memberId] || 0) : 0;
+          const ageLabel  = bniDays > 0 ? computeMemberAge(bniDays)
+            : (storedAge && !storedAge.includes('#') ? storedAge : '');
           return {
             sheetRow: String(m.id),
             name:     String(m.raw_name || ''),
@@ -797,7 +823,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
               Number(m.seq_no) || 0,    // 0
               m.raw_name || '',          // 1 name
               m.nickname || '',          // 2 nick
-              m.membership_age || '',    // 3
+              ageLabel,                  // 3 membership age (computed)
               m.note || '',              // 4
               tgt,                       // 5 target
               recv,                      // 6 received
@@ -1062,6 +1088,47 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         renewalOk = false;
         stepErrors.push(`renewal: ${(e as Error).message}`);
       }
+
+      // Check Growth Watch members for score drops → create in-app notifications
+      try {
+        const { data: gwMembers } = await db
+          .from('v_member_dashboard')
+          .select('id, name, mentor_team, display_score')
+          .eq('mentoring_mode', 'growth_watch')
+          .eq('is_archived', false);
+
+        if (gwMembers && (gwMembers as unknown[]).length > 0) {
+          const warnings: Array<{ name: string; score: number; team: string }> = [];
+          const urgents:  Array<{ name: string; score: number; team: string }> = [];
+          for (const m of gwMembers as Record<string, unknown>[]) {
+            const score = Number(m.display_score) || 0;
+            if (score > 0 && score < 30) urgents.push({ name: String(m.name), score, team: String(m.mentor_team || '') });
+            else if (score > 0 && score < 50) warnings.push({ name: String(m.name), score, team: String(m.mentor_team || '') });
+          }
+          // Clear previous unread GW notifications to avoid stale duplicates
+          await db.from('notifications')
+            .update({ dismissed_at: new Date().toISOString() })
+            .in('type', ['growth_watch_warning', 'growth_watch_urgent'])
+            .is('dismissed_at', null);
+
+          if (urgents.length) {
+            await db.from('notifications').insert({
+              type: 'growth_watch_urgent', severity: 'urgent',
+              title: `🔴 Growth Watch — ${urgents.length} คน เข้า Red/Black Zone`,
+              body:  urgents.map(m => `• ${m.name} (${m.score} pts)`).join('\n'),
+              data:  { members: urgents },
+            });
+          }
+          if (warnings.length) {
+            await db.from('notifications').insert({
+              type: 'growth_watch_warning', severity: 'warning',
+              title: `⚠️ Growth Watch — ${warnings.length} คน คะแนนต่ำกว่า 50 pts`,
+              body:  warnings.map(m => `• ${m.name} (${m.score} pts)`).join('\n'),
+              data:  { members: warnings },
+            });
+          }
+        }
+      } catch (_e) { /* non-fatal — don't fail the whole sync */ }
 
       return jsonResponse({
         ok: true,
