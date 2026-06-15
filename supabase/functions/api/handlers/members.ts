@@ -363,7 +363,12 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
         mode_changed_by: textValue(p.changedBy || auth.displayName || auth.role),
         updated_at:      new Date().toISOString(),
       }).eq('id', lookup.member.id);
-      if (error) return errResponse(error.message);
+      if (error) {
+        const msg = error.message.includes('mentoring_mode')
+          ? 'ยังไม่ได้รัน Migration 018 — กรุณาเพิ่มคอลัมน์ mentoring_mode ใน Supabase Dashboard ก่อน'
+          : error.message;
+        return errResponse(msg);
+      }
       return jsonResponse({ ok: true, mode, memberName: lookup.member.name });
     }
 

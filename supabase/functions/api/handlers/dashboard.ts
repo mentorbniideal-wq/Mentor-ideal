@@ -119,11 +119,21 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       }
 
       // ── Batch-fetch phone/email/is_new_member/mentoring_mode (not in all views) ──
-      const { data: contactRows } = memberIds.length
-        ? await db.from('members').select('id, phone, email, is_new_member, mentoring_mode').in('id', memberIds)
-        : { data: [] };
+      let contactRowsRaw: Record<string, unknown>[] = [];
+      if (memberIds.length) {
+        const { data: cr, error: crErr } = await db
+          .from('members').select('id, phone, email, is_new_member, mentoring_mode').in('id', memberIds);
+        if (!crErr && cr) {
+          contactRowsRaw = cr as Record<string, unknown>[];
+        } else if (crErr) {
+          // Fallback: select without mentoring_mode (column may not exist yet — migration 018)
+          const { data: cr2 } = await db
+            .from('members').select('id, phone, email, is_new_member').in('id', memberIds);
+          contactRowsRaw = (cr2 || []) as Record<string, unknown>[];
+        }
+      }
       const contactMap: Record<string, { phone: string; email: string; isNew: boolean; mentoringMode: string }> = {};
-      for (const c of (contactRows || []) as Record<string, unknown>[]) {
+      for (const c of contactRowsRaw) {
         contactMap[String(c.id)] = {
           phone: String(c.phone || ''), email: String(c.email || ''),
           isNew: Boolean(c.is_new_member),
@@ -145,7 +155,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         const given   = Number(m.given_thb) || 0;
         const tyfcbV  = Number(m.tyfcb_thb) || 0;
         const absentV = Number(m.absent) || 0;
-        const contact = contactMap[mid] || { phone: '', email: '', isNew: false };
+        const contact = contactMap[mid] || { phone: '', email: '', isNew: false, mentoringMode: 'active' };
 
         if (tl in summary) summary[tl]++;
 
