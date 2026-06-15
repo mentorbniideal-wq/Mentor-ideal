@@ -21,24 +21,32 @@ export async function handleRenewal(p: Record<string, unknown>): Promise<Respons
       if (error) return errResponse(error.message);
 
       const today = new Date();
-      const renewals = (rows || []).map((r: Record<string, unknown>) => {
+      today.setHours(0, 0, 0, 0);
+      const maxDate = new Date(today.getTime() + 90 * 86400000);
+
+      const items = (rows || []).map((r: Record<string, unknown>) => {
         const m = r.members as Record<string, unknown>;
         if (!m) return null;
         if (teamName && String(m.mentor_team) !== teamName) return null;
         const expiry = new Date(String(r.expiry_date));
-        const daysLeft = Math.floor((expiry.getTime() - today.getTime()) / 86400000);
+        expiry.setHours(0, 0, 0, 0);
+        if (expiry.getTime() > maxDate.getTime()) return null;
+        const diffDays = Math.floor((expiry.getTime() - today.getTime()) / 86400000);
+        const expStr = String(r.expiry_date || '');
         return {
           name:     m.name,
           nick:     m.nickname,
           team:     m.mentor_team,
           expiry:   r.expiry_date,
-          daysLeft,
-          status:   daysLeft < 0 ? 'expired' : daysLeft <= 7 ? 'critical' : daysLeft <= 30 ? 'warning' : 'ok',
+          expStr,
+          diffDays,
+          daysLeft: diffDays,
+          status:   diffDays < 0 ? 'late' : diffDays <= 90 ? 'soon' : 'ok',
           extended: r.extended_at || null,
         };
       }).filter(Boolean);
 
-      return jsonResponse({ ok: true, renewals });
+      return jsonResponse({ ok: true, items, renewals: items });
     }
 
     case 'extendRenewal': {
