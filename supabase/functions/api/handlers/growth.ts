@@ -393,6 +393,69 @@ async function updateMembersContactInfo(db: ReturnType<typeof getServiceClient>,
   return updated;
 }
 
+function ymd(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function nextRenewalFromBniDays(bniDays: number, today = new Date()): string | null {
+  if (!Number.isFinite(bniDays) || bniDays <= 0) return null;
+  const base = new Date(today);
+  base.setHours(12, 0, 0, 0);
+  const joined = new Date(base);
+  joined.setDate(base.getDate() - Math.floor(bniDays));
+
+  const renewal = new Date(base);
+  renewal.setMonth(joined.getMonth(), joined.getDate());
+  renewal.setHours(12, 0, 0, 0);
+  if (renewal.getTime() < base.getTime()) {
+    renewal.setFullYear(renewal.getFullYear() + 1);
+  }
+  return ymd(renewal);
+}
+
+async function syncRenewalsFromR2YStats(db: ReturnType<typeof getServiceClient>): Promise<number> {
+  const { data: stats, error: statsError } = await db
+    .from('r2y_stats')
+    .select('member_id, bni_days')
+    .gt('bni_days', 0);
+  if (statsError) throw new Error(statsError.message);
+  if (!stats || !stats.length) return 0;
+
+  const { data: members, error: memberError } = await db
+    .from('members')
+    .select('id')
+    .eq('is_archived', false);
+  if (memberError) throw new Error(memberError.message);
+
+  const activeIds = new Set((members || []).map((m: Record<string, unknown>) => String(m.id)));
+  const today = new Date();
+  const rows = (stats as Record<string, unknown>[])
+    .map((row) => {
+      const memberId = String(row.member_id || '');
+      if (!activeIds.has(memberId)) return null;
+      const expiryDate = nextRenewalFromBniDays(Number(row.bni_days), today);
+      if (!expiryDate) return null;
+      return {
+        member_id: memberId,
+        expiry_date: expiryDate,
+        notes: 'Synced from Reporting2You BNI Days',
+        updated_at: new Date().toISOString(),
+      };
+    })
+    .filter(Boolean) as Array<Record<string, unknown>>;
+
+  if (!rows.length) return 0;
+  const { error } = await db.from('renewals').upsert(rows, {
+    onConflict: 'member_id',
+    ignoreDuplicates: false,
+  });
+  if (error) throw new Error(error.message);
+  return rows.length;
+}
+
 // Auto-enroll members whose bni_days < 56 (not yet 8 weeks) as is_new_member = true.
 // Sets joined_date from bni_days if not already set.
 async function autoEnrollNewMembers(db: ReturnType<typeof getServiceClient>): Promise<number> {
@@ -991,6 +1054,13 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         autoEnrolled = await autoEnrollNewMembers(db);
       } catch (e) {
         stepErrors.push(`autoEnroll: ${(e as Error).message}`);
+      }
+
+      try {
+        await syncRenewalsFromR2YStats(db);
+      } catch (e) {
+        renewalOk = false;
+        stepErrors.push(`renewal: ${(e as Error).message}`);
       }
 
       return jsonResponse({
