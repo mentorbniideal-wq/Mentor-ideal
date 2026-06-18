@@ -5,6 +5,7 @@ import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 
 const VALID_TEAMS = new Set(['TOOMTAM', 'Aof', 'Draft', 'PHAI', 'AMP']);
+const GROWTH_WATCH_MIN_SCORE = 65;
 
 type MemberRef = {
   id: string;
@@ -356,6 +357,21 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
       const lookup = await findMemberByLegacyPayload(db, p);
       if (lookup.error || !lookup.member) return errResponse(lookup.error || 'member not found');
+
+      if (mode === 'growth_watch') {
+        const { data: dashboardMember, error: scoreError } = await db
+          .from('v_member_dashboard')
+          .select('display_score')
+          .eq('id', lookup.member.id)
+          .maybeSingle();
+        if (scoreError) return errResponse(scoreError.message);
+        const score = Number((dashboardMember as Record<string, unknown> | null)?.display_score) || 0;
+        if (score < GROWTH_WATCH_MIN_SCORE) {
+          return errResponse(
+            `Growth Watch รับเฉพาะสมาชิกคะแนน ${GROWTH_WATCH_MIN_SCORE}+ (คะแนนปัจจุบัน ${score})`,
+          );
+        }
+      }
 
       const { error } = await db.from('members').update({
         mentoring_mode:  mode,

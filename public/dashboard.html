@@ -3464,6 +3464,17 @@ function renderMem(){
     var safeName=m.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     var hint=gwHint(m);
     var isGW=m.mentoringMode==='growth_watch';
+    var gwEligible=(m.bniScore||0)>=GROWTH_WATCH_MIN_SCORE;
+    var gwButton='';
+    if(S.role==='mc'){
+      if(isGW||gwEligible){
+        gwButton='<button class="bx" onclick="toggleGWMode(\''+safeName+'\',\''+esc(m.mentoringMode||'active')+'\')" style="font-size:11px;padding:4px 7px;margin-left:4px;'+
+          (isGW?'background:rgba(96,165,250,.15);border-color:rgba(96,165,250,.4);color:#60a5fa':'background:rgba(108,99,255,.1);border-color:rgba(108,99,255,.3);color:var(--sub)')+'">'+
+          (isGW?'🔵 Active':'🔵 GW')+'</button>';
+      }else{
+        gwButton='<button class="bx" disabled title="Growth Watch ต้องมีคะแนน 65+" style="font-size:11px;padding:4px 7px;margin-left:4px;opacity:.35;cursor:not-allowed">🔵 GW</button>';
+      }
+    }
     return '<tr style="cursor:pointer;'+(isGW?'background:rgba(96,165,250,.04)':'')+'" onclick="openIMD(\''+safeName+'\')">'
       +'<td onclick="event.stopPropagation()"><input type="checkbox" class="cb-chk" '+chkd+' onclick="toggleBulk(\''+esc(m.name)+'\',\''+esc(m.mentor||'')+'\',this)"></td>'+
       '<td style="color:var(--sub);font-size:10px">'+(i+1)+'</td>'+
@@ -3489,7 +3500,7 @@ function renderMem(){
       +'<button class="bx" onclick="openModal(\''+safeName+'\')" style="font-size:11px;padding:4px 8px;background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.3);color:#818cf8;margin-right:4px">👤 Card</button>'
       +'<button class="bx" onclick="openIMD(\''+esc(m.name)+'\')" style="font-size:11px;padding:4px 9px">📊 Dashboard</button>'
       +(S.role==='mc'?'<button class="bx" onclick="moveMemberTeamDlg(\''+safeName+'\',\''+esc(m.mentor||'')+'\',\''+esc(m.id||'')+'\')" style="font-size:11px;padding:4px 7px;background:rgba(96,165,250,.1);border-color:rgba(96,165,250,.3);color:#60a5fa;margin-left:4px">⇄ ทีม</button>':'')
-      +(S.role==='mc'?'<button class="bx" onclick="toggleGWMode(\''+safeName+'\',\''+esc(m.mentoringMode||'active')+'\')" style="font-size:11px;padding:4px 7px;margin-left:4px;'+(isGW?'background:rgba(96,165,250,.15);border-color:rgba(96,165,250,.4);color:#60a5fa':'background:rgba(108,99,255,.1);border-color:rgba(108,99,255,.3);color:var(--sub)')+'">'+( isGW?'🔵 Active':'🔵 GW')+'</button>':'')
+      +gwButton
       +(S.role==='mc'?'<button class="bx" onclick="archiveMemberDlg(\''+safeName+'\')" style="font-size:11px;padding:4px 7px;background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#ef4444;margin-left:4px">🗑️</button>':'')
       +'</td></tr>';
   }).join(''):'<tr><td colspan="16" class="es">ไม่พบข้อมูล</td></tr>';
@@ -4586,26 +4597,22 @@ function load8WProgress(force){
   });
 }
 // ══ GROWTH WATCH ══════════════════════════════════════════════════
+var GROWTH_WATCH_MIN_SCORE=65;
 function gwHint(m){
   var h=m.hist||[];
-  if(h.length<2)return'';
   var isGW=m.mentoringMode==='growth_watch';
   var score=m.bniScore||0;
+  if(isGW&&score<GROWTH_WATCH_MIN_SCORE)return'⚠️ คะแนนต่ำกว่า '+GROWTH_WATCH_MIN_SCORE+' — ควรดึงกลับ Active';
+  if(!isGW&&score>=GROWTH_WATCH_MIN_SCORE)return'💡 พร้อมย้าย Growth Watch ('+score+' คะแนน)';
+  if(h.length<2)return'';
   // Check decline: last 2 months
   var last=h[h.length-1]||0,prev=h[h.length-2]||0,prev2=h.length>=3?(h[h.length-3]||0):null;
   var declining2=(last<prev-1)&&(prev2!==null&&prev<prev2-1);
   var declining1=last<prev-3;
   if(isGW){
-    if(score>0&&score<30)return'⚠️ ด่วน! เข้า Red/Black Zone — ควรดึงกลับ Active';
-    if(score>0&&score<50)return'⚠️ ออกจาก Yellow Zone';
     if(declining2)return'📉 คะแนนลดลงต่อเนื่อง — จับตาดู';
-    return'✅ ปกติดี';
+    return'✅ ผ่านเกณฑ์ Growth Watch';
   }
-  // Active: suggest move to GW
-  var greenMonths=0;for(var i=h.length-1;i>=0&&(h[i]||0)>=70;i--)greenMonths++;
-  var yellowMonths=0;for(var j=h.length-1;j>=0&&(h[j]||0)>=50;j--)yellowMonths++;
-  if(greenMonths>=2)return'💡 พร้อมย้าย Growth Watch (Green '+greenMonths+' เดือน)';
-  if(yellowMonths>=3)return'💡 พิจารณาย้าย Growth Watch (Yellow '+yellowMonths+' เดือน)';
   if(declining2)return'📉 คะแนนลดลงต่อเนื่อง';
   return'';
 }
@@ -4620,6 +4627,14 @@ function setGWFilter(mode,el){
 function toggleGWMode(name,currentMode){
   var newMode=currentMode==='growth_watch'?'active':'growth_watch';
   var label=newMode==='growth_watch'?'ย้ายไป Growth Watch':'ดึงกลับ Active Mentoring';
+  if(newMode==='growth_watch'){
+    var member=(D.mem||[]).find(function(m){return m.name===name;});
+    var score=member?(Number(member.bniScore)||0):0;
+    if(score<GROWTH_WATCH_MIN_SCORE){
+      toast('❌ Growth Watch ต้องมีคะแนน '+GROWTH_WATCH_MIN_SCORE+'+ · '+name+' มี '+score+' คะแนน','err');
+      return;
+    }
+  }
   if(!confirm(label+': "'+name+'"?'))return;
   call('setMentoringMode',{memberName:name,mode:newMode},function(r){
     if(!r.ok){toast('❌ '+(r.error||'เกิดข้อผิดพลาด'),'err');return;}
@@ -4634,7 +4649,7 @@ function toggleGWMode(name,currentMode){
 
 function renderGWBadge(){
   var gwCount=(D.mem||[]).filter(function(m){return m.mentoringMode==='growth_watch';}).length;
-  var atRisk=(D.mem||[]).filter(function(m){return m.mentoringMode==='growth_watch'&&(m.bniScore||0)>0&&(m.bniScore||0)<50;}).length;
+  var atRisk=(D.mem||[]).filter(function(m){return m.mentoringMode==='growth_watch'&&(m.bniScore||0)<GROWTH_WATCH_MIN_SCORE;}).length;
   var badge=document.getElementById('badge-gw');
   if(badge){badge.textContent=gwCount?gwCount:'';badge.style.display=gwCount?'':'none';}
   var kEl=document.getElementById('mc-kpi');
@@ -4644,8 +4659,8 @@ function renderGWBadge(){
 function renderGrowthWatch(){
   var tm=(document.getElementById('gw-team-filter')||{}).value||'';
   var gwMems=(D.mem||[]).filter(function(m){return m.mentoringMode==='growth_watch'&&(!tm||m.mentor===tm);});
-  var normal=gwMems.filter(function(m){return(m.bniScore||0)>=50||m.bniScore===0;});
-  var atRisk=gwMems.filter(function(m){return(m.bniScore||0)>0&&(m.bniScore||0)<50;});
+  var normal=gwMems.filter(function(m){return(m.bniScore||0)>=GROWTH_WATCH_MIN_SCORE;});
+  var atRisk=gwMems.filter(function(m){return(m.bniScore||0)<GROWTH_WATCH_MIN_SCORE;});
   // Summary cards
   document.getElementById('gw-summary').innerHTML=[
     {l:'Growth Watch ทั้งหมด',v:gwMems.length,c:'#60a5fa',i:'🔵'},
@@ -4687,15 +4702,15 @@ function renderGrowthWatch(){
   // Empty state
   var emEl=document.getElementById('gw-empty');
   if(emEl)emEl.style.display=gwMems.length?'none':'block';
-  // Candidates: active members not in GW, score < 70 OR no data, sorted by score asc, max 10
+  // Candidates: active members meeting the 65+ Growth Watch threshold.
   var candidates=(D.mem||[]).filter(function(m){
-    return m.mentoringMode!=='growth_watch'&&(m.bniScore||0)<70&&(!tm||m.mentor===tm);
-  }).sort(function(a,b){return(a.bniScore||0)-(b.bniScore||0);}).slice(0,10);
+    return m.mentoringMode!=='growth_watch'&&(m.bniScore||0)>=GROWTH_WATCH_MIN_SCORE&&(!tm||m.mentor===tm);
+  }).sort(function(a,b){return(b.bniScore||0)-(a.bniScore||0);}).slice(0,10);
   var candEl=document.getElementById('gw-candidates');
   if(candEl){
     if(candidates.length){
       candEl.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--sub);margin-bottom:10px;margin-top:'+(gwMems.length?'16px':'0')+';padding-top:'+(gwMems.length?'16px':'0')+';border-top:'+(gwMems.length?'1px solid var(--bd)':'none')+'">💡 แนะนำให้เพิ่มเข้า Growth Watch</div>'
-        +'<div style="font-size:11px;color:var(--sub);margin-bottom:10px">สมาชิกคะแนน &lt; 70 ที่ยังอยู่ใน Active Mentoring — พีทสามารถกด "ย้าย GW" เพื่อให้ Growth Coordinator ดูแลแทนได้</div>'
+        +'<div style="font-size:11px;color:var(--sub);margin-bottom:10px">เฉพาะสมาชิกคะแนน '+GROWTH_WATCH_MIN_SCORE+'+ ที่พร้อมดูแลตัวเอง โดยให้ Growth Coordinator ติดตามแทน Mentor</div>'
         +candidates.map(function(m){
           var sn=m.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
           var hint=gwHint(m);

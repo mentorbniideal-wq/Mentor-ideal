@@ -1145,7 +1145,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           for (const m of gwMembers as Record<string, unknown>[]) {
             const score = Number(m.display_score) || 0;
             if (score > 0 && score < 30) urgents.push({ name: String(m.name), score, team: String(m.mentor_team || '') });
-            else if (score > 0 && score < 50) warnings.push({ name: String(m.name), score, team: String(m.mentor_team || '') });
+            else if (score < 65) warnings.push({ name: String(m.name), score, team: String(m.mentor_team || '') });
           }
           // Clear previous unread GW notifications to avoid stale duplicates
           await db.from('notifications')
@@ -1164,7 +1164,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           if (warnings.length) {
             await db.from('notifications').insert({
               type: 'growth_watch_warning', severity: 'warning',
-              title: `⚠️ Growth Watch — ${warnings.length} คน คะแนนต่ำกว่า 50 pts`,
+              title: `⚠️ Growth Watch — ${warnings.length} คน คะแนนต่ำกว่าเกณฑ์ 65 pts`,
               body:  warnings.map(m => `• ${m.name} (${m.score} pts)`).join('\n'),
               data:  { members: warnings },
             });
