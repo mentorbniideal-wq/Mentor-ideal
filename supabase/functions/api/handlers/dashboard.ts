@@ -2,6 +2,96 @@
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 
+// ── PALMS gap computation (mirrors WEBAPP.js gapXxx functions) ────────────────
+type GapEntry = { cat: string; icon: string; cur: number; max: number; next: number; gain: number; action: string; curVal: string; tgtVal: string };
+
+function computeGaps(cats: Record<string, number>, actual: Record<string, unknown>, wks: number): { gaps: GapEntry[]; ftNextTl: string; ftNeeded: number } {
+  const mos   = Math.max(1, wks / 4);
+  const rg    = Number(actual.rg)      || 0;
+  const vis   = Number(actual.visitor)  || 0;
+  const oto   = Number(actual.oToOne)   || 0;
+  const ceu   = Number(actual.ceu)      || 0;
+  const tyfb  = Number(actual.tyfcb)    || 0;
+  const abs   = Number(actual.absent)   || 0;
+  function fmtB(v: number){ return v >= 1000000 ? (v/1000000).toFixed(1)+'M' : v >= 1000 ? Math.round(v/1000)+'K' : String(Math.round(v)); }
+
+  // Per-category gap: what action + how many points to next tier
+  function gapAbsence(cur: number): { action: string; next: number } {
+    if (cur >= 15) return { action: 'MAX แล้ว ✅', next: 15 };
+    if (cur >= 10) return { action: `ลดการขาดให้เหลือ 0 ครั้ง`, next: 15 };
+    if (cur >= 5)  return { action: `ลดการขาดให้เหลือ ≤1 ครั้ง`, next: 10 };
+    return { action: `ลดการขาดให้เหลือ ≤2 ครั้ง`, next: 5 };
+  }
+  function gapReferral(cur: number): { action: string; next: number } {
+    if (cur >= 15) return { action: 'MAX แล้ว ✅', next: 15 };
+    if (cur >= 10) return { action: `ให้ Referral เพิ่มอีก ${Math.max(0, Math.ceil(wks*2)-rg)} ใบ (${(rg/wks).toFixed(1)}/wk → 2.0/wk)`, next: 15 };
+    return { action: `ให้ Referral เพิ่มอีก ${Math.max(0, Math.ceil(wks*1)-rg)} ใบ (${(rg/wks).toFixed(1)}/wk → 1.0/wk)`, next: 10 };
+  }
+  function gapVisitor(cur: number): { action: string; next: number } {
+    if (cur >= 20) return { action: 'MAX แล้ว ✅', next: 20 };
+    if (cur >= 10) return { action: `พา Visitor เพิ่มอีก ${Math.max(0, Math.ceil(mos)-vis)} คน (${(vis/mos).toFixed(1)}/mo → 1.0/mo)`, next: 20 };
+    return { action: `พา Visitor อย่างน้อย 1 คน (ปัจจุบัน ${vis} คน)`, next: 10 };
+  }
+  function gapOneToOne(cur: number): { action: string; next: number } {
+    if (cur >= 15) return { action: 'MAX แล้ว ✅', next: 15 };
+    if (cur >= 10) return { action: `นัด 1-2-1 เพิ่มอีก ${Math.max(0, Math.ceil(wks*2)-oto)} ครั้ง (${(oto/wks).toFixed(1)}/wk → 2.0/wk)`, next: 15 };
+    if (cur >= 5)  return { action: `นัด 1-2-1 เพิ่มอีก ${Math.max(0, Math.ceil(wks*1)-oto)} ครั้ง (${(oto/wks).toFixed(1)}/wk → 1.0/wk)`, next: 10 };
+    return { action: `นัด 1-2-1 อย่างน้อย 1 ครั้ง (ปัจจุบัน ${oto} ครั้ง)`, next: 5 };
+  }
+  function gapCEU(cur: number): { action: string; next: number } {
+    if (cur >= 20) return { action: 'MAX แล้ว ✅', next: 20 };
+    if (cur >= 15) return { action: `เรียน CEU เพิ่มอีก ${Math.max(0, 4-ceu)} แต้ม (ปัจจุบัน ${ceu} → ต้องถึง 4)`, next: 20 };
+    if (cur >= 10) return { action: `เรียน CEU เพิ่มอีก ${Math.max(0, 3-ceu)} แต้ม (ปัจจุบัน ${ceu} → ต้องถึง 3)`, next: 15 };
+    if (cur >= 5)  return { action: `เรียน CEU เพิ่มอีก ${Math.max(0, 2-ceu)} แต้ม (ปัจจุบัน ${ceu} → ต้องถึง 2)`, next: 10 };
+    return { action: `เรียน CEU อย่างน้อย 1 แต้ม (ปัจจุบัน ${ceu} แต้ม)`, next: 5 };
+  }
+  function gapTYFB(cur: number): { action: string; next: number } {
+    if (cur >= 15) return { action: 'MAX แล้ว ✅', next: 15 };
+    if (cur >= 10) return { action: `เพิ่ม TYFB อีก ฿${fmtB(Math.max(0, 500000-tyfb))} → ฿500,000`, next: 15 };
+    if (cur >= 5)  return { action: `เพิ่ม TYFB อีก ฿${fmtB(Math.max(0, 200000-tyfb))} → ฿200,000`, next: 10 };
+    return { action: `เพิ่ม TYFB ให้ถึง ฿100,000 (ปัจจุบัน ฿${fmtB(tyfb)})`, next: 5 };
+  }
+
+  const catDefs: Array<{ cat: string; icon: string; max: number; cur: number; fn: (c: number) => { action: string; next: number }; curVal: string; tgtValFn: (next: number) => string }> = [
+    { cat: 'Attendance', icon: '🏛️', max: 15, cur: cats.absent ?? 0,
+      fn: gapAbsence, curVal: `ขาด ${abs} ครั้ง`,
+      tgtValFn: (next) => next >= 15 ? '0 ครั้ง' : next >= 10 ? '≤1 ครั้ง' : '≤2 ครั้ง' },
+    { cat: 'Referral', icon: '💡', max: 15, cur: cats.ref ?? 0,
+      fn: gapReferral, curVal: `${rg} ใบ (${(rg/wks).toFixed(1)}/wk)`,
+      tgtValFn: (next) => next >= 15 ? `${Math.ceil(wks*2)} ใบรวม (2.0/wk)` : `${Math.ceil(wks*1)} ใบรวม (1.0/wk)` },
+    { cat: 'Visitor', icon: '👥', max: 20, cur: cats.visitor ?? 0,
+      fn: gapVisitor, curVal: `${vis} คน (${(vis/mos).toFixed(1)}/mo)`,
+      tgtValFn: (_next) => `${Math.ceil(mos)} คนรวม (1.0/mo)` },
+    { cat: '1-2-1', icon: '🤝', max: 15, cur: cats.one21 ?? 0,
+      fn: gapOneToOne, curVal: `${oto} ครั้ง (${(oto/wks).toFixed(1)}/wk)`,
+      tgtValFn: (next) => next >= 15 ? `${Math.ceil(wks*2)} ครั้งรวม (2.0/wk)` : next >= 10 ? `${Math.ceil(wks*1)} ครั้งรวม (1.0/wk)` : '1 ครั้งขึ้นไป' },
+    { cat: 'CEU', icon: '📚', max: 20, cur: cats.training ?? 0,
+      fn: gapCEU, curVal: `${ceu} แต้ม`,
+      tgtValFn: (next) => next >= 20 ? '4 แต้ม' : next >= 15 ? '3 แต้ม' : next >= 10 ? '2 แต้ม' : '1 แต้มขึ้นไป' },
+    { cat: 'TYFB', icon: '💰', max: 15, cur: cats.tyfcb ?? 0,
+      fn: gapTYFB, curVal: `฿${fmtB(tyfb)}`,
+      tgtValFn: (next) => next >= 15 ? '฿500,000' : next >= 10 ? '฿200,000' : '฿100,000' },
+  ];
+
+  const gaps: GapEntry[] = [];
+  for (const d of catDefs) {
+    const { action, next } = d.fn(d.cur);
+    const gain = next - d.cur;
+    if (gain > 0) {
+      gaps.push({ cat: d.cat, icon: d.icon, cur: d.cur, max: d.max, next, gain, action, curVal: d.curVal, tgtVal: d.tgtValFn(next) });
+    }
+  }
+  gaps.sort((a, b) => b.gain - a.gain);
+
+  const totalScore = Object.values(cats).reduce((a, v) => a + (v ?? 0), 0);
+  // Target: next zone threshold above current score
+  const ftTarget = totalScore >= 70 ? 70 : totalScore >= 50 ? 70 : totalScore >= 30 ? 50 : 30;
+  const ftNeeded = Math.max(0, ftTarget - totalScore);
+  const ftNextTl = ftTarget >= 70 ? 'green' : 'yellow';
+
+  return { gaps, ftNextTl, ftNeeded };
+}
+
 const TEAMS = ['TOOMTAM', 'Aof', 'Draft', 'PHAI', 'AMP'];
 const TEAM_ROLE: Record<string, string> = {
   toomtam: 'TOOMTAM', aof: 'Aof', draft: 'Draft', phai: 'PHAI', amp: 'AMP',
@@ -258,6 +348,8 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
           fastTrack.splice(4); // top 4 only
         }
 
+        const gapResult = cats ? computeGaps(cats, actual, Math.max(1, Math.min(26, Math.floor(bniDays / 7)))) : { gaps: [], ftNextTl: 'yellow', ftNeeded: 0 };
+
         return {
           id: mid,
           name: m.name, nick: m.nickname, mentor: m.mentor_team,
@@ -269,6 +361,9 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
           palmsScore: score,
           cats, actual, bniDays,
           fastTrack,
+          gaps:     gapResult.gaps,
+          ftNextTl: gapResult.ftNextTl,
+          ftNeeded: gapResult.ftNeeded,
           phone: contact.phone, email: contact.email,
           mentoringMode: contact.mentoringMode,
           noMentorContact: false, mentorContactDays: null as number | null,
