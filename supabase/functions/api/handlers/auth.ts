@@ -1,6 +1,6 @@
 // Auth handler — login + changePIN + getMyRole (Google OAuth)
 import { getServiceClient, jsonResponse } from '../../_shared/db.ts';
-import { verifyPin, verifyToken } from '../../_shared/auth.ts';
+import { verifyPin, verifyToken, requireAuth } from '../../_shared/auth.ts';
 
 export async function handleAuth(p: Record<string, unknown>): Promise<Response> {
   const db     = getServiceClient();
@@ -117,18 +117,10 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
       return jsonResponse({ ok: false, error: 'PIN ต้องเป็นตัวเลข 4-8 หลัก' });
     }
 
-    // Verify caller is MC (via session role or Google OAuth token)
-    const callerRole = String(p.role || '').toLowerCase();
-    if (callerRole !== 'mc') {
-      const token = String(p.token || '').trim();
-      if (token) {
-        const result = await verifyToken(db, token);
-        if (!result.ok || !result.isMC) {
-          return jsonResponse({ ok: false, error: 'เฉพาะ MC เท่านั้นที่เปลี่ยน PIN ได้' });
-        }
-      } else {
-        return jsonResponse({ ok: false, error: 'เฉพาะ MC เท่านั้นที่เปลี่ยน PIN ได้' });
-      }
+    // Verify caller is MC via PIN or OAuth token — never trust raw p.role
+    const authResult = await requireAuth(db, p, ['mc']);
+    if (!authResult.ok || !authResult.isMC) {
+      return jsonResponse({ ok: false, error: 'เฉพาะ MC เท่านั้นที่เปลี่ยน PIN ได้' });
     }
 
     // Update with new bcrypt hash via DB function

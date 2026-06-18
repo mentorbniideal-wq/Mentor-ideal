@@ -84,6 +84,8 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     case 'getDashboard':
     case 'getMCData':
     case 'getDesktopDashboard': {
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
       const { data: rows, error } = await db
         .from('v_member_dashboard')
         .select('id, name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb, tyfcb_thb, absent, attend, rg, rr, visitors, one_to_one, ceu, palms_detail, expiry_date, days_to_expiry, bni_days')
@@ -92,6 +94,17 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       if (error) return errResponse(error.message);
 
       const memberIds = (rows || []).map((m: Record<string, unknown>) => String(m.id));
+
+      const { data: renewalRows } = memberIds.length
+        ? await db
+            .from('renewals')
+            .select('member_id, workflow_status, contacted_at, contacted_by, decision_at, decision_by, payment_at, payment_by, completed_at, completed_by, decline_reason')
+            .in('member_id', memberIds)
+        : { data: [] };
+      const renewalMap: Record<string, Record<string, unknown>> = {};
+      for (const renewalRow of (renewalRows || []) as Record<string, unknown>[]) {
+        renewalMap[String(renewalRow.member_id)] = renewalRow;
+      }
 
       // ── Batch-fetch monthly score history for sparklines ──
       const { data: allScores } = memberIds.length
@@ -285,15 +298,32 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       // ── Renewal list (within 90 days) ──
       const now90 = new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0];
       const renewal = (rows || [])
-        .filter((m: Record<string, unknown>) => m.expiry_date != null && String(m.expiry_date) <= now90)
+        .filter((m: Record<string, unknown>) => {
+          const workflow = renewalMap[String(m.id)] || {};
+          const workflowStatus = String(workflow.workflow_status || 'pending_contact');
+          if (workflowStatus === 'completed') return false;
+          return m.expiry_date != null &&
+            (String(m.expiry_date) <= now90 || workflowStatus === 'declined');
+        })
         .map((m: Record<string, unknown>) => {
           const diffDays = Number(m.days_to_expiry) || 0;
+          const workflow = renewalMap[String(m.id)] || {};
           return {
             name:     String(m.name),
             team:     String(m.mentor_team || ''),
             diffDays,
             expStr:   String(m.expiry_date || ''),
             status:   diffDays < 0 ? 'expired' : diffDays <= 30 ? 'urgent' : 'soon',
+            workflowStatus: String(workflow.workflow_status || 'pending_contact'),
+            contactedAt: workflow.contacted_at || null,
+            contactedBy: workflow.contacted_by || null,
+            decisionAt: workflow.decision_at || null,
+            decisionBy: workflow.decision_by || null,
+            paymentAt: workflow.payment_at || null,
+            paymentBy: workflow.payment_by || null,
+            completedAt: workflow.completed_at || null,
+            completedBy: workflow.completed_by || null,
+            declineReason: String(workflow.decline_reason || ''),
           };
         })
         .sort((a: Record<string, unknown>, b: Record<string, unknown>) => (Number(a.diffDays) || 0) - (Number(b.diffDays) || 0));
@@ -339,6 +369,8 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     }
 
     case 'getMemberDetail': {
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
       const memberName = String(p.memberName || p.name || '').replace(/\s*\([^)]+\)\s*$/,'').trim();
       if (!memberName) return errResponse('memberName required');
 
@@ -466,7 +498,9 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     }
 
     case 'getMyTeam': {
-      const role = String(p.role || '').toLowerCase();
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const role = String(auth.role || p.role || '').toLowerCase();
       const teamName = String(p.teamName || TEAM_ROLE[role] || '');
       if (!teamName) return errResponse('ไม่พบทีม');
 
@@ -503,6 +537,8 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     }
 
     case 'getMentorActivity': {
+      const auth = await requireAuth(db, p);
+      if (!auth.ok) return errResponse(auth.error!);
       const teams = await getMentorActivityData(db);
       return jsonResponse({ ok: true, teams });
     }
@@ -525,6 +561,8 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     }
 
     case 'getChapterPulse': {
+      const auth = await requireAuth(db, p);
+      if (!auth.ok) return errResponse(auth.error!);
       const { data: rows, error } = await db
         .from('v_member_dashboard')
         .select('name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb')
@@ -569,6 +607,8 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     }
 
     case 'getLeaderboard': {
+      const auth = await requireAuth(db, p);
+      if (!auth.ok) return errResponse(auth.error!);
       const { data: rows, error } = await db
         .from('v_member_dashboard')
         .select('name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb')
@@ -583,6 +623,8 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     }
 
     case 'getScorecard': {
+      const auth = await requireAuth(db, p);
+      if (!auth.ok) return errResponse(auth.error!);
       // ── 1. Fetch all active members with current scores ──────
       const { data: memRows, error: memErr } = await db
         .from('v_member_dashboard')
@@ -728,6 +770,8 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     }
 
     case 'getMCCoaching': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
       const { data: rows, error } = await db
         .from('v_member_dashboard')
         .select('name, nickname, mentor_team, display_score, traffic_light, open_core_issue, palms_detail, rg, visitors, one_to_one, ceu, tyfcb_thb, bni_days, absent')
@@ -786,6 +830,8 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     }
 
     case 'getCurrentMonth': {
+      const auth = await requireAuth(db, p);
+      if (!auth.ok) return errResponse(auth.error!);
       const { data } = await db.from('settings').select('value').eq('key', 'CURRENT_MONTH').single();
       return jsonResponse({ ok: true, month: (data as Record<string, unknown>)?.value || '' });
     }

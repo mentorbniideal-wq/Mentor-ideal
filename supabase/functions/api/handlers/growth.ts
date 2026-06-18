@@ -431,16 +431,46 @@ async function syncRenewalsFromR2YStats(db: ReturnType<typeof getServiceClient>)
   if (memberError) throw new Error(memberError.message);
 
   const activeIds = new Set((members || []).map((m: Record<string, unknown>) => String(m.id)));
+  const { data: existingRows, error: existingError } = await db
+    .from('renewals')
+    .select('member_id, expiry_date, workflow_status');
+  if (existingError) throw new Error(existingError.message);
+  const existingMap = new Map(
+    (existingRows || []).map((row: Record<string, unknown>) => [String(row.member_id), row]),
+  );
   const today = new Date();
   const rows = (stats as Record<string, unknown>[])
     .map((row) => {
       const memberId = String(row.member_id || '');
       if (!activeIds.has(memberId)) return null;
-      const expiryDate = nextRenewalFromBniDays(Number(row.bni_days), today);
-      if (!expiryDate) return null;
+      const existing = existingMap.get(memberId);
+      const calculatedExpiry = nextRenewalFromBniDays(Number(row.bni_days), today);
+      if (!calculatedExpiry) return null;
+      const existingExpiry = String(existing?.expiry_date || '');
+      const existingStatus = String(existing?.workflow_status || 'pending_contact');
+      // A completed renewal has already advanced one year. Do not let the next
+      // R2Y sync pull it back to the anniversary in the previous cycle.
+      const expiryDate = existingStatus === 'completed' && existingExpiry > calculatedExpiry
+        ? existingExpiry
+        : calculatedExpiry;
+      const expiryChanged = !!existing && existingExpiry !== expiryDate;
       return {
         member_id: memberId,
         expiry_date: expiryDate,
+        workflow_status: expiryChanged
+          ? 'pending_contact'
+          : existingStatus,
+        ...(expiryChanged ? {
+          contacted_at: null,
+          contacted_by: null,
+          decision_at: null,
+          decision_by: null,
+          payment_at: null,
+          payment_by: null,
+          completed_at: null,
+          completed_by: null,
+          decline_reason: null,
+        } : {}),
         notes: 'Synced from Reporting2You BNI Days',
         updated_at: new Date().toISOString(),
       };
@@ -648,7 +678,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
 
     // ── Weekly Action List (Mentor) ───────────────────────────
     case 'getWeeklyActions': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      const auth = await requireAuth(db, p, ['toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
       const role = String(auth.role || p.role || '').toLowerCase();
       const teamName = TEAM_ROLE[role];
