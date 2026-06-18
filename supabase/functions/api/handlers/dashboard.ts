@@ -24,8 +24,10 @@ function computeGaps(cats: Record<string, number>, actual: Record<string, unknow
   }
   function gapReferral(cur: number): { action: string; next: number } {
     if (cur >= 15) return { action: 'MAX แล้ว ✅', next: 15 };
-    if (cur >= 10) return { action: `ให้ Referral เพิ่มอีก ${Math.max(0, Math.ceil(wks*2)-rg)} ใบ (${(rg/wks).toFixed(1)}/wk → 2.0/wk)`, next: 15 };
-    return { action: `ให้ Referral เพิ่มอีก ${Math.max(0, Math.ceil(wks*1)-rg)} ใบ (${(rg/wks).toFixed(1)}/wk → 1.0/wk)`, next: 10 };
+    if (cur >= 10) return { action: `ให้ Referral เพิ่มอีก ${Math.max(0, wks*2-rg)} ใบ (${(rg/wks).toFixed(1)}/wk → 2.0/wk)`, next: 15 };
+    if (cur >= 5)  return { action: `ให้ Referral เพิ่มอีก ${Math.max(0, wks*2-rg)} ใบ (${(rg/wks).toFixed(1)}/wk → 2.0/wk)`, next: 15 };
+    // cur=0: rg < wks (below 1/wk average)
+    return { action: `ให้ Referral เพิ่มอีก ${Math.max(0, wks-rg)} ใบ (${(rg/wks).toFixed(1)}/wk → 1.0/wk)`, next: 5 };
   }
   function gapVisitor(cur: number): { action: string; next: number } {
     if (cur >= 20) return { action: 'MAX แล้ว ✅', next: 20 };
@@ -34,9 +36,10 @@ function computeGaps(cats: Record<string, number>, actual: Record<string, unknow
   }
   function gapOneToOne(cur: number): { action: string; next: number } {
     if (cur >= 15) return { action: 'MAX แล้ว ✅', next: 15 };
-    if (cur >= 10) return { action: `นัด 1-2-1 เพิ่มอีก ${Math.max(0, Math.ceil(wks*2)-oto)} ครั้ง (${(oto/wks).toFixed(1)}/wk → 2.0/wk)`, next: 15 };
-    if (cur >= 5)  return { action: `นัด 1-2-1 เพิ่มอีก ${Math.max(0, Math.ceil(wks*1)-oto)} ครั้ง (${(oto/wks).toFixed(1)}/wk → 1.0/wk)`, next: 10 };
-    return { action: `นัด 1-2-1 อย่างน้อย 1 ครั้ง (ปัจจุบัน ${oto} ครั้ง)`, next: 5 };
+    if (cur >= 10) return { action: `นัด 1-2-1 เพิ่มอีก ${Math.max(0, wks*2-oto)} ครั้ง (${(oto/wks).toFixed(1)}/wk → 2.0/wk)`, next: 15 };
+    if (cur >= 5)  return { action: `นัด 1-2-1 เพิ่มอีก ${Math.max(0, wks*2-oto)} ครั้ง (${(oto/wks).toFixed(1)}/wk → 2.0/wk)`, next: 15 };
+    // cur=0: oto < wks (below 1/wk — ต้องเฉลี่ย 1 ครั้ง/สัปดาห์ถึงจะได้คะแนน)
+    return { action: `นัด 1-2-1 เพิ่มอีก ${Math.max(0, wks-oto)} ครั้ง (${(oto/wks).toFixed(1)}/wk → 1.0/wk)`, next: 5 };
   }
   function gapCEU(cur: number): { action: string; next: number } {
     if (cur >= 20) return { action: 'MAX แล้ว ✅', next: 20 };
@@ -58,13 +61,13 @@ function computeGaps(cats: Record<string, number>, actual: Record<string, unknow
       tgtValFn: (next) => next >= 15 ? '0 ครั้ง' : next >= 10 ? '≤1 ครั้ง' : '≤2 ครั้ง' },
     { cat: 'Referral', icon: '💡', max: 15, cur: cats.ref ?? 0,
       fn: gapReferral, curVal: `${rg} ใบ (${(rg/wks).toFixed(1)}/wk)`,
-      tgtValFn: (next) => next >= 15 ? `${Math.ceil(wks*2)} ใบรวม (2.0/wk)` : `${Math.ceil(wks*1)} ใบรวม (1.0/wk)` },
+      tgtValFn: (next) => next >= 15 ? `${wks*2} ใบรวม (2.0/wk)` : next >= 10 ? `${wks+1}+ ใบรวม (>1.0/wk)` : `${wks} ใบรวม (1.0/wk)` },
     { cat: 'Visitor', icon: '👥', max: 20, cur: cats.visitor ?? 0,
       fn: gapVisitor, curVal: `${vis} คน (${(vis/mos).toFixed(1)}/mo)`,
       tgtValFn: (_next) => `${Math.ceil(mos)} คนรวม (1.0/mo)` },
     { cat: '1-2-1', icon: '🤝', max: 15, cur: cats.one21 ?? 0,
       fn: gapOneToOne, curVal: `${oto} ครั้ง (${(oto/wks).toFixed(1)}/wk)`,
-      tgtValFn: (next) => next >= 15 ? `${Math.ceil(wks*2)} ครั้งรวม (2.0/wk)` : next >= 10 ? `${Math.ceil(wks*1)} ครั้งรวม (1.0/wk)` : '1 ครั้งขึ้นไป' },
+      tgtValFn: (next) => next >= 15 ? `${wks*2} ครั้งรวม (2.0/wk)` : `${wks} ครั้งรวม (1.0/wk)` },
     { cat: 'CEU', icon: '📚', max: 20, cur: cats.training ?? 0,
       fn: gapCEU, curVal: `${ceu} แต้ม`,
       tgtValFn: (next) => next >= 20 ? '4 แต้ม' : next >= 15 ? '3 แต้ม' : next >= 10 ? '2 แต้ม' : '1 แต้มขึ้นไป' },

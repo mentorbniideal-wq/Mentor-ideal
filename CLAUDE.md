@@ -99,9 +99,9 @@ Public endpoints (no role required): `getMemberDirectory`, `getSimulateData`, `g
 
 `calcPALMSScore(d)` computes a 0–100 score from 6 components. **Critical thresholds** verified against real BNI data:
 - Absence (15 pts): 0 abs→15, 1→10, 2→5, 3+→0
-- Referral/week (15 pts): ≥2→15, ≥1→10, else→0 (no 5-pt tier)
+- Referral/week (15 pts): total≥2×wks→15, total>wks(<2/wk)→10, total=wks(=1/wk)→5, else→0
 - Visitor/month (20 pts): ≥1/mo→20, any→10, else→0
-- 1-2-1/week (15 pts): ≥2→15, ≥1→10, >0→5
+- 1-2-1/week (15 pts): total≥2×wks→15, total>wks(<2/wk)→10, total=wks(=1/wk)→5, else→0
 - CEU (20 pts): ≥4→20, 3→15, ≥2→10, ≥1→5
 - TYFB (15 pts): ≥฿500k→15, ≥฿200k→10, ≥฿100k→5
 

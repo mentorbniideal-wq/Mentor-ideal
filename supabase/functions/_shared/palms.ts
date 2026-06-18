@@ -50,17 +50,16 @@ export function calcPalmsScore(d: PalmsInput): PalmsResult {
   // Absence (15 pts)
   const absence = d.absent === 0 ? 15 : d.absent === 1 ? 10 : d.absent === 2 ? 5 : 0;
 
-  // Referral (15 pts) — NO 5-pt tier
-  const rgRate = (d.rgi + d.rgo) / weeks;
-  const referral = rgRate >= 2 ? 15 : rgRate >= 1 ? 10 : 0;
+  // Referral (15 pts): 0→0, total=weeks(1/wk)→5, total>weeks(<2/wk)→10, total≥2×weeks→15
+  const rg = d.rgi + d.rgo;
+  const referral = rg >= 2 * weeks ? 15 : rg > weeks ? 10 : rg === weeks ? 5 : 0;
 
   // Visitor (20 pts)
   const visRate = d.visitor / (weeks / 4);  // months = weeks/4 per spec (not 4.333)
   const visitor = visRate >= 1 ? 20 : d.visitor > 0 ? 10 : 0;
 
-  // 1-2-1 (15 pts)
-  const otoRate = d.oto / weeks;
-  const oneToOne = otoRate >= 2 ? 15 : otoRate >= 1 ? 10 : otoRate > 0 ? 5 : 0;
+  // 1-2-1 (15 pts): 0→0, total=weeks(1/wk)→5, total>weeks(<2/wk)→10, total≥2×weeks→15
+  const oneToOne = d.oto >= 2 * weeks ? 15 : d.oto > weeks ? 10 : d.oto === weeks ? 5 : 0;
 
   // CEU (20 pts)
   const ceu = d.ceu >= 4 ? 20 : d.ceu >= 3 ? 15 : d.ceu >= 2 ? 10 : d.ceu >= 1 ? 5 : 0;
