@@ -1873,6 +1873,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
         <button class="mentor-hub-card" onclick="mentorOpenSection('newmembers')">👶 <strong>New Members</strong><span>Checklist และความคืบหน้า 8 สัปดาห์</span></button>
         <button class="mentor-hub-card" onclick="mentorOpenSection('msummary')">📱 <strong>Weekly Summary</strong><span>สร้างข้อความสรุปสำหรับ LINE และ MC</span></button>
         <button class="mentor-hub-card" onclick="mentorOpenSection('mcmsg')">💬 <strong>MC Messages</strong><span>ประกาศ งานมอบหมาย และข้อความส่วนตัว</span></button>
+        <button class="mentor-hub-card" onclick="mentorOpenSection('mentorlog');mobMlLoad()">📓 <strong>Activity Log</strong><span>บันทึกกิจกรรม — โทร, 1-2-1, แนะนำ, Feedback</span></button>
+        <button class="mentor-hub-card" onclick="mentorOpenSection('90day');mentorLoad90()">📝 <strong>90-Day Review</strong><span>บันทึกและดู 90-Day Review ของ Mentee</span></button>
       </div>
     </div>
     <div class="pane" id="mentor-report"><button class="dp-back" onclick="mentorReturnTo('work')" aria-label="กลับไปศูนย์งาน">← งาน</button><div id="mentor-report-c"><div class="lt">⏳ กำลังโหลด...</div></div></div>
@@ -1908,6 +1910,14 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
       </div>
     </div>
 
+    <div class="pane" id="mentor-90day">
+      <button class="dp-back" onclick="mentorReturnTo('more')" aria-label="กลับไปเมนูเพิ่มเติม">← เพิ่มเติม</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:.5rem 0;">
+        <div style="font-size:.88rem;font-weight:700;">📝 90-Day Review — ทีมฉัน</div>
+        <button onclick="mentorOpen90New()" style="background:rgba(240,180,41,.15);border:1px solid rgba(240,180,41,.35);color:var(--gold);border-radius:8px;padding:6px 12px;font-size:.8rem;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif;">+ New</button>
+      </div>
+      <div id="mentor-90d-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+    </div>
     <div class="pane" id="mentor-msummary">
       <button class="dp-back" onclick="mentorReturnTo('more')" aria-label="กลับไปเมนูเพิ่มเติม">← เพิ่มเติม</button>
       <div class="card" style="background:rgba(240,180,41,.06);border-color:rgba(240,180,41,.2);margin-bottom:.5rem;">
@@ -2043,6 +2053,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
     <button class="tb" onclick="gtab('activity',this)"><span class="ti">⚡</span>Activity</button>
     <button class="tb" onclick="gtab('ops',this)"><span class="ti">🛠</span>Ops</button>
     <button class="tb" onclick="gtab('powerteam',this)"><span class="ti">⚡</span>Power Team</button>
+    <button class="tb" onclick="gtab('renewal',this);gRenewalLoad()"><span class="ti">🔄</span>Renewal</button>
     <button class="tb" onclick="gtab('sheet',this)"><span class="ti">💼</span>Sheet</button>
   </div>
   <div class="content">
@@ -2066,12 +2077,16 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
         <button class="stb on" onclick="gsub('pulse',this)">📊 Pulse</button>
         <button class="stb" onclick="gsub('leaderboard',this)">🏆 Board</button>
         <button class="stb" onclick="gsub('achievements',this)">🎖 Awards</button>
+        <button class="stb" onclick="gsub('teams',this);gTeamsLoad()">👥 Teams</button>
       </div>
       <div class="sub-pane on" id="gs-pulse">
         <div id="g-pulse-content"><div class="lt">⏳ กำลังโหลด...</div></div>
       </div>
       <div class="sub-pane" id="gs-achievements">
         <div id="g-ach-content"><div class="lt">⏳ กำลังโหลด...</div></div>
+      </div>
+      <div class="sub-pane" id="gs-teams">
+        <div id="g-teams-content"><div class="lt">⏳ กำลังโหลด...</div></div>
       </div>
       <div class="sub-pane" id="gs-leaderboard">
         <div class="lb-tabs">
@@ -2210,6 +2225,14 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
         </div>
         <div id="mob-sprint-content"><div class="lt">⏳ กำลังโหลด...</div></div>
       </div>
+    </div>
+
+    <!-- Renewal: Chapter-wide renewal tracking -->
+    <div class="pane" id="g-renewal">
+      <div class="card" style="background:rgba(239,68,68,.07);border-color:rgba(239,68,68,.2);margin-bottom:.5rem;">
+        <div style="font-size:.72rem;color:#FCA5A5;line-height:1.6;">🔄 <strong>Renewal Tracker</strong><br>ติดตามการต่ออายุสมาชิกทุกทีมรวมกัน — เรียงตามความเร่งด่วน</div>
+      </div>
+      <div id="g-renewal-list"><div class="lt">⏳ กำลังโหลด...</div></div>
     </div>
 
     <!-- Sheet: Growth Revenue Tracker -->
@@ -2730,7 +2753,8 @@ function mentorOpenSection(tab){
   if(!hidden)return;
   document.querySelectorAll('#mentorApp .tb').forEach(function(b){b.classList.remove('on');});
   document.querySelectorAll('#mentorApp .pane').forEach(function(p){p.classList.remove('on');});
-  var parent=(tab==='coaching'||tab==='newmembers'||tab==='msummary')?'more':'work';
+  var moreSection=['coaching','newmembers','msummary','mcmsg','mentorlog','90day'];
+  var parent=moreSection.indexOf(tab)>=0?'more':'work';
   var parentBtn=mentorPrimaryButton(parent);if(parentBtn)parentBtn.classList.add('on');
   hidden.classList.add('on');
   if(tab==='report')loadReportForm(S._selectedMentee);
@@ -5568,7 +5592,7 @@ function escHtml(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 // ── New Members ───────────────────────────────────────────────
-var NM = { members: [], curFileUrl: '' };
+var NM = { members: [], curFileUrl: '', curName: '', curOnboardSent: 0 };
 function nmNorm(v){return String(v||'').trim().toLowerCase().replace(/\s+/g,' ');}
 function findNMMember(name,nick,id){
   var nk=nmNorm(name), nn=nmNorm(nick);
@@ -5647,19 +5671,44 @@ function openCL(encodedUrl, encodedName) {
   var fileUrl  = decodeURIComponent(encodedUrl);
   var name     = decodeURIComponent(encodedName);
   NM.curFileUrl = fileUrl;
+  NM.curName   = name;
 
   document.getElementById('cl-title').textContent = name;
   document.getElementById('cl-sheet-link').href = fileUrl;
   document.getElementById('cl-content').innerHTML = '<div class="lt">⏳ กำลังโหลด Checklist...</div>';
   document.getElementById('clPanel').classList.add('on');
 
+  // Load checklist and onboarding status in parallel
+  var clDone = false, obDone = false, clData = null;
+  NM.curOnboardSent = 0;
+
   call('getNMChecklist', { fileUrl: fileUrl }, function(err, r) {
-    if (err || !r.ok) {
-      document.getElementById('cl-content').innerHTML = '<div class="empty">❌ ' + (err?err.message:r.error) + '</div>';
+    clData = (err || !r.ok) ? null : r;
+    clDone = true;
+    if (obDone) renderCLWithOnboarding(clData);
+  });
+
+  if (!S.isMC) {
+    // For mentors: load onboarding sends for this member
+    call('getOnboardingStatus', {}, function(err2, r2) {
+      if (!err2 && r2 && r2.ok) {
+        var found = (r2.enrolled || r2.members || []).find(function(m){ return m.name === name; });
+        NM.curOnboardSent = found ? (found.weekSent || found.weeksCompleted || 0) : 0;
+      }
+      obDone = true;
+      if (clDone) renderCLWithOnboarding(clData);
+    });
+  } else {
+    obDone = true;
+  }
+
+  function renderCLWithOnboarding(r) {
+    if (!r) {
+      document.getElementById('cl-content').innerHTML = '<div class="empty">❌ โหลด Checklist ไม่ได้</div>';
       return;
     }
     renderChecklist(r);
-  });
+  }
 }
 
 function closeCL() {
@@ -5756,6 +5805,31 @@ function renderChecklist(d) {
         + '</div>';
     });
   });
+
+  // LINE Onboarding section (mentor only)
+  if (!S.isMC) {
+    var sent = NM.curOnboardSent || 0;
+    var nextWeek = sent + 1;
+    html += '<div style="margin-top:1rem;padding-top:.75rem;border-top:1px solid var(--border);">'
+      + '<div style="font-size:.8rem;font-weight:700;margin-bottom:.5rem;">📤 LINE Onboarding — ส่งข้อความสัปดาห์ที่</div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:.375rem;">';
+    for (var wk = 1; wk <= 8; wk++) {
+      var wasSent = wk <= sent;
+      var isNext  = wk === nextWeek;
+      var btnStyle = wasSent
+        ? 'background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.25);color:#10B981;border-radius:8px;padding:6px 10px;font-size:.72rem;cursor:default;font-family:Sarabun,sans-serif;'
+        : isNext
+          ? 'background:rgba(240,180,41,.18);border:1px solid rgba(240,180,41,.45);color:var(--gold);border-radius:8px;padding:6px 10px;font-size:.72rem;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif;'
+          : 'background:var(--bg3);border:1px solid var(--border);color:var(--gray2);border-radius:8px;padding:6px 10px;font-size:.72rem;cursor:pointer;font-family:Sarabun,sans-serif;';
+      var onclick = wasSent ? '' : ' onclick="nmSendWeek(\'' + escHtml(NM.curName||'') + '\',' + wk + ',this)"';
+      html += '<button style="' + btnStyle + '"' + onclick + '>'
+        + (wasSent ? '✅ ' : '') + 'Week ' + wk
+        + '</button>';
+    }
+    html += '</div>'
+      + (sent >= 8 ? '<div style="font-size:.72rem;color:#10B981;margin-top:.5rem;">🎉 ส่งครบทั้ง 8 สัปดาห์แล้ว!</div>' : '<div style="font-size:.68rem;color:var(--gray2);margin-top:.375rem;">ส่งแล้ว ' + sent + '/8 สัปดาห์ · กดสัปดาห์ถัดไปเพื่อส่ง LINE ให้ Mentee</div>')
+      + '</div>';
+  }
 
   document.getElementById('cl-content').innerHTML = html;
 }
@@ -8185,7 +8259,6 @@ function mob90Save(){
   var btn=document.querySelector('#mob-rd-modal .mob-rd-save');
   btn.disabled=true;btn.textContent='⏳...';
   call('save90DayReview',{
-    role:'mc',
     menteeName:menteeName,
     mentorName:document.getElementById('mob-rd-mentor').value.trim(),
     team:document.getElementById('mob-rd-team').value.trim(),
@@ -8198,7 +8271,10 @@ function mob90Save(){
   },function(err,r){
     btn.disabled=false;btn.textContent='💾 บันทึก';
     if(err||!r||!r.ok){alert('❌ '+(err?err.message:(r&&r.error)||'เกิดข้อผิดพลาด'));return;}
-    mob90Close();_mob90Loaded=false;mob90Load();
+    mob90Close();
+    if(S._90dContext==='mentor'){mentorLoad90();}
+    else{_mob90Loaded=false;mob90Load();}
+    S._90dContext=null;
     toast('✅ บันทึก 90-Day Review แล้ว');
   });
 }
@@ -8349,6 +8425,184 @@ function doSendLine() {
 function loadLineMembers() {
   call('getLineMembers', {}, function(err,r){
     if (!err && r.ok) S.lineMembers = r.members||{};
+  });
+}
+
+// ── Mentor 90-Day Review ──────────────────────────────────────
+function mentorLoad90(){
+  var el=document.getElementById('mentor-90d-list');
+  if(el)el.innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
+  call('get90DayReviews',{},function(err,r){
+    if(err||!r||!r.ok){if(el)el.innerHTML='<div class="lt" style="color:#ef4444">❌ '+(err?err.message:(r&&r.error)||'โหลดไม่ได้')+'</div>';return;}
+    var rows=r.reviews||[];
+    if(!rows.length){el.innerHTML='<div class="lt">ยังไม่มี 90-Day Review ในทีมนี้</div>';return;}
+    function chip(v,tY,tN){return v?'<span class="rd-chip rd-chip-y">'+tY+'</span>':'<span class="rd-chip rd-chip-n">'+tN+'</span>';}
+    el.innerHTML=rows.map(function(rv){
+      return '<div class="rd-item">'
+        +'<div class="rd-item-name">'+escHtml(rv.menteeNick||rv.menteeName)+'</div>'
+        +'<div class="rd-item-meta">📅 '+escHtml(rv.date)+(rv.notes?'<br>'+escHtml(rv.notes):'')+'</div>'
+        +'<div class="rd-chips">'
+          +chip(rv.passportOK,'✅ Passport','❌ Passport')
+          +chip(rv.palmsPass,'✅ PALMS '+rv.palmsScore,'❌ PALMS '+rv.palmsScore)
+          +chip(rv.graduateReady,'✅ Graduate','❌ ยังไม่ Graduate')
+          +(rv.extendMentoring?'<span class="rd-chip rd-chip-ext">ต่อ Mentoring</span>':'<span class="rd-chip" style="background:rgba(107,114,128,.12);color:var(--gray2)">จบ Mentoring</span>')
+        +'</div>'
+        +'</div>';
+    }).join('');
+  });
+}
+
+function mentorOpen90New(){
+  _mob90YN={pp:null,po:null,gr:null,ex:null};
+  ['pp','po','gr','ex'].forEach(function(k){mob90YN(k,null,true);});
+  document.getElementById('mob-rd-title').textContent='📝 บันทึก 90-Day Review';
+  document.getElementById('mob-rd-rownum').value='';
+  document.getElementById('mob-rd-palms').value='';
+  document.getElementById('mob-rd-notes').value='';
+  // Pre-fill mentor name and populate only team members
+  document.getElementById('mob-rd-mentor').value=S.displayName||S.teamName||'';
+  document.getElementById('mob-rd-team').value=S.teamName||'';
+  var sel=document.getElementById('mob-rd-mentee');
+  sel.innerHTML='<option value="">— เลือก Mentee —</option>';
+  var members=(S.teamMembers&&S.teamMembers.length?S.teamMembers:S.allMembers)||[];
+  members.sort(function(a,b){return(a.nick||a.name).localeCompare(b.nick||b.name);}).forEach(function(m){
+    var o=document.createElement('option');o.value=m.name;o.textContent=(m.nick||m.name)+(m.nick&&m.nick!==m.name?' ('+m.name+')':'');
+    sel.appendChild(o);
+  });
+  sel.onchange=function(){};
+  S._90dContext='mentor';
+  document.getElementById('mob-rd-modal').classList.add('open');
+}
+
+// ── Growth Renewal Tab ───────────────────────────────────────
+var _gRenewalLoaded=false;
+function gRenewalLoad(force){
+  if(_gRenewalLoaded&&!force)return;
+  _gRenewalLoaded=true;
+  var el=document.getElementById('g-renewal-list');
+  if(el)el.innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
+  call('getRenewal',{},function(err,r){
+    if(err||!r.ok){if(el)el.innerHTML='<div class="lt" style="color:#ef4444">❌ '+(err?err.message:(r&&r.error)||'โหลดไม่ได้')+'</div>';return;}
+    var items=r.items||[];
+    var late=items.filter(function(i){return i.status==='late';});
+    var soon=items.filter(function(i){return i.status==='soon';});
+    function rrow(i){
+      var icon=i.status==='late'?'🔴':i.status==='soon'?'⚠️':'📅';
+      var txt=i.diffDays<0?'หมดไป '+Math.abs(i.diffDays)+' วัน':'เหลือ '+i.diffDays+' วัน · '+escHtml(i.expStr||'');
+      var safeName=encodeURIComponent(i.name).replace(/'/g,'%27');
+      var wf=renewalStatusMetaMob(i.workflowStatus);
+      return '<div class="rr">'
+        +'<div style="font-size:1.4rem;flex-shrink:0;">'+icon+'</div>'
+        +'<div class="ri">'
+          +'<button class="rn" style="background:none;border:0;color:var(--white);padding:0;cursor:pointer;text-align:left;font-family:inherit" onclick="openDetail(\''+String(i.name||'').replace(/'/g,"\\'")+'\')">'
+          +escHtml(i.name)+'</button>'
+          +'<div class="rd2">'+escHtml(i.team||'')+' · '+txt+'</div>'
+          +'<div style="font-size:.68rem;color:'+wf.color+';margin-top:3px;">'+wf.label+(i.declineReason?' · '+escHtml(i.declineReason):'')+'</div>'
+        +'</div>'
+        +'<button class="renew-btn" onclick="openRenewalFlowMob(\''+safeName+'\',\''+(i.workflowStatus||'pending_contact')+'\',\'growth\')">'+wf.action+'</button>'
+        +'</div>';
+    }
+    var html='';
+    if(late.length)html+='<div class="sh" style="color:var(--red)">🔴 LATE — ต้องดำเนินการทันที ('+late.length+' ราย)</div>'+late.map(rrow).join('');
+    if(soon.length)html+='<div class="sh" style="color:var(--yellow)">⚠️ ใกล้ครบอายุ ('+soon.length+' ราย)</div>'+soon.map(rrow).join('');
+    if(!late.length&&!soon.length)html='<div class="empty"><div class="empty-i">✅</div>ไม่มีสมาชิกที่ต้องต่ออายุใน 90 วันนี้</div>';
+    if(el)el.innerHTML=html;
+  });
+}
+
+// ── Growth Team Comparison ───────────────────────────────────
+function gTeamsLoad(){
+  var el=document.getElementById('g-teams-content');
+  var members=S.allMembers||[];
+  if(!members.length){
+    if(el)el.innerHTML='<div class="lt">⏳ กำลังโหลดข้อมูล...</div>';
+    return;
+  }
+  var TEAMS=['TOOMTAM','Aof','Draft','PHAI','AMP'];
+  var teams={};
+  members.forEach(function(m){
+    var t=(m.mentor||m.mentor_team||'?').toString();
+    if(!teams[t])teams[t]={name:t,green:0,yellow:0,red:0,black:0,scoreSum:0,count:0,given:0,recv:0,tyfcb:0};
+    var tl=(m.tl||m.traffic_light||'none').toString();
+    if(tl==='green')teams[t].green++;
+    else if(tl==='yellow')teams[t].yellow++;
+    else if(tl==='red')teams[t].red++;
+    else teams[t].black++;
+    teams[t].scoreSum+=Number(m.score||m.display_score||0);
+    teams[t].given+=Number(m.given||m.given_thb||0);
+    teams[t].recv+=Number(m.recv||m.received_thb||0);
+    teams[t].tyfcb+=Number(m.tyfcb||m.tyfcb_thb||0);
+    teams[t].count++;
+  });
+  var list=Object.values(teams).filter(function(t){return t.count>0;})
+    .sort(function(a,b){return(b.count?b.scoreSum/b.count:0)-(a.count?a.scoreSum/a.count:0);});
+  var medals=['🥇','🥈','🥉','4️⃣','5️⃣'];
+  var html='<div style="font-size:.72rem;color:var(--gray2);margin-bottom:.75rem;">เรียงตาม Avg Score · แสดงทุกทีมรวมกัน</div>';
+  html+=list.map(function(t,i){
+    var avg=t.count?Math.round(t.scoreSum/t.count):0;
+    var avgColor=avg>=70?'var(--green)':avg>=50?'var(--gold)':avg>=30?'var(--red)':'#888';
+    var risk=t.red+t.black;
+    return '<div class="card" style="margin-bottom:.5rem;">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">'
+        +'<div style="font-weight:700;font-size:.9rem;">'+(medals[i]||'')+'  '+escHtml(t.name)+'</div>'
+        +'<div style="font-size:1.3rem;font-weight:800;color:'+avgColor+'">'+avg+'</div>'
+      +'</div>'
+      +'<div style="display:flex;gap:.625rem;flex-wrap:wrap;font-size:.72rem;margin-bottom:.375rem;">'
+        +'<span style="color:var(--green)">🟢 '+t.green+'</span>'
+        +'<span style="color:var(--gold)">🟡 '+t.yellow+'</span>'
+        +'<span style="color:var(--red)">🔴 '+t.red+'</span>'
+        +'<span style="color:#888">⚫ '+t.black+'</span>'
+        +'<span style="color:var(--gray2)">· '+t.count+' คน</span>'
+        +(risk>0?'<span style="color:var(--red);font-weight:700;">⚠️ '+risk+' ต้องดูแล</span>':'')
+      +'</div>'
+      +'<div style="display:flex;gap:1rem;font-size:.68rem;color:var(--gray2);">'
+        +'<span>💚 ให้: ฿'+_fmtB(t.given)+'</span>'
+        +'<span>💙 รับ: ฿'+_fmtB(t.recv)+'</span>'
+        +'<span>💰 TYFCB: ฿'+_fmtB(t.tyfcb)+'</span>'
+      +'</div>'
+      +'</div>';
+  }).join('');
+  if(el)el.innerHTML=html;
+}
+function _fmtB(v){var n=Number(v)||0;return n>=1000000?(n/1000000).toFixed(1)+'M':n>=1000?(n/1000).toFixed(0)+'K':n.toFixed(0);}
+
+// ── LINE Onboarding Sender ───────────────────────────────────
+function nmSendWeek(memberName, weekNum, btn){
+  if(!confirm('ส่งข้อความ Onboarding Week '+weekNum+' ให้ '+memberName+' ผ่าน LINE?'))return;
+  if(btn){btn.disabled=true;btn.textContent='⏳...';}
+  call('sendOnboardingWeek',{memberName:memberName,weekNum:weekNum},function(err,r){
+    if(err||!r||!r.ok){
+      if(btn){btn.disabled=false;btn.textContent='Week '+weekNum;}
+      alert('❌ '+(err?err.message:(r&&r.error)||'ส่งไม่ได้'));
+      return;
+    }
+    // Update local sent count and re-render button
+    NM.curOnboardSent=weekNum;
+    if(btn){
+      btn.disabled=true;
+      btn.textContent='✅ Week '+weekNum;
+      btn.style.background='rgba(16,185,129,.12)';
+      btn.style.borderColor='rgba(16,185,129,.25)';
+      btn.style.color='#10B981';
+      btn.onclick=null;
+    }
+    // Update hint text
+    var hint=btn&&btn.parentElement&&btn.parentElement.nextElementSibling;
+    if(hint)hint.textContent='ส่งแล้ว '+weekNum+'/8 สัปดาห์'+(r.sent?' · ส่ง LINE แล้ว':' · บันทึกแล้ว (ไม่มี LINE ID)');
+    // Highlight next week button if exists
+    var parent=btn&&btn.parentElement;
+    if(parent){
+      var siblings=parent.querySelectorAll('button');
+      siblings.forEach(function(b,idx){
+        if(idx===weekNum){
+          b.style.background='rgba(240,180,41,.18)';
+          b.style.borderColor='rgba(240,180,41,.45)';
+          b.style.color='var(--gold)';
+          b.style.fontWeight='700';
+          b.style.cursor='pointer';
+        }
+      });
+    }
   });
 }
 

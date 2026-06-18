@@ -408,7 +408,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
     // ── ENROLL: mark member as enrolled in onboarding ─────────
     case 'enrollOnboarding': {
-      const auth = await requireAuth(db, p, ['mc']);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const memberName = String(p.memberName || '').trim();
@@ -562,7 +562,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
     // ── SEND: send a specific onboarding week's message ───────
     case 'sendOnboardingWeek': {
-      const auth = await requireAuth(db, p, ['mc']);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const memberName = String(p.memberName || '').trim();
@@ -570,6 +570,13 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       if (!memberName || !weekNum) return errResponse('memberName and weekNum required');
 
       const memberId = await findMemberId(db, memberName);
+      // Auto-enroll if not already enrolled (mentor convenience)
+      if (memberId) {
+        await db.from('onboarding_schedule').upsert(
+          { member_id: memberId, enrolled_at: new Date().toISOString(), removed_at: null },
+          { onConflict: 'member_id' },
+        );
+      }
       if (!memberId) return errResponse(`ไม่พบสมาชิก: ${memberName}`);
 
       // Get message template
