@@ -3,7 +3,7 @@ import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 
 // ── PALMS gap computation (mirrors WEBAPP.js gapXxx functions) ────────────────
-type GapEntry = { cat: string; icon: string; cur: number; max: number; next: number; gain: number; action: string; curVal: string; tgtVal: string };
+type GapEntry = { cat: string; icon: string; cur: number; max: number; next: number; gain: number; action: string; curVal: string; tgtVal: string; altAction?: string; altTgtVal?: string };
 
 function computeGaps(cats: Record<string, number>, actual: Record<string, unknown>, wks: number): { gaps: GapEntry[]; ftNextTl: string; ftNeeded: number } {
   const mos   = Math.max(1, wks / 4);
@@ -22,24 +22,38 @@ function computeGaps(cats: Record<string, number>, actual: Record<string, unknow
     if (cur >= 5)  return { action: `ลดการขาดให้เหลือ ≤1 ครั้ง`, next: 10 };
     return { action: `ลดการขาดให้เหลือ ≤2 ครั้ง`, next: 5 };
   }
-  function gapReferral(cur: number): { action: string; next: number } {
+  function gapReferral(cur: number): { action: string; next: number; altAction?: string; altTgtVal?: string } {
     if (cur >= 15) return { action: 'MAX แล้ว ✅', next: 15 };
-    if (cur >= 10) return { action: `ให้ Referral เพิ่มอีก ${Math.max(0, wks*2-rg)} ใบ (${(rg/wks).toFixed(1)}/wk → 2.0/wk)`, next: 15 };
-    if (cur >= 5)  return { action: `ให้ Referral เพิ่มอีก ${Math.max(0, wks*2-rg)} ใบ (${(rg/wks).toFixed(1)}/wk → 2.0/wk)`, next: 15 };
-    // cur=0: rg < wks (below 1/wk average)
-    return { action: `ให้ Referral เพิ่มอีก ${Math.max(0, wks-rg)} ใบ (${(rg/wks).toFixed(1)}/wk → 1.0/wk)`, next: 5 };
+    if (cur >= 10) return { action: `+${Math.max(0, wks*2-rg)} ใบ → 15pt (${(rg/wks).toFixed(1)}/wk → 2.0/wk)`, next: 15 };
+    if (cur >= 5)  return { action: `+${Math.max(0, wks*2-rg)} ใบ → 15pt (${(rg/wks).toFixed(1)}/wk → 2.0/wk)`, next: 15 };
+    // cur=0: rg < wks — show next tier AND max tier (like BNI Traffic Lights)
+    const need5  = Math.max(0, wks - rg);
+    const need15 = Math.max(0, wks * 2 - rg);
+    return {
+      action:     `+${need5} ใบ → 5pt (${(rg/wks).toFixed(1)}/wk → 1.0/wk)`,
+      next:       5,
+      altAction:  `+${need15} ใบ → 15pt (${(rg/wks).toFixed(1)}/wk → 2.0/wk)`,
+      altTgtVal:  `${wks*2} ใบรวม (2.0/wk)`,
+    };
   }
   function gapVisitor(cur: number): { action: string; next: number } {
     if (cur >= 20) return { action: 'MAX แล้ว ✅', next: 20 };
     if (cur >= 10) return { action: `พา Visitor เพิ่มอีก ${Math.max(0, Math.ceil(mos)-vis)} คน (${(vis/mos).toFixed(1)}/mo → 1.0/mo)`, next: 20 };
     return { action: `พา Visitor อย่างน้อย 1 คน (ปัจจุบัน ${vis} คน)`, next: 10 };
   }
-  function gapOneToOne(cur: number): { action: string; next: number } {
+  function gapOneToOne(cur: number): { action: string; next: number; altAction?: string; altTgtVal?: string } {
     if (cur >= 15) return { action: 'MAX แล้ว ✅', next: 15 };
-    if (cur >= 10) return { action: `นัด 1-2-1 เพิ่มอีก ${Math.max(0, wks*2-oto)} ครั้ง (${(oto/wks).toFixed(1)}/wk → 2.0/wk)`, next: 15 };
-    if (cur >= 5)  return { action: `นัด 1-2-1 เพิ่มอีก ${Math.max(0, wks*2-oto)} ครั้ง (${(oto/wks).toFixed(1)}/wk → 2.0/wk)`, next: 15 };
-    // cur=0: oto < wks (below 1/wk — ต้องเฉลี่ย 1 ครั้ง/สัปดาห์ถึงจะได้คะแนน)
-    return { action: `นัด 1-2-1 เพิ่มอีก ${Math.max(0, wks-oto)} ครั้ง (${(oto/wks).toFixed(1)}/wk → 1.0/wk)`, next: 5 };
+    if (cur >= 10) return { action: `+${Math.max(0, wks*2-oto)} ครั้ง → 15pt (${(oto/wks).toFixed(1)}/wk → 2.0/wk)`, next: 15 };
+    if (cur >= 5)  return { action: `+${Math.max(0, wks*2-oto)} ครั้ง → 15pt (${(oto/wks).toFixed(1)}/wk → 2.0/wk)`, next: 15 };
+    // cur=0: oto < wks — show next tier AND max tier (like BNI Traffic Lights)
+    const need5  = Math.max(0, wks - oto);
+    const need15 = Math.max(0, wks * 2 - oto);
+    return {
+      action:    `+${need5} ครั้ง → 5pt (${(oto/wks).toFixed(1)}/wk → 1.0/wk)`,
+      next:      5,
+      altAction: `+${need15} ครั้ง → 15pt (${(oto/wks).toFixed(1)}/wk → 2.0/wk)`,
+      altTgtVal: `${wks*2} ครั้งรวม (2.0/wk)`,
+    };
   }
   function gapCEU(cur: number): { action: string; next: number } {
     if (cur >= 20) return { action: 'MAX แล้ว ✅', next: 20 };
@@ -55,7 +69,7 @@ function computeGaps(cats: Record<string, number>, actual: Record<string, unknow
     return { action: `เพิ่ม TYFB ให้ถึง ฿100,000 (ปัจจุบัน ฿${fmtB(tyfb)})`, next: 5 };
   }
 
-  const catDefs: Array<{ cat: string; icon: string; max: number; cur: number; fn: (c: number) => { action: string; next: number }; curVal: string; tgtValFn: (next: number) => string }> = [
+  const catDefs: Array<{ cat: string; icon: string; max: number; cur: number; fn: (c: number) => { action: string; next: number; altAction?: string; altTgtVal?: string }; curVal: string; tgtValFn: (next: number) => string }> = [
     { cat: 'Attendance', icon: '🏛️', max: 15, cur: cats.absent ?? 0,
       fn: gapAbsence, curVal: `ขาด ${abs} ครั้ง`,
       tgtValFn: (next) => next >= 15 ? '0 ครั้ง' : next >= 10 ? '≤1 ครั้ง' : '≤2 ครั้ง' },
@@ -78,10 +92,10 @@ function computeGaps(cats: Record<string, number>, actual: Record<string, unknow
 
   const gaps: GapEntry[] = [];
   for (const d of catDefs) {
-    const { action, next } = d.fn(d.cur);
+    const { action, next, altAction, altTgtVal } = d.fn(d.cur);
     const gain = next - d.cur;
     if (gain > 0) {
-      gaps.push({ cat: d.cat, icon: d.icon, cur: d.cur, max: d.max, next, gain, action, curVal: d.curVal, tgtVal: d.tgtValFn(next) });
+      gaps.push({ cat: d.cat, icon: d.icon, cur: d.cur, max: d.max, next, gain, action, curVal: d.curVal, tgtVal: d.tgtValFn(next), altAction, altTgtVal });
     }
   }
   gaps.sort((a, b) => b.gain - a.gain);

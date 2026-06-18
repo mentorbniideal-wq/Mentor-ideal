@@ -1268,6 +1268,43 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       return jsonResponse({ ok: true });
     }
 
+    // importScoreHistory: bulk-import historical monthly scores from mentor sheets or past TL exports
+    // Accepts: { rows: [{name, year, month, score}] }
+    case 'importScoreHistory': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const rawRows = Array.isArray(p.rows) ? p.rows as Record<string, unknown>[] : [];
+      if (!rawRows.length) return errResponse('rows required');
+
+      const { data: members } = await db.from('members').select('id, name, nickname').eq('is_archived', false);
+      const memberMap: Record<string, string> = {};
+      for (const m of (members || []) as Record<string, unknown>[]) {
+        const name = normalizeName(m.name as string);
+        if (name) memberMap[name] = String(m.id);
+        const nick = normalizeName(m.nickname as string);
+        if (nick && !memberMap[nick]) memberMap[nick] = String(m.id);
+      }
+
+      const scoreRows: Array<{ member_id: string; year: number; month: number; score: number; source: string }> = [];
+      const unmatched: string[] = [];
+      for (const r of rawRows) {
+        const rawName = normalizeName(String(r.name || ''));
+        const memberId = rawName ? memberMap[rawName] : undefined;
+        if (!memberId) { if (rawName) unmatched.push(String(r.name)); continue; }
+        const year = Number(r.year);
+        const month = Number(r.month);
+        const score = Number(r.score);
+        if (!year || !month || !score || month < 1 || month > 12 || year < 2020) continue;
+        scoreRows.push({ member_id: memberId, year, month, score, source: 'manual_history' });
+      }
+
+      if (!scoreRows.length) return errResponse(`ไม่พบข้อมูลที่ import ได้ (unmatched: ${unmatched.slice(0,5).join(', ')})`);
+
+      const imported = await upsertMonthlyScores(db, scoreRows);
+      return jsonResponse({ ok: true, imported, unmatched: unmatched.slice(0, 20) });
+    }
+
     default:
       return errResponse(`Unknown growth action: ${action}`);
   }
