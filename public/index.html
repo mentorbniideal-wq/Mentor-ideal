@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="theme-color" content="#1A1D1D" id="meta-theme-color">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231A1D1D'/><text x='16' y='23' font-size='18' text-anchor='middle' fill='%23D7FEFA'>B</text></svg>">
 <title>MENTOR SYSTEM : BNI IDEAL</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -11,13 +15,15 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap');
 :root{
   --bg:#1A1D1D;--bg2:#242827;--bg3:#1D2120;--bg4:#2B2E2E;
-  --gold:#D7FEFA;--gold2:#A5F3E8;
+  --gold:#D7FEFA;--gold2:#A5F3E8;--ac:var(--gold);
   --green:#10B981;--greenl:rgba(16,185,129,0.15);
   --yellow:#F59E0B;--yellowl:rgba(245,158,11,0.15);
   --red:#EF4444;--redl:rgba(239,68,68,0.15);
-  --gray:#6B7280;--gray2:rgba(215,254,250,.45);
+  --gray:#A8B7B4;--gray2:#B7C8C5;
   --white:#F5FFFE;--border:rgba(215,254,250,.07);
-  --r:14px;
+  --r:14px;--r-sm:8px;--r-md:12px;--r-lg:16px;
+  --sh-card:0 2px 8px rgba(0,0,0,.28),0 1px 2px rgba(0,0,0,.18);
+  --sh-float:0 8px 24px rgba(0,0,0,.4),0 2px 8px rgba(0,0,0,.22);
   --ac-dim:rgba(215,254,250,.1);--bd-hover:rgba(215,254,250,.2);
 }
 body.light{
@@ -25,10 +31,20 @@ body.light{
   --white:#0A1612;--border:rgba(0,0,0,0.08);
   --gray:#64748B;--gray2:#475569;
   --gold:#0891B2;--gold2:#0E7490;
+  --green:#059669;--greenl:rgba(5,150,105,0.12);
+  --yellow:#D97706;--yellowl:rgba(217,119,6,0.12);
+  --red:#DC2626;--redl:rgba(220,38,38,0.12);
+  --sh-card:0 1px 4px rgba(0,0,0,.08),0 4px 12px rgba(0,0,0,.05);
+  --sh-float:0 4px 16px rgba(0,0,0,.12),0 1px 4px rgba(0,0,0,.06);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);min-height:100vh;overflow-x:hidden;transition:background .2s,color .2s;}
+button,a,[role="button"]{touch-action:manipulation;}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:var(--r-sm);}
 .theme-btn{background:none;border:1px solid var(--border);color:var(--gray2);border-radius:8px;padding:4px 8px;font-size:.82rem;cursor:pointer;margin-right:.4rem;line-height:1.4;}
+.hdr-btn-icon{background:none;border:1px solid var(--border);color:var(--gray2);border-radius:var(--r-sm);padding:4px 7px;font-size:.88rem;cursor:pointer;line-height:1.4;transition:all .15s;}
+.hdr-btn-icon:active{background:var(--ac-dim);color:var(--gold);}
+.hdr-divider{width:1px;height:18px;background:var(--border);flex-shrink:0;margin:0 2px;}
 #loader{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity .4s;}
 #loader.out{opacity:0;pointer-events:none;}
 .spin{width:28px;height:28px;border:2.5px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:sp .7s linear infinite;margin-top:1rem;}
@@ -73,8 +89,9 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
 .hdr-role{background:var(--gold);color:var(--bg);font-size:.6rem;font-weight:700;padding:2px 7px;border-radius:999px;letter-spacing:.05em;}
 .hdr-role.m{background:var(--green);}
 .btn-out{background:none;border:none;color:var(--gray2);font-size:.78rem;cursor:pointer;padding:4px 8px;border-radius:8px;font-family:'Sarabun',sans-serif;}
-.tabs{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;}
+.tabs{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;position:relative;}
 .tabs::-webkit-scrollbar{display:none;}
+.tabs::after{content:'';position:absolute;right:0;top:0;bottom:0;width:32px;background:linear-gradient(to right,transparent,var(--bg2));pointer-events:none;}
 .tb{flex:1;min-width:64px;padding:.55rem .2rem;background:none;border:none;border-bottom:2px solid transparent;color:var(--gray);font-size:.68rem;font-family:'Sarabun',sans-serif;cursor:pointer;transition:all .15s;white-space:nowrap;text-align:center;}
 .tb.on{color:var(--gold);border-bottom-color:var(--gold);font-weight:600;}
 .ti{display:block;font-size:.95rem;margin-bottom:1px;}
@@ -82,7 +99,7 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
 .pane{display:none;animation:fu .2s ease;}
 .pane.on{display:block;}
 @keyframes fu{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:translateY(0);}}
-.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:.8rem;margin-bottom:.5rem;}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-md);padding:.8rem;margin-bottom:.5rem;box-shadow:var(--sh-card);}
 .ct{font-size:.63rem;font-weight:700;color:var(--gray2);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem;}
 .sh{font-size:.63rem;font-weight:700;color:var(--gray2);letter-spacing:.1em;text-transform:uppercase;margin:.8rem 0 .35rem;}
 .sg{display:grid;grid-template-columns:repeat(4,1fr);gap:.35rem;margin-bottom:.5rem;}
@@ -110,7 +127,7 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
 .mt{font-size:.72rem;}
 .tld{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
 .scg{display:grid;grid-template-columns:1fr 1fr;gap:.45rem;}
-.scc{background:var(--bg3);border-radius:11px;padding:.7rem;position:relative;border:1px solid var(--border);}
+.scc{background:var(--bg3);border-radius:var(--r-md);padding:.7rem;position:relative;border:1px solid var(--border);box-shadow:var(--sh-card);}
 .scn{font-size:.75rem;font-weight:600;margin-bottom:3px;}
 .sca{font-family:'IBM Plex Mono',monospace;font-size:1.35rem;font-weight:700;}
 .scd{font-size:.68rem;margin-top:2px;}
@@ -1305,6 +1322,57 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
 .sh{color:var(--gray2);letter-spacing:.1em}
 .rs-role-btn{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#e2e8f0;border-radius:8px;padding:10px 8px;font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s;}
 .rs-role-btn:active{background:rgba(255,255,255,.14);}
+
+/* ── Mentor Workspace v3: accessible navigation and workflow ── */
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,
+[tabindex]:focus-visible{outline:3px solid #38BDF8;outline-offset:2px;}
+#mentorApp .tabs{position:sticky;top:49px;z-index:90;}
+#mentorApp .tb{min-width:25%;min-height:52px;font-size:.72rem;}
+#mentorApp .ti{font-size:1.05rem;}
+#mentorApp .content{padding-bottom:5rem;}
+#mentorApp .ct,#mentorApp .sh{font-size:.72rem;line-height:1.45;}
+#mentorApp .ms,#mentorApp .rd2,#mentorApp .ml-item-meta{font-size:.74rem;line-height:1.5;}
+#mentorApp .fb,#mentorApp .renew-btn,#mentorApp .mr-act{min-height:44px;display:inline-flex;align-items:center;}
+#mentorApp .mr{min-height:58px;}
+.theme-btn,.btn-out,.dp-back{min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;}
+.mentor-hub-grid{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-bottom:.75rem;}
+.mentor-hub-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:.85rem;text-align:left;color:var(--white);font-family:inherit;cursor:pointer;min-height:96px;}
+.mentor-hub-card strong{display:block;font-size:.86rem;margin:.3rem 0 .15rem;}
+.mentor-hub-card span{display:block;color:var(--gray2);font-size:.72rem;line-height:1.45;}
+.mentor-hub-count{float:right;background:var(--red);color:#fff;border-radius:999px;min-width:24px;padding:2px 7px;text-align:center;font-size:.68rem;font-weight:800;}
+.mentor-search{width:100%;min-height:48px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;color:var(--white);padding:.7rem .9rem;font:inherit;margin-bottom:.65rem;}
+.workspace-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin-bottom:.65rem;position:sticky;top:58px;z-index:8;background:var(--bg);padding:.45rem 0;}
+.workspace-action{min-height:48px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--white);font:600 .68rem/1.25 inherit;padding:.35rem;cursor:pointer;}
+.workspace-action.primary{background:var(--gold);color:#0A1612;border-color:var(--gold);}
+.workspace-section{scroll-margin-top:120px;}
+.timeline-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:.7rem;margin-bottom:.45rem;display:grid;grid-template-columns:34px 1fr;gap:.55rem;}
+.timeline-icon{width:34px;height:34px;border-radius:10px;background:var(--bg3);display:flex;align-items:center;justify-content:center;}
+.timeline-title{font-size:.8rem;font-weight:700;}
+.timeline-detail{font-size:.73rem;color:var(--gray2);line-height:1.5;margin-top:2px;}
+.timeline-meta{font-size:.68rem;color:var(--gray2);margin-top:4px;}
+.report-status{display:inline-flex;align-items:center;border-radius:999px;padding:2px 8px;font-size:.68rem;font-weight:700;}
+.report-status.open{background:rgba(245,158,11,.14);color:#FBBF24;}
+.report-status.replied{background:rgba(96,165,250,.14);color:#93C5FD;}
+.report-status.done{background:rgba(16,185,129,.14);color:#6EE7B7;}
+.report-history-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:.8rem;margin-bottom:.55rem;}
+.report-history-card h3{font-size:.86rem;margin:.35rem 0;}
+.report-copy{font-size:.75rem;line-height:1.55;color:var(--gray2);margin-top:.3rem;}
+.report-reply{margin-top:.55rem;padding:.55rem;border-left:3px solid #60A5FA;background:rgba(96,165,250,.08);font-size:.76rem;line-height:1.5;}
+.renew-stepper{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;margin:12px 0 16px;}
+.renew-step{height:6px;border-radius:4px;background:var(--bg3);}
+.renew-step.done{background:#10B981;}
+.renew-step.current{background:#60A5FA;}
+.next-action-card{background:rgba(215,254,250,.06);border:1px solid rgba(215,254,250,.18);border-radius:14px;padding:.75rem;margin-bottom:.6rem;}
+.next-action-card strong{font-size:.8rem;}
+.next-action-buttons{display:flex;gap:.4rem;margin-top:.55rem;overflow-x:auto;}
+.next-action-buttons button{min-height:44px;white-space:nowrap;border-radius:9px;border:1px solid var(--border);background:var(--bg2);color:var(--white);padding:.45rem .7rem;font:600 .7rem inherit;}
+.completion-list{display:grid;gap:.4rem;}
+.completion-item{display:flex;align-items:center;gap:.55rem;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:.7rem;}
+.completion-item .state{font-size:1rem;}
+@media(max-width:360px){
+  .mentor-hub-grid{grid-template-columns:1fr;}
+  .workspace-actions{grid-template-columns:repeat(2,1fr);}
+}
 </style>
 </head>
 <body>
@@ -1505,7 +1573,15 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
 <div class="app" id="mcApp">
   <div class="hdr">
     <div class="hdr-l"><div class="hdr-logo">BNI <span>IDEAL</span></div><div class="hdr-role" id="mcRoleLbl">MC</div></div>
-    <div style="display:flex;align-items:center;gap:4px;"><button class="notif-bell-btn" id="notif-bell" onclick="openNotifPanel()">🔔<span class="notif-count" id="notif-total" style="display:none">0</span></button><button onclick="window.open('dashboard.html','_blank')" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818CF8;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif;">💻 Desktop</button><button class="theme-btn" onclick="toggleTheme()" id="themeBtn">☀️</button><button onclick="openAdminPanel()" style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:#F59E0B;border-radius:8px;padding:4px 8px;font-size:.78rem;cursor:pointer;font-family:'Sarabun',sans-serif;" title="Admin">⚙️</button><button onclick="openRoleSwitcher()" style="background:none;border:1px solid var(--border);color:var(--gray2);border-radius:8px;padding:4px 8px;font-size:.82rem;cursor:pointer;font-family:'Sarabun',sans-serif;" title="สลับ Role">⇄</button><button class="btn-out" onclick="logout()">ออก</button></div>
+    <div style="display:flex;align-items:center;gap:4px;">
+      <button class="notif-bell-btn" id="notif-bell" onclick="openNotifPanel()">🔔<span class="notif-count" id="notif-total" style="display:none">0</span></button>
+      <button onclick="window.open('dashboard.html','_blank')" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818CF8;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif;touch-action:manipulation;">💻</button>
+      <div class="hdr-divider"></div>
+      <button class="hdr-btn-icon" onclick="toggleTheme()" id="themeBtn" title="สลับธีม">☀️</button>
+      <button class="hdr-btn-icon" onclick="openAdminPanel()" title="Admin">⚙️</button>
+      <button class="hdr-btn-icon" onclick="openRoleSwitcher()" title="สลับ Role">⇄</button>
+      <button class="hdr-btn-icon btn-out" onclick="logout()" title="ออกจากระบบ">🚪</button>
+    </div>
   </div>
   <div class="tabs">
     <button class="tb on" onclick="mct('dashboard',this)"><span class="ti">📊</span>Dashboard</button>
@@ -1745,17 +1821,18 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
 <div class="app" id="mentorApp">
   <div class="hdr">
     <div class="hdr-l"><div class="hdr-logo">BNI <span>IDEAL</span></div><div class="hdr-role m" id="mentorRoleLbl">Mentor</div></div>
-    <div style="display:flex;align-items:center;gap:4px;"><button class="theme-btn" onclick="toggleTheme()">☀️</button><button id="mentor-admin-btn" onclick="openAdminPanel()" style="display:none;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:#F59E0B;border-radius:8px;padding:4px 8px;font-size:.78rem;cursor:pointer;font-family:'Sarabun',sans-serif;" title="Admin">⚙️ Admin</button><button onclick="openRoleSwitcher()" style="background:none;border:1px solid var(--border);color:var(--gray2);border-radius:8px;padding:4px 8px;font-size:.82rem;cursor:pointer;font-family:'Sarabun',sans-serif;" title="สลับ Role">⇄</button><button class="btn-out" onclick="logout()">ออก</button></div>
+    <div style="display:flex;align-items:center;gap:4px;">
+      <button class="hdr-btn-icon" onclick="toggleTheme()" title="สลับธีม">☀️</button>
+      <button id="mentor-admin-btn" class="hdr-btn-icon" onclick="openAdminPanel()" style="display:none;color:#F59E0B;" title="Admin">⚙️</button>
+      <button class="hdr-btn-icon" onclick="openRoleSwitcher()" title="สลับ Role">⇄</button>
+      <button class="hdr-btn-icon btn-out" onclick="logout()" title="ออกจากระบบ">🚪</button>
+    </div>
   </div>
   <div class="tabs">
-    <button class="tb on" onclick="mnt('myteam',this)"><span class="ti">👥</span>ทีมฉัน</button>
-    <button class="tb" onclick="mnt('report',this)"><span class="ti">📝</span>รายงาน</button>
-    <button class="tb" onclick="mnt('mentorlog',this);mobMlLoad()"><span class="ti">📓</span>Mentor Log</button>
-    <button class="tb" onclick="mnt('coaching',this)"><span class="ti">💡</span>Coach</button>
-    <button class="tb" onclick="mnt('mcmsg',this)"><span class="ti">💬</span>MC Msg<span id="mentor-msg-badge" style="display:none;background:#EF4444;color:#fff;font-size:.58rem;font-weight:700;border-radius:999px;padding:1px 5px;margin-left:4px;vertical-align:middle;"></span></button>
-    <button class="tb" onclick="mnt('newmembers',this)"><span class="ti">👶</span>New Members</button>
-    <button class="tb" onclick="mnt('renewal',this)"><span class="ti">💳</span>Renewal</button>
-    <button class="tb" onclick="mnt('msummary',this)"><span class="ti">📱</span>Summary</button>
+    <button class="tb on" data-mentor-primary="myteam" onclick="mnt('myteam',this)" aria-label="หน้าภาพรวมทีม"><span class="ti">🏠</span>ทีม</button>
+    <button class="tb" data-mentor-primary="work" onclick="mnt('work',this)" aria-label="ศูนย์งานติดตาม"><span class="ti">✅</span>งาน<span id="mentor-work-badge" class="notif-badge-tab" style="display:none"></span></button>
+    <button class="tb" data-mentor-primary="directory" onclick="mnt('directory',this)" aria-label="ค้นหาและเลือกสมาชิก"><span class="ti">👥</span>สมาชิก</button>
+    <button class="tb" data-mentor-primary="more" onclick="mnt('more',this)" aria-label="เมนูเพิ่มเติม"><span class="ti">☰</span>เพิ่มเติม<span id="mentor-msg-badge" class="notif-badge-tab" style="display:none"></span></button>
   </div>
   <div class="content">
     <div class="pane on" id="mentor-myteam">
@@ -1774,12 +1851,38 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
       </div>
       <div id="mentor-members"><div class="lt">⏳ กำลังโหลด...</div></div>
     </div>
-    <div class="pane" id="mentor-report"><div id="mentor-report-c"><div class="lt">⏳ กำลังโหลด...</div></div></div>
-    <div class="pane" id="mentor-renewal"><div class="lt">⏳ กำลังโหลด...</div></div>
+    <div class="pane" id="mentor-work">
+      <div class="sh">งานที่ต้องดำเนินการ</div>
+      <div id="mentor-completion"></div>
+      <div class="mentor-hub-grid">
+        <button class="mentor-hub-card" onclick="mentorOpenSection('report')">📝 <b id="work-report-count" class="mentor-hub-count" style="display:none">0</b><strong>รายงาน Core Issue</strong><span>ส่งรายงานและติดตามคำตอบจาก MC</span></button>
+        <button class="mentor-hub-card" onclick="mentorOpenSection('mcmsg')">💬 <b id="work-msg-count" class="mentor-hub-count" style="display:none">0</b><strong>งานและข้อความจาก MC</strong><span>รับทราบงาน อ่านประกาศ และติดตามคำสั่ง</span></button>
+        <button class="mentor-hub-card" onclick="mentorOpenSection('renewal')">💳 <b id="work-renew-count" class="mentor-hub-count" style="display:none">0</b><strong>Renewal</strong><span>ติดตามการติดต่อ การตัดสินใจ และชำระเงิน</span></button>
+        <button class="mentor-hub-card" onclick="mentorOpenSection('mentorlog')">📓 <strong>Mentor Log</strong><span>บันทึกกิจกรรมและหลักฐานการดูแล Mentee</span></button>
+      </div>
+    </div>
+    <div class="pane" id="mentor-directory">
+      <label class="fl" for="mentor-member-search">ค้นหา Mentee</label>
+      <input class="mentor-search" id="mentor-member-search" type="search" placeholder="พิมพ์ชื่อหรือนิคเนม..." oninput="renderMentorDirectory()" autocomplete="off">
+      <div id="mentor-directory-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+    </div>
+    <div class="pane" id="mentor-more">
+      <div class="sh">เครื่องมือทั้งหมด</div>
+      <div class="mentor-hub-grid">
+        <button class="mentor-hub-card" onclick="mentorOpenSection('coaching')">💡 <strong>Coaching Guide</strong><span>แนวทางคุยและ Fast Track รายคน</span></button>
+        <button class="mentor-hub-card" onclick="mentorOpenSection('newmembers')">👶 <strong>New Members</strong><span>Checklist และความคืบหน้า 8 สัปดาห์</span></button>
+        <button class="mentor-hub-card" onclick="mentorOpenSection('msummary')">📱 <strong>Weekly Summary</strong><span>สร้างข้อความสรุปสำหรับ LINE และ MC</span></button>
+        <button class="mentor-hub-card" onclick="mentorOpenSection('mcmsg')">💬 <strong>MC Messages</strong><span>ประกาศ งานมอบหมาย และข้อความส่วนตัว</span></button>
+      </div>
+    </div>
+    <div class="pane" id="mentor-report"><button class="dp-back" onclick="mentorReturnTo('work')" aria-label="กลับไปศูนย์งาน">← งาน</button><div id="mentor-report-c"><div class="lt">⏳ กำลังโหลด...</div></div></div>
+    <div class="pane" id="mentor-renewal"><button class="dp-back" onclick="mentorReturnTo('work')" aria-label="กลับไปศูนย์งาน">← งาน</button><div class="lt">⏳ กำลังโหลด...</div></div>
     <div class="pane" id="mentor-newmembers">
+  <button class="dp-back" onclick="mentorReturnTo('more')" aria-label="กลับไปเมนูเพิ่มเติม">← เพิ่มเติม</button>
   <div id="mentor-nm-list"><div class="lt">⏳ กำลังโหลด...</div></div>
 </div>
     <div class="pane" id="mentor-mcmsg">
+      <button class="dp-back" onclick="mentorReturnTo('work')" aria-label="กลับไปศูนย์งาน">← งาน</button>
       <div class="asgn-section-hdr">📢 Broadcast จาก MC</div>
       <div id="mentor-broadcast-list"><div class="lt">⏳ กำลังโหลด...</div></div>
       <div class="asgn-section-hdr" style="margin-top:10px;">📌 งานจาก MC</div>
@@ -1788,10 +1891,12 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
       <div id="mentor-msg-list"><div class="lt">⏳ กำลังโหลด...</div></div>
     </div>
     <div class="pane" id="mentor-coaching">
+      <button class="dp-back" onclick="mentorReturnTo('more')" aria-label="กลับไปเมนูเพิ่มเติม">← เพิ่มเติม</button>
       <div class="sh">💡 Coaching Guide — ทีมฉัน</div>
       <div id="mentor-cg-list"><div class="lt">⏳ กำลังโหลด...</div></div>
     </div>
     <div class="pane" id="mentor-mentorlog">
+      <button class="dp-back" onclick="mentorReturnTo('work')" aria-label="กลับไปศูนย์งาน">← งาน</button>
       <div style="padding:10px 0 6px;">
         <div style="font-size:.88rem;font-weight:700;margin-bottom:3px;">📓 Mentor Activity Log</div>
         <div style="font-size:.68rem;color:var(--gray2);margin-bottom:10px;line-height:1.5;">บันทึกกิจกรรมที่คุณทำให้ Mentee ตาม BNI Protocol — โทรหา, 1-2-1, แนะนำ, Feedback, นั่งข้างๆ ฯลฯ</div>
@@ -1804,6 +1909,7 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
     </div>
 
     <div class="pane" id="mentor-msummary">
+      <button class="dp-back" onclick="mentorReturnTo('more')" aria-label="กลับไปเมนูเพิ่มเติม">← เพิ่มเติม</button>
       <div class="card" style="background:rgba(240,180,41,.06);border-color:rgba(240,180,41,.2);margin-bottom:.5rem;">
         <div style="font-size:.72rem;color:var(--gold);line-height:1.6;">📱 <strong>Weekly Summary</strong><br>สรุปสถานะทีมสัปดาห์นี้ — กด Copy แล้ว paste ใน LINE หรือ report ให้ MC ได้เลย</div>
       </div>
@@ -1923,7 +2029,13 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
 <div class="app" id="growthApp">
   <div class="hdr">
     <div class="hdr-l"><div class="hdr-logo">BNI <span>IDEAL</span></div><div class="hdr-role" style="background:#8B5CF6;">Growth</div></div>
-    <div style="display:flex;align-items:center;gap:4px;"><button onclick="window.open('dashboard.html','_blank')" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818CF8;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif;">💻 Desktop</button><button class="theme-btn" onclick="toggleTheme()">☀️</button><button onclick="openRoleSwitcher()" style="background:none;border:1px solid var(--border);color:var(--gray2);border-radius:8px;padding:4px 8px;font-size:.82rem;cursor:pointer;font-family:'Sarabun',sans-serif;" title="สลับ Role">⇄</button><button class="btn-out" onclick="logout()">ออก</button></div>
+    <div style="display:flex;align-items:center;gap:4px;">
+      <button onclick="window.open('dashboard.html','_blank')" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818CF8;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif;touch-action:manipulation;">💻</button>
+      <div class="hdr-divider"></div>
+      <button class="hdr-btn-icon" onclick="toggleTheme()" title="สลับธีม">☀️</button>
+      <button class="hdr-btn-icon" onclick="openRoleSwitcher()" title="สลับ Role">⇄</button>
+      <button class="hdr-btn-icon btn-out" onclick="logout()" title="ออกจากระบบ">🚪</button>
+    </div>
   </div>
   <div class="tabs">
     <button class="tb on" onclick="gtab('dashboard',this)"><span class="ti">📈</span>Dashboard</button>
@@ -2284,7 +2396,7 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);mi
 </div>
 
 <script>
-var S={role:null,token:null,isMC:false,teamName:null,displayName:null,allMembers:[],teamMembers:[],curFilter:'all',curMFilter:'all',curMentorFilter:'all',curSort:'score-desc',_currentMonth:null,_scoreTeam:'',_scoreName:'',_detailMentor:''};
+var S={role:null,token:null,isMC:false,teamName:null,displayName:null,allMembers:[],teamMembers:[],curFilter:'all',curMFilter:'all',curMentorFilter:'all',curSort:'score-desc',_currentMonth:null,_scoreTeam:'',_scoreName:'',_detailMentor:'',_selectedMentee:'',_mentorReports:[],_mentorRenewals:[]};
 var GS={members:[],curFilter:'all',loaded:false,taskFilter:'all',lastSummary:null};
 var CI_WEEK_DATA=[];
 
@@ -2351,8 +2463,19 @@ function avbg(tl){return tl==='green'?'rgba(16,185,129,.2)':tl==='yellow'?'rgba(
 function bc(pct){return pct>=100?'#10B981':pct>=60?'#F59E0B':'#EF4444';}
 function gcol(g){return g==='A'?{bg:'rgba(16,185,129,.2)',c:'#10B981'}:g==='B'?{bg:'rgba(96,165,250,.2)',c:'#60A5FA'}:g==='C'?{bg:'rgba(245,158,11,.2)',c:'#F59E0B'}:{bg:'rgba(239,68,68,.2)',c:'#EF4444'};}
 function fmt(n){if(!n)return '0';if(n>=1000000)return (n/1000000).toFixed(1)+'M';if(n>=1000)return (n/1000).toFixed(0)+'K';return n.toString();}
+function formatThaiDateTime(v){
+  if(!v)return '';
+  var d=new Date(v);if(isNaN(d.getTime()))return String(v);
+  return d.toLocaleString('th-TH',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'});
+}
 (function(){try{if(localStorage.getItem('bni_theme')==='light')document.body.classList.add('light');}catch(e){}})();
-function toggleTheme(){var isLight=document.body.classList.toggle('light');document.querySelectorAll('.theme-btn').forEach(function(b){b.textContent=isLight?'🌙':'☀️';});try{localStorage.setItem('bni_theme',isLight?'light':'dark');}catch(e){}}
+function toggleTheme(){
+  var isLight=document.body.classList.toggle('light');
+  document.querySelectorAll('.theme-btn,#themeBtn').forEach(function(b){b.textContent=isLight?'🌙':'☀️';});
+  var meta=document.getElementById('meta-theme-color');
+  if(meta)meta.setAttribute('content',isLight?'#F0F4F3':'#1A1D1D');
+  try{localStorage.setItem('bni_theme',isLight?'light':'dark');}catch(e){}
+}
 function toast(msg,dur){var el=document.getElementById('toast');el.textContent=msg;el.classList.add('on');setTimeout(function(){el.classList.remove('on');},dur||2000);}
 function showLoad(){document.getElementById('loader').classList.remove('out');}
 function hideLoad(){document.getElementById('loader').classList.add('out');}
@@ -2422,7 +2545,7 @@ function mentorMemberRow(m,clickFn){
       +'</div>';
   }
 
-  return '<div class="mr" onclick="'+clickFn+'">'
+  return '<div class="mr" role="button" tabindex="0" onclick="'+clickFn+'" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();'+clickFn+'}">'
     +'<div class="av" style="background:'+avbg(tl)+';color:'+scoreColor+'">'+initials+'</div>'
     +'<div class="mi">'
       +'<div class="mn">'+name.split(' ').slice(0,2).join(' ')+(nick?' ('+nick+')':'')+'</div>'
@@ -2585,7 +2708,44 @@ function mcsub(sub,btn){
   if(sub==='renewal')loadRenewal('mc');
   if(sub==='rpts')loadReports();
 }
-function mnt(tab,btn){_swTab('#mentorApp',tab,btn);if(tab==='report')loadReportForm();if(tab==='renewal')loadRenewal('mentor');if(tab==='mcmsg'){loadBroadcasts('mentor');loadMessages('mentor');loadMentorAssignments();var b=document.getElementById('mentor-msg-badge');if(b)b.style.display='none';}if(tab==='newmembers')loadNewMembers('mentor');if(tab==='coaching')loadCoachingGuide();if(tab==='msummary'){document.getElementById('mentor-sum-output').style.display='none';}}
+function mnt(tab,btn){
+  _swTab('#mentorApp',tab,btn);
+  if(tab==='work')loadMentorWorkHub();
+  if(tab==='directory')renderMentorDirectory();
+  if(tab==='report')loadReportForm(S._selectedMentee);
+  if(tab==='renewal')loadRenewal('mentor');
+  if(tab==='mentorlog')mobMlLoad();
+  if(tab==='mcmsg'){
+    loadBroadcasts('mentor');loadMessages('mentor',true);loadMentorAssignments();
+  }
+  if(tab==='newmembers')loadNewMembers('mentor');
+  if(tab==='coaching')loadCoachingGuide();
+  if(tab==='msummary')document.getElementById('mentor-sum-output').style.display='none';
+}
+function mentorPrimaryButton(tab){
+  return document.querySelector('#mentorApp [data-mentor-primary="'+tab+'"]');
+}
+function mentorOpenSection(tab){
+  var hidden=document.getElementById('mentor-'+tab);
+  if(!hidden)return;
+  document.querySelectorAll('#mentorApp .tb').forEach(function(b){b.classList.remove('on');});
+  document.querySelectorAll('#mentorApp .pane').forEach(function(p){p.classList.remove('on');});
+  var parent=(tab==='coaching'||tab==='newmembers'||tab==='msummary')?'more':'work';
+  var parentBtn=mentorPrimaryButton(parent);if(parentBtn)parentBtn.classList.add('on');
+  hidden.classList.add('on');
+  if(tab==='report')loadReportForm(S._selectedMentee);
+  if(tab==='renewal')loadRenewal('mentor');
+  if(tab==='mentorlog')mobMlLoad();
+  if(tab==='mcmsg'){loadBroadcasts('mentor');loadMessages('mentor',true);loadMentorAssignments();}
+  if(tab==='newmembers')loadNewMembers('mentor');
+  if(tab==='coaching')loadCoachingGuide();
+  if(tab==='msummary')document.getElementById('mentor-sum-output').style.display='none';
+  window.scrollTo(0,0);
+}
+function mentorReturnTo(tab){
+  var btn=mentorPrimaryButton(tab);
+  if(btn)mnt(tab,btn);
+}
 function gtab(tab,btn){
   document.querySelectorAll('#growthApp .tb').forEach(function(b){b.classList.remove('on');});
   document.querySelectorAll('#growthApp .pane').forEach(function(p){p.classList.remove('on');});
@@ -2841,7 +3001,7 @@ function loadWeeklyActions(){
         top3.forEach(function(a){
           var cls=urgClass[a.urgency]||'';
           var tl={'green':'🟢','yellow':'🟡','red':'🔴','black':'⚫'}[a.tl]||'';
-          f3html+='<div class="f3-card '+cls+'">'
+          f3html+='<div class="f3-card '+cls+'" role="button" tabindex="0" onclick="openDetail(\''+a.name.replace(/'/g,"\\'")+'\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \')openDetail(\''+a.name.replace(/'/g,"\\'")+'\')">'
             +'<div class="f3-name"><span class="f3-tl">'+tl+'</span>'+(a.nick||a.name.split(' ')[0])+'</div>'
             +'<div class="f3-action">'+(a.topTitle||a.topAction||'').substring(0,50)+'</div>'
             +'</div>';
@@ -2863,7 +3023,7 @@ function loadWeeklyActions(){
       if(a.topAction){actionHtml+='<div class="wa-action" style="color:var(--gold2,#FBBF24);">→ '+a.topAction+'</div>';}
       if(a.topTarget){actionHtml+='<div class="wa-target">🎯 เป้า: '+a.topTarget+'</div>';}
       var countHtml=a.totalActions>1?'<div class="wa-count">+' +(a.totalActions-1)+' รายการ</div>':'';
-      html+='<div class="wa-card '+uc+'">'
+      html+='<div class="wa-card '+uc+'" role="button" tabindex="0" onclick="openDetail(\''+a.name.replace(/'/g,"\\'")+'\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \')openDetail(\''+a.name.replace(/'/g,"\\'")+'\')">'
         +countHtml
         +'<div class="wa-top">'
         +'<div class="wa-tl">'+tl+'</div>'
@@ -2946,7 +3106,7 @@ function renderMCCoaching(){
     html+='<div class="cg-card" style="cursor:pointer;" onclick="openDetail(\''+g.name.replace(/'/g,"\\'")+'\')"><div class="cg-hdr">'
       +'<div class="cg-name" style="flex:1;">'+escHtml(dn)+'<span style="font-size:.62rem;color:var(--gray2);margin-left:.35rem;">('+escHtml(g.mentor||'—')+')</span></div>'
       +'<span style="font-size:.72rem;font-weight:700;color:'+tlColor+';">'+tlLabel+'</span>'
-      +'<span style="font-size:.88rem;font-weight:700;color:'+tlColor+';margin-left:.4rem;">'+dispScore+'<span style="font-size:.6rem;font-weight:400;color:var(--gray2);">/90</span></span>'
+      +'<span style="font-size:.88rem;font-weight:700;color:'+tlColor+';margin-left:.4rem;">'+dispScore+'<span style="font-size:.6rem;font-weight:400;color:var(--gray2);">/100</span></span>'
       +'</div>'
       +'<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:2px;margin:.3rem 0 .2rem;padding:.25rem;background:var(--bg2);border-radius:6px;">'
       +cats.map(function(c){
@@ -2993,7 +3153,7 @@ function renderCoachingGuide(guides){
     var dispS=g.score||0;
     var scoreColor=dispS>=70?'#10B981':dispS>=50?'#F59E0B':dispS>=30?'#EF4444':'#64748B';
     var tl=dispS>=70?'🟢':dispS>=50?'🟡':dispS>=30?'🔴':'⚫';
-    html+='<div class="cg-card cg-'+g.status+'">'
+    html+='<div class="cg-card cg-'+g.status+'" role="button" tabindex="0" onclick="openDetail(\''+String(g.name||'').replace(/'/g,"\\'")+'\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \')openDetail(\''+String(g.name||'').replace(/'/g,"\\'")+'\')">'
       +'<div class="cg-hdr">'
       +'<div class="cg-name">'+tl+' '+(g.nick||g.name.split(' ')[0])+'</div>'
       +'<div class="cg-score" style="color:'+scoreColor+'">'+dispS+'%</div>'
@@ -3020,7 +3180,7 @@ function renderCoachingGuide(guides){
             +'</div>';
         }).join('')
         +'</div>'
-        +'<div style="font-size:.68rem;color:var(--gray2);margin-bottom:.25rem;">BNI Score: <b style="color:'+bniTlColor+'">'+effBniScore+'/90</b></div>';
+        +'<div style="font-size:.68rem;color:var(--gray2);margin-bottom:.25rem;">BNI Score: <b style="color:'+bniTlColor+'">'+effBniScore+'/100</b></div>';
 
       // Fast track (top 2 actions)
       if(g.fastTrack.fastestActions&&g.fastTrack.fastestActions.length&&bs.tl!=='green'){
@@ -3458,8 +3618,60 @@ function openMobMeetPrep(){
 function loadMyTeam(){
   call('getMyTeam',{},function(err,r){
     if(err||!r.ok){document.getElementById('mentor-members').innerHTML='<div class="empty">❌</div>';return;}
-    S.teamMembers=r.members;renderMentorMembers();
+    S.teamMembers=r.members;S.allMembers=r.members;S.teamName=r.teamName||S.teamName;
+    renderMentorMembers();renderMentorDirectory();loadMentorWorkHub();
   });
+}
+function renderMentorDirectory(){
+  var el=document.getElementById('mentor-directory-list');
+  if(!el)return;
+  var q=((document.getElementById('mentor-member-search')||{}).value||'').trim().toLowerCase();
+  var list=(S.teamMembers||[]).filter(function(m){
+    return !q||(m.name||'').toLowerCase().indexOf(q)>=0||(m.nick||'').toLowerCase().indexOf(q)>=0;
+  }).sort(function(a,b){
+    var ar=(a.tl==='red'||a.tl==='black')?0:1,br=(b.tl==='red'||b.tl==='black')?0:1;
+    return ar-br||(a.nick||a.name).localeCompare(b.nick||b.name);
+  });
+  if(!list.length){el.innerHTML='<div class="empty"><div class="empty-i">🔎</div>ไม่พบ Mentee</div>';return;}
+  el.innerHTML=list.map(function(m){return mentorMemberRow(m,"openDetail('"+m.name.replace(/'/g,"\\'")+"')");}).join('');
+}
+function setHubCount(id,n){
+  var el=document.getElementById(id);if(!el)return;
+  if(n>0){el.textContent=n>99?'99+':n;el.style.display='inline-block';}else el.style.display='none';
+}
+function loadMentorWorkHub(){
+  var completion=document.getElementById('mentor-completion');
+  if(completion)completion.innerHTML='<div class="lt" style="padding:1rem">⏳ กำลังสรุปงาน...</div>';
+  var state={reports:[],assignments:[],renewals:[],messages:[],read:{}},done=0;
+  function finish(){
+    done++;if(done<5)return;
+    S._mentorReports=state.reports;S._mentorRenewals=state.renewals;
+    var openReports=state.reports.filter(function(x){return x.status!=='done';}).length;
+    var pendingAssignments=state.assignments.filter(function(x){return x.status==='pending';}).length;
+    var unread=state.messages.filter(function(x){return !state.read[x.key||x.id];}).length;
+    var urgentRenewals=state.renewals.filter(function(x){return x.workflowStatus!=='completed'&&(x.diffDays<=30||x.workflowStatus==='declined');}).length;
+    setHubCount('work-report-count',openReports);
+    setHubCount('work-msg-count',pendingAssignments+unread);
+    setHubCount('work-renew-count',urgentRenewals);
+    var total=openReports+pendingAssignments+unread+urgentRenewals;
+    setHubCount('mentor-work-badge',total);
+    if(!completion)return;
+    var noContact=(S.teamMembers||[]).filter(function(m){return m.noMentorContact;}).length;
+    var rows=[
+      {ok:openReports===0,txt:openReports?'รายงานเปิดอยู่ '+openReports+' รายการ':'ไม่มีรายงานค้าง'},
+      {ok:pendingAssignments===0,txt:pendingAssignments?'งานจาก MC รอรับทราบ '+pendingAssignments+' งาน':'รับทราบงานจาก MC ครบ'},
+      {ok:urgentRenewals===0,txt:urgentRenewals?'Renewal เร่งด่วน '+urgentRenewals+' คน':'ไม่มี Renewal เร่งด่วน'},
+      {ok:noContact===0,txt:noContact?'Mentee ยังไม่ได้ติดตามเกิน 14 วัน '+noContact+' คน':'ติดตาม Mentee ครบ'}
+    ];
+    completion.innerHTML='<div class="card"><div class="ct">ภาพรวมการปิดงานวันนี้</div><div class="completion-list">'+rows.map(function(x){
+      return '<div class="completion-item"><span class="state">'+(x.ok?'✅':'⚠️')+'</span><span style="font-size:.78rem">'+escHtml(x.txt)+'</span></div>';
+    }).join('')+'</div></div>';
+  }
+  call('getReports',{},function(err,r){state.reports=r&&r.ok?r.reports||[]:[];finish();});
+  call('getMentorAssignments',{},function(err,r){state.assignments=r&&r.ok?r.assignments||[]:[];finish();});
+  call('getRenewal',{},function(err,r){state.renewals=r&&r.ok?r.items||[]:[];finish();});
+  call('getReadMsgKeys',{},function(err,r){(r&&r.ok?r.keys||[]:[]).forEach(function(k){state.read[k]=true;});finish();});
+  call('getMessages',{},function(err,r){state.messages=r&&r.ok?r.messages||[]:[];finish();});
 }
 function renderMentorMembers(){
   var f=S.curMFilter;
@@ -3511,6 +3723,7 @@ function renderMentorMembers(){
 }
 
 function openDetail(name){
+  S._selectedMentee=name;
   S._detailRow=undefined;S._detailNick='';S._detailMentor='';
   var tm=(S.teamMembers||[]).filter(function(m){return m.name===name;})[0];
   if(tm!==undefined){S._detailRow=tm.row;S._detailNick=tm.nick||'';}
@@ -3530,6 +3743,41 @@ function openDetail(name){
   });
 }
 function closeDetail(){document.getElementById('detailPanel').classList.remove('on');}
+function workspaceCoach(){
+  var el=document.querySelector('#dp-content .next-action-card');
+  if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function workspaceLog(name){
+  S._selectedMentee=name;mobMlOpenNew(name);
+}
+function workspaceReport(name){
+  S._selectedMentee=name;closeDetail();mentorOpenSection('report');
+}
+function workspaceRenewal(name){
+  var item=(S._mentorRenewals||[]).filter(function(x){return x.name===name;})[0];
+  if(item){openRenewalFlowMob(encodeURIComponent(name),item.workflowStatus||'pending_contact','mentor');return;}
+  call('getRenewal',{},function(err,r){
+    S._mentorRenewals=r&&r.ok?r.items||[]:[];
+    var found=S._mentorRenewals.filter(function(x){return x.name===name;})[0];
+    if(found)openRenewalFlowMob(encodeURIComponent(name),found.workflowStatus||'pending_contact','mentor');
+    else toast('ℹ️ ยังไม่มี Renewal ที่ต้องติดตามสำหรับ '+name,3000);
+  });
+}
+function loadMemberTimeline(name){
+  var el=document.getElementById('dp-timeline-section');if(!el)return;
+  call('getMemberTimeline',{memberName:name},function(err,r){
+    if(err||!r||!r.ok){el.innerHTML='<div class="sh">🕘 Timeline การดูแล</div><div class="empty">โหลด Timeline ไม่ได้</div>';return;}
+    var events=r.events||[];
+    if(!events.length){el.innerHTML='<div class="sh">🕘 Timeline การดูแล</div><div class="empty">ยังไม่มีกิจกรรมที่บันทึกไว้</div>';return;}
+    el.innerHTML='<div class="sh">🕘 Timeline การดูแล</div>'+events.map(function(x){
+      return '<article class="timeline-card"><div class="timeline-icon">'+escHtml(x.icon||'•')+'</div><div>'
+        +'<div class="timeline-title">'+escHtml(x.title||'กิจกรรม')+'</div>'
+        +(x.detail?'<div class="timeline-detail">'+escHtml(x.detail)+'</div>':'')
+        +'<div class="timeline-meta">'+escHtml(formatThaiDateTime(x.at))+(x.status?' · '+escHtml(x.status):'')+'</div>'
+        +'</div></article>';
+    }).join('');
+  });
+}
 
 var _lastDetail=null;
 var _talkText='';
@@ -3696,17 +3944,32 @@ function buildDetail(d){
     +'<div class="hero-name">'+escHtml(d.name)+' ('+escHtml(d.nick)+')</div>'
     +'<div class="hero-meta">'+escHtml(d.mentor)+' · '+d.actual.bniDays+' วันใน BNI · '+d.weeks+' สัปดาห์</div>'
     +'<div class="hero-row"><div class="hero-score" style="color:'+sc(score)+'">'+score+'</div>'
-    +'<div><div style="font-size:1rem;">'+(score>=70?'🟢 เขียว':score>=40?'🟡 เหลือง':score>=25?'🔴 แดง':'⚫ ดำ')+'</div>'
+    +'<div><div style="font-size:1rem;">'+(score>=70?'🟢 เขียว':score>=50?'🟡 เหลือง':score>=30?'🔴 แดง':'⚫ ดำ')+'</div>'
     +'<div style="font-size:.72rem;color:var(--gray2);">Balance: '+escHtml(d.balance)+'</div></div></div>'
     +'<div class="attend-pill" style="background:'+attendBg+';color:'+attendC+'">'+attendTxt+'</div>'
     +renewalBadge+'</div>';
 
-  return heroHTML+actBtns+statusHTML+statsHTML+bniHTML+ftHTML+chartHTML+attendCardHTML
-    +'<div class="card"><div class="ct">5 Keys (6 เดือน)</div>'+keysHTML+'</div>'
+  var safeWorkspaceName=d.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  var workspaceActions=!S.isMC&&S.role!=='growth'
+    ?'<div class="workspace-actions" aria-label="เครื่องมือสำหรับ Mentee">'
+      +'<button class="workspace-action primary" onclick="workspaceCoach(\''+safeWorkspaceName+'\')">💡 Coach</button>'
+      +'<button class="workspace-action" onclick="workspaceLog(\''+safeWorkspaceName+'\')">📓 Log</button>'
+      +'<button class="workspace-action" onclick="workspaceReport(\''+safeWorkspaceName+'\')">📝 Report</button>'
+      +'<button class="workspace-action" onclick="workspaceRenewal(\''+safeWorkspaceName+'\')">💳 Renewal</button>'
+      +'</div>'
+    :'';
+  var nextAction='<div class="next-action-card"><strong>✨ ขั้นตอนถัดไปที่แนะนำ</strong>'
+    +'<div style="font-size:.73rem;color:var(--gray2);margin-top:3px;">'+(d.priorities&&d.priorities.length?escHtml(d.priorities[0].action):'รักษาความต่อเนื่องและบันทึกผลการพูดคุยครั้งถัดไป')+'</div>'
+    +'<div class="next-action-buttons"><button onclick="workspaceLog(\''+safeWorkspaceName+'\')">บันทึก Mentor Log</button><button onclick="workspaceReport(\''+safeWorkspaceName+'\')">สร้าง Report</button><button onclick="document.getElementById(\'dp-timeline-section\').scrollIntoView({behavior:\'smooth\'})">ดู Timeline</button></div></div>';
+  setTimeout(function(){loadMemberTimeline(d.name);},0);
+
+  return workspaceActions+heroHTML+nextAction+actBtns+statusHTML+statsHTML+bniHTML+ftHTML+chartHTML+attendCardHTML
+    +'<div class="card workspace-section"><div class="ct">5 Keys (6 เดือน)</div>'+keysHTML+'</div>'
     +'<div class="sh">⚔️ Priority</div>'+prHTML
     +buildConvHistory(d)
-    +'<div id="dp-121-section"></div>'
+    +'<div id="dp-121-section" class="workspace-section"></div>'
     +'<div id="dp-note-section"></div>'
+    +'<div id="dp-timeline-section" class="workspace-section"><div class="sh">🕘 Timeline การดูแล</div><div class="lt">⏳ กำลังโหลด...</div></div>'
     +'<div style="height:1rem;"></div>';
 }
 
@@ -3819,6 +4082,7 @@ function loadRenewal(app){
   var id=app==='mc'?'mc-renewal':'mentor-renewal';
   call('getRenewal',{},function(err,r){
     if(err||!r.ok){document.getElementById(id).innerHTML='<div class="empty">❌</div>';return;}
+    if(app==='mentor')S._mentorRenewals=r.items||[];
     var late=r.items.filter(function(i){return i.status==='late';});
     var soon=r.items.filter(function(i){return i.status==='soon';});
     var ok=r.items.filter(function(i){return i.status!=='late'&&i.status!=='soon';});
@@ -3828,7 +4092,7 @@ function loadRenewal(app){
       var safeName=encodeURIComponent(i.name).replace(/'/g,'%27');
       var wf=renewalStatusMetaMob(i.workflowStatus);
       var renewBtn='<button class="renew-btn" onclick="openRenewalFlowMob(\''+safeName+'\',\''+(i.workflowStatus||'pending_contact')+'\',\''+app+'\')">'+wf.action+'</button>';
-      return '<div class="rr"><div style="font-size:1.4rem;flex-shrink:0;">'+icon+'</div><div class="ri"><div class="rn">'+i.name+'</div><div class="rd2">'+i.team+' · '+txt+'</div><div style="font-size:.68rem;color:'+wf.color+';margin-top:3px;">'+wf.label+(i.declineReason?' · '+escHtml(i.declineReason):'')+'</div></div>'+renewBtn+'</div>';
+      return '<div class="rr"><div style="font-size:1.4rem;flex-shrink:0;">'+icon+'</div><div class="ri"><button class="rn" style="background:none;border:0;color:var(--white);padding:0;cursor:pointer;text-align:left;font-family:inherit" onclick="openDetail(\''+String(i.name||'').replace(/'/g,"\\'")+'\')">'+escHtml(i.name)+'</button><div class="rd2">'+escHtml(i.team)+' · '+txt+'</div><div style="font-size:.68rem;color:'+wf.color+';margin-top:3px;">'+wf.label+(i.declineReason?' · '+escHtml(i.declineReason):'')+'</div></div>'+renewBtn+'</div>';
     }
     var html='';
     if(late.length)html+='<div class="sh" style="color:var(--red)">🔴 LATE — โทรแจ้งทันที</div>'+late.map(rrow).join('');
@@ -3853,20 +4117,30 @@ function renewalStatusMetaMob(status){
 
 function openRenewalFlowMob(encodedName,status,app){
   var name=decodeURIComponent(encodedName);
-  var meta=renewalStatusMetaMob(status);
   var modal=document.createElement('div');
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:flex-end;justify-content:center;z-index:9999';
+  modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');modal.setAttribute('aria-label','อัปเดตสถานะ Renewal '+name);
+  modal.onclick=function(e){if(e.target===modal||e.target.hasAttribute('data-close'))modal.remove();};
+  document.body.appendChild(modal);
+  renderRenewalFlowMob(modal,name,status,app);
+}
+function renderRenewalFlowMob(modal,name,status,app){
+  var meta=renewalStatusMetaMob(status);
+  var flow=['pending_contact','contacted','confirmed_renew','paid','completed'];
+  var current=Math.max(0,flow.indexOf(status));
   var buttons='';
   if(status==='pending_contact')buttons='<button class="btn-p" data-st="contacted">✓ แจ้งสมาชิกแล้ว</button>';
   else if(status==='contacted')buttons='<button class="btn-p" data-st="confirmed_renew">✓ สมาชิกยืนยันต่อ</button><button class="btn-p" data-st="declined" style="background:#7f1d1d">✕ ไม่ต่ออายุ</button>';
   else if(status==='confirmed_renew')buttons='<button class="btn-p" data-st="paid">✓ ชำระเงินแล้ว</button>';
   else if(status==='paid')buttons='<button class="btn-p" data-st="completed">✓ ต่ออายุเรียบร้อย</button>';
   else if(status==='declined')buttons='<button class="btn-p" data-st="pending_contact" style="background:var(--gray)">↺ เปิดติดตามใหม่</button>';
+  var item=(S._mentorRenewals||[]).filter(function(x){return x.name===name;})[0];
   modal.innerHTML='<div style="width:100%;max-width:500px;background:var(--bg2);border-radius:20px 20px 0 0;padding:20px 18px 32px">'+
     '<div style="font-size:1rem;font-weight:800;margin-bottom:4px">Renewal · '+escHtml(name)+'</div>'+
-    '<div style="font-size:.75rem;color:'+meta.color+';margin-bottom:16px">'+meta.label+'</div>'+
+    '<div style="font-size:.75rem;color:'+meta.color+'">'+meta.label+'</div>'+
+    (item?'<div style="font-size:.72rem;color:var(--gray2);margin-top:4px">หมดอายุ '+escHtml(item.expStr||'')+' · '+(item.diffDays<0?'เกิน '+Math.abs(item.diffDays)+' วัน':'เหลือ '+item.diffDays+' วัน')+'</div>':'')+
+    '<div class="renew-stepper" aria-label="ความคืบหน้า Renewal">'+flow.map(function(_,i){return '<span class="renew-step '+(i<current?'done':i===current?'current':'')+'"></span>';}).join('')+'</div>'+
     '<div style="display:grid;gap:8px">'+buttons+'<button class="btn-p" data-close style="background:transparent;border:1px solid var(--border);color:var(--gray2)">ปิด</button></div></div>';
-  modal.onclick=function(e){if(e.target===modal||e.target.hasAttribute('data-close'))modal.remove();};
   modal.querySelectorAll('[data-st]').forEach(function(btn){
     btn.onclick=function(){
       var next=btn.getAttribute('data-st');
@@ -3878,14 +4152,12 @@ function openRenewalFlowMob(encodedName,status,app){
       btn.disabled=true;btn.textContent='กำลังบันทึก...';
       call('updateRenewalStatus',{memberName:name,status:next,reason:reason},function(err,r){
         if(err||!r||!r.ok){btn.disabled=false;btn.textContent='ลองใหม่';toast('❌ '+(err?err.message:(r&&r.error)||'บันทึกไม่สำเร็จ'));return;}
-        modal.remove();toast('✅ อัปเดต Renewal แล้ว');loadRenewal(app);
-        if(next==='contacted'||next==='confirmed_renew'||next==='paid'){
-          setTimeout(function(){openRenewalFlowMob(encodeURIComponent(name),next,app);},250);
-        }
+        toast('✅ อัปเดต Renewal แล้ว');status=next;
+        loadRenewal(app);loadMentorWorkHub();
+        renderRenewalFlowMob(modal,name,next,app);
       });
     };
   });
-  document.body.appendChild(modal);
 }
 
 function extendRenewal(memberName, btn, app) {
@@ -3904,11 +4176,21 @@ function extendRenewal(memberName, btn, app) {
   });
 }
 
-function loadMessages(app){
+function loadMessages(app,markRead){
   var id=app==='mc'?'mc-msg-list':'mentor-msg-list';
   call('getMessages',{},function(err,r){
-    if(err||!r.ok||!r.messages.length){document.getElementById(id).innerHTML='<div class="empty"><div class="empty-i">💬</div>ยังไม่มีข้อความ</div>';return;}
+    if(err||!r||!r.ok||!r.messages.length){document.getElementById(id).innerHTML='<div class="empty"><div class="empty-i">💬</div>ยังไม่มีข้อความ</div>';return;}
     document.getElementById(id).innerHTML=r.messages.map(function(m){return '<div class="mm"><div class="mm-n">['+m.team+'] '+m.name+' ('+m.nick+')</div><div class="mm-t">'+m.msg+'</div></div>';}).join('');
+    if(markRead&&app==='mentor'){
+      var pending=(r.messages||[]).slice();
+      if(!pending.length)return;
+      var complete=0;
+      pending.forEach(function(m){
+        call('setMsgRead',{key:m.key||m.id},function(){
+          complete++;if(complete===pending.length){loadMentorNotifBadge();loadMentorWorkHub();}
+        });
+      });
+    }
   });
 }
 
@@ -3930,23 +4212,57 @@ function sendMsg(){
   call('saveMCMessage',{teamName:team,row:row,message:msg},function(err,r){if(r&&r.ok){toast('✅ ส่งข้อความแล้ว');document.getElementById('msg-txt').value='';loadMessages('mc');}else toast('❌ '+(err?err.message:r.error));});
 }
 
-function loadReportForm(){
+function loadReportForm(selectedName){
   var members=S.teamMembers.filter(function(m){return !!m.name;});
   var opts=members.map(function(m){
     var sc=m.score||m.latest||0;
     var tl=m.tl==='none'?'⭐':!sc?'—':sc>=70?'🟢':sc>=50?'🟡':sc>=30?'🔴':'⚫';
-    return '<option value="'+(m.row||'null')+'|'+m.name+'|'+m.nick+'">'+(m.row?'':'⭐ ')+m.name+' ('+m.nick+') · '+tl+(sc?' '+sc:'')+'</option>';
+    return '<option value="'+(m.row||'null')+'|'+m.name+'|'+m.nick+'"'+(selectedName===m.name?' selected':'')+'>'+(m.row?'':'⭐ ')+m.name+' ('+m.nick+') · '+tl+(sc?' '+sc:'')+'</option>';
   });
-  document.getElementById('mentor-report-c').innerHTML='<div class="card"><div class="ct">📝 กรอก Core Issue</div><div class="fg"><label class="fl">Mentee</label><select class="fs" id="rc-mem"><option value="">— เลือก —</option>'+opts.join('')+'</select></div><div class="fg"><label class="fl">Core Issue หลัก</label><select class="fs" id="rc-core"><option value="">— เลือก —</option><option>ขาดประชุม / มาสาย</option><option>ยอด Referral ต่ำ</option><option>ไม่ทำ 1-2-1 / ทำไม่ครบ</option><option>รอการต่ออายุ</option><option>ธุรกิจยุ่ง / ไม่มีเวลาทำ 5 Keys</option><option>ยังไม่เรียน CEU</option></select></div><div class="fg"><label class="fl">Action ที่ทำแล้ว</label><textarea class="ft" id="rc-act" placeholder="เช่น: โทรคุยแล้ว นัด 1:1 วันศุกร์"></textarea></div><div class="fg"><label class="fl">แผนสัปดาห์ถัดไป</label><textarea class="ft" id="rc-plan" placeholder="เช่น: ติดตามผลหลังประชุม ช่วยหา Visitor"></textarea></div><button class="btn-p" onclick="submitReport()">ส่งรายงาน →</button></div>';
+  document.getElementById('mentor-report-c').innerHTML='<div class="card"><div class="ct">📝 ส่ง Core Issue ให้ MC</div>'
+    +'<div class="fg"><label class="fl" for="rc-mem">Mentee *</label><select class="fs" id="rc-mem"><option value="">— เลือก —</option>'+opts.join('')+'</select></div>'
+    +'<div class="fg"><label class="fl" for="rc-core">Core Issue หลัก *</label><select class="fs" id="rc-core"><option value="">— เลือก —</option><option>ขาดประชุม / มาสาย</option><option>ยอด Referral ต่ำ</option><option>ไม่ทำ 1-2-1 / ทำไม่ครบ</option><option>รอการต่ออายุ</option><option>ธุรกิจยุ่ง / ไม่มีเวลาทำ 5 Keys</option><option>ยังไม่เรียน CEU</option></select></div>'
+    +'<div class="fg"><label class="fl" for="rc-act">Action ที่ทำแล้ว</label><textarea class="ft" id="rc-act" placeholder="เช่น โทรคุยแล้ว และนัด 1-2-1 วันศุกร์"></textarea></div>'
+    +'<div class="fg"><label class="fl" for="rc-plan">แผนสัปดาห์ถัดไป</label><textarea class="ft" id="rc-plan" placeholder="เช่น ติดตามผลหลังประชุม และช่วยหา Visitor"></textarea></div>'
+    +'<div class="fg"><label class="fl" for="rc-follow">วันที่ติดตามครั้งถัดไป</label><input class="fi" type="date" id="rc-follow"></div>'
+    +'<button class="btn-p" id="rc-submit" onclick="submitReport()">ส่งรายงานให้ MC →</button></div>'
+    +'<div class="sh">ประวัติและสถานะรายงาน</div><div id="mentor-report-history"><div class="lt">⏳ กำลังโหลด...</div></div>';
+  loadMentorReportHistory();
 }
 function submitReport(){
   var sel=document.getElementById('rc-mem').value;var core=document.getElementById('rc-core').value;var act=document.getElementById('rc-act').value;var plan=document.getElementById('rc-plan').value;
   if(!sel||!core){toast('❌ กรุณาเลือก Mentee และ Core Issue');return;}
   var parts=sel.split('|');
   var rowVal=parts[0]==='null'?null:parseInt(parts[0]);
-  call('saveCoreIssue',{row:rowVal,memberName:parts[1],nick:parts[2]||'',coreIssue:core,actionTaken:act,plan:plan},function(err,r){
-    if(r&&r.ok){toast('✅ บันทึกเรียบร้อยแล้ว');if(!rowVal)loadMyTeam();}
-    else toast('❌ '+(err?err.message:r&&r.error));
+  var btn=document.getElementById('rc-submit');btn.disabled=true;btn.textContent='⏳ กำลังส่ง...';
+  call('saveCoreIssue',{row:rowVal,memberName:parts[1],nick:parts[2]||'',coreIssue:core,actionTaken:act,plan:plan,followUpAt:document.getElementById('rc-follow').value||null},function(err,r){
+    btn.disabled=false;btn.textContent='ส่งรายงานให้ MC →';
+    if(r&&r.ok){
+      toast('✅ ส่งรายงานให้ MC แล้ว');
+      S._selectedMentee=parts[1];
+      document.getElementById('rc-act').value='';document.getElementById('rc-plan').value='';
+      loadMentorReportHistory();loadMentorWorkHub();if(!rowVal)loadMyTeam();
+    }else toast('❌ '+(err?err.message:r&&r.error));
+  });
+}
+function loadMentorReportHistory(){
+  var el=document.getElementById('mentor-report-history');if(!el)return;
+  call('getReports',{},function(err,r){
+    if(err||!r||!r.ok){el.innerHTML='<div class="empty">❌ โหลดประวัติรายงานไม่ได้</div>';return;}
+    var reports=r.reports||[];S._mentorReports=reports;
+    if(!reports.length){el.innerHTML='<div class="empty"><div class="empty-i">📝</div>ยังไม่มีรายงาน</div>';return;}
+    el.innerHTML=reports.map(function(x){
+      var status=x.status==='done'?'done':x.reply?'replied':'open';
+      var label=status==='done'?'✅ Resolved':status==='replied'?'💬 MC ตอบแล้ว':'⏳ รอ MC';
+      return '<article class="report-history-card"><span class="report-status '+status+'">'+label+'</span>'
+        +'<h3>'+escHtml(x.memberName)+(x.nick?' ('+escHtml(x.nick)+')':'')+'</h3>'
+        +'<div class="report-copy"><b>Core Issue:</b> '+escHtml(x.coreIssue)+'</div>'
+        +(x.actionTaken?'<div class="report-copy"><b>ทำแล้ว:</b> '+escHtml(x.actionTaken)+'</div>':'')
+        +(x.plan?'<div class="report-copy"><b>แผนต่อไป:</b> '+escHtml(x.plan)+'</div>':'')
+        +(x.followUpAt?'<div class="report-copy"><b>ติดตาม:</b> '+escHtml(String(x.followUpAt).slice(0,10))+'</div>':'')
+        +(x.reply?'<div class="report-reply"><b>MC:</b> '+escHtml(x.reply)+(x.repliedAt?'<div class="timeline-meta">'+escHtml(formatThaiDateTime(x.repliedAt))+'</div>':'')+'</div>':'')
+        +'<div class="timeline-meta">ส่ง '+escHtml(formatThaiDateTime(x.savedAt))+'</div></article>';
+    }).join('');
   });
 }
 
@@ -6271,7 +6587,7 @@ function loadMentorAssignments() {
 function buildMentorAssignCard(a) {
   return '<div class="asgn-card pending" style="margin-bottom:8px;">'+
     '<div class="asgn-card-hdr">'+
-    (a.memberName?'<span class="asgn-member-badge">👤 '+escHtml(a.memberName)+'</span>':'')+
+    (a.memberName?'<button class="asgn-member-badge" style="border:0;cursor:pointer;font-family:inherit" onclick="openDetail(\''+String(a.memberName).replace(/'/g,"\\'")+'\')">👤 '+escHtml(a.memberName)+'</button>':'')+
     '<span class="asgn-status">⏳ '+escHtml(a.createdAt)+'</span>'+
     '</div>'+
     '<div class="asgn-msg">'+escHtml(a.message)+'</div>'+
@@ -6284,7 +6600,7 @@ function ackAssignment(row, btn) {
   call('ackAssignment', { row:row }, function(err, r) {
     if (err || !r || !r.ok) { toast('❌ '+(err?err.message:(r&&r.error)||'Error')); btn.disabled=false; btn.textContent='✅ รับทราบ'; return; }
     toast('✅ รับทราบแล้ว');
-    loadMentorAssignments();
+    loadMentorAssignments();loadMentorNotifBadge();loadMentorWorkHub();
   });
 }
 
@@ -7168,18 +7484,17 @@ function updateNotifBadgeLocal(){
 function loadMentorNotifBadge(){
   var badgeEl=document.getElementById('mentor-msg-badge');
   if(!badgeEl)return;
-  var readKeys={};
-  var pending=0;
-  var done=0;
+  var readKeys={},messages=[],assignmentPending=0,done=0;
   function tryShow(){
-    done++;
-    if(done<3)return;
+    done++;if(done<3)return;
+    var unread=messages.filter(function(m){return !readKeys[m.key||m.id];}).length;
+    var pending=assignmentPending+unread;
     if(pending>0){badgeEl.textContent=pending>99?'99+':pending;badgeEl.style.display='inline';}
     else badgeEl.style.display='none';
   }
   // Count pending (unacknowledged) assignments
   call('getMentorAssignments',{},function(err,r){
-    if(r&&r.ok)(r.assignments||[]).forEach(function(a){if(!a.acknowledgedAt&&a.status==='pending')pending++;});
+    if(r&&r.ok)(r.assignments||[]).forEach(function(a){if(!a.acknowledgedAt&&a.status==='pending')assignmentPending++;});
     tryShow();
   });
   // Count unread messages
@@ -7188,7 +7503,7 @@ function loadMentorNotifBadge(){
     tryShow();
   });
   call('getMessages',{},function(err,r){
-    if(r&&r.ok)(r.messages||[]).forEach(function(m){if(!readKeys[m.key||m.id])pending++;});
+    messages=r&&r.ok?r.messages||[]:[];
     tryShow();
   });
 }
@@ -7806,9 +8121,9 @@ function mob90Load(force){
   if(_mob90Loaded&&!force)return;
   var el=document.getElementById('mob-rd-list');
   if(el)el.innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
-  call('get90DayReviews',{role:'mc'},function(r){
+  call('get90DayReviews',{role:'mc'},function(err,r){
     _mob90Loaded=true;
-    if(!r.ok){if(el)el.innerHTML='<div class="lt" style="color:#ef4444">❌ '+(r.error||'')+'</div>';return;}
+    if(err||!r||!r.ok){if(el)el.innerHTML='<div class="lt" style="color:#ef4444">❌ '+(err?err.message:(r&&r.error)||'โหลดไม่ได้')+'</div>';return;}
     _mob90Data=r.reviews||[];
     mob90Render();
   });
@@ -7880,9 +8195,9 @@ function mob90Save(){
     graduateReady:_mob90YN.gr==='y',
     extendMentoring:_mob90YN.ex==='y',
     notes:document.getElementById('mob-rd-notes').value.trim()
-  },function(r){
+  },function(err,r){
     btn.disabled=false;btn.textContent='💾 บันทึก';
-    if(!r.ok){alert('❌ '+(r.error||'เกิดข้อผิดพลาด'));return;}
+    if(err||!r||!r.ok){alert('❌ '+(err?err.message:(r&&r.error)||'เกิดข้อผิดพลาด'));return;}
     mob90Close();_mob90Loaded=false;mob90Load();
     toast('✅ บันทึก 90-Day Review แล้ว');
   });
@@ -7896,9 +8211,9 @@ function mobMlLoad(force){
   if(_mobMlLoaded&&!force)return;
   var el=document.getElementById('mob-ml-list');
   if(el)el.innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
-  call('getMentorLogs',{role:S.role,mentorName:_mobMlMentorName||S.teamName||''},function(r){
+  call('getMentorLogs',{role:S.role,mentorName:_mobMlMentorName||S.teamName||''},function(err,r){
     _mobMlLoaded=true;
-    if(!r.ok){if(el)el.innerHTML='<div class="lt" style="color:#ef4444">❌ '+(r.error||'')+'</div>';return;}
+    if(err||!r||!r.ok){if(el)el.innerHTML='<div class="lt" style="color:#ef4444">❌ '+(err?err.message:(r&&r.error)||'โหลดไม่ได้')+'</div>';return;}
     _mobMlData=r.logs||[];
     mobMlRender();
   });
@@ -7918,7 +8233,7 @@ function mobMlRender(){
       +'</div>';
   }).join('');
 }
-function mobMlOpenNew(){
+function mobMlOpenNew(selectedName){
   // Pre-fill mentor name from session
   _mobMlMentorName=S.teamName||'';
   var sel=document.getElementById('mob-ml-mentee');
@@ -7937,6 +8252,12 @@ function mobMlOpenNew(){
   document.getElementById('mob-ml-activity').value='';
   document.getElementById('mob-ml-notes').value='';
   document.getElementById('mob-ml-team').value=S.teamName||'';
+  if(selectedName){
+    sel.value=selectedName;
+    S._selectedMentee=selectedName;
+    var chosen=myTeamMembers.filter(function(x){return x.name===selectedName;})[0];
+    if(chosen)document.getElementById('mob-ml-team').value=chosen.mentor||S.teamName||'';
+  }
   document.getElementById('mob-ml-modal').classList.add('open');
 }
 function mobMlSave(){
@@ -7954,11 +8275,12 @@ function mobMlSave(){
     week:parseInt(document.getElementById('mob-ml-week').value)||0,
     activity:activity,
     notes:document.getElementById('mob-ml-notes').value.trim()
-  },function(r){
+  },function(err,r){
     btn.disabled=false;btn.textContent='💾 บันทึก';
-    if(!r.ok){alert('❌ '+(r.error||'เกิดข้อผิดพลาด'));return;}
+    if(err||!r||!r.ok){alert('❌ '+(err?err.message:(r&&r.error)||'เกิดข้อผิดพลาด'));return;}
     mobMlClose();_mobMlLoaded=false;mobMlLoad();
-    toast('✅ บันทึก Mentor Log แล้ว');
+    toast('✅ บันทึก Mentor Log แล้ว · ดู Timeline เพื่อทำขั้นตอนถัดไป',3000);
+    if(S._selectedMentee===menteeName&&document.getElementById('detailPanel').classList.contains('on'))loadMemberTimeline(menteeName);
   });
 }
 function mobMlClose(){document.getElementById('mob-ml-modal').classList.remove('open');}

@@ -262,30 +262,44 @@ async function getMemberData(db: ReturnType<typeof getServiceClient>, name: stri
 // ── Command implementations ───────────────────────────────────
 async function replyStatus(db: ReturnType<typeof getServiceClient>, memberName: string): Promise<string> {
   const d = await getMemberData(db, memberName);
-  if (!d) return '⚠️ ยังไม่พบข้อมูลคะแนนในระบบครับ (รอ Coordinator import CSV ประจำเดือน)';
+  if (!d) return '⚠️ ยังไม่พบข้อมูลคะแนนในระบบครับ\n(รอ Coordinator import CSV ประจำเดือน)';
 
   const score = Number(d.display_score || 0);
   const tl    = String(d.traffic_light || 'black');
   const nick  = String(d.nickname || memberName.split(' ')[0]);
   const palms = d.palms_detail as Record<string, number> | null;
-  const tlIcon = { green: '🟢', yellow: '🟡', red: '🔴', black: '⚫' }[tl] || '📊';
-  const nextZone = { black: '🔴 แดง (30pt)', red: '🟡 เหลือง (50pt)', yellow: '🟢 เขียว (70pt)' }[tl] || '';
+  const tlIcon: Record<string, string> = { green: '🟢', yellow: '🟡', red: '🔴', black: '⚫' };
+  const nextZone: Record<string, string> = { black: 'เป้า: 🔴 แดง +30pt', red: 'เป้า: 🟡 เหลือง +50pt', yellow: 'เป้า: 🟢 เขียว +70pt' };
+
+  // Find weakest component for action suggestion
+  const comps: { label: string; got: number; max: number; hint: string }[] = [
+    { label: 'Referral',  got: palms?.referral  ?? 0, max: 15, hint: 'ส่ง Referral เพิ่ม' },
+    { label: '1-2-1',     got: palms?.oneToOne  ?? 0, max: 15, hint: 'นัด 1-2-1 เพิ่ม' },
+    { label: 'Visitor',   got: palms?.visitor   ?? 0, max: 20, hint: 'พา Visitor มาประชุม' },
+    { label: 'CEU',       got: palms?.ceu       ?? 0, max: 20, hint: 'เข้า CEU เพิ่ม' },
+    { label: 'Absence',   got: palms?.absence   ?? 0, max: 15, hint: 'เข้าประชุมสม่ำเสมอ' },
+  ];
+  const topGap = comps.reduce((a, b) => (b.max - b.got) > (a.max - a.got) ? b : a);
+  const actionHint = topGap.max - topGap.got > 0
+    ? `🎯 Action: ${topGap.hint} → +${topGap.max - topGap.got}pt (${topGap.label})`
+    : '🏆 ยอดเยี่ยม! ทุก component ครบแล้ว';
 
   const lines = [
     `📊 คุณ${nick} — BNI Score`,
-    `${tlIcon} ${score}/100${nextZone ? ` | เป้า: ${nextZone}` : ''}`,
+    `${tlIcon[tl] || '📊'} ${score}/100  ${nextZone[tl] || ''}`,
     '─────────────────',
-    '  หมวด           ได้   เต็ม',
-    `${bar(palms?.absence, 15)}  ขาดประชุม  ${palms?.absence ?? 0}/15`,
+    `✅/🔸/⚠️  หมวด        ได้/เต็ม`,
+    `${bar(palms?.absence,  15)}  ขาดประชุม  ${palms?.absence  ?? 0}/15`,
     `${bar(palms?.referral, 15)}  Referral   ${palms?.referral ?? 0}/15`,
     `${bar(palms?.oneToOne, 15)}  1-2-1      ${palms?.oneToOne ?? 0}/15`,
-    `${bar(palms?.visitor, 20)}  Visitor    ${palms?.visitor ?? 0}/20`,
-    `${bar(palms?.ceu, 20)}  CEU        ${palms?.ceu ?? 0}/20`,
-    `${bar(palms?.tyfb, 15)}  TYFCB      ${palms?.tyfb ?? 0}/15`,
+    `${bar(palms?.visitor,  20)}  Visitor    ${palms?.visitor  ?? 0}/20`,
+    `${bar(palms?.ceu,      20)}  CEU        ${palms?.ceu      ?? 0}/20`,
+    `${bar(palms?.tyfb,     15)}  TYFCB      ${palms?.tyfb     ?? 0}/15`,
     '─────────────────',
+    actionHint,
     'พิมพ์ "ประวัติ" ดู Trend 3 เดือน',
   ];
-  return lines.filter(Boolean).join('\n');
+  return lines.join('\n');
 }
 
 function bar(got: number | undefined, max: number): string {
@@ -324,13 +338,20 @@ async function replyTeam(db: ReturnType<typeof getServiceClient>, memberName: st
     .from('v_member_dashboard')
     .select('name, nickname, display_score, traffic_light')
     .eq('mentor_team', team)
+    .eq('is_archived', false)
     .order('display_score', { ascending: false });
   if (!members?.length) return '⚠️ ไม่พบสมาชิกในทีมครับ';
   const TL: Record<string, string> = { green: '🟢', yellow: '🟡', red: '🔴', black: '⚫' };
+  const medals = ['🥇', '🥈', '🥉'];
   const lines = [`👥 ทีม ${team}`, '─────────────────'];
-  (members as Record<string, unknown>[]).forEach((m) => {
-    lines.push(`${TL[String(m.traffic_light)] || '📊'} ${m.nickname || String(m.name).split(' ')[0]} — ${m.display_score ?? '?'}/100`);
+  (members as Record<string, unknown>[]).forEach((m, i) => {
+    const nick = String(m.nickname || String(m.name).split(' ')[0]);
+    const rank = medals[i] ?? '  ';
+    const isMe = String(m.name) === memberName ? ' ← คุณ' : '';
+    lines.push(`${rank} ${TL[String(m.traffic_light)] || '⚫'} ${nick} — ${m.display_score ?? '?'}/100${isMe}`);
   });
+  lines.push('─────────────────');
+  lines.push('พิมพ์ "สถานะ" ดูรายละเอียดของคุณ');
   return lines.join('\n');
 }
 
@@ -512,7 +533,18 @@ async function unregister(db: ReturnType<typeof getServiceClient>, userId: strin
 
 // ── Static message builders ──────────────────────────────────
 function buildWelcomeMessage(): string {
-  return 'สวัสดีครับ! 👋 ยินดีต้อนรับสู่\nBNI IDEAL — Mentor System\n─────────────────\n📊 เช็คคะแนน BNI ตัวเอง\n⚡ รู้ว่าต้องทำอะไรต่อ\n📈 ดู Trend คะแนน\n─────────────────\n🔐 ส่งชื่อ-นามสกุล BNI (ภาษาอังกฤษ) เพื่อลงทะเบียนครับ\nเช่น: Phitarn Sakulthanaphetch';
+  return (
+    `🎉 สวัสดีครับ! ยินดีต้อนรับสู่\n` +
+    `BNI IDEAL — Mentor Bot\n` +
+    `────────────────────\n` +
+    `Bot นี้ช่วยคุณ:\n` +
+    `📊 เช็คคะแนน BNI แบบ real-time\n` +
+    `🎯 รู้ทันทีว่าต้องทำอะไรต่อ\n` +
+    `📈 ดู Trend คะแนน 3 เดือน\n` +
+    `🤝 บันทึกนัด & ยืนยัน 1-2-1\n` +
+    `────────────────────\n` +
+    `🔐 เริ่มต้น: ส่งชื่อ-นามสกุล BNI\n(ภาษาอังกฤษ เช่น Phitarn S.)`
+  );
 }
 
 function buildRegistrationPrompt(): string {
@@ -521,5 +553,24 @@ function buildRegistrationPrompt(): string {
 
 function buildHelpMessage(memberName: string): string {
   const nick = memberName.split(' ')[0];
-  return `👋 BNI IDEAL Bot — คุณ${nick}\n─────────────────\n📊 สถานะ → คะแนน + Action Plan\n📈 ประวัติ → Trend 3 เดือน\n🤝 แนะนำ → หาคู่ 1-2-1\n👥 ทีม → Leaderboard ทีม\n🙋 ลา [เหตุผล] → แจ้งลา\n👥 ส่ง sub [ชื่อ] → ส่งคนแทน\n🤝 นัด [ชื่อ] → บันทึกนัด 1-2-1\n✅ เจอแล้ว → ยืนยัน + บันทึกผล\n📊 ติดตาม → ประวัติ 1-2-1\n⚠️ ปัญหา [รายละเอียด] → แจ้งปัญหา\n🎯 เป้า ref 8 → ตั้งเป้า\n─────────────────\nข้อมูลอัพเดทหลัง import CSV ประจำเดือน`;
+  return (
+    `👋 BNI Bot — คุณ${nick}\n` +
+    `────────────────────\n` +
+    `📊 คะแนน & ข้อมูล\n` +
+    `  สถานะ → คะแนน + สิ่งที่ต้องทำ\n` +
+    `  ประวัติ → Trend 3 เดือน\n` +
+    `  ทีม → อันดับทีม\n` +
+    `────────────────────\n` +
+    `📅 แจ้งขาด/มาช้า\n` +
+    `  ลา [เหตุผล] → แจ้งลา\n` +
+    `  ส่ง sub [ชื่อ] → ส่งแทน\n` +
+    `  ยกเลิกลา → ยกเลิก\n` +
+    `────────────────────\n` +
+    `🤝 1-2-1\n` +
+    `  นัด [ชื่อ] → บันทึกนัด\n` +
+    `  เจอแล้ว → ยืนยัน + บันทึกผล\n` +
+    `  ติดตาม → ประวัติทั้งหมด\n` +
+    `────────────────────\n` +
+    `ข้อมูลอัพเดทหลัง import CSV ทุกเดือน`
+  );
 }
