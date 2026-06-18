@@ -7128,10 +7128,22 @@ function openDirProfile(name) {
           +'</div>';
       });
       html+='</div>';
+      // TL Evolution dots
+      if(dm.scoreHistory&&dm.scoreHistory.length){
+        var evoDots=tlEvoDots(dm.scoreHistory);
+        if(evoDots)html+='<div style="display:flex;align-items:center;gap:.6rem;padding:.4rem .75rem;background:var(--bg2);border-bottom:1px solid var(--border);"><span style="font-size:.62rem;color:var(--gray2);">TL History</span>'+evoDots+'</div>';
+      }
       if(dm.fastTrack&&dm.fastTrack.length){
+        var ftColor2=tl==='green'?'#10B981':tl==='yellow'?'#F59E0B':'#EF4444';
         html+='<div class="dpp-ft"><div class="dpp-sec-title">⚡ ต้องทำอะไรเพิ่ม</div>';
-        dm.fastTrack.slice(0,3).forEach(function(ft){
-          html+='<div class="dpp-ft-row">'+(ft.icon||'⚡')+' '+escHtml(ft.action||'')+' <span style="color:#10B981;font-weight:700">+'+ft.gain+' pt</span></div>';
+        dm.fastTrack.forEach(function(ft){
+          html+='<div class="dpp-ft-row" style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;">'
+            +'<div style="display:flex;align-items:center;justify-content:space-between;width:100%;">'
+            +'<span>'+(ft.icon||'⚡')+' '+escHtml(ft.action||'')+'</span>'
+            +'<span style="color:#10B981;font-weight:700;white-space:nowrap;margin-left:.5rem;">+'+ft.gain+' pt</span>'
+            +'</div>'
+            +(ft.curVal||ft.tgtVal?'<div style="font-size:.65rem;color:var(--gray2);">ปัจจุบัน: '+escHtml(ft.curVal||'')+(ft.tgtVal?' → เป้า: <span style="color:#F59E0B">'+escHtml(ft.tgtVal)+'</span>':'')+'</div>':'')
+            +'</div>';
         });
         html+='</div>';
       }else if(tl==='green'){
