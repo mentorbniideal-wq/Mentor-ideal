@@ -16,6 +16,8 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
       const issueText  = String(p.issue || p.coreIssue || p.issueText || '').trim();
       const statusVal  = String(p.status || 'open');
       const teamName   = String(p.teamName || p.team || auth.teamName || '').trim();
+      const actionTaken= String(p.actionTaken || p.action_taken || '').trim() || null;
+      const followUpAt = String(p.followUpAt || p.follow_up_at || '').trim() || null;
 
       if (!memberName || !issueText) return errResponse('memberName and issue required');
 
@@ -32,7 +34,14 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
 
       if (existing) {
         const { error } = await db.from('core_issues')
-          .update({ issue_text: issueText, action_plan: actionPlan, status: statusVal, updated_at: new Date().toISOString() })
+          .update({
+            issue_text: issueText,
+            action_taken: actionTaken,
+            action_plan: actionPlan,
+            follow_up_at: followUpAt,
+            status: statusVal,
+            updated_at: new Date().toISOString(),
+          })
           .eq('id', String((existing as Record<string, unknown>).id));
         if (error) return errResponse(error.message);
       } else {
@@ -40,13 +49,87 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
           member_id: memberId,
           mentor_team: teamName || 'TOOMTAM',
           issue_text: issueText,
+          action_taken: actionTaken,
           action_plan: actionPlan,
+          follow_up_at: followUpAt,
           status: 'open',
         });
         if (error) return errResponse(error.message);
       }
 
       return jsonResponse({ ok: true });
+    }
+
+    case 'getMemberTimeline': {
+      const auth = await requireAuth(db, p);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const memberName = String(p.memberName || p.name || '').trim();
+      if (!memberName) return errResponse('memberName required');
+
+      const { data: member } = await db.from('members')
+        .select('id, mentor_team').eq('name', memberName).maybeSingle();
+      if (!member) return jsonResponse({ ok: true, events: [] });
+
+      const memberId = String((member as Record<string, unknown>).id);
+      const memberTeam = String((member as Record<string, unknown>).mentor_team || '');
+      if (!auth.isMC && auth.teamName && auth.teamName !== memberTeam) {
+        return errResponse('ไม่มีสิทธิ์ดูข้อมูลสมาชิกทีมอื่น');
+      }
+
+      const [issuesRes, logsRes, oneRes, renewalRes, assignmentsRes] = await Promise.all([
+        db.from('core_issues')
+          .select('id, issue_text, action_taken, action_plan, mc_reply, replied_at, status, opened_at, closed_at, follow_up_at')
+          .eq('member_id', memberId).order('opened_at', { ascending: false }).limit(30),
+        db.from('mentor_logs')
+          .select('id, session_date, notes, next_actions, created_at')
+          .eq('member_id', memberId).order('created_at', { ascending: false }).limit(30),
+        db.from('one_to_one_logs')
+          .select('id, notes, outcome, met_at, created_at')
+          .eq('initiator_id', memberId).order('created_at', { ascending: false }).limit(30),
+        db.from('renewal_events')
+          .select('id, from_status, to_status, reason, actor_role, created_at')
+          .eq('member_id', memberId).order('created_at', { ascending: false }).limit(30),
+        db.from('mc_assignments')
+          .select('id, assignment_text, due_date, acknowledged_at, created_at')
+          .eq('member_id', memberId).order('created_at', { ascending: false }).limit(30),
+      ]);
+
+      const events: Record<string, unknown>[] = [];
+      for (const row of (issuesRes.data || []) as Record<string, unknown>[]) {
+        events.push({
+          id: row.id, type: 'report', icon: '📝', title: String(row.issue_text || 'Core Issue'),
+          detail: String(row.action_taken || row.action_plan || ''),
+          status: String(row.status || 'open'), at: row.opened_at,
+        });
+        if (row.mc_reply) events.push({
+          id: `${row.id}-reply`, type: 'reply', icon: '💬', title: 'MC ตอบกลับรายงาน',
+          detail: String(row.mc_reply), status: 'replied', at: row.replied_at || row.opened_at,
+        });
+      }
+      for (const row of (logsRes.data || []) as Record<string, unknown>[]) events.push({
+        id: row.id, type: 'mentor_log', icon: '📓', title: String(row.notes || 'Mentor Activity'),
+        detail: String(row.next_actions || ''), status: 'logged', at: row.created_at || row.session_date,
+      });
+      for (const row of (oneRes.data || []) as Record<string, unknown>[]) events.push({
+        id: row.id, type: 'one_to_one', icon: '🤝', title: 'บันทึก 1-2-1',
+        detail: [row.notes, row.outcome].filter(Boolean).join(' · '), status: 'logged',
+        at: row.met_at || row.created_at,
+      });
+      for (const row of (renewalRes.data || []) as Record<string, unknown>[]) events.push({
+        id: row.id, type: 'renewal', icon: '💳',
+        title: `Renewal: ${String(row.from_status || 'เริ่มต้น')} → ${String(row.to_status || '')}`,
+        detail: String(row.reason || `อัปเดตโดย ${String(row.actor_role || '')}`),
+        status: String(row.to_status || ''), at: row.created_at,
+      });
+      for (const row of (assignmentsRes.data || []) as Record<string, unknown>[]) events.push({
+        id: row.id, type: 'assignment', icon: '📌', title: String(row.assignment_text || 'งานจาก MC'),
+        detail: row.due_date ? `กำหนด ${String(row.due_date)}` : '',
+        status: row.acknowledged_at ? 'done' : 'pending', at: row.created_at,
+      });
+
+      events.sort((a, b) => new Date(String(b.at || 0)).getTime() - new Date(String(a.at || 0)).getTime());
+      return jsonResponse({ ok: true, events: events.slice(0, 80) });
     }
 
     case 'getCoachingGuide': {

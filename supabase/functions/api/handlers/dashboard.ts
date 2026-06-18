@@ -627,6 +627,12 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       const { data: scoreHist } = await db.from('monthly_scores')
         .select('member_id, year, month, score').in('member_id', memberIds)
         .order('year', { ascending: true }).order('month', { ascending: true });
+      const [{ data: mentorLogs }, { data: renewals }] = await Promise.all([
+        db.from('mentor_logs').select('member_id, session_date, created_at')
+          .in('member_id', memberIds).order('created_at', { ascending: false }),
+        db.from('renewals').select('member_id, expiry_date, workflow_status')
+          .in('member_id', memberIds),
+      ]);
 
       const histMap: Record<string, { month: string; score: number | null }[]> = {};
       for (const s of (scoreHist || []) as Record<string, unknown>[]) {
@@ -634,16 +640,36 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         if (!histMap[mid]) histMap[mid] = [];
         histMap[mid].push({ month: MONTH_LABELS[Number(s.month)] || '', score: Number(s.score) || null });
       }
+      const lastContactMap: Record<string, string> = {};
+      for (const l of (mentorLogs || []) as Record<string, unknown>[]) {
+        const mid = String(l.member_id);
+        if (!lastContactMap[mid]) lastContactMap[mid] = String(l.created_at || l.session_date || '');
+      }
+      const renewalMap: Record<string, Record<string, unknown>> = {};
+      for (const r of (renewals || []) as Record<string, unknown>[]) renewalMap[String(r.member_id)] = r;
+      const nowMs = Date.now();
 
-      const memberList = (members || []).map((m: Record<string, unknown>, idx: number) => ({
-        row: idx + 1,   // 1-based numeric row — used by saveMCMessage
-        name: m.name, nick: m.nickname,
-        score: Number(m.display_score) || 0, tl: String(m.traffic_light || 'none'),
-        absent: Number(m.absent) || 0, tyfcb: Number(m.tyfcb_thb) || 0,
-        given: Number(m.given_thb) || 0, recv: Number(m.received_thb) || 0,
-        hasOpenCase: !!m.open_core_issue, cats: m.palms_detail || null,
-        scoreHistory: histMap[String(m.id)] || [],
-      }));
+      const memberList = (members || []).map((m: Record<string, unknown>, idx: number) => {
+        const mid = String(m.id);
+        const lastContactAt = lastContactMap[mid] || '';
+        const contactAgeDays = lastContactAt
+          ? Math.floor((nowMs - new Date(lastContactAt).getTime()) / 86400000)
+          : null;
+        const renewal = renewalMap[mid] || {};
+        return {
+          row: idx + 1,   // 1-based numeric row — used by saveMCMessage
+          id: mid, name: m.name, nick: m.nickname, mentor: teamName,
+          score: Number(m.display_score) || 0, tl: String(m.traffic_light || 'none'),
+          absent: Number(m.absent) || 0, tyfcb: Number(m.tyfcb_thb) || 0,
+          given: Number(m.given_thb) || 0, recv: Number(m.received_thb) || 0,
+          hasOpenCase: !!m.open_core_issue, cats: m.palms_detail || null,
+          scoreHistory: histMap[mid] || [],
+          lastContactAt,
+          noMentorContact: contactAgeDays == null || contactAgeDays > 14,
+          renewal: renewal.expiry_date || '',
+          renewalWorkflowStatus: renewal.workflow_status || '',
+        };
+      });
 
       return jsonResponse({ ok: true, teamName, members: memberList });
     }

@@ -62,22 +62,22 @@ Deno.serve(async (req: Request) => {
 // ── Types ─────────────────────────────────────────────────────
 type DB = ReturnType<typeof getServiceClient>;
 
+interface PalmsDetail {
+  absence: number; referral: number; visitor: number;
+  oneToOne: number; ceu: number; tyfb: number; weeks: number; total: number;
+}
+
 interface MemberRow {
   name: string;
   nickname: string;
   display_score: number;
   traffic_light: string;
-  absence_pts: number;
-  referral_pts: number;
-  visitor_pts: number;
-  oto_pts: number;
-  ceu_pts: number;
-  tyfb_pts: number;
-  effective_weeks: number;
-  rgi_total: number;
-  visitor_total: number;
-  oto_total: number;
-  absent_count: number;
+  palms_detail: PalmsDetail | null;
+  // Raw R2Y component columns (actual v_member_dashboard column names)
+  rg:          number;  // referrals given
+  visitors:    number;  // visitor count
+  one_to_one:  number;  // 1-2-1 count
+  absent:      number;  // absence count
 }
 
 // ── Helper: get all LINE user IDs ─────────────────────────────
@@ -89,7 +89,7 @@ async function getAllLineUserIds(db: DB): Promise<string[]> {
 // ── Helper: get member data with PALMS breakdown ──────────────
 async function getMemberData(db: DB, memberName: string): Promise<MemberRow | null> {
   const { data } = await db.from('v_member_dashboard')
-    .select('name,nickname,display_score,traffic_light,absence_pts,referral_pts,visitor_pts,oto_pts,ceu_pts,tyfb_pts,effective_weeks,rgi_total,visitor_total,oto_total,absent_count')
+    .select('name,nickname,display_score,traffic_light,palms_detail,rg,visitors,one_to_one,absent')
     .eq('name', memberName).single();
   if (!data) return null;
   return data as unknown as MemberRow;
@@ -97,24 +97,24 @@ async function getMemberData(db: DB, memberName: string): Promise<MemberRow | nu
 
 // ── Helper: derive top action item for personalized nudge ─────
 function getTopAction(m: MemberRow): string {
-  const wks = m.effective_weeks || 1;
+  const pd  = m.palms_detail;
+  const wks = pd?.weeks || 1;
 
-  // Find the most impactful gap (lowest pts relative to max)
+  // Find the component with the largest gap (most room to improve)
   const components = [
-    { name: 'Referral', pts: m.referral_pts, max: 15, hint: `+${Math.max(0, wks - m.rgi_total)} ใบ referral` },
-    { name: 'Visitor',  pts: m.visitor_pts,  max: 20, hint: `พา Visitor มาประชุม` },
-    { name: '1-2-1',    pts: m.oto_pts,      max: 15, hint: `+${Math.max(0, wks - m.oto_total)} ครั้ง 1-2-1` },
-    { name: 'CEU',      pts: m.ceu_pts,      max: 20, hint: `เข้า CEU เพิ่ม` },
-    { name: 'การเข้าร่วม', pts: m.absence_pts, max: 15, hint: `เข้าประชุมสม่ำเสมอ` },
+    { name: 'Referral',      pts: pd?.referral  || 0, max: 15, hint: `+${Math.max(0, wks - (m.rg || 0))} ใบ referral` },
+    { name: 'Visitor',       pts: pd?.visitor   || 0, max: 20, hint: 'พา Visitor มาประชุม' },
+    { name: '1-2-1',         pts: pd?.oneToOne  || 0, max: 15, hint: `+${Math.max(0, wks - (m.one_to_one || 0))} ครั้ง 1-2-1` },
+    { name: 'CEU',           pts: pd?.ceu       || 0, max: 20, hint: 'เข้า CEU เพิ่ม' },
+    { name: 'การเข้าร่วม',  pts: pd?.absence   || 0, max: 15, hint: 'เข้าประชุมสม่ำเสมอ' },
   ];
 
-  // Sort by gap size (largest gap first)
+  // Sort ascending by gap size; last element has largest gap
   components.sort((a, b) => (a.max - a.pts) - (b.max - b.pts));
   const top = components[components.length - 1];
 
   if (top.max - top.pts === 0) return 'ยอดเยี่ยม! ทุก component อยู่ที่ max แล้ว 🏆';
-  const gain = top.max - top.pts;
-  return `${top.hint} → +${gain}pt (${top.name})`;
+  return `${top.hint} → +${top.max - top.pts}pt (${top.name})`;
 }
 
 // ── Traffic light emoji map ───────────────────────────────────
@@ -278,13 +278,21 @@ async function monthlyRecap(db: DB): Promise<void> {
 
 // ── Daily 17:00 TH: notify mentors when mentee is red/black ──
 async function mentorTeamAlert(db: DB): Promise<void> {
-  const { data: mentors } = await db.from('mentor_teams').select('name, mentor_id');
+  // mentor_teams has: name, leader_name (text nick), no mentor_id UUID
+  const { data: mentors } = await db.from('mentor_teams').select('name, leader_name');
   if (!mentors?.length) return;
 
-  for (const team of mentors as { name: string; mentor_id: string }[]) {
-    // Get mentor's LINE user ID
+  for (const team of mentors as { name: string; leader_name: string }[]) {
+    // Resolve leader_name → member UUID → LINE user ID
+    const { data: mentorMember } = await db.from('members')
+      .select('id')
+      .or(`nickname.ilike.%${team.leader_name}%,name.ilike.%${team.leader_name}%`)
+      .eq('is_archived', false)
+      .limit(1).single();
+    if (!mentorMember) continue;
+
     const { data: mentorLine } = await db.from('line_members')
-      .select('line_user_id').eq('member_id', team.mentor_id).single();
+      .select('line_user_id').eq('member_id', (mentorMember as { id: string }).id).single();
     if (!mentorLine) continue;
     const mentorUserId = String((mentorLine as Record<string, string>).line_user_id);
 

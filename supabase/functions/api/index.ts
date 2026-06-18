@@ -81,6 +81,7 @@ const ROUTES: Record<string, string> = {
   // Coaching / Core Issue
   'saveCoreIssue': 'coaching', 'getCoachingGuide': 'coaching',
   'saveMentorLog': 'coaching', 'getMentorLogs': 'coaching',
+  'getMemberTimeline': 'coaching',
   'save90DayReview': 'coaching', 'get90DayReviews': 'coaching',
 
   // Check-in

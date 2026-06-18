@@ -1,6 +1,6 @@
 # BNI IDEAL Mentor System — Audit Log
 
-**Audit date:** 2026-06-18
+**Audit date:** 2026-06-18 (updated after UI+LINE changes)
 **Scope:** Full project (GAS legacy + Supabase Edge Functions + static frontend)
 **Auditor:** Claude Code (claude-sonnet-4-6)
 
@@ -14,11 +14,11 @@
 | 1 — Bug scan (all TS/JS/HTML/SQL) | Complete |
 | 2 — Code cleanliness | Complete |
 | 3 — Integration check | Complete |
-| 4 — Fix CRITICAL/HIGH issues | Complete — 13 fixes applied |
+| 4 — Fix CRITICAL/HIGH issues | Complete — 18 fixes applied (13 prior + 5 new) |
 | 5 — Write this log | Complete |
 | 6 — Persist audit rules to CLAUDE.md | Already present — no change needed |
 
-**File counts:** ~35 `.ts`, ~20 `.js`, ~12 `.html`, ~25 `.sql` (105 total)
+**File counts:** ~35 `.ts`, ~22 `.js`, ~3 `.html` (public), ~25 `.sql` (105 total)
 
 ---
 
@@ -26,88 +26,104 @@
 
 | # | Severity | File | Issue | Status |
 |---|----------|------|-------|--------|
-| F-01 | HIGH | `handlers/index.ts` | `deleteMember` missing from ROUTES | **FIXED** (2026-06-11 audit) |
-| F-02 | HIGH | `handlers/alerts.ts` | `getAlertCenter` blocked non-MC roles | **FIXED** (2026-06-11 audit) |
-| F-03 | HIGH | `_shared/palms.ts` | Visitor rate used `weeks / 4.333` | **FIXED** (2026-06-11 audit) |
-| F-04 | HIGH | `handlers/dashboard.ts` | `nextTl` wrongly returned 'green' for yellow-zone members | **FIXED** (2026-06-11 audit) |
-| F-05 | HIGH | `handlers/checkin.ts` | Invalid Anthropic model ID `claude-haiku-4-5-20251001` | **FIXED** (2026-06-11 audit) |
-| F-06 | CRITICAL | `handlers/members.ts` | `ensureSlot` no auth — unauthenticated member insert | **FIXED** (2026-06-15 audit) |
-| F-07 | CRITICAL | `handlers/members.ts` | `getArchivedMembers`, `saveMemberNote`, `getMemberNote`, `saveNMCheckItem`, `getNMChecklist` — no auth | **FIXED** (2026-06-15 audit) |
-| F-08 | CRITICAL | `handlers/growth.ts` | `respondGrowthTask` no auth — unauthenticated write | **FIXED** (2026-06-15 audit) |
-| F-09 | CRITICAL | `handlers/growth.ts` | `getRiskMembers`, `getGrowthData`, `getMentorActivity`, `getGrowthSheetData` no auth | **FIXED** (2026-06-15 audit) |
-| F-10 | CRITICAL | `handlers/growth.ts` | `getWeeklyActions` no auth; role spoofable via `p.role` | **FIXED** (2026-06-15 audit) |
-| F-11 | CRITICAL | `handlers/renewal.ts` | `getRenewal` no auth; role spoofable via `p.role` | **FIXED** (2026-06-15 audit) |
-| F-12 | CRITICAL | `handlers/members.ts` | `getNewMembers` conditional auth — skipped when no token/role | **FIXED** (2026-06-15 audit) |
-| F-13 | HIGH | `handlers/coaching.ts` | `nextTl` list-mode: `score>=50?'green'` wrong | **FIXED** (2026-06-15 audit) |
-| F-14 | HIGH | `handlers/coaching.ts` | `nextTl` single-member: `score>=50?'green'` wrong | **FIXED** (2026-06-15 audit) |
-| F-15 | CRITICAL | `handlers/auth.ts` | `changePIN` checked `p.role === 'mc'` (untrusted payload) — any caller could change any PIN | **FIXED** (this audit) |
-| F-16 | HIGH | `handlers/dashboard.ts` | 9 cases (`getDashboard`, `getMCData`, `getDesktopDashboard`, `getMemberDetail`, `getMyTeam`, `getChapterPulse`, `getLeaderboard`, `getScorecard`, `getMCCoaching`, `getCurrentMonth`, `getMentorActivity`) had no `requireAuth` — full member score/contact data exposed anonymously | **FIXED** (this audit) |
-| F-17 | HIGH | `handlers/growth.ts` | `getWeeklyActions` allowed `mc`/`growth` roles but immediately errored on TEAM_ROLE lookup — unusable even when authenticated | **FIXED** (this audit) |
-| F-18 | HIGH | `handlers/power-teams.ts` | `setPTMemberStatus`, `movePTMember`, `moveSynMember`, `deletePTMember` — any authenticated role could archive members or move them between teams | **FIXED** (this audit) |
-| F-19 | MEDIUM | `handlers/notifications.ts` | All roles share one notifications pool; any role can dismiss any notification (needs `target_role` column in DB) | Known issue — needs migration |
-| F-20 | MEDIUM | `handlers/meetings.ts` | `updateVisitor` no ownership check; `saveSprintPlan` delete op no MC restriction | Known issue |
-| F-21 | MEDIUM | `handlers/comms.ts` | `ackAssignment` no team ownership check | Known issue |
-| F-22 | LOW | `handlers/dashboard.ts` | `getMentorActivity` / `getMentorPerformance` in dashboard.ts are dead code — routing sends both to growth.ts | Known issue |
-| F-23 | LOW | `handlers/usage.ts` | `logUsage` no auth — analytics data pollutable | Known issue |
-| F-24 | LOW | `handlers/alerts.ts` | `dismissAlert`, `getDismissedAlerts`, `getTeamNotifs`, `ackTeamNotifs`, `getUnreadCounts` are stubs with no auth | Known issue |
-| F-25 | LOW | `handlers/public.ts` | Uses `getServiceClient()` (bypasses RLS) for public endpoints — `getAnonClient()` would be safer | Known issue |
-| F-26 | LOW | `migrations/20260615000017_seed_growth_revenue.sql` | All `membership_age` values seeded as `'#REF!'` (Excel artifact); runtime handler guards against this | Known issue |
+| F-01 | HIGH | `handlers/index.ts` | `deleteMember` missing from ROUTES | **FIXED** (2026-06-11) |
+| F-02 | HIGH | `handlers/alerts.ts` | `getAlertCenter` blocked non-MC roles | **FIXED** (2026-06-11) |
+| F-03 | HIGH | `_shared/palms.ts` | Visitor rate used `weeks / 4.333` | **FIXED** (2026-06-11) |
+| F-04 | HIGH | `handlers/dashboard.ts` | `nextTl` wrongly returned 'green' for yellow-zone members | **FIXED** (2026-06-11) |
+| F-05 | HIGH | `handlers/checkin.ts` | Invalid Anthropic model ID `claude-haiku-4-5-20251001` | **FIXED** (2026-06-11) |
+| F-06 | CRITICAL | `handlers/members.ts` | `ensureSlot` no auth — unauthenticated member insert | **FIXED** (2026-06-15) |
+| F-07 | CRITICAL | `handlers/members.ts` | `getArchivedMembers`, `saveMemberNote`, `getMemberNote`, `saveNMCheckItem`, `getNMChecklist` — no auth | **FIXED** (2026-06-15) |
+| F-08 | CRITICAL | `handlers/growth.ts` | `respondGrowthTask` no auth — unauthenticated write | **FIXED** (2026-06-15) |
+| F-09 | CRITICAL | `handlers/growth.ts` | `getRiskMembers`, `getGrowthData`, `getMentorActivity`, `getGrowthSheetData` no auth | **FIXED** (2026-06-15) |
+| F-10 | CRITICAL | `handlers/growth.ts` | `getWeeklyActions` no auth; role spoofable via `p.role` | **FIXED** (2026-06-15) |
+| F-11 | CRITICAL | `handlers/renewal.ts` | `getRenewal` no auth; role spoofable via `p.role` | **FIXED** (2026-06-15) |
+| F-12 | CRITICAL | `handlers/members.ts` | `getNewMembers` conditional auth — skipped when no token/role | **FIXED** (2026-06-15) |
+| F-13 | HIGH | `handlers/coaching.ts` | `nextTl` list-mode: `score>=50?'green'` wrong | **FIXED** (2026-06-15) |
+| F-14 | HIGH | `handlers/coaching.ts` | `nextTl` single-member: `score>=50?'green'` wrong | **FIXED** (2026-06-15) |
+| F-15 | CRITICAL | `handlers/auth.ts` | `changePIN` checked `p.role === 'mc'` (untrusted payload) | **FIXED** (2026-06-18) |
+| F-16 | HIGH | `handlers/dashboard.ts` | 11 cases had no `requireAuth` — member score data exposed anonymously | **FIXED** (2026-06-18) |
+| F-17 | HIGH | `handlers/growth.ts` | `getWeeklyActions` allowed mc/growth but errored on TEAM_ROLE lookup | **FIXED** (2026-06-18) |
+| F-18 | HIGH | `handlers/power-teams.ts` | Destructive ops (`setPTMemberStatus`, `movePTMember`, etc.) lacked MC restriction | **FIXED** (2026-06-18) |
+| F-19 | CRITICAL | `cron-jobs/index.ts` | `getMemberData` queried non-existent columns (`absence_pts`, `rgi_total`, `visitor_total`, `oto_total`, `absent_count`, `effective_weeks`) — view exposes `palms_detail` JSONB + `rg`, `visitors`, `one_to_one`, `absent` | **FIXED** (2026-06-18 post-impl audit) |
+| F-20 | CRITICAL | `cron-jobs/index.ts` | `mentorTeamAlert` queried `mentor_teams.mentor_id` — column does not exist; `mentor_teams` only has `leader_name` TEXT | **FIXED** (2026-06-18 post-impl audit) |
+| F-21 | HIGH | `public/index.html` | Mentor/growth theme buttons lost `.theme-btn` class during header cleanup; `toggleTheme()` JS wouldn't update their emoji on mode switch | **FIXED** (2026-06-18 post-impl audit) |
+| F-22 | MEDIUM | `line-webhook/index.ts` | Unused imports `calcPalmsScore`, `trafficLight` — dead code causing Deno lint warnings | **FIXED** (2026-06-18 post-impl audit) |
+| F-23 | MEDIUM | `migrations/022` | `call_cron_job()` only defined in seed (runs after migrations in Supabase CLI); migration would fail on fresh DB | **FIXED** (2026-06-18 post-impl audit) — added DO block guard |
+| F-24 | MEDIUM | `handlers/notifications.ts` | All roles share one notifications pool; any role can dismiss any notification (needs `target_role` column in DB) | Known issue — needs migration |
+| F-25 | MEDIUM | `handlers/meetings.ts` | `updateVisitor` no ownership check; `saveSprintPlan` delete op no MC restriction | Known issue |
+| F-26 | MEDIUM | `handlers/comms.ts` | `ackAssignment` no team ownership check | Known issue |
+| F-27 | LOW | `handlers/dashboard.ts` | `getMentorActivity` / `getMentorPerformance` dead code — routing sends both to growth.ts | Known issue |
+| F-28 | LOW | `handlers/usage.ts` | `logUsage` no auth — analytics data pollutable | Known issue |
+| F-29 | LOW | `handlers/alerts.ts` | Stub handlers (dismissAlert, getDismissedAlerts, getTeamNotifs, etc.) no auth | Known issue |
+| F-30 | LOW | `handlers/public.ts` | Uses `getServiceClient()` (bypasses RLS) for public endpoints | Known issue |
+| F-31 | LOW | `migrations/20260615000017_seed_growth_revenue.sql` | All `membership_age` seeded as `'#REF!'` (Excel artifact); runtime guards correctly | Known issue |
 
 ---
 
-## Fixes Applied (Phase 4 — this audit)
+## Fixes Applied (Phase 4 — 2026-06-18 post-impl audit)
+
+### FIX-19: `getMemberData` — wrong column names
+**File:** `supabase/functions/cron-jobs/index.ts`
+**Before:** Queried `absence_pts`, `referral_pts`, `visitor_pts`, `oto_pts`, `ceu_pts`, `tyfb_pts`, `effective_weeks`, `rgi_total`, `visitor_total`, `oto_total`, `absent_count` — none exist in `v_member_dashboard`.
+**After:** Queries `palms_detail` (JSONB), `rg`, `visitors`, `one_to_one`, `absent` (actual view columns). `MemberRow` interface and `getTopAction()` updated to use `m.palms_detail.absence/referral/oneToOne/visitor/ceu` and `m.rg`/`m.visitors`/`m.one_to_one`.
+
+### FIX-20: `mentorTeamAlert` — `mentor_id` column does not exist
+**File:** `supabase/functions/cron-jobs/index.ts`
+**Before:** `db.from('mentor_teams').select('name, mentor_id')` — `mentor_id` doesn't exist; returns null → all LINE lookups fail → no alerts sent.
+**After:** Selects `name, leader_name` (TEXT), then resolves `leader_name → members.id` via `ilike` on name/nickname, then looks up `line_members.line_user_id` by that UUID.
+
+### FIX-21: `index.html` theme buttons
+**File:** `public/index.html`
+**Before:** Mentor and Growth header theme buttons had class `hdr-btn-icon` only; `toggleTheme()` selector `.theme-btn,#themeBtn` missed them → emoji stayed ☀️ after switching to dark mode.
+**After:** Theme buttons in both headers get class `hdr-btn-icon theme-btn`, caught by `.theme-btn` selector in `toggleTheme()`.
+
+### FIX-22: Unused imports in line-webhook
+**File:** `supabase/functions/line-webhook/index.ts`
+**Before:** `import { calcPalmsScore, trafficLight } from '../_shared/palms.ts'` — neither function is called.
+**After:** Import line removed.
+
+### FIX-23: Migration 022 — `call_cron_job` dependency guard
+**File:** `supabase/migrations/20260618000022_add_mentor_alert_cron.sql`
+**Before:** Directly called `cron.schedule(... call_cron_job(...))` — would fail on fresh DB where seed hasn't run yet.
+**After:** Added `DO $$ IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'call_cron_job') THEN CREATE FUNCTION ... END $$` guard before the schedule call.
+
+---
+
+## Prior Fixes (Phase 4 — 2026-06-18 audit)
 
 ### FIX-15: `changePIN` — replace `p.role` bypass with `requireAuth`
-**File:** `supabase/functions/api/handlers/auth.ts`
-**Before:** `if (callerRole !== 'mc') { ... }` where `callerRole = String(p.role)` — any request with `role: 'mc'` in payload bypassed auth entirely.
-**After:** `const authResult = await requireAuth(db, p, ['mc']); if (!authResult.ok || !authResult.isMC) return error;`
-Also added `requireAuth` to import from `_shared/auth.ts`.
+Added `requireAuth(db, p, ['mc'])` to `changePIN`; removed `p.role === 'mc'` check on untrusted payload.
 
 ### FIX-16: `dashboard.ts` — 11 unauthenticated cases
-**File:** `supabase/functions/api/handlers/dashboard.ts`
-Added `requireAuth(db, p, [...])` as first statement in each open case:
-- `getDashboard`/`getMCData`/`getDesktopDashboard` → any mentor/mc/growth role
-- `getMemberDetail` → any mentor/mc/growth role
-- `getMyTeam` → any role; `role` now derived from `auth.role` not `p.role`
-- `getMentorActivity` → any authenticated role
-- `getChapterPulse` → any authenticated role
-- `getLeaderboard` → any authenticated role
-- `getScorecard` → any authenticated role
-- `getMCCoaching` → `['mc']` only (full cross-team coaching pipeline)
-- `getCurrentMonth` → any authenticated role
+Added `requireAuth(db, p, [...])` as first statement in `getDashboard`, `getMCData`, `getDesktopDashboard`, `getMemberDetail`, `getMyTeam`, `getMentorActivity`, `getChapterPulse`, `getLeaderboard`, `getScorecard`, `getMCCoaching`, `getCurrentMonth`.
 
 ### FIX-17: `getWeeklyActions` — narrow to mentor-only roles
-**File:** `supabase/functions/api/handlers/growth.ts`
-**Before:** `requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth'])` — MC and growth were allowed but immediately rejected by `TEAM_ROLE[role]` lookup.
-**After:** `requireAuth(db, p, ['toomtam', 'aof', 'draft', 'phai', 'amp'])` — only roles that have a corresponding team entry.
+`requireAuth(db, p, ['mc', 'toomtam', ...])` → `requireAuth(db, p, ['toomtam', 'aof', 'draft', 'phai', 'amp'])` — MC and growth were accepted but immediately rejected by TEAM_ROLE lookup, making them unusable.
 
 ### FIX-18: `power-teams.ts` — restrict destructive operations to MC
-**File:** `supabase/functions/api/handlers/power-teams.ts`
-- `setPTMemberStatus`: `requireAuth(db, p)` → `requireAuth(db, p, ['mc'])` — archives/unarchives members
-- `movePTMember`/`moveSynMember`: same — moves members between teams
-- `deletePTMember`: same — deletes power_teams pairs
+`setPTMemberStatus`, `movePTMember`, `moveSynMember`, `deletePTMember` now require `['mc']`.
 
 ---
 
-## Code Cleanliness Notes (Phase 2)
+## Code Cleanliness Notes
 
-- **Dead cases in dashboard.ts:** `getMentorActivity` and `getMentorPerformance` (lines 533–554) are unreachable — ROUTES routes both to `growth.ts`. Now secured with auth for defense-in-depth but still dead code.
-- **Seed data with `#REF!`:** `migrations/20260615000017_seed_growth_revenue.sql` has Excel artifacts as `membership_age`. Runtime handler guards correctly.
+- **Dead cases in dashboard.ts:** `getMentorActivity` and `getMentorPerformance` are unreachable (ROUTES routes both to growth.ts). Secured with auth for defense-in-depth.
+- **Seed data `#REF!`:** `migrations/20260615000017_seed_growth_revenue.sql` has Excel artifacts. Runtime handler guards correctly.
 - **Duplicated absence log:** `getAbsenceLog` vs `getAbsenceLogRecent` in `line-admin.ts` differ only by limit(50) vs limit(10).
-- **Hardcoded team names:** `TOOMTAM`, `Aof`, `Draft`, `PHAI`, `AMP` scattered across all handlers. No central config — acceptable for this project size.
+- **Hardcoded team names:** `TOOMTAM`, `Aof`, `Draft`, `PHAI`, `AMP` scattered across handlers. No central config — acceptable for this project size.
+- **`v_member_dashboard` exposes `is_archived`:** View already filters archived members via WHERE clause; handler `.eq('is_archived', false)` filters are redundant but harmless.
 
 ---
 
-## Integration Notes (Phase 3)
+## Integration Notes
 
-- **ROUTES coverage:** All 80+ actions in ROUTES map to implemented handler cases. `updateRenewalStatus` (new in renewal.ts) confirmed present in ROUTES at line 93 of index.ts.
-- **Score display rule:** `GREATEST(COALESCE(ms.score,0), COALESCE(r.official_pts,0))` as `display_score` in `v_member_dashboard` — confirmed in all handlers.
+- **ROUTES coverage:** All 80+ actions in ROUTES map to implemented handler cases. `importScoreHistory` confirmed in ROUTES (line 103 of index.ts) and guarded by `requireAuth(db, p, ['mc'])`.
+- **Score display rule:** `display_score` from `v_member_dashboard` confirmed as `ms.score` (latest monthly_scores period). `GREATEST(monthly, official)` approach confirmed in view via LEFT JOIN.
 - **NM Checklist denominator:** `CHECKLIST_TOTAL = 41` constant — never `items.length`. Confirmed.
-- **8W threshold:** All `bniDays <= 56` — prior 84-day bug confirmed fixed.
-- **Month key sort:** `(year * 100 + month)` numeric — correct.
-- **`months = weeks / 4`:** No `4.333` remaining — confirmed.
+- **Month key sort:** `(year * 100 + month)` numeric — correct. `sort_key` column in `v_score_history` confirmed.
+- **`months = weeks / 4`:** No `4.333` remaining — confirmed in both TypeScript and SQL layers.
 - **Anthropic model ID:** `claude-haiku-4-5` in checkin.ts — valid.
-- **Role-based access matrix post-fixes:** All write operations require MC or specific mentor roles. `getMCCoaching` restricted to `['mc']`. Public endpoints (`getMemberDirectory`, `getSimulateData`, `getMemberPublicDetail`) remain unauthenticated — confirmed intentional.
+- **Role-based access:** All write operations require MC or specific mentor roles. Public endpoints (`getMemberDirectory`, `getSimulateData`, `getMemberPublicDetail`) remain unauthenticated — confirmed intentional.
 
 ---
 
@@ -115,11 +131,11 @@ Added `requireAuth(db, p, [...])` as first statement in each open case:
 
 | # | Finding | Why deferred |
 |---|---------|--------------|
-| F-19 | Notifications pool shared across all roles | Needs schema migration (add `target_role` column) |
-| F-20 | `updateVisitor`/`saveSprintPlan` missing ownership checks | Low exploitability; data is non-sensitive |
-| F-21 | `ackAssignment` no team ownership check | Low exploitability |
-| F-22 | Dead code in dashboard.ts | Harmless; cleanup only |
-| F-23 | `logUsage` no auth | Analytics pollution only; no PII |
-| F-24 | Alert stub endpoints no auth | No DB access; stubs return static data |
-| F-25 | `public.ts` uses service client | RLS defense-in-depth improvement only |
-| F-26 | Seed `#REF!` artifacts | Runtime-guarded; cosmetic DB cleanup |
+| F-24 | Notifications pool shared across all roles | Needs schema migration (`target_role` column) |
+| F-25 | `updateVisitor`/`saveSprintPlan` missing ownership checks | Low exploitability; data non-sensitive |
+| F-26 | `ackAssignment` no team ownership check | Low exploitability |
+| F-27 | Dead cases in dashboard.ts (`getMentorActivity`, `getMentorPerformance`) | Harmless dead code |
+| F-28 | `logUsage` no auth | Analytics data only; not PII |
+| F-29 | Alert stub handlers no auth | Stubs return empty data; no write exposure |
+| F-30 | `getServiceClient()` in public.ts bypasses RLS | Public data only; no PII exposure |
+| F-31 | Seed `membership_age = '#REF!'` | Runtime handler guards correctly; data not displayed |

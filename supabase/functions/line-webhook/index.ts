@@ -14,7 +14,6 @@ import {
   parseWebhookBody, verifySignature,
   type LineEvent,
 } from '../_shared/line.ts';
-import { calcPalmsScore, trafficLight } from '../_shared/palms.ts';
 
 Deno.serve(async (req: Request) => {
   // LINE sends POST requests only

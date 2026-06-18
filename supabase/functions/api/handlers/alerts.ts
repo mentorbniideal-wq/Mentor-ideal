@@ -133,12 +133,13 @@ export async function handleAlerts(p: Record<string, unknown>): Promise<Response
       return jsonResponse({ ok: true, unread: {}, count: 0 });
 
     case 'getReports': {
-      const auth = await requireAuth(db, p, ['mc']);
+      const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const teamFilter = typeof p.teamName === 'string' && p.teamName ? p.teamName : null;
+      const requestedTeam = typeof p.teamName === 'string' && p.teamName ? p.teamName : null;
+      const teamFilter = auth.isMC ? requestedTeam : (auth.teamName || null);
       let q = db.from('core_issues')
-        .select('id, member_id, mentor_team, issue_text, action_plan, mc_reply, replied_at, status, opened_at, closed_at')
+        .select('id, member_id, mentor_team, issue_text, action_taken, action_plan, follow_up_at, mc_reply, replied_at, status, opened_at, closed_at')
         .order('opened_at', { ascending: false });
       if (teamFilter) q = q.eq('mentor_team', teamFilter);
       const { data: issues, error: iErr } = await q;
@@ -161,8 +162,9 @@ export async function handleAlerts(p: Record<string, unknown>): Promise<Response
           nick:       String(m.nickname || ''),
           status:     statusMap[String(r.status)] || String(r.status),
           coreIssue:  String(r.issue_text  || ''),
-          actionTaken: '',
+          actionTaken: String(r.action_taken || ''),
           plan:       String(r.action_plan || ''),
+          followUpAt: String(r.follow_up_at || ''),
           reply:      String(r.mc_reply || ''),
           repliedAt:  String(r.replied_at || ''),
           doneAt:     String(r.closed_at || ''),
