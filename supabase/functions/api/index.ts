@@ -90,6 +90,7 @@ const ROUTES: Record<string, string> = {
 
   // Renewal
   'getRenewal': 'renewal', 'extendRenewal': 'renewal',
+  'updateRenewalStatus': 'renewal',
 
   // Growth System
   'getGrowthData': 'growth', 'getGrowthSheetData': 'growth',

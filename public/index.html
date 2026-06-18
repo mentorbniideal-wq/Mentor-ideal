@@ -3825,9 +3825,10 @@ function loadRenewal(app){
     function rrow(i){
       var icon=i.status==='late'?'🔴':i.status==='soon'?'⚠️':'📅';
       var txt=i.diffDays<0?'หมดไป '+Math.abs(i.diffDays)+' วัน':'เหลือ '+i.diffDays+' วัน · '+i.expStr;
-      var safeName=i.name.replace(/'/g,"\\'");
-      var renewBtn=S.isMC?'<button class="renew-btn" onclick="extendRenewal(\''+safeName+'\',this,\''+app+'\')">✅ ต่ออายุ +1 ปี</button>':'';
-      return '<div class="rr"><div style="font-size:1.4rem;flex-shrink:0;">'+icon+'</div><div class="ri"><div class="rn">'+i.name+'</div><div class="rd2">'+i.team+' · '+txt+'</div></div>'+renewBtn+'</div>';
+      var safeName=encodeURIComponent(i.name).replace(/'/g,'%27');
+      var wf=renewalStatusMetaMob(i.workflowStatus);
+      var renewBtn='<button class="renew-btn" onclick="openRenewalFlowMob(\''+safeName+'\',\''+(i.workflowStatus||'pending_contact')+'\',\''+app+'\')">'+wf.action+'</button>';
+      return '<div class="rr"><div style="font-size:1.4rem;flex-shrink:0;">'+icon+'</div><div class="ri"><div class="rn">'+i.name+'</div><div class="rd2">'+i.team+' · '+txt+'</div><div style="font-size:.68rem;color:'+wf.color+';margin-top:3px;">'+wf.label+(i.declineReason?' · '+escHtml(i.declineReason):'')+'</div></div>'+renewBtn+'</div>';
     }
     var html='';
     if(late.length)html+='<div class="sh" style="color:var(--red)">🔴 LATE — โทรแจ้งทันที</div>'+late.map(rrow).join('');
@@ -3836,6 +3837,55 @@ function loadRenewal(app){
     if(!r.items.length)html='<div class="empty"><div class="empty-i">✅</div>ไม่มีรายการ</div>';
     document.getElementById(id).innerHTML=html;
   });
+}
+
+function renewalStatusMetaMob(status){
+  var map={
+    pending_contact:{label:'ยังไม่ได้แจ้งสมาชิก',action:'แจ้งแล้ว?',color:'#F59E0B'},
+    contacted:{label:'แจ้งแล้ว · รอคำตอบ',action:'บันทึกคำตอบ',color:'#60A5FA'},
+    confirmed_renew:{label:'ยืนยันต่อ · รอชำระ',action:'ชำระแล้ว?',color:'#10B981'},
+    paid:{label:'ชำระแล้ว · รอดำเนินการ',action:'ต่อเรียบร้อย?',color:'#22C55E'},
+    completed:{label:'ต่ออายุเรียบร้อย',action:'เสร็จแล้ว',color:'#22C55E'},
+    declined:{label:'แจ้งไม่ต่ออายุ',action:'ดู/แก้สถานะ',color:'#EF4444'}
+  };
+  return map[status]||map.pending_contact;
+}
+
+function openRenewalFlowMob(encodedName,status,app){
+  var name=decodeURIComponent(encodedName);
+  var meta=renewalStatusMetaMob(status);
+  var modal=document.createElement('div');
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:flex-end;justify-content:center;z-index:9999';
+  var buttons='';
+  if(status==='pending_contact')buttons='<button class="btn-p" data-st="contacted">✓ แจ้งสมาชิกแล้ว</button>';
+  else if(status==='contacted')buttons='<button class="btn-p" data-st="confirmed_renew">✓ สมาชิกยืนยันต่อ</button><button class="btn-p" data-st="declined" style="background:#7f1d1d">✕ ไม่ต่ออายุ</button>';
+  else if(status==='confirmed_renew')buttons='<button class="btn-p" data-st="paid">✓ ชำระเงินแล้ว</button>';
+  else if(status==='paid')buttons='<button class="btn-p" data-st="completed">✓ ต่ออายุเรียบร้อย</button>';
+  else if(status==='declined')buttons='<button class="btn-p" data-st="pending_contact" style="background:var(--gray)">↺ เปิดติดตามใหม่</button>';
+  modal.innerHTML='<div style="width:100%;max-width:500px;background:var(--bg2);border-radius:20px 20px 0 0;padding:20px 18px 32px">'+
+    '<div style="font-size:1rem;font-weight:800;margin-bottom:4px">Renewal · '+escHtml(name)+'</div>'+
+    '<div style="font-size:.75rem;color:'+meta.color+';margin-bottom:16px">'+meta.label+'</div>'+
+    '<div style="display:grid;gap:8px">'+buttons+'<button class="btn-p" data-close style="background:transparent;border:1px solid var(--border);color:var(--gray2)">ปิด</button></div></div>';
+  modal.onclick=function(e){if(e.target===modal||e.target.hasAttribute('data-close'))modal.remove();};
+  modal.querySelectorAll('[data-st]').forEach(function(btn){
+    btn.onclick=function(){
+      var next=btn.getAttribute('data-st');
+      var reason='';
+      if(next==='declined'){
+        reason=prompt('กรุณาระบุเหตุผลที่สมาชิกไม่ต่ออายุ');
+        if(!reason||!reason.trim())return;
+      }
+      btn.disabled=true;btn.textContent='กำลังบันทึก...';
+      call('updateRenewalStatus',{memberName:name,status:next,reason:reason},function(err,r){
+        if(err||!r||!r.ok){btn.disabled=false;btn.textContent='ลองใหม่';toast('❌ '+(err?err.message:(r&&r.error)||'บันทึกไม่สำเร็จ'));return;}
+        modal.remove();toast('✅ อัปเดต Renewal แล้ว');loadRenewal(app);
+        if(next==='contacted'||next==='confirmed_renew'||next==='paid'){
+          setTimeout(function(){openRenewalFlowMob(encodeURIComponent(name),next,app);},250);
+        }
+      });
+    };
+  });
+  document.body.appendChild(modal);
 }
 
 function extendRenewal(memberName, btn, app) {

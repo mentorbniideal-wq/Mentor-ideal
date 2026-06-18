@@ -1286,6 +1286,7 @@ main{
     <button class="tb" onclick="sw('gr-bal',this,'gr')">⚖️ Referral Balance</button>
     <button class="tb" onclick="sw('gr-task',this,'gr')">📋 Growth Tasks<span class="nb" id="badge-task"></span></button>
     <button class="tb" onclick="sw('gr-nm',this,'gr')">🆕 New Members<span class="nb" id="badge-nm"></span></button>
+    <button class="tb" onclick="sw('gr-ren',this,'gr');loadGrowthRenewals()">📅 Renewals<span class="nb" id="badge-gr-ren"></span></button>
     <button class="tb" onclick="sw('gr-dec',this,'gr')">📉 Score Trend<span class="nb" id="badge-dec"></span></button>
     <button class="tb" onclick="sw('gr-top',this,'gr')">🏆 Top Performance</button>
     <button class="tb" onclick="sw('gr-heat',this,'gr')">🌡️ Heatmap</button>
@@ -1942,6 +1943,18 @@ main{
         <table><thead><tr><th>#</th><th>ชื่อ / นิคเนม</th><th>ทีม Mentor</th><th>เริ่ม</th><th>สิ้นสุด</th><th>ความก้าวหน้า</th><th>Status</th><th></th></tr></thead>
         <tbody id="nmtb"></tbody></table>
       </div>
+    </div>
+
+    <!-- Growth Renewal Decisions -->
+    <div id="gr-ren" class="sec">
+      <div class="sh">
+        <h2>📅 Renewal Decisions</h2>
+        <span class="ctag" id="gr-ren-count">0</span>
+      </div>
+      <div style="font-size:12px;color:var(--sub);margin-bottom:14px">
+        ติดตามสมาชิกที่ใกล้ต่ออายุ และเคสที่แจ้งไม่ต่ออายุพร้อมเหตุผล
+      </div>
+      <div class="ag" id="gr-ren-list"><div class="es">กำลังโหลด...</div></div>
     </div>
 
     <!-- Growth Score Trend (Comprehensive) -->
@@ -2952,6 +2965,7 @@ function loadGrowth(){
     });
     chk();
   });
+  loadGrowthRenewals();
 }
 
 // ─── MC: Build Filters ────────────────────────────
@@ -4224,11 +4238,92 @@ function renderRen(){
   document.getElementById('reng').innerHTML=D.ren.length?D.ren.map(function(r){
     var icon=r.diffDays<0?'🚨':r.diffDays<=30?'🔴':r.diffDays<=60?'🟠':'📅';
     var txt=r.diffDays<0?'เกิน '+Math.abs(r.diffDays)+' วัน':r.diffDays===0?'วันนี้!':'อีก '+r.diffDays+' วัน';
-    var dc=r.diffDays<0?'dl-':'dl-'+(r.diffDays<=30?'':'n-');
+    var wf=renewalStatusMeta(r.workflowStatus);
+    var safeName=encodeURIComponent(String(r.name||'')).replace(/'/g,'%27');
     return'<div class="ac2 '+r.status+'"><div style="font-size:19px">'+icon+'</div>'+
-      '<div class="ai"><div class="an">'+esc(r.name)+'</div><div class="at">'+esc(r.team)+'</div><div style="font-size:10px;color:var(--gy)">หมดอายุ: '+esc(r.expStr)+'</div></div>'+
-      '<div class="ad '+(r.diffDays<0?'dl-':r.diffDays<=30?'ds-':'dn-')+'">'+txt+'</div></div>';
+      '<div class="ai"><div class="an">'+esc(r.name)+'</div><div class="at">'+esc(r.team)+'</div>'+
+      '<div style="font-size:10px;color:var(--gy)">หมดอายุ: '+esc(r.expStr)+'</div>'+
+      '<div style="font-size:10px;color:'+wf.color+';margin-top:3px">'+wf.label+(r.declineReason?' · '+esc(r.declineReason):'')+'</div></div>'+
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">'+
+      '<div class="ad '+(r.diffDays<0?'dl-':r.diffDays<=30?'ds-':'dn-')+'">'+txt+'</div>'+
+      '<button class="bx" onclick="openRenewalFlow(\''+safeName+'\',\''+esc(r.workflowStatus||'pending_contact')+'\',\'mc\')" style="font-size:11px">'+wf.action+'</button>'+
+      '</div></div>';
   }).join(''):'<div class="es">ไม่มีรายการ ✅</div>';
+}
+
+function renewalStatusMeta(status){
+  var map={
+    pending_contact:{label:'ยังไม่ได้แจ้งสมาชิก',action:'แจ้งแล้ว?',color:'#fbbf24'},
+    contacted:{label:'แจ้งสมาชิกแล้ว · รอคำตอบ',action:'บันทึกคำตอบ',color:'#60a5fa'},
+    confirmed_renew:{label:'ยืนยันต่ออายุ · รอชำระ',action:'ชำระแล้ว?',color:'#34d399'},
+    paid:{label:'ชำระแล้ว · รอดำเนินการ',action:'ต่อเรียบร้อย?',color:'#22c55e'},
+    completed:{label:'ต่ออายุเรียบร้อย',action:'เสร็จแล้ว',color:'#22c55e'},
+    declined:{label:'แจ้งไม่ต่ออายุ',action:'ดู/แก้สถานะ',color:'#ef4444'}
+  };
+  return map[status]||map.pending_contact;
+}
+
+function openRenewalFlow(encodedName,status,source){
+  var name=decodeURIComponent(encodedName);
+  var meta=renewalStatusMeta(status);
+  var modal=document.createElement('div');
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.76);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px';
+  var buttons='';
+  if(status==='pending_contact')buttons='<button class="bsend" data-st="contacted">✓ แจ้งสมาชิกแล้ว</button>';
+  else if(status==='contacted')buttons='<button class="bsend" data-st="confirmed_renew">✓ สมาชิกยืนยันต่อ</button><button class="bsm" data-st="declined" style="color:var(--re);border-color:rgba(239,68,68,.4)">✕ ไม่ต่ออายุ</button>';
+  else if(status==='confirmed_renew')buttons='<button class="bsend" data-st="paid">✓ ชำระเงินแล้ว</button>';
+  else if(status==='paid')buttons='<button class="bsend" data-st="completed">✓ ต่ออายุเรียบร้อย</button>';
+  else if(status==='declined')buttons='<button class="bsm" data-st="pending_contact">↺ เปิดติดตามใหม่</button>';
+  modal.innerHTML='<div style="width:100%;max-width:440px;background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:20px">'+
+    '<div style="font-size:15px;font-weight:800;margin-bottom:4px">Renewal · '+esc(name)+'</div>'+
+    '<div style="font-size:12px;color:'+meta.color+';margin-bottom:16px">'+meta.label+'</div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">'+buttons+'<button class="bsm" data-close>ปิด</button></div></div>';
+  modal.onclick=function(e){if(e.target===modal||e.target.hasAttribute('data-close'))modal.remove();};
+  modal.querySelectorAll('[data-st]').forEach(function(btn){
+    btn.onclick=function(){
+      var next=btn.getAttribute('data-st');
+      var reason='';
+      if(next==='declined'){
+        reason=prompt('กรุณาระบุเหตุผลที่สมาชิกไม่ต่ออายุ');
+        if(!reason||!reason.trim())return;
+      }
+      btn.disabled=true;btn.textContent='กำลังบันทึก...';
+      gsr('updateRenewalStatus',{role:S.role,memberName:name,status:next,reason:reason},function(r){
+        if(!r||!r.ok){btn.disabled=false;btn.textContent='ลองใหม่';toast('❌ '+(r&&r.error||'บันทึกไม่สำเร็จ'));return;}
+        modal.remove();toast('✓ อัปเดต Renewal แล้ว');
+        if(source==='growth')loadGrowthRenewals(); else loadMC(true);
+        if(next==='contacted'||next==='confirmed_renew'||next==='paid'){
+          setTimeout(function(){openRenewalFlow(encodeURIComponent(name),next,source);},250);
+        }
+      });
+    };
+  });
+  document.body.appendChild(modal);
+}
+
+function loadGrowthRenewals(){
+  var el=document.getElementById('gr-ren-list');if(!el)return;
+  el.innerHTML='<div class="es">กำลังโหลด...</div>';
+  gsr('getRenewal',{role:'growth'},function(r){
+    var items=r&&r.ok?(r.items||[]):[];
+    var declined=items.filter(function(x){return x.workflowStatus==='declined';});
+    var active=items.filter(function(x){return x.workflowStatus!=='declined';});
+    document.getElementById('gr-ren-count').textContent=items.length;
+    badge('badge-gr-ren',declined.length);
+    function row(x){
+      var wf=renewalStatusMeta(x.workflowStatus);
+      var safeName=encodeURIComponent(String(x.name||'')).replace(/'/g,'%27');
+      return '<div class="ac2 '+(x.workflowStatus==='declined'?'risk':x.status)+'">'+
+        '<div style="font-size:19px">'+(x.workflowStatus==='declined'?'⛔':'📅')+'</div>'+
+        '<div class="ai"><div class="an">'+esc(x.name)+'</div><div class="at">'+esc(x.team||'ไม่มีทีม')+' · '+esc(x.expStr||'')+'</div>'+
+        '<div style="font-size:10px;color:'+wf.color+';margin-top:3px">'+wf.label+(x.declineReason?' · เหตุผล: '+esc(x.declineReason):'')+'</div></div>'+
+        '<button class="bx" onclick="openRenewalFlow(\''+safeName+'\',\''+esc(x.workflowStatus||'pending_contact')+'\',\'growth\')" style="font-size:11px">'+wf.action+'</button></div>';
+    }
+    var html='';
+    if(declined.length)html+='<div class="sh" style="color:var(--re);margin-top:0"><h2>⛔ ไม่ต่ออายุ</h2><span class="ctag">'+declined.length+'</span></div>'+declined.map(row).join('');
+    if(active.length)html+='<div class="sh" style="margin-top:16px"><h2>📅 กำลังติดตาม</h2><span class="ctag">'+active.length+'</span></div>'+active.map(row).join('');
+    el.innerHTML=html||'<div class="es">ไม่มีรายการ Renewal</div>';
+  });
 }
 
 function renderRisk(){
