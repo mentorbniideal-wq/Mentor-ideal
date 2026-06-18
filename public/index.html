@@ -1822,6 +1822,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
   <div class="hdr">
     <div class="hdr-l"><div class="hdr-logo">BNI <span>IDEAL</span></div><div class="hdr-role m" id="mentorRoleLbl">Mentor</div></div>
     <div style="display:flex;align-items:center;gap:4px;">
+      <button class="notif-bell-btn" id="mentor-bell" onclick="openMentorBell()" title="การแจ้งเตือน">🔔<span class="notif-count" id="mentor-bell-badge" style="display:none">0</span></button>
       <button class="hdr-btn-icon theme-btn" onclick="toggleTheme()" title="สลับธีม">☀️</button>
       <button id="mentor-admin-btn" class="hdr-btn-icon" onclick="openAdminPanel()" style="display:none;color:#F59E0B;" title="Admin">⚙️</button>
       <button class="hdr-btn-icon" onclick="openRoleSwitcher()" title="สลับ Role">⇄</button>
@@ -2516,6 +2517,20 @@ function miniChart(scores){
   return '<div class="chart-wrap"><svg class="chart-svg" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none"><polyline points="'+pts.join(' ')+'" fill="none" stroke="'+lineColor+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="'+lastX+'" cy="'+lastY+'" r="3" fill="'+lineColor+'"/></svg></div>';
 }
 
+// ── TL Evolution Dots (shared helper) ─────────────────────────
+function tlEvoDots(scoreHistory){
+  var data=(scoreHistory||[]).filter(function(s){return (s.score||0)>0;});
+  data=data.slice(-6);
+  if(!data.length)return '';
+  var dots=data.map(function(s){
+    var v=Number(s.score)||0;
+    var c=v>=70?'#10B981':v>=50?'#F59E0B':v>=30?'#EF4444':'#64748B';
+    var lbl=escHtml((s.label||s.month||''))+': '+v;
+    return '<div title="'+lbl+'" style="width:7px;height:7px;border-radius:2px;background:'+c+'"></div>';
+  });
+  return '<div style="display:flex;gap:2px;margin-top:3px;">'+dots.join('')+'</div>';
+}
+
 function memberRow(m,clickFn){
   var name=m.name||'';var nick=m.nick||'';
   var score=m.latest||m.score||0;
@@ -2525,7 +2540,8 @@ function memberRow(m,clickFn){
   var scoreColor=tl==='none'?'#A78BFA':sc(score);
   var sub=escHtml(m.mentor||'')+(m.trend?' · '+m.trend:'');
   var roiTag=m.roi>0?'<span style="font-size:.6rem;font-weight:700;color:'+(m.roi>=300?'#10B981':m.roi>=100?'#F59E0B':'#EF4444')+';background:rgba(0,0,0,.15);border-radius:4px;padding:1px 5px;margin-left:4px">ROI '+m.roi+'%</span>':'';
-  return '<div class="mr" onclick="'+clickFn+'"><div class="av" style="background:'+avbg(tl)+';color:'+scoreColor+'">'+escHtml(initials)+'</div><div class="mi"><div class="mn">'+escHtml(name.split(' ').slice(0,2).join(' '))+(nick?' ('+escHtml(nick)+')':'')+roiTag+'</div><div class="ms">'+sub+'</div></div><div style="text-align:right"><div class="msc" style="color:'+scoreColor+'">'+scoreDisp+'</div></div><div class="tld" style="background:'+tlc(tl)+'"></div></div>';
+  var evo=tlEvoDots(m.scoreHistory||m.scores);
+  return '<div class="mr" onclick="'+clickFn+'"><div class="av" style="background:'+avbg(tl)+';color:'+scoreColor+'">'+escHtml(initials)+'</div><div class="mi"><div class="mn">'+escHtml(name.split(' ').slice(0,2).join(' '))+(nick?' ('+escHtml(nick)+')':'')+roiTag+'</div><div class="ms">'+sub+'</div>'+evo+'</div><div style="text-align:right"><div class="msc" style="color:'+scoreColor+'">'+scoreDisp+'</div></div><div class="tld" style="background:'+tlc(tl)+'"></div></div>';
 }
 
 function mentorMemberRow(m,clickFn){
@@ -2568,6 +2584,7 @@ function mentorMemberRow(m,clickFn){
       +'</div>';
   }
 
+  var evo=tlEvoDots(m.scoreHistory||m.scores);
   return '<div class="mr" role="button" tabindex="0" onclick="'+clickFn+'" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();'+clickFn+'}">'
     +'<div class="av" style="background:'+avbg(tl)+';color:'+scoreColor+'">'+initials+'</div>'
     +'<div class="mi">'
@@ -2575,6 +2592,7 @@ function mentorMemberRow(m,clickFn){
       +'<div class="ms">'+sub+'</div>'
       +badgeRow
       +clBar
+      +evo
     +'</div>'
     +'<div style="text-align:right">'
       +'<div class="msc" style="color:'+scoreColor+'">'+scoreDisp+'</div>'
@@ -3659,6 +3677,9 @@ function renderMentorDirectory(){
   if(!list.length){el.innerHTML='<div class="empty"><div class="empty-i">🔎</div>ไม่พบ Mentee</div>';return;}
   el.innerHTML=list.map(function(m){return mentorMemberRow(m,"openDetail('"+m.name.replace(/'/g,"\\'")+"')");}).join('');
 }
+function openMentorBell(){
+  mnt('work',document.querySelector('[data-mentor-primary="work"]'));
+}
 function setHubCount(id,n){
   var el=document.getElementById(id);if(!el)return;
   if(n>0){el.textContent=n>99?'99+':n;el.style.display='inline-block';}else el.style.display='none';
@@ -3679,6 +3700,7 @@ function loadMentorWorkHub(){
     setHubCount('work-renew-count',urgentRenewals);
     var total=openReports+pendingAssignments+unread+urgentRenewals;
     setHubCount('mentor-work-badge',total);
+    setHubCount('mentor-bell-badge',total);
     if(!completion)return;
     var noContact=(S.teamMembers||[]).filter(function(m){return m.noMentorContact;}).length;
     var rows=[
@@ -4535,10 +4557,13 @@ function buildGrowthCard(m){
   var safeN=m.name.replace(/'/g,"\\'");
   var safeTeam=mentorName.replace(/'/g,"\\'");
   var formId='gtf-'+m.name.replace(/[^a-zA-Z0-9]/g,'_');
+  var gEvo=tlEvoDots(m.scoreHistory);
+  var evoHtml=gEvo?'<div style="padding:.25rem 0 .1rem;display:flex;align-items:center;gap:.5rem;"><span style="font-size:.6rem;color:var(--gray2);">TL History</span>'+gEvo+'</div>':'';
   return '<div class="gm-card '+zoneClass+'" id="gmc-'+formId+'">' +
     '<div class="gm-top" onclick="openDetail(\''+safeN+'\')" style="cursor:pointer;"><div class="gm-av" style="background:'+avBg+';color:'+scoreColor+'">'+initials+'</div><div class="gm-info"><div class="gm-name">'+m.name.split(' ').slice(0,2).join(' ')+(m.nick?' ('+m.nick+')':'')+'</div><div class="gm-sub"><span>'+escHtml(mentorLabel)+'</span><span class="zone-pill '+zonePillClass+'">'+zoneLabel+'</span></div></div><div class="gm-score" style="color:'+scoreColor+'">'+m.score+'</div></div>' +
     '<div class="ref-bar-wrap"><div class="ref-label"><span>Referral (ใบ)</span><span>ให้ '+m.rgCount+' | รับ '+m.rrCount+'</span></div><div class="ref-bars"><div class="ref-bar-row"><span class="ref-bar-lbl">ให้</span><div class="ref-bar-bg"><div class="ref-bar-fill" style="width:'+rgPct+'%;background:'+rgColor+'"></div></div><span class="ref-val" style="color:'+rgColor+'">'+m.rgCount+'</span></div><div class="ref-bar-row"><span class="ref-bar-lbl">รับ</span><div class="ref-bar-bg"><div class="ref-bar-fill" style="width:'+rrPct+'%;background:'+rrColor+'"></div></div><span class="ref-val" style="color:'+rrColor+'">'+m.rrCount+'</span></div></div></div>' +
     '<div class="tyfcb-row"><div><div class="tyfcb-val">฿'+fmt(m.tyfcb)+'</div><div class="tyfcb-lbl">TYFCB รวม</div></div><div style="margin-left:.75rem"><div class="tyfcb-val" style="color:var(--gray2)">฿'+fmt(m.tyfcbPerDay)+'</div><div class="tyfcb-lbl">ต่อวัน</div></div><div style="margin-left:auto"><div class="tyfcb-val" style="color:var(--gray2)">'+m.bniDays+'</div><div class="tyfcb-lbl">วันใน BNI</div></div></div>' +
+    evoHtml +
     '<div style="text-align:right;margin-top:.35rem;">'+(mentorName?'<button class="gm-task-btn" onclick="toggleGrowthTaskForm(\''+formId+'\',\''+safeN+'\',\''+safeTeam+'\');event.stopPropagation()">🎯 มอบหมาย Mentor</button>':'<span style="font-size:.72rem;color:var(--gray2);">ยังไม่มี Mentor</span>')+'</div>' +
     '<div id="'+formId+'" class="gm-task-form" style="display:none;">'
       +'<select id="'+formId+'-type"><option value="Referral">ช่วยหา Referral ให้</option><option value="1-2-1">นัด 1-2-1 ด่วน</option><option value="ติดตาม">ติดตามความคืบหน้า</option><option value="ประชุม">ช่วยเรื่องมาประชุม</option><option value="อื่นๆ">อื่นๆ</option></select>'

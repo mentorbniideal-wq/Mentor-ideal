@@ -727,10 +727,27 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       // Flat member list for MC/mentor dashboard (not the growth sheet UI)
       const { data: rows, error } = await db
         .from('v_member_dashboard')
-        .select('name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb, tyfcb_thb, absent, attend, rg, rr, visitors, one_to_one, ceu, bni_days')
+        .select('id, name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb, tyfcb_thb, absent, attend, rg, rr, visitors, one_to_one, ceu, bni_days')
         .eq('is_archived', false)
         .order('display_score', { ascending: true });
       if (error) return errResponse(error.message);
+
+      // Batch-fetch monthly scores for TL evolution display
+      const allMemberIds = (rows || []).map((m: Record<string, unknown>) => String(m.id)).filter(Boolean);
+      const { data: scoreRows } = allMemberIds.length
+        ? await db.from('monthly_scores').select('member_id, year, month, score')
+            .in('member_id', allMemberIds)
+            .order('year', { ascending: true }).order('month', { ascending: true })
+        : { data: [] };
+      const MONTH_LBL: Record<number, string> = {1:'JAN',2:'FEB',3:'MAR',4:'APR',5:'MAY',6:'JUN',7:'JUL',8:'AUG',9:'SEP',10:'OCT',11:'NOV',12:'DEC'};
+      const growthHistMap: Record<string, { label: string; score: number }[]> = {};
+      for (const s of (scoreRows || []) as Record<string, unknown>[]) {
+        const mid = String(s.member_id);
+        if (!growthHistMap[mid]) growthHistMap[mid] = [];
+        const mo = Number(s.month) || 0;
+        const yr = Number(s.year) || 0;
+        growthHistMap[mid].push({ label: `${MONTH_LBL[mo] || String(mo)} ${yr}`.trim(), score: Number(s.score) || 0 });
+      }
 
       let totalTYFCB = 0, totalVisitors = 0, total121 = 0;
       let chapterAttend = 0, chapterAbsent = 0;
@@ -775,6 +792,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           visitors: vis, r121, oToOne: r121, ceu,
           bniDays: bniDaysN,
           tyfcbPerDay: bniDaysN > 0 ? Math.round(tyfcb / bniDaysN) : 0,
+          scoreHistory: growthHistMap[String(m.id)] || [],
         };
       });
       const chapterAttendRate = (chapterAttend + chapterAbsent) > 0
