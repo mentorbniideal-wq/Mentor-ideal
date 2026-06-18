@@ -743,17 +743,41 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
         callerTeam = auth.teamName ?? null;
       }
 
-      let query = db
+      // Query 1: members explicitly flagged as new
+      let q1 = db
         .from('members')
         .select('id, name, nickname, mentor_team, created_at, joined_date')
         .eq('is_new_member', true)
         .eq('is_archived', false);
-      if (callerTeam) {
-        query = query.eq('mentor_team', callerTeam);
-      }
-      const { data: members, error: mErr } = await query.order('name');
+      if (callerTeam) q1 = q1.eq('mentor_team', callerTeam);
+      const { data: flaggedMembers, error: mErr } = await q1.order('name');
       if (mErr) return errResponse(mErr.message);
-      if (!members || members.length === 0) return jsonResponse({ ok: true, members: [] });
+
+      // Query 2: members with r2y bni_days <= 56 (8-week window) but not already flagged
+      const flaggedIds = new Set((flaggedMembers || []).map((m: Record<string, unknown>) => m.id as string));
+      // Get member IDs where r2y bni_days is in the 8-week window
+      const { data: r2yRows } = await db
+        .from('r2y_stats')
+        .select('member_id')
+        .gt('bni_days', 0)
+        .lte('bni_days', 56);
+      const recentIds = ((r2yRows || []) as Record<string, unknown>[])
+        .map((r) => r.member_id as string)
+        .filter((id) => !flaggedIds.has(id));
+      let extraMembers: Record<string, unknown>[] = [];
+      if (recentIds.length > 0) {
+        let q2 = db
+          .from('members')
+          .select('id, name, nickname, mentor_team, created_at, joined_date')
+          .in('id', recentIds)
+          .eq('is_archived', false);
+        if (callerTeam) q2 = q2.eq('mentor_team', callerTeam);
+        const { data: recentByDays } = await q2;
+        extraMembers = (recentByDays || []) as Record<string, unknown>[];
+      }
+
+      const members = [...(flaggedMembers || []), ...extraMembers];
+      if (members.length === 0) return jsonResponse({ ok: true, members: [] });
 
       const memberIds = (members as Record<string, unknown>[]).map((m) => m.id as string);
 
