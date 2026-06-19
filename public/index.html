@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <meta name="theme-color" content="#1A1D1D" id="meta-theme-color">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -40,6 +40,7 @@ body.light{
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);min-height:100vh;overflow-x:hidden;transition:background .2s,color .2s;}
 button,a,[role="button"]{touch-action:manipulation;}
+button,[role="button"],.fb,.dir-fb,.renew-btn,.action-btn,.log-btn,.gt-btn{min-height:44px;}
 :focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:var(--r-sm);}
 .theme-btn{background:none;border:1px solid var(--border);color:var(--gray2);border-radius:8px;padding:4px 8px;font-size:.82rem;cursor:pointer;margin-right:.4rem;line-height:1.4;}
 .hdr-btn-icon{background:none;border:1px solid var(--border);color:var(--gray2);border-radius:var(--r-sm);padding:4px 7px;font-size:.88rem;cursor:pointer;line-height:1.4;transition:all .15s;}
@@ -1503,7 +1504,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
       <button class="dir-fb" onclick="dirSetFilter('red',this)">🔴 แดง</button>
       <button class="dir-fb" onclick="dirSetFilter('black',this)">⚫ ดำ</button>
     </div>
-    <input class="dir-search" type="text" placeholder="🔍 ค้นหาชื่อ หรืออีเมล..." oninput="dirSearch(this.value)">
+    <input class="dir-search" type="text" placeholder="🔍 ค้นหาชื่อ ชื่อเล่น หรือทีม..." oninput="dirSearch(this.value)">
     <div class="dir-count" id="dir-count"></div>
     <div class="dir-grid" id="dir-list"><div class="lt">⏳ กำลังโหลด...</div></div>
   </div>
@@ -2447,6 +2448,33 @@ var S={role:null,token:null,isMC:false,teamName:null,displayName:null,allMembers
 var GS={members:[],curFilter:'all',loaded:false,taskFilter:'all',lastSummary:null};
 var CI_WEEK_DATA=[];
 
+function enhanceA11y(root){
+  var host=root&&root.querySelectorAll?root:document;
+  host.querySelectorAll('input,select,textarea').forEach(function(el){
+    if(el.type==='hidden'||el.getAttribute('aria-label')||el.getAttribute('aria-labelledby'))return;
+    var label=el.id?document.querySelector('label[for="'+CSS.escape(el.id)+'"]'):null;
+    if(!label){
+      var hint=el.getAttribute('placeholder')||el.getAttribute('title')||el.id||el.name;
+      if(hint)el.setAttribute('aria-label',hint);
+    }
+  });
+  host.querySelectorAll('div[onclick],span[onclick],th[onclick]').forEach(function(el){
+    var code=el.getAttribute('onclick')||'';
+    if(code.indexOf('event.target===this')>=0||el.getAttribute('role'))return;
+    el.setAttribute('role','button');
+    el.setAttribute('tabindex','0');
+    el.addEventListener('keydown',function(ev){
+      if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();el.click();}
+    });
+  });
+}
+document.addEventListener('DOMContentLoaded',function(){
+  enhanceA11y(document);
+  new MutationObserver(function(records){
+    records.forEach(function(r){r.addedNodes.forEach(function(n){if(n.nodeType===1)enhanceA11y(n);});});
+  }).observe(document.body,{childList:true,subtree:true});
+});
+
 var SUPABASE_API='https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
 var SUPABASE_ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
 var SUPABASE_URL_AUTH='https://itwyjhlfemxsfbimshby.supabase.co';
@@ -2473,6 +2501,7 @@ function checkSession(){
         .then(function(r){
           hideLoad();
           if(r.ok){enterApp(r);}
+          else if(r.error&&r.error.indexOf('ไม่มีสิทธิ์ใช้งาน')!==-1){window.location.href='/admin/request-access.html';}
           else{document.getElementById('login-err').textContent='❌ '+(r.error||'ไม่มีสิทธิ์');document.getElementById('loginScreen').style.display='flex';}
         })
         .catch(function(){hideLoad();document.getElementById('loginScreen').style.display='flex';});
@@ -2490,6 +2519,7 @@ function checkSession(){
         .then(function(r){
           hideLoad();
           if(r.ok){document.getElementById('loginScreen').style.display='none';enterApp(r);}
+          else if(r.error&&r.error.indexOf('ไม่มีสิทธิ์ใช้งาน')!==-1){window.location.href='/admin/request-access.html';}
           else{document.getElementById('login-err').textContent='❌ '+(r.error||'ไม่มีสิทธิ์');document.getElementById('loginScreen').style.display='flex';}
         })
         .catch(function(){hideLoad();document.getElementById('loginScreen').style.display='flex';});
@@ -5399,18 +5429,18 @@ function buildRptCard(r,idx){
       +'<div class="rpt-done-banner">'
       +'<div><div class="rpt-done-txt">✅ ปิดเคสแล้ว</div>'
       +'<div class="rpt-done-at">'+escHtml(r.doneAt)+'</div></div>'
-      +'<button class="btn-reopen" id="rbtn-'+idx+'" onclick="setStatus('+idx+',\'reopened\')">↩ Reopen</button>'
+      +'<button class="btn-reopen" id="rbtn-reopen-'+idx+'" onclick="setStatus('+idx+',\'reopened\')">↩ Reopen</button>'
       +'</div>';
   } else if(hasReply){
     replySection=
       '<div class="rpt-reply-box"><div class="rpt-reply-label">💬 Reply ที่ส่งแล้ว</div>'
       +'<div class="rpt-text">'+escHtml(r.reply)+'</div></div>'
-      +'<button class="btn-done green" id="rbtn-'+idx+'" onclick="setStatus('+idx+',\'done\')">✅ ปิดเคสนี้</button>';
+      +'<button class="btn-done green" id="rbtn-done-'+idx+'" onclick="setStatus('+idx+',\'done\')">✅ ปิดเคสนี้</button>';
   } else {
     replySection=
       '<div class="rpt-reply-box"><div class="rpt-reply-label">💬 ตอบกลับ Mentor</div>'
       +'<textarea class="rpt-reply-input" id="reply-'+idx+'" placeholder="พิมพ์ข้อความถึง Mentor '+escHtml(r.team)+'..."></textarea>'
-      +'<button class="btn-reply" id="rbtn-'+idx+'" onclick="submitReply('+idx+')">ส่ง Reply →</button>'
+      +'<button class="btn-reply" id="rbtn-reply-'+idx+'" onclick="submitReply('+idx+')">ส่ง Reply →</button>'
       +'</div>';
   }
 
@@ -8689,7 +8719,7 @@ function gRenewalLoad(force){
           +'<div class="rd2">'+escHtml(i.team||'')+' · '+txt+'</div>'
           +'<div style="font-size:.68rem;color:'+wf.color+';margin-top:3px;">'+wf.label+(i.declineReason?' · '+escHtml(i.declineReason):'')+'</div>'
         +'</div>'
-        +'<button class="renew-btn" onclick="openRenewalFlowMob(\''+safeName+'\',\''+(i.workflowStatus||'pending_contact')+'\',\'growth\')">'+wf.action+'</button>'
+        +'<span class="renew-btn" style="cursor:default;opacity:.75">ดูสถานะ</span>'
         +'</div>';
     }
     var html='';
