@@ -983,7 +983,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'getGrowthTasks': {
       const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
-      const role = String(p.role || auth.role || '').toLowerCase();
+      const role = String(auth.role || '').toLowerCase();
       const statusFilter = String(p.statusFilter || 'all');
 
       let query = db.from('growth_tasks').select('id, created_by, assigned_to, task_text, response, responded_at, created_at, priority, task_type, member_name');
@@ -1018,6 +1018,15 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const taskId   = String(p.taskId || p.id || '');
       const response = String(p.response || '').trim();
       if (!taskId) return errResponse('taskId required');
+      const { data: task, error: taskError } = await db.from('growth_tasks')
+        .select('assigned_to').eq('id', taskId).maybeSingle();
+      if (taskError) return errResponse(taskError.message);
+      if (!task) return errResponse('ไม่พบ Growth Task');
+      const assignedTo = String((task as Record<string, unknown>).assigned_to || '').toLowerCase();
+      const role = String(auth.role || '').toLowerCase();
+      if (!auth.isMC && role !== 'growth' && assignedTo !== role) {
+        return errResponse('ไม่มีสิทธิ์ตอบ Growth Task ของทีมอื่น', 403);
+      }
       const { error } = await db.from('growth_tasks')
         .update({ response, responded_at: new Date().toISOString() })
         .eq('id', taskId);

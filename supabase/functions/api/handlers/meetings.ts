@@ -4,6 +4,7 @@
 //   getSprintBoard, saveSprintPlan, getChapterActions, getReferralFlow
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
+import { canAccessTeam, isGrowth } from '../../_shared/authorization.ts';
 
 const TEAM_MAP: Record<string, string> = {
   toomtam: 'TOOMTAM', aof: 'Aof', draft: 'Draft', phai: 'PHAI', amp: 'AMP',
@@ -285,7 +286,7 @@ export async function handleMeetings(p: Record<string, unknown>): Promise<Respon
 
     // ── Update Visitor ───────────────────────────────────────────
     case 'updateVisitor': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
 
       // Accept `row` (UUID from getVisitorLog response) or `visitorId`
@@ -578,6 +579,14 @@ export async function handleMeetings(p: Record<string, unknown>): Promise<Respon
       // row-based update/delete (sprintUpdateStatus / sprintDelete in dashboard.html)
       if (p.row) {
         const rowId = String(p.row);
+        const { data: sprint, error: sprintError } = await db.from('sprint_board')
+          .select('mentor_team').eq('id', rowId).maybeSingle();
+        if (sprintError) return errResponse(sprintError.message);
+        if (!sprint) return errResponse('ไม่พบ Sprint');
+        const sprintTeam = String((sprint as Record<string, unknown>).mentor_team || '');
+        if (!canAccessTeam(auth, sprintTeam, { allowGrowth: true })) {
+          return errResponse('ไม่มีสิทธิ์แก้ Sprint ของทีมอื่น', 403);
+        }
         if (p.field === 'delete') {
           const { error } = await db.from('sprint_board').delete().eq('id', rowId);
           if (error) return errResponse(error.message);
@@ -593,11 +602,14 @@ export async function handleMeetings(p: Record<string, unknown>): Promise<Respon
       }
 
       // New sprint creation: accepts `team` or `teamName`
-      const role     = String(p.role || '').toLowerCase();
-      const isMC     = role === 'mc' || role === 'growth';
+      const role     = String(auth.role || '').toLowerCase();
+      const isMC     = Boolean(auth.isMC || isGrowth(auth));
       const teamName = p.team ? String(p.team)
         : isMC ? (p.teamName ? String(p.teamName) : (auth.teamName || 'ทุกทีม'))
         : (auth.teamName || TEAM_MAP[role] || '');
+      if (!canAccessTeam(auth, teamName, { allowGrowth: true })) {
+        return errResponse('ไม่มีสิทธิ์สร้าง Sprint ให้ทีมอื่น', 403);
+      }
 
       const now = new Date();
       const year  = p.year  ? Number(p.year)  : now.getFullYear();

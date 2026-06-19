@@ -18,7 +18,7 @@ CREATE OR REPLACE FUNCTION fn_palms_score(
   p_tyfb    NUMERIC
 )
 RETURNS JSONB
-LANGUAGE plpgsql IMMUTABLE
+LANGUAGE plpgsql STABLE
 AS $$
 DECLARE
   weeks       INT;

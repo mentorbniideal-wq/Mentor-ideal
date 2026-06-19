@@ -1,6 +1,6 @@
 # BNI IDEAL Mentor System — Audit Log
 
-**Audit date:** 2026-06-18 (updated after UI+LINE changes)
+**Audit date:** 2026-06-19 (security, role-flow and accessibility remediation)
 **Scope:** Full project (GAS legacy + Supabase Edge Functions + static frontend)
 **Auditor:** Claude Code (claude-sonnet-4-6)
 
@@ -21,6 +21,19 @@
 **File counts:** ~35 `.ts`, ~22 `.js`, ~3 `.html` (public), ~25 `.sql` (105 total)
 
 ---
+
+## Remediation — 2026-06-19
+
+- Added a central authentication gate before all non-public API actions.
+- Enforced team/member ownership on detail, scores, notes, checklist, coaching, 1-2-1, Growth Tasks, assignments, renewal and sprint operations.
+- Removed public contact PII and replaced public `select('*')` with explicit safe fields.
+- Added delegated Admin permissions by section with View/Edit enforcement.
+- Added RLS for access requests and per-recipient notification receipts.
+- Replaced the empty scoring verifier with live PALMS comparison results.
+- Fixed Admin API type errors and SQL cron helper lint findings.
+- Added meaningful 1-2-1 partner identity fields.
+- Enabled zoom, improved touch targets, added accessible labels and keyboard semantics, and removed duplicate report-control IDs.
+- Marked the legacy PIN/manual document as superseded by the current Playbook.
 
 ## Findings Table
 
@@ -49,13 +62,13 @@
 | F-21 | HIGH | `public/index.html` | Mentor/growth theme buttons lost `.theme-btn` class during header cleanup; `toggleTheme()` JS wouldn't update their emoji on mode switch | **FIXED** (2026-06-18 post-impl audit) |
 | F-22 | MEDIUM | `line-webhook/index.ts` | Unused imports `calcPalmsScore`, `trafficLight` — dead code causing Deno lint warnings | **FIXED** (2026-06-18 post-impl audit) |
 | F-23 | MEDIUM | `migrations/022` | `call_cron_job()` only defined in seed (runs after migrations in Supabase CLI); migration would fail on fresh DB | **FIXED** (2026-06-18 post-impl audit) — added DO block guard |
-| F-24 | MEDIUM | `handlers/notifications.ts` | All roles share one notifications pool; any role can dismiss any notification (needs `target_role` column in DB) | Known issue — needs migration |
-| F-25 | MEDIUM | `handlers/meetings.ts` | `updateVisitor` no ownership check; `saveSprintPlan` delete op no MC restriction | Known issue |
-| F-26 | MEDIUM | `handlers/comms.ts` | `ackAssignment` no team ownership check | Known issue |
+| F-24 | MEDIUM | `handlers/notifications.ts` | All roles share one notifications pool; any role can dismiss any notification | **FIXED** (2026-06-19) — per-recipient receipts |
+| F-25 | MEDIUM | `handlers/meetings.ts` | `updateVisitor` no ownership check; `saveSprintPlan` delete op no MC restriction | **FIXED** (2026-06-19) |
+| F-26 | MEDIUM | `handlers/comms.ts` | `ackAssignment` no team ownership check | **FIXED** (2026-06-19) |
 | F-27 | LOW | `handlers/dashboard.ts` | `getMentorActivity` / `getMentorPerformance` dead code — routing sends both to growth.ts | Known issue |
-| F-28 | LOW | `handlers/usage.ts` | `logUsage` no auth — analytics data pollutable | Known issue |
-| F-29 | LOW | `handlers/alerts.ts` | Stub handlers (dismissAlert, getDismissedAlerts, getTeamNotifs, etc.) no auth | Known issue |
-| F-30 | LOW | `handlers/public.ts` | Uses `getServiceClient()` (bypasses RLS) for public endpoints | Known issue |
+| F-28 | LOW | `handlers/usage.ts` | `logUsage` no auth — analytics data pollutable | **FIXED** (2026-06-19) — central API auth gate |
+| F-29 | LOW | `handlers/alerts.ts` | Stub handlers (dismissAlert, getDismissedAlerts, getTeamNotifs, etc.) no auth | **FIXED** (2026-06-19) — central API auth gate |
+| F-30 | LOW | `handlers/public.ts` | Uses `getServiceClient()` (bypasses RLS) for public endpoints | **MITIGATED** (2026-06-19) — safe-column allowlists; contact PII removed |
 | F-31 | LOW | `migrations/20260615000017_seed_growth_revenue.sql` | All `membership_age` seeded as `'#REF!'` (Excel artifact); runtime guards correctly | Known issue |
 
 ---

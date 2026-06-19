@@ -1,6 +1,8 @@
 // Handler: dashboard — getDashboard, getMemberDetail, getMentorActivity, getMyTeam, etc.
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
+import { memberAccessError, resolveMemberAccess } from '../../_shared/authorization.ts';
+import { calcPalmsScore, trafficLight } from '../../_shared/palms.ts';
 
 // ── PALMS gap computation (mirrors WEBAPP.js gapXxx functions) ────────────────
 type GapEntry = { cat: string; icon: string; cur: number; max: number; next: number; gain: number; action: string; curVal: string; tgtVal: string; altAction?: string; altTgtVal?: string };
@@ -193,11 +195,15 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     case 'getDesktopDashboard': {
       const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
-      const { data: rows, error } = await db
+      let dashboardQuery = db
         .from('v_member_dashboard')
         .select('id, name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb, tyfcb_thb, absent, attend, rg, rr, visitors, one_to_one, ceu, palms_detail, expiry_date, days_to_expiry, bni_days')
         .eq('is_archived', false)
         .order('display_score', { ascending: false });
+      if (!auth.isMC && auth.role !== 'growth' && auth.teamName) {
+        dashboardQuery = dashboardQuery.eq('mentor_team', auth.teamName);
+      }
+      const { data: rows, error } = await dashboardQuery;
       if (error) return errResponse(error.message);
 
       const memberIds = (rows || []).map((m: Record<string, unknown>) => String(m.id));
@@ -381,7 +387,8 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
           gaps:     gapResult.gaps,
           ftNextTl: gapResult.ftNextTl,
           ftNeeded: gapResult.ftNeeded,
-          phone: contact.phone, email: contact.email,
+          phone: auth.role === 'growth' ? '' : contact.phone,
+          email: auth.role === 'growth' ? '' : contact.email,
           mentoringMode: contact.mentoringMode,
           noMentorContact: false, mentorContactDays: null as number | null,
           scoreAvg: hist.length ? Math.round(hist.reduce((a, v) => a + v, 0) / hist.length) : score,
@@ -389,11 +396,17 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       });
 
       // ── Teams aggregation (needed for bar chart + Mentor Teams tab) ──
-      const activityData = await getMentorActivityData(db);
+      const activityDataAll = await getMentorActivityData(db);
+      const activityData = auth.isMC || auth.role === 'growth'
+        ? activityDataAll
+        : activityDataAll.filter((item) => item.team === auth.teamName);
       const actMap: Record<string, Record<string, unknown>> = {};
       for (const a of activityData) actMap[a.team] = a as unknown as Record<string, unknown>;
 
-      const teams = TEAMS.map(teamName => {
+      const visibleTeams = auth.isMC || auth.role === 'growth'
+        ? TEAMS
+        : TEAMS.filter(teamName => teamName === auth.teamName);
+      const teams = visibleTeams.map(teamName => {
         const ta  = teamAgg[teamName] || { team: teamName, count: 0, scoreSum: 0, scored: 0, green: 0, yellow: 0, red: 0, black: 0, none: 0, nmCount: 0, tyfcbTotal: 0, givenTotal: 0, recvTotal: 0, absentTotal: 0 };
         const act = actMap[teamName]  || {};
         return {
@@ -446,14 +459,22 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       const avgBNI    = total ? Math.round(members.reduce((s, m) => s + (m.score || 0), 0) / total) : 0;
       const avgROI    = total ? Math.round(members.reduce((s, m) => s + (m.recv as number) / 28000 * 100, 0) / total) : 0;
 
-      const { data: archivedRows } = await db.from('members').select('id')
+      let archivedQuery = db.from('members').select('id')
         .eq('is_archived', true)
         .gte('updated_at', new Date(Date.now() - 365 * 86400000).toISOString());
+      if (!auth.isMC && auth.role !== 'growth' && auth.teamName) {
+        archivedQuery = archivedQuery.eq('mentor_team', auth.teamName);
+      }
+      const { data: archivedRows } = await archivedQuery;
       const left12mo = (archivedRows || []).length;
 
-      const { data: newRows } = await db.from('members').select('id')
+      let newMemberQuery = db.from('members').select('id')
         .eq('is_new_member', true)
         .eq('is_archived', false);
+      if (!auth.isMC && auth.role !== 'growth' && auth.teamName) {
+        newMemberQuery = newMemberQuery.eq('mentor_team', auth.teamName);
+      }
+      const { data: newRows } = await newMemberQuery;
       const added6mo = (newRows || []).length;
 
       const thisMonthStart = new Date(); thisMonthStart.setDate(1); thisMonthStart.setHours(0,0,0,0);
@@ -470,8 +491,12 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       };
 
       // ── New member list ──
-      const { data: nmRows } = await db.from('members').select('name, nickname, mentor_team')
+      let nmQuery = db.from('members').select('name, nickname, mentor_team')
         .eq('is_new_member', true).eq('is_archived', false);
+      if (!auth.isMC && auth.role !== 'growth' && auth.teamName) {
+        nmQuery = nmQuery.eq('mentor_team', auth.teamName);
+      }
+      const { data: nmRows } = await nmQuery;
       const nmList = (nmRows || []).map((m: Record<string, unknown>) => ({
         name: m.name, nick: m.nickname, mentor: m.mentor_team,
       }));
@@ -491,6 +516,10 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       if (mErr || !m) return errResponse(`ไม่พบ "${memberName}"`);
 
       const mv = m as Record<string, unknown>;
+      const lookup = await resolveMemberAccess(db, { memberId: mv.id });
+      if (!lookup.member) return errResponse(lookup.error!);
+      const denied = memberAccessError(auth, lookup.member, { allowGrowth: true });
+      if (denied) return errResponse(denied, 403);
       const memberId = String(mv.id);
 
       const { data: scores } = await db.from('monthly_scores').select('year, month, score')
@@ -511,7 +540,8 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         ceu: Number(mv.ceu) || 0, tyfcb: Number(mv.tyfcb_thb) || 0,
         bniDays, attend: Number(mv.attend) || 0, absent: Number(mv.absent) || 0,
         late: Number(mv.late) || 0, sub: Number(mv.sub) || 0,
-        email: String(inf.email || ''), phone: String(inf.phone || ''),
+        email: auth.role === 'growth' ? '' : String(inf.email || ''),
+        phone: auth.role === 'growth' ? '' : String(inf.phone || ''),
       };
       const target = {
         referral: weeks * 2, visitor: Math.max(1, Math.ceil((weeks / 26) * 2)),
@@ -604,7 +634,11 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         cats, attendRisk, fastTrack, priorities, balance,
         given: Number(mv.given_thb) || 0, recv: Number(mv.received_thb) || 0,
         actual, target, weeks, scoreHistory,
-        coreIssue: mv.open_core_issue ? { coreIssue: mv.open_core_issue, savedAt: mv.core_issue_opened_at } : null,
+        coreIssue: auth.role === 'growth'
+          ? null
+          : mv.open_core_issue
+            ? { coreIssue: mv.open_core_issue, savedAt: mv.core_issue_opened_at }
+            : null,
         renewal: mv.expiry_date || '',
       });
     }
@@ -612,8 +646,13 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     case 'getMyTeam': {
       const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
-      const role = String(auth.role || p.role || '').toLowerCase();
-      const teamName = String(p.teamName || TEAM_ROLE[role] || '');
+      const requestedRole = String(p.role || '').toLowerCase();
+      const role = auth.isMC && requestedRole
+        ? requestedRole
+        : String(auth.role || '').toLowerCase();
+      const teamName = auth.isMC || role === 'growth'
+        ? String(p.teamName || TEAM_ROLE[role] || '')
+        : String(auth.teamName || '');
       if (!teamName) return errResponse('ไม่พบทีม');
 
       const { data: members, error } = await db
@@ -680,14 +719,14 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     }
 
     case 'getMentorActivity': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
       const teams = await getMentorActivityData(db);
       return jsonResponse({ ok: true, teams });
     }
 
     case 'getMentorPerformance': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
       const teams = await getMentorActivityData(db);
       for (const t of teams) {
@@ -704,7 +743,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     }
 
     case 'getChapterPulse': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
       const { data: rows, error } = await db
         .from('v_member_dashboard')
@@ -750,7 +789,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     }
 
     case 'getLeaderboard': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
       const { data: rows, error } = await db
         .from('v_member_dashboard')
@@ -766,7 +805,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     }
 
     case 'getScorecard': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
       // ── 1. Fetch all active members with current scores ──────
       const { data: memRows, error: memErr } = await db
@@ -988,11 +1027,77 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       return jsonResponse({ ok: true });
     }
 
-    case 'verifyScoring':
-      return jsonResponse({ ok: true, results: [] });
+    case 'verifyScoring': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const { data, error } = await db
+        .from('v_member_dashboard')
+        .select('name, bni_official_pts, attend, absent, late, medical, sub, rg, visitors, one_to_one, ceu, tyfcb_thb')
+        .eq('is_archived', false)
+        .order('name');
+      if (error) return errResponse(error.message);
+
+      let matched = 0;
+      let mismatched = 0;
+      let noData = 0;
+      const rows = ((data || []) as Record<string, unknown>[]).map((row) => {
+        const weeks = Number(row.attend) + Number(row.absent) + Number(row.late)
+          + Number(row.medical) + Number(row.sub);
+        const palmsScore = Number(row.bni_official_pts) || 0;
+        if (weeks <= 0) {
+          noData++;
+          return { name: row.name, noData: true, palmsScore: 0, ourScore: 0, diff: 0, match: false, weeks: 0 };
+        }
+
+        const result = calcPalmsScore({
+          attend: Number(row.attend) || 0,
+          absent: Number(row.absent) || 0,
+          late: Number(row.late) || 0,
+          medical: Number(row.medical) || 0,
+          sub: Number(row.sub) || 0,
+          rgi: Number(row.rg) || 0,
+          rgo: 0,
+          visitor: Number(row.visitors) || 0,
+          oto: Number(row.one_to_one) || 0,
+          ceu: Number(row.ceu) || 0,
+          tyfb: Number(row.tyfcb_thb) || 0,
+          bniDays: 0,
+        });
+        const palmsTl = trafficLight(palmsScore);
+        const match = palmsTl === result.color;
+        if (match) matched++;
+        else mismatched++;
+        return {
+          name: row.name,
+          noData: false,
+          palmsScore,
+          palmsTl,
+          ourScore: result.total,
+          ourTl: result.color,
+          diff: result.total - palmsScore,
+          match,
+          weeks: result.weeks,
+          cats: {
+            absent: result.absence,
+            ref: result.referral,
+            tyfcb: result.tyfb,
+            visitor: result.visitor,
+            one21: result.oneToOne,
+            training: result.ceu,
+          },
+        };
+      }).sort((a, b) => Math.abs(Number(b.diff) || 0) - Math.abs(Number(a.diff) || 0));
+
+      return jsonResponse({
+        ok: true,
+        summary: { total: matched + mismatched, matched, mismatched, noData },
+        rows,
+      });
+    }
 
     case 'getChapterTrend': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const { data: scores, error: sErr } = await db

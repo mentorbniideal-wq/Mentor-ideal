@@ -8,6 +8,8 @@ export interface AuthResult {
   teamName?: string | null;
   isMC?: boolean;
   isMentor?: boolean;
+  adminSections?: string[];
+  adminEditAccess?: boolean;
   error?: string;
 }
 
@@ -54,7 +56,7 @@ export async function verifyToken(
   // Look up role_assignments by email (service client can read this)
   const { data: ra, error: raErr } = await supabase
     .from('role_assignments')
-    .select('role, display_name, team_name, is_mc, is_mentor')
+    .select('role, display_name, team_name, is_mc, is_mentor, admin_sections, admin_edit_access')
     .eq('email', email)
     .maybeSingle();
 
@@ -69,6 +71,8 @@ export async function verifyToken(
     teamName:    r.team_name != null ? String(r.team_name) : null,
     isMC:        Boolean(r.is_mc),
     isMentor:    Boolean(r.is_mentor),
+    adminSections: Array.isArray(r.admin_sections) ? r.admin_sections.map(String) : [],
+    adminEditAccess: Boolean(r.admin_edit_access),
   };
 }
 

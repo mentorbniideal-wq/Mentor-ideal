@@ -1,13 +1,13 @@
-import { requireAuth } from '../../_shared/auth.ts';
+import { requireAdminAccess } from '../../_shared/admin-auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 
 export async function handleAdminIssues(p: Record<string, unknown>): Promise<Response> {
   const db   = getServiceClient();
-  const auth = await requireAuth(db, p);
-  if (!auth.ok) return errResponse(auth.error!);
-  if (!auth.isMC) return errResponse('Admin access required', 403);
-
   const action = String(p.action);
+  const auth = await requireAdminAccess(db, p, 'issues', {
+    write: action === 'updateIssueStatus' || action === 'addActionLog',
+  });
+  if (!auth.ok) return errResponse(auth.error!);
 
   // ── List core_issues with member info ─────────────────────────
   if (action === 'getAdminIssues') {
@@ -23,7 +23,7 @@ export async function handleAdminIssues(p: Record<string, unknown>): Promise<Res
     if (error) return errResponse(error.message);
 
     type IssueRow = { id: string; status: string; issue_text: string; mentor_team: string | null; created_at: string; updated_at: string | null; members: { name: string; nickname: string | null } | null };
-    const issues = ((data || []) as IssueRow[]).map(r => ({
+    const issues = ((data || []) as unknown as IssueRow[]).map(r => ({
       id:         r.id,
       status:     r.status,
       issueText:  r.issue_text,
@@ -85,7 +85,7 @@ export async function handleAdminIssues(p: Record<string, unknown>): Promise<Res
     const { data, error } = await query;
     if (error) return errResponse(error.message);
     type LogRow = { id: string; mentor_team: string|null; action_text: string; action_by: string; action_date: string; created_at: string; members: {name:string;nickname:string|null}|null };
-    const logs = ((data || []) as LogRow[]).map(r => ({
+    const logs = ((data || []) as unknown as LogRow[]).map(r => ({
       id: r.id, team: r.mentor_team ?? '—', actionText: r.action_text,
       actionBy: r.action_by, date: r.action_date, createdAt: r.created_at,
       memberName: r.members?.name ?? '—', memberNick: r.members?.nickname ?? '',

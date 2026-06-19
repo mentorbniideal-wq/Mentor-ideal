@@ -2,7 +2,7 @@ import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const ADMIN_SECTIONS = ['dashboard','members','issues','checkin','revenue','broadcast','settings'] as const;
+const ADMIN_SECTIONS = ['dashboard','members','issues','checkin','revenue','broadcast'] as const;
 
 export async function handleAdminSettings(p: Record<string, unknown>): Promise<Response> {
   const db     = getServiceClient();
@@ -60,7 +60,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
   if (action === 'getRoleAssignments') {
     const { data, error } = await db
       .from('role_assignments')
-      .select('email, role, display_name, team_name, is_mc, is_mentor, created_at')
+      .select('email, role, display_name, team_name, is_mc, is_mentor, admin_sections, admin_edit_access, created_at')
       .order('role');
     if (error) return errResponse(error.message);
     return jsonResponse({ ok: true, assignments: data || [] });
@@ -73,13 +73,25 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     const teamName    = p.teamName || p.team_name ? String(p.teamName || p.team_name) : null;
     const isMC        = Boolean(p.isMC    ?? p.is_mc    ?? false);
     const isMentor    = Boolean(p.isMentor ?? p.is_mentor ?? false);
+    const hasAdminSections = Array.isArray(p.adminSections);
+    const adminSections = (hasAdminSections ? p.adminSections as string[] : [])
+      .filter(s => ADMIN_SECTIONS.includes(s as typeof ADMIN_SECTIONS[number]));
 
     if (!email || !role) return errResponse('email and role required');
     const validRoles = ['mc','toomtam','aof','draft','phai','amp','growth'];
     if (!validRoles.includes(role)) return errResponse(`Invalid role. Must be one of: ${validRoles.join(', ')}`);
 
+    const assignment: Record<string, unknown> = {
+      email, role, display_name: displayName, team_name: teamName,
+      is_mc: isMC, is_mentor: isMentor,
+    };
+    if (hasAdminSections) assignment.admin_sections = adminSections;
+    if (p.adminEditAccess !== undefined) {
+      assignment.admin_edit_access = Boolean(p.adminEditAccess);
+    }
+
     const { error } = await db.from('role_assignments').upsert(
-      { email, role, display_name: displayName, team_name: teamName, is_mc: isMC, is_mentor: isMentor },
+      assignment,
       { onConflict: 'email' },
     );
     if (error) return errResponse(error.message);
@@ -108,6 +120,9 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     const role     = String(p.role || '').toLowerCase().trim();
     const isMentor = Boolean(p.isMentor ?? false);
     const teamName = p.teamName ? String(p.teamName) : null;
+    const approvedSections = (Array.isArray(p.sections) ? p.sections as string[] : [])
+      .filter(s => ADMIN_SECTIONS.includes(s as typeof ADMIN_SECTIONS[number]));
+    const editAccess = Boolean(p.editAccess);
     if (!id || !role) return errResponse('id and role required');
     const validRoles = ['mc','toomtam','aof','draft','phai','amp','growth'];
     if (!validRoles.includes(role)) return errResponse('Invalid role');
@@ -122,8 +137,12 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
       role,
       display_name: String(r.name || r.email),
       team_name:    teamName,
-      is_mc:        false,
+      is_mc:        role === 'mc',
       is_mentor:    isMentor,
+      admin_sections: approvedSections.length
+        ? approvedSections
+        : (Array.isArray(r.requested_sections) ? r.requested_sections : []),
+      admin_edit_access: editAccess || Boolean(r.edit_access),
     }, { onConflict: 'email' });
     if (raErr) return errResponse(raErr.message);
 

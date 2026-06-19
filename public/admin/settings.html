@@ -252,10 +252,16 @@ function renderRequests() {
 }
 
 async function approveReq(id) {
+  const req      = _allRequests.find(x => x.id === id) || {};
   const role     = document.getElementById('role-'+id)?.value;
   const teamName = document.getElementById('team-'+id)?.value.trim() || null;
   const isMentor = ['toomtam','aof','draft','phai','amp'].includes(role);
-  const r = await adminCall({ action: 'approveAccessRequest', id, role, teamName, isMentor });
+  const r = await adminCall({
+    action: 'approveAccessRequest',
+    id, role, teamName, isMentor,
+    sections: req.requested_sections || [],
+    editAccess: Boolean(req.edit_access),
+  });
   if (!r?.ok) { alert('เกิดข้อผิดพลาด: ' + r?.error); return; }
   _allRequests = _allRequests.map(req => req.id===id ? {...req, status:'approved'} : req);
   renderRequests();

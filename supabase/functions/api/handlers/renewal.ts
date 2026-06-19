@@ -97,7 +97,7 @@ export async function handleRenewal(p: Record<string, unknown>): Promise<Respons
     }
 
     case 'updateRenewalStatus': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const memberName = String(p.memberName || p.name || '').trim();

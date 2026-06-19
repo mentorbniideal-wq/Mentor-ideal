@@ -11,7 +11,7 @@ export async function handleAlerts(p: Record<string, unknown>): Promise<Response
     case 'getAlertCenter': {
       // All authenticated roles can see alerts (badge count & notification panel).
       // Data is filtered server-side: MC sees all; mentors/growth see their team's issues only.
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const now = Date.now();
@@ -100,6 +100,7 @@ export async function handleAlerts(p: Record<string, unknown>): Promise<Response
         const { data: m } = await db.from('members').select('name, mentor_team').eq('id', String(r.member_id)).single();
         if (!m) continue;
         const mv = m as Record<string, unknown>;
+        if (callerTeam && String(mv.mentor_team || '') !== callerTeam) continue;
         alerts.push({
           type: 'renewal', level: diff <= 7 ? 'emergency' : 'warning',
           icon: '💳', team: mv.mentor_team || '', name: mv.name, nick: '', tl: 'none', score: 0,
@@ -133,7 +134,7 @@ export async function handleAlerts(p: Record<string, unknown>): Promise<Response
       return jsonResponse({ ok: true, unread: {}, count: 0 });
 
     case 'getReports': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const requestedTeam = typeof p.teamName === 'string' && p.teamName ? p.teamName : null;

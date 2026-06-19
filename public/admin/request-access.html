@@ -153,15 +153,16 @@ async function init() {
 
   if (!session) { show('login-screen'); return; }
 
-  // Check if already MC → redirect to admin
+  // Check if the account already has Admin access.
   const roleRes = await fetch(SUPABASE_URL + '/functions/v1/api', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'getMyRole', token: session.access_token }),
   });
   const role = await roleRes.json();
-  if (role.ok && role.isMC) {
-    window.location.href = '/admin/index.html';
+  if (role.ok && (role.isMC || (role.adminSections||[]).length)) {
+    const first = role.isMC ? 'dashboard' : role.adminSections[0];
+    window.location.href = '/admin/' + (first === 'dashboard' ? 'index' : first) + '.html';
     return;
   }
 

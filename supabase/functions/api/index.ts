@@ -41,6 +41,13 @@ const PUBLIC_ACTIONS = new Set([
   'getMemberPublicDetail',
 ]);
 
+const AUTH_ACTIONS = new Set([
+  'login',
+  'verifyPin',
+  'getMyRole',
+  'viewAsRole',
+]);
+
 // ── Action → handler routing table ───────────────────────────
 // Mirrors dispatch() in WEBAPP.js lines 3400-3551
 const ROUTES: Record<string, string> = {
@@ -212,6 +219,13 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    // Defense in depth: every non-public, non-auth action must authenticate
+    // before a service-role handler can access the database.
+    if (!PUBLIC_ACTIONS.has(action) && !AUTH_ACTIONS.has(action)) {
+      const auth = await requireAuth(getServiceClient(), payload);
+      if (!auth.ok) return errResponse(auth.error || 'Authentication required', 401);
+    }
+
     // Log usage (non-blocking, fire-and-forget)
     if (action !== 'logUsage' && payload.role) {
       logUsageAsync(payload).catch(() => {});

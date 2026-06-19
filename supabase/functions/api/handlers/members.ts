@@ -827,11 +827,11 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
       const memberIds = (members as Record<string, unknown>[]).map((m) => m.id as string);
 
-      // Fetch checklist rows for all these members
+      // Fetch checklist rows for all these members (include item_key for milestone detection)
       const CHECKLIST_TOTAL = 41; // must match TEMPLATE.length in getNMChecklist
       const { data: clRows, error: clErr } = await db
         .from('new_member_checklist')
-        .select('member_id, is_done, pass')
+        .select('member_id, item_key, is_done, pass')
         .in('member_id', memberIds);
       if (clErr) return errResponse(clErr.message);
 
@@ -854,12 +854,25 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       }
 
       // Build lookup maps
-      type ClRow = { member_id: string; is_done: boolean | null; pass?: boolean | null };
+      type ClRow = { member_id: string; item_key?: string; is_done: boolean | null; pass?: boolean | null };
       type NoteRow = { member_id: string; note: string };
 
       const clByMember: Record<string, ClRow[]> = {};
+      // Track milestone-relevant checklist items completed per member
+      const MILESTONE_121_KEYS   = new Set(['w4_121', 'w5_121_followup']);
+      const MILESTONE_REF_KEYS   = new Set(['w3_referral']);
+      const MILESTONE_VIS_KEYS   = new Set(['w1_visitor_day']);
+      const MILESTONE_TRAIN_KEYS = new Set(['t_msp', 't_lcd_review', 't_adv_msp', 't_1yr_club']);
+      const milestoneDone: Record<string, { has121: boolean; hasReferral: boolean; hasVisitor: boolean; hasTraining: boolean }> =  {};
       for (const r of (clRows || []) as ClRow[]) {
         (clByMember[r.member_id] ??= []).push(r);
+        if ((Boolean(r.pass) || Boolean(r.is_done)) && r.item_key) {
+          const ms = (milestoneDone[r.member_id] ??= { has121: false, hasReferral: false, hasVisitor: false, hasTraining: false });
+          if (MILESTONE_121_KEYS.has(r.item_key))   ms.has121      = true;
+          if (MILESTONE_REF_KEYS.has(r.item_key))   ms.hasReferral = true;
+          if (MILESTONE_VIS_KEYS.has(r.item_key))   ms.hasVisitor  = true;
+          if (MILESTONE_TRAIN_KEYS.has(r.item_key)) ms.hasTraining = true;
+        }
       }
       const latestNoteByMember: Record<string, string> = {};
       for (const r of (noteRows || []) as NoteRow[]) {
@@ -888,6 +901,7 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
         const statusText = pct >= 100 ? 'ครบทุกข้อ' : done > 0 ? `${done}/${total} ข้อ` : 'ยังไม่ได้เริ่ม';
 
+        const ms = milestoneDone[id] || { has121: false, hasReferral: false, hasVisitor: false, hasTraining: false };
         return {
           id,
           name:           m.name,
@@ -904,6 +918,11 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
           status:         statusText,
           fileUrl:        String(m.name),  // used as identifier for checklist panel
           latestNote:     latestNoteByMember[id] || '',
+          // Checklist-based milestone flags (fallback when R2Y data not yet imported)
+          clHas121:       ms.has121,
+          clHasReferral:  ms.hasReferral,
+          clHasVisitor:   ms.hasVisitor,
+          clHasTraining:  ms.hasTraining,
         };
       });
 

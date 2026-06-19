@@ -14,7 +14,6 @@ SECURITY DEFINER AS $$
 DECLARE
   v_from_team       TEXT;
   v_member_name     TEXT;
-  v_from_role       TEXT;
   v_to_role         TEXT;
   v_core_issues     INTEGER := 0;
   v_action_logs     INTEGER := 0;
@@ -49,15 +48,6 @@ BEGIN
       'to_team', p_target_team
     );
   END IF;
-
-  v_from_role := CASE lower(coalesce(v_from_team, ''))
-    WHEN 'toomtam' THEN 'toomtam'
-    WHEN 'aof'     THEN 'aof'
-    WHEN 'draft'   THEN 'draft'
-    WHEN 'phai'    THEN 'phai'
-    WHEN 'amp'     THEN 'amp'
-    ELSE NULL
-  END;
 
   v_to_role := CASE lower(coalesce(p_target_team, ''))
     WHEN 'toomtam' THEN 'toomtam'

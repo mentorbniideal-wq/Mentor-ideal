@@ -101,28 +101,12 @@ export async function handlePublic(p: Record<string, unknown>): Promise<Response
         .order('name');
       if (error) return errResponse(error.message);
 
-      const rows = (data || []) as Record<string, unknown>[];
-      const ids = rows.map(r => String(r.id)).filter(Boolean);
-      const contactMap: Record<string, { email: string; phone: string }> = {};
-      if (ids.length) {
-        const { data: contacts } = await db
-          .from('members')
-          .select('id, email, phone')
-          .in('id', ids);
-        for (const c of (contacts || []) as Record<string, unknown>[]) {
-          contactMap[String(c.id)] = { email: text(c.email), phone: text(c.phone) };
-        }
-      }
-
-      const members = rows.map(m => {
-        const contact = contactMap[String(m.id)] || { email: '', phone: '' };
+      const members = ((data || []) as Record<string, unknown>[]).map(m => {
         return {
           id:     m.id,
           name:   text(m.name),
           nick:   text(m.nickname),
           mentor: text(m.mentor_team),
-          email:  contact.email,
-          phone:  contact.phone,
           score:  num(m.display_score),
           tl:     text(m.traffic_light) || 'none',
         };
@@ -161,7 +145,7 @@ export async function handlePublic(p: Record<string, unknown>): Promise<Response
       if (!name) return errResponse('name required');
       const { data, error } = await db
         .from('v_member_dashboard')
-        .select('*')
+        .select('id, name, nickname, mentor_team, display_score, traffic_light, palms_detail, rg, visitors, one_to_one, ceu, tyfcb_thb, bni_days, absent, attend, late, medical, sub')
         .eq('name', name)
         .single();
       if (error) return errResponse(error.message);
@@ -169,7 +153,8 @@ export async function handlePublic(p: Record<string, unknown>): Promise<Response
       return jsonResponse({
         ok: true,
         member: {
-          ...m,
+          id:       m.id,
+          name:     text(m.name),
           nick:     text(m.nickname),
           mentor:   text(m.mentor_team),
           score:    num(m.display_score),

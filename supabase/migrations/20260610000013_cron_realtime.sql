@@ -44,7 +44,7 @@ BEGIN
 
   v_body := jsonb_build_object('action', p_action, 'cron_secret', v_secret) || p_extra;
 
-  PERFORM extensions.http_post(
+  PERFORM net.http_post(
     url     := v_url,
     headers := jsonb_build_object(
       'Content-Type', 'application/json',

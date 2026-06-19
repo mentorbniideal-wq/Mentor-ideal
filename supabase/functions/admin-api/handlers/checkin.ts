@@ -1,11 +1,10 @@
-import { requireAuth } from '../../_shared/auth.ts';
+import { requireAdminAccess } from '../../_shared/admin-auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 
 export async function handleAdminCheckin(p: Record<string, unknown>): Promise<Response> {
   const db   = getServiceClient();
-  const auth = await requireAuth(db, p);
+  const auth = await requireAdminAccess(db, p, 'checkin');
   if (!auth.ok) return errResponse(auth.error!);
-  if (!auth.isMC) return errResponse('Admin access required', 403);
 
   const action = String(p.action);
 

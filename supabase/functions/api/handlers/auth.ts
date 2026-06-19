@@ -155,6 +155,8 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
       isMentor:    result.isMentor,
       teamName:    result.teamName,
       displayName: result.displayName,
+      adminSections: result.adminSections || [],
+      adminEditAccess: Boolean(result.adminEditAccess),
       version,
     });
   }

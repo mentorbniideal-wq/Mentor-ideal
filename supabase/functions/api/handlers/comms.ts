@@ -4,6 +4,7 @@
 //                  getMCAssignments, getMentorAssignments, ackAssignment
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
+import { isGrowth } from '../../_shared/authorization.ts';
 
 export async function handleComms(p: Record<string, unknown>): Promise<Response> {
   const db = getServiceClient();
@@ -165,7 +166,7 @@ export async function handleComms(p: Record<string, unknown>): Promise<Response>
       const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const role = String(p.role || auth.role || '').toLowerCase();
+      const role = String(auth.role || '').toLowerCase();
 
       const { data, error } = await db
         .from('message_reads')
@@ -185,7 +186,7 @@ export async function handleComms(p: Record<string, unknown>): Promise<Response>
       const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const role = String(p.role || auth.role || '').toLowerCase();
+      const role = String(auth.role || '').toLowerCase();
       const key  = String(p.key  || '').trim();
 
       if (!key) return errResponse('key required');
@@ -352,6 +353,18 @@ export async function handleComms(p: Record<string, unknown>): Promise<Response>
 
       const assignmentId = String(p.row || p.assignmentId || p.id || '').trim();
       if (!assignmentId) return errResponse('assignmentId required');
+
+      const { data: assignment, error: findError } = await db
+        .from('mc_assignments')
+        .select('mentor_team')
+        .eq('id', assignmentId)
+        .maybeSingle();
+      if (findError) return errResponse(findError.message);
+      if (!assignment) return errResponse('ไม่พบงานที่มอบหมาย');
+      const assignmentTeam = String((assignment as Record<string, unknown>).mentor_team || '');
+      if (!auth.isMC && !isGrowth(auth) && auth.teamName !== assignmentTeam) {
+        return errResponse('ไม่มีสิทธิ์รับทราบงานของทีมอื่น', 403);
+      }
 
       const { error } = await db
         .from('mc_assignments')

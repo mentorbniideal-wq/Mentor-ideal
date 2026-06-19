@@ -58,20 +58,43 @@
       body: JSON.stringify({ action: 'getMyRole', token: session.access_token }),
     });
     const role = await res.json();
-    if (!role.ok || !role.isMC) {
-      // Authenticated with Google but no MC role — show access request form
+    const sections = Array.isArray(role.adminSections) ? role.adminSections : [];
+    const page = (window.location.pathname.split('/').pop() || 'index.html').replace('.html','');
+    const pageSection = page === 'index' ? 'dashboard' : page;
+    const canUseAdmin = role.ok && (role.isMC || sections.length > 0);
+    if (!canUseAdmin) {
       window.location.href = '/admin/request-access.html';
+      return null;
+    }
+    if (!role.isMC && !sections.includes(pageSection)) {
+      window.location.href = '/admin/' + (sections[0] === 'dashboard' ? 'index' : sections[0]) + '.html';
       return null;
     }
 
     // Store in window for page scripts
-    window.ADMIN_SESSION = { token: session.access_token, displayName: role.displayName, isMC: true };
+    window.ADMIN_SESSION = {
+      token: session.access_token,
+      displayName: role.displayName,
+      isMC: Boolean(role.isMC),
+      sections,
+      editAccess: Boolean(role.adminEditAccess),
+    };
+
+    const linkSections = {
+      'index.html':'dashboard', 'members.html':'members', 'issues.html':'issues',
+      'checkin.html':'checkin', 'revenue.html':'revenue',
+      'broadcast.html':'broadcast', 'settings.html':'settings',
+    };
+    document.querySelectorAll('nav a[href]').forEach(link => {
+      const section = linkSections[link.getAttribute('href')];
+      if (section && !role.isMC && !sections.includes(section)) link.remove();
+    });
 
     const nameEl = document.getElementById('adminName');
     if (nameEl) nameEl.textContent = role.displayName || 'MC';
 
     // Show pending access request badge on Settings nav link
-    _loadRequestBadge();
+    if (role.isMC) _loadRequestBadge();
 
     return window.ADMIN_SESSION;
   }

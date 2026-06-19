@@ -1,6 +1,7 @@
 // Handler: coaching — saveCoreIssue, getCoachingGuide, saveMentorLog, getMentorLogs
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
+import { memberAccessError, resolveMemberAccess } from '../../_shared/authorization.ts';
 
 export async function handleCoaching(p: Record<string, unknown>): Promise<Response> {
   const db = getServiceClient();
@@ -9,22 +10,23 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
   switch (action) {
 
     case 'saveCoreIssue': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const memberName = String(p.memberName || p.name || '').trim();
       const issueText  = String(p.issue || p.coreIssue || p.issueText || '').trim();
       const statusVal  = String(p.status || 'open');
-      const teamName   = String(p.teamName || p.team || auth.teamName || '').trim();
       const actionTaken= String(p.actionTaken || p.action_taken || '').trim() || null;
       const followUpAt = String(p.followUpAt || p.follow_up_at || '').trim() || null;
 
       if (!memberName || !issueText) return errResponse('memberName and issue required');
 
       // Look up member id
-      const { data: member } = await db.from('members').select('id').eq('name', memberName).single();
-      if (!member) return errResponse(`ไม่พบสมาชิก: ${memberName}`);
-      const memberId = String((member as Record<string, unknown>).id);
+      const lookup = await resolveMemberAccess(db, p);
+      if (!lookup.member) return errResponse(lookup.error!);
+      const denied = memberAccessError(auth, lookup.member);
+      if (denied) return errResponse(denied, 403);
+      const memberId = lookup.member.id;
 
       // Check existing open issue
       const { data: existing } = await db.from('core_issues')
@@ -47,7 +49,7 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
       } else {
         const { error } = await db.from('core_issues').insert({
           member_id: memberId,
-          mentor_team: teamName || 'TOOMTAM',
+          mentor_team: lookup.member.mentorTeam,
           issue_text: issueText,
           action_taken: actionTaken,
           action_plan: actionPlan,
@@ -61,7 +63,7 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
     }
 
     case 'getMemberTimeline': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const memberName = String(p.memberName || p.name || '').trim();
@@ -134,12 +136,14 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
 
     case 'getCoachingGuide': {
       const memberName = String(p.memberName || p.name || '').trim();
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
+      if (!auth.ok) return errResponse(auth.error!);
 
       // List mode: no memberName → return guides[] for caller's whole team
       if (!memberName) {
-        const auth = await requireAuth(db, p);
-        if (!auth.ok) return errResponse(auth.error!);
-        const teamFilter = auth.teamName || String(p.teamName || '').trim();
+        const teamFilter = auth.isMC || auth.role === 'growth'
+          ? String(p.teamName || '').trim()
+          : String(auth.teamName || '');
         let q = db.from('v_member_dashboard')
           .select('name, nickname, mentor_team, display_score, traffic_light, rg, visitors, one_to_one, ceu, tyfcb_thb, bni_days, absent, palms_detail, open_core_issue')
           .eq('is_archived', false)
@@ -196,6 +200,11 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
         });
         return jsonResponse({ ok: true, guides });
       }
+
+      const lookup = await resolveMemberAccess(db, p);
+      if (!lookup.member) return errResponse(lookup.error!);
+      const denied = memberAccessError(auth, lookup.member);
+      if (denied) return errResponse(denied, 403);
 
       const { data: m } = await db.from('v_member_dashboard')
         .select('name, nickname, mentor_team, display_score, traffic_light, rg, visitors, one_to_one, ceu, tyfcb_thb, bni_days, absent, palms_detail, open_core_issue')
@@ -256,7 +265,7 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
     }
 
     case 'saveMentorLog': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const memberName = String(p.memberName || p.menteeName || p.name || '').trim();
@@ -264,16 +273,16 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
       // Store activity in `notes` column (displayed as activity) and notes in `next_actions`.
       const notes      = String(p.activity || p.notes || '').trim();
       const nextActions= String(p.nextActions || (p.activity ? String(p.notes || '') : '') || '').trim();
-      const teamName   = String(p.teamName || p.team || auth.teamName || '').trim();
-
       if (!memberName) return errResponse('memberName required');
 
-      const { data: member } = await db.from('members').select('id').eq('name', memberName).single();
-      if (!member) return errResponse(`ไม่พบสมาชิก: ${memberName}`);
+      const lookup = await resolveMemberAccess(db, p);
+      if (!lookup.member) return errResponse(lookup.error!);
+      const denied = memberAccessError(auth, lookup.member);
+      if (denied) return errResponse(denied, 403);
 
       const { error } = await db.from('mentor_logs').insert({
-        member_id: String((member as Record<string, unknown>).id),
-        mentor_team: teamName || 'TOOMTAM',
+        member_id: lookup.member.id,
+        mentor_team: lookup.member.mentorTeam,
         session_date: new Date().toISOString().split('T')[0],
         notes, next_actions: nextActions,
       });
@@ -282,7 +291,7 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
     }
 
     case 'getMentorLogs': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
       let query = db.from('mentor_logs')
@@ -328,17 +337,17 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
     }
 
     case 'save90DayReview': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
       // Accept both `menteeName` (from frontend) and `memberName` (canonical)
       const memberName = String(p.menteeName || p.memberName || '').trim();
       const mentorName = String(p.mentorName || '').trim();
-      const teamName   = String(p.team || p.teamName || auth.teamName || '').trim();
-
       if (!memberName) return errResponse('menteeName required');
-      const { data: member } = await db.from('members').select('id').eq('name', memberName).maybeSingle();
-      if (!member) return errResponse(`ไม่พบสมาชิก: ${memberName}`);
+      const lookup = await resolveMemberAccess(db, p);
+      if (!lookup.member) return errResponse(lookup.error!);
+      const denied = memberAccessError(auth, lookup.member);
+      if (denied) return errResponse(denied, 403);
 
       // Pack flat fields into content JSONB, or accept pre-packed content
       const content = p.content && typeof p.content === 'object' ? p.content : {
@@ -352,8 +361,8 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
       };
 
       const { error } = await db.from('ninety_day_reviews').insert({
-        member_id:   String((member as Record<string, unknown>).id),
-        mentor_team: teamName || 'TOOMTAM',
+        member_id:   lookup.member.id,
+        mentor_team: lookup.member.mentorTeam,
         review_date: new Date().toISOString().split('T')[0],
         content,
       });
@@ -362,7 +371,7 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
     }
 
     case 'get90DayReviews': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
       let query = db.from('ninety_day_reviews')

@@ -2,6 +2,7 @@
 // Handler: 121 — save121Log, get121Logs, getAll121Logs, get121Tracker
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
+import { memberAccessError, resolveMemberAccess } from '../../_shared/authorization.ts';
 
 export async function handle121(p: Record<string, unknown>): Promise<Response> {
   const db = getServiceClient();
@@ -13,23 +14,23 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
     // Mentor logs a 1-2-1 meeting for a member.
     // Uses initiator_id = partner_id = member's own id (mentor is not in DB).
     case 'save121Log': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const memberName = String(p.memberName || p.name || '').trim();
       const note       = String(p.note || p.notes || '').trim();
       const nextStep   = String(p.nextStep || p.outcome || '').trim();
+      const partnerName = String(
+        p.partnerName || p.mentorName || auth.displayName || auth.role || 'Mentor',
+      ).trim();
 
       if (!memberName) return errResponse('memberName required');
 
-      const { data: member, error: memberErr } = await db
-        .from('members')
-        .select('id')
-        .eq('name', memberName)
-        .single();
-      if (memberErr || !member) return errResponse(`ไม่พบสมาชิก: ${memberName}`);
-
-      const memberId = String((member as Record<string, unknown>).id);
+      const lookup = await resolveMemberAccess(db, p);
+      if (!lookup.member) return errResponse(lookup.error!);
+      const denied = memberAccessError(auth, lookup.member);
+      if (denied) return errResponse(denied, 403);
+      const memberId = lookup.member.id;
 
       const { error } = await db.from('one_to_one_logs').insert({
         initiator_id: memberId,
@@ -37,6 +38,8 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
         met_at:       new Date().toISOString(),
         notes:        note,
         outcome:      nextStep || null,
+        partner_name: partnerName,
+        logged_by_role: String(auth.role || ''),
       });
       if (error) return errResponse(error.message);
 
@@ -46,25 +49,22 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
     // ── get121Logs ─────────────────────────────────────────────
     // Get all 1-2-1 logs for a single member (as initiator or partner).
     case 'get121Logs': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const memberName = String(p.memberName || p.name || '').trim();
       if (!memberName) return errResponse('memberName required');
 
-      const { data: member, error: memberErr } = await db
-        .from('members')
-        .select('id')
-        .eq('name', memberName)
-        .single();
-      if (memberErr || !member) return jsonResponse({ ok: true, logs: [] });
-
-      const memberId = String((member as Record<string, unknown>).id);
+      const lookup = await resolveMemberAccess(db, p);
+      if (!lookup.member) return jsonResponse({ ok: true, logs: [] });
+      const denied = memberAccessError(auth, lookup.member);
+      if (denied) return errResponse(denied, 403);
+      const memberId = lookup.member.id;
 
       // Fetch logs where member is initiator
       const { data: asInitiator, error: e1 } = await db
         .from('one_to_one_logs')
-        .select('id, initiator_id, partner_id, notes, outcome, met_at, created_at')
+        .select('id, initiator_id, partner_id, partner_name, logged_by_role, notes, outcome, met_at, created_at')
         .eq('initiator_id', memberId)
         .order('created_at', { ascending: false })
         .limit(100);
@@ -73,7 +73,7 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
       // Fetch logs where member is partner (exclude self-logs already captured above)
       const { data: asPartner, error: e2 } = await db
         .from('one_to_one_logs')
-        .select('id, initiator_id, partner_id, notes, outcome, met_at, created_at')
+        .select('id, initiator_id, partner_id, partner_name, logged_by_role, notes, outcome, met_at, created_at')
         .eq('partner_id', memberId)
         .neq('initiator_id', memberId)   // avoid duplicating self-referencing rows
         .order('created_at', { ascending: false })
@@ -84,6 +84,8 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
         id: string;
         initiator_id: string;
         partner_id: string;
+        partner_name: string | null;
+        logged_by_role: string | null;
         notes: string | null;
         outcome: string | null;
         met_at: string | null;
@@ -98,7 +100,7 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
       const logs = combined.map((row) => ({
         id:        row.id,
         member:    memberName,
-        partner:   memberName,  // self-referenced; partner name = same member
+        partner:   row.partner_name || row.logged_by_role || 'Mentor',
         note:      row.notes    ?? '',
         nextStep:  row.outcome  ?? '',
         loggedAt:  row.met_at   ?? row.created_at,
@@ -120,6 +122,7 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
           id,
           notes,
           outcome,
+          partner_name,
           met_at,
           created_at,
           initiator:members!one_to_one_logs_initiator_id_fkey(name, nickname, mentor_team)
@@ -128,7 +131,13 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
         .limit(500);
       if (error) return errResponse(error.message);
 
-      const rows = (data || []) as Array<Record<string, unknown>>;
+      const allRows = (data || []) as Array<Record<string, unknown>>;
+      const rows = auth.isMC || auth.role === 'growth'
+        ? allRows
+        : allRows.filter((row) => {
+            const initiator = row.initiator as Record<string, unknown> | null;
+            return String(initiator?.mentor_team || '') === String(auth.teamName || '');
+          });
       const total = rows.length;
 
       // Count by team
@@ -165,6 +174,7 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
           id,
           notes,
           outcome,
+          partner_name,
           met_at,
           scheduled_date,
           created_at,
@@ -175,7 +185,13 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
         .limit(500);
       if (error) return errResponse(error.message);
 
-      const rows = (data || []) as Array<Record<string, unknown>>;
+      const allRows = (data || []) as Array<Record<string, unknown>>;
+      const rows = auth.isMC || auth.role === 'growth'
+        ? allRows
+        : allRows.filter((row) => {
+            const initiator = row.initiator as Record<string, unknown> | null;
+            return String(initiator?.mentor_team || '') === String(auth.teamName || '');
+          });
 
       let metCount  = 0;
       let pending   = 0;
@@ -199,7 +215,7 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
           id:          row.id,
           name:        String(initiator?.name     || ''),
           nick:        String(initiator?.nickname || initiator?.name || ''),
-          partner:     String(partner?.name       || ''),
+          partner:     String(row.partner_name || partner?.name || ''),
           partnerTeam: String(partner?.mentor_team || ''),
           team:        String(initiator?.mentor_team || ''),
           note:        String(row.notes           || ''),
