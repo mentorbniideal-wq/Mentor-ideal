@@ -27,7 +27,7 @@
   --ac-dim:rgba(200,169,106,.1);--bd-hover:rgba(200,169,106,.2);
 }
 body.light{
-  --bg:#C8A030;--bg2:#F4EAD2;--bg3:#EAD8A8;--bg4:#DDCA88;
+  --bg:#C87820;--bg2:#F5ECD0;--bg3:#ECD8A0;--bg4:#E0C680;
   --white:#1A1612;--border:rgba(0,0,0,.14);
   --gray:#6A4820;--gray2:#482E08;
   --gold:#5C3C10;--gold2:#462E08;
@@ -2555,7 +2555,7 @@ function toggleTheme(){
   var isLight=document.body.classList.toggle('light');
   document.querySelectorAll('.theme-btn,#themeBtn').forEach(function(b){b.textContent=isLight?'🌙':'☀️';});
   var meta=document.getElementById('meta-theme-color');
-  if(meta)meta.setAttribute('content',isLight?'#C8A030':'#1A1816');
+  if(meta)meta.setAttribute('content',isLight?'#C87820':'#1A1816');
   try{localStorage.setItem('bni_theme',isLight?'light':'dark');}catch(e){}
 }
 function toast(msg,dur){var el=document.getElementById('toast');el.textContent=msg;el.classList.add('on');setTimeout(function(){el.classList.remove('on');},dur||2000);}
