@@ -27,10 +27,10 @@
   --ac-dim:rgba(200,169,106,.1);--bd-hover:rgba(200,169,106,.2);
 }
 body.light{
-  --bg:#C87820;--bg2:#F5ECD0;--bg3:#ECD8A0;--bg4:#E0C680;
+  --bg:#EDEAE4;--bg2:#FDFAF6;--bg3:#F0ECE4;--bg4:#E8E4DC;
   --white:#1A1612;--border:rgba(0,0,0,.14);
-  --gray:#6A4820;--gray2:#482E08;
-  --gold:#5C3C10;--gold2:#462E08;
+  --gray:#6B6158;--gray2:#4A4138;
+  --gold:#8B6A2E;--gold2:#6B5020;
   --green:#059669;--greenl:rgba(5,150,105,.12);
   --yellow:#B45309;--yellowl:rgba(180,83,9,.12);
   --red:#DC2626;--redl:rgba(220,38,38,.12);
@@ -2555,7 +2555,7 @@ function toggleTheme(){
   var isLight=document.body.classList.toggle('light');
   document.querySelectorAll('.theme-btn,#themeBtn').forEach(function(b){b.textContent=isLight?'🌙':'☀️';});
   var meta=document.getElementById('meta-theme-color');
-  if(meta)meta.setAttribute('content',isLight?'#C87820':'#1A1816');
+  if(meta)meta.setAttribute('content',isLight?'#EDEAE4':'#1A1816');
   try{localStorage.setItem('bni_theme',isLight?'light':'dark');}catch(e){}
 }
 function toast(msg,dur){var el=document.getElementById('toast');el.textContent=msg;el.classList.add('on');setTimeout(function(){el.classList.remove('on');},dur||2000);}
