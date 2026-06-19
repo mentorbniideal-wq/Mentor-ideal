@@ -1876,6 +1876,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
         <button class="mentor-hub-card" onclick="mentorOpenSection('mcmsg')">💬 <strong>MC Messages</strong><span>ประกาศ งานมอบหมาย และข้อความส่วนตัว</span></button>
         <button class="mentor-hub-card" onclick="mentorOpenSection('mentorlog');mobMlLoad()">📓 <strong>Activity Log</strong><span>บันทึกกิจกรรม — โทร, 1-2-1, แนะนำ, Feedback</span></button>
         <button class="mentor-hub-card" onclick="mentorOpenSection('90day');mentorLoad90()">📝 <strong>90-Day Review</strong><span>บันทึกและดู 90-Day Review ของ Mentee</span></button>
+        <button class="mentor-hub-card" onclick="mentorOpenSection('training');mentorCalLoad()" style="grid-column:1/-1;">📅 <strong>Training & CEU Calendar</strong><span>ดูวันอบรม BNI ที่ใกล้มา — กดส่ง LINE แนะนำ Mentee ได้เลย</span></button>
       </div>
     </div>
     <div class="pane" id="mentor-report"><button class="dp-back" onclick="mentorReturnTo('work')" aria-label="กลับไปศูนย์งาน">← งาน</button><div id="mentor-report-c"><div class="lt">⏳ กำลังโหลด...</div></div></div>
@@ -1919,6 +1920,24 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
       </div>
       <div id="mentor-90d-list"><div class="lt">⏳ กำลังโหลด...</div></div>
     </div>
+    <!-- Training & CEU Calendar pane -->
+    <div class="pane" id="mentor-training">
+      <button class="dp-back" onclick="mentorReturnTo('more')">← เพิ่มเติม</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;">
+        <div style="font-size:1rem;font-weight:800;">📅 Training & CEU Calendar</div>
+        <span id="mtr-badge" style="font-size:.65rem;color:var(--gray2);"></span>
+      </div>
+      <!-- Filter pills -->
+      <div class="tr-pills" id="mtr-pills" style="margin-bottom:.6rem;flex-wrap:wrap;gap:.35rem;">
+        <button class="tr-pill on" onclick="mtrSet('all',this)">ทั้งหมด</button>
+        <button class="tr-pill" onclick="mtrSet('ceu',this)">📚 CEU</button>
+        <button class="tr-pill" onclick="mtrSet('new',this)">⭐ New Member</button>
+        <button class="tr-pill" onclick="mtrSet('mentor',this)">👑 Mentor/Growth</button>
+      </div>
+      <div id="mtr-ceu-alert"></div>
+      <div id="mtr-list"></div>
+    </div>
+
     <div class="pane" id="mentor-msummary">
       <button class="dp-back" onclick="mentorReturnTo('more')" aria-label="กลับไปเมนูเพิ่มเติม">← เพิ่มเติม</button>
       <div class="card" style="background:rgba(240,180,41,.06);border-color:rgba(240,180,41,.2);margin-bottom:.5rem;">
@@ -2771,7 +2790,7 @@ function mentorOpenSection(tab){
   if(!hidden)return;
   document.querySelectorAll('#mentorApp .tb').forEach(function(b){b.classList.remove('on');});
   document.querySelectorAll('#mentorApp .pane').forEach(function(p){p.classList.remove('on');});
-  var moreSection=['coaching','newmembers','msummary','mcmsg','mentorlog','90day'];
+  var moreSection=['coaching','newmembers','msummary','mcmsg','mentorlog','90day','training'];
   var parent=moreSection.indexOf(tab)>=0?'more':'work';
   var parentBtn=mentorPrimaryButton(parent);if(parentBtn)parentBtn.classList.add('on');
   hidden.classList.add('on');
@@ -8463,6 +8482,107 @@ function loadLineMembers() {
   call('getLineMembers', {}, function(err,r){
     if (!err && r.ok) S.lineMembers = r.members||{};
   });
+}
+
+// ── Mentor Training Calendar ──────────────────────────────────
+var _mtrFilter='all';
+function mtrSet(val,btn){
+  _mtrFilter=val;
+  document.querySelectorAll('#mtr-pills .tr-pill').forEach(function(b){b.classList.remove('on');});
+  if(btn)btn.classList.add('on');
+  mtrRender();
+}
+function mentorCalLoad(){
+  _mtrFilter='all';
+  document.querySelectorAll('#mtr-pills .tr-pill').forEach(function(b,i){b.classList.toggle('on',i===0);});
+  // Show CEU alert: team members with low CEU
+  var ceuAlert=document.getElementById('mtr-ceu-alert');
+  if(ceuAlert){
+    var low=(S.teamMembers||[]).filter(function(m){
+      var c=m.cats||m.palms_detail||null;
+      if(c&&c.training!==undefined)return (c.training||0)<20;
+      return (m.ceu||0)<4;
+    });
+    if(low.length){
+      ceuAlert.innerHTML='<div style="background:rgba(240,180,41,.1);border:1px solid rgba(240,180,41,.2);border-radius:10px;padding:.6rem .75rem;margin-bottom:.6rem;font-size:.75rem;color:#F59E0B;">📚 Mentee CEU ยังไม่เต็ม <strong>'+low.length+' คน</strong>: '+low.slice(0,4).map(function(m){return escHtml(m.nick||m.name.split(' ')[0]);}).join(', ')+(low.length>4?' และอีก '+(low.length-4)+' คน':'')+'</div>';
+    }else{
+      ceuAlert.innerHTML='<div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:10px;padding:.5rem .75rem;margin-bottom:.6rem;font-size:.75rem;color:#10B981;">✅ Mentee ทุกคน CEU เต็มแล้ว</div>';
+    }
+  }
+  mtrRender();
+}
+function mtrRender(){
+  var now=new Date();now.setHours(0,0,0,0);
+  var list=TRAINING_EVENTS.filter(function(e){
+    if(trDateObj(e)<now)return false;
+    if(_mtrFilter==='all')return true;
+    return e.audience.indexOf(_mtrFilter)>=0;
+  }).sort(function(a,b){return trDateObj(a)-trDateObj(b);});
+  var badge=document.getElementById('mtr-badge');
+  if(badge)badge.textContent=list.length+' คอร์สถัดไป';
+  var host=document.getElementById('mtr-list');if(!host)return;
+  if(!list.length){host.innerHTML='<div class="empty">ไม่มีคอร์สในช่วงนี้</div>';return;}
+  var html='';
+  list.forEach(function(e){
+    var d=trDateObj(e);
+    var mon=d.toLocaleDateString('en-US',{month:'short'}).toUpperCase();
+    var isCeu=e.audience.indexOf('ceu')>=0;
+    var isMentor=e.audience.indexOf('mentor')>=0;
+    var isNew=e.audience.indexOf('new')>=0;
+    var idx=TRAINING_EVENTS.indexOf(e);
+    html+='<div style="display:flex;gap:.7rem;padding:.75rem;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:.5rem;">'
+      +'<div style="text-align:center;min-width:38px;flex-shrink:0;"><div style="font-size:1.3rem;font-weight:800;line-height:1;color:var(--white);">'+d.getDate()+'</div><div style="font-size:.6rem;color:var(--gray2);text-transform:uppercase;">'+mon+'</div></div>'
+      +'<div style="flex:1;min-width:0;">'
+        +'<div style="font-size:.84rem;font-weight:700;margin-bottom:3px;">'+escHtml(e.title)+'</div>'
+        +'<div style="font-size:.7rem;color:var(--gray2);line-height:1.6;">🕒 '+escHtml(e.time)+' · '+(e.format==='online'?'Online 🖥':'On-site 📍')+' '+escHtml(e.location)+'<br>💳 Early Bird: '+escHtml(e.early)+'</div>'
+        +'<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px;">'
+        +(isCeu?'<span class="tr-tag ceu">📚 CEU</span>':'')
+        +(isNew?'<span class="tr-tag msp">⭐ New Member</span>':'')
+        +(isMentor?'<span class="tr-tag lead">👑 Mentor</span>':'')
+        +(e.format==='online'?'<span class="tr-tag">Online</span>':'<span class="tr-tag">On-site</span>')
+        +'</div>'
+        +'<div style="font-size:.68rem;color:var(--gray2);margin-top:4px;">🎯 '+escHtml(e.note)+'</div>'
+        +'<div style="display:flex;gap:.4rem;margin-top:.5rem;flex-wrap:wrap;">'
+          +'<button onclick="mtrCopy('+idx+')" style="background:var(--bg2);border:1px solid var(--border);color:var(--gray2);border-radius:7px;padding:4px 10px;font-size:.72rem;cursor:pointer;font-family:inherit;">📋 Copy ข้อความ</button>'
+          +(S.teamName?'<button onclick="mtrSendLine('+idx+')" style="background:rgba(6,199,85,.12);border:1px solid rgba(6,199,85,.3);color:#06C755;border-radius:7px;padding:4px 10px;font-size:.72rem;cursor:pointer;font-family:inherit;">📲 ส่ง LINE ให้ Mentee</button>':'')
+        +'</div>'
+      +'</div>'
+      +'</div>';
+  });
+  host.innerHTML=html;
+}
+function mtrCopy(idx){
+  var e=TRAINING_EVENTS[idx];if(!e)return;
+  var d=trDateObj(e);
+  var low=(S.teamMembers||[]).filter(function(m){
+    var c=m.cats||null;
+    return c?(c.training||0)<20:(m.ceu||0)<4;
+  }).map(function(m){return m.nick||m.name.split(' ')[0];}).join(', ');
+  var text='📅 แนะนำ Training: '+e.title+'\n'
+    +'📆 '+trFmtDate(d)+' เวลา '+e.time+'\n'
+    +'📍 '+e.location+'\n'
+    +'💳 Early Bird: '+e.early+' | ปกติ: '+e.price+'\n'
+    +'🎯 '+e.note
+    +(low?'\n\n(Mentee CEU ยังไม่เต็ม: '+low+')':'');
+  if(navigator.clipboard){navigator.clipboard.writeText(text).then(function(){toast('✅ Copy แล้ว');}).catch(function(){trFallbackCopy(text);});}
+  else trFallbackCopy(text);
+}
+function mtrSendLine(idx){
+  var e=TRAINING_EVENTS[idx];if(!e)return;
+  var d=trDateObj(e);
+  var msg='📅 แนะนำ Training เพิ่ม CEU\n\n'
+    +e.title+'\n'
+    +'📆 '+trFmtDate(d)+'\n'
+    +'🕒 '+e.time+'\n'
+    +'📍 '+e.location+'\n'
+    +'💳 Early Bird: '+e.early+'\n'
+    +'🎯 '+e.note+'\n\n'
+    +'สนใจแจ้ง Mentor ได้เลยครับ/ค่ะ 🙏';
+  _lineTarget={broadcast:true, teamName:S.teamName||''};
+  document.getElementById('line-modal-title').textContent='📲 ส่ง LINE ทีม '+(S.teamName||'');
+  document.getElementById('line-broadcast-info').style.display='block';
+  document.getElementById('line-msg-txt').value=msg;
+  document.getElementById('lineModal').style.display='flex';
 }
 
 // ── Mentor 90-Day Review ──────────────────────────────────────
