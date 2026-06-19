@@ -3,6 +3,7 @@
 //         archiveMember, unarchiveMember, addNewMember, saveScore, saveStatus, etc.
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
+import { canAccessTeam } from '../../_shared/authorization.ts';
 
 const VALID_TEAMS = new Set(['TOOMTAM', 'Aof', 'Draft', 'PHAI', 'AMP']);
 const GROWTH_WATCH_MIN_SCORE = 65;
@@ -199,6 +200,9 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
       const lookup = await findMemberByLegacyPayload(db, p);
       if (lookup.error || !lookup.member) return errResponse(lookup.error || 'member not found');
+      if (!canAccessTeam(auth, lookup.member.mentor_team)) {
+        return errResponse('ไม่มีสิทธิ์อัปเดตสถานะสมาชิกทีมอื่น', 403);
+      }
 
       const { error } = await db
         .from('members')
@@ -318,6 +322,8 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       await db.from('visitor_log').update({ invited_by: null }).eq('invited_by', mid);
       await db.from('mc_assignments').update({ member_id: null }).eq('member_id', mid);
       await db.from('growth_tasks').update({ member_id: null }).eq('member_id', mid);
+      await db.from('checkin_entries').update({ member_id: null }).eq('member_id', mid);
+      await db.from('team_notifs').update({ member_id: null }).eq('member_id', mid);
 
       const { error } = await db.from('members').delete().eq('id', mid);
       if (error) return errResponse(error.message);
@@ -331,6 +337,9 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
       const lookup = await findMemberByLegacyPayload(db, p);
       if (lookup.error || !lookup.member) return errResponse(lookup.error || 'member not found');
+      if (!canAccessTeam(auth, lookup.member.mentor_team)) {
+        return errResponse('ไม่มีสิทธิ์บันทึกคะแนนสมาชิกทีมอื่น', 403);
+      }
 
       const memberId = lookup.member.id;
       const year     = Number(p.year || currentBangkokYear());
@@ -400,6 +409,9 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
       const lookup = await findMemberByLegacyPayload(db, p);
       if (lookup.error || !lookup.member) return errResponse(lookup.error || 'member not found');
+      if (!canAccessTeam(auth, lookup.member.mentor_team)) {
+        return errResponse('ไม่มีสิทธิ์อัปเดตสถานะสมาชิกทีมอื่น', 403);
+      }
 
       const memberId = lookup.member.id;
       const status   = textValue(p.status);
@@ -414,7 +426,7 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
     // ── ENSURE slot: look up or create a member row ───────────
     case 'ensureSlot': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
       const memberName = String(p.memberName || '').trim();
       const nick       = p.nick ? String(p.nick).trim() : '';
@@ -423,7 +435,7 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       // Try to find existing member
       const { data: existing, error: findErr } = await db
         .from('members')
-        .select('id')
+        .select('id, mentor_team')
         .eq('name', memberName)
         .limit(1)
         .maybeSingle();
@@ -464,7 +476,7 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
     // ── SAVE member note (upsert within 24 h) ─────────────────
     case 'saveMemberNote': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
       const memberName = String(p.memberName || '').trim();
       const note       = String(p.note ?? '');
@@ -473,12 +485,15 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       // Resolve member id
       const { data: member, error: mErr } = await db
         .from('members')
-        .select('id')
+        .select('id, mentor_team')
         .eq('name', memberName)
         .limit(1)
         .maybeSingle();
       if (mErr) return errResponse(mErr.message);
       if (!member) return errResponse(`Member not found: ${memberName}`);
+      if (!canAccessTeam(auth, String(member.mentor_team || ''))) {
+        return errResponse('ไม่มีสิทธิ์บันทึก Note ของสมาชิกทีมอื่น', 403);
+      }
       const memberId = member.id as string;
 
       // Check for an existing note updated within the last 24 h
@@ -502,7 +517,7 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       } else {
         const { error: insErr } = await db
           .from('member_notes')
-          .insert({ member_id: memberId, note, author_role: String(p.role || '') });
+          .insert({ member_id: memberId, note, author_role: String(auth.role || '') });
         if (insErr) return errResponse(insErr.message);
       }
 
@@ -511,19 +526,22 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
     // ── GET latest member note ────────────────────────────────
     case 'getMemberNote': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
       const memberName = String(p.memberName || '').trim();
       if (!memberName) return errResponse('memberName required');
 
       const { data: member, error: mErr } = await db
         .from('members')
-        .select('id')
+        .select('id, mentor_team')
         .eq('name', memberName)
         .limit(1)
         .maybeSingle();
       if (mErr) return errResponse(mErr.message);
       if (!member) return jsonResponse({ ok: true, note: '' });
+      if (!canAccessTeam(auth, String(member.mentor_team || ''))) {
+        return errResponse('ไม่มีสิทธิ์ดู Note ของสมาชิกทีมอื่น', 403);
+      }
       const memberId = member.id as string;
 
       const { data, error } = await db
@@ -539,7 +557,7 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
     // ── SAVE new-member checklist item ────────────────────────
     case 'saveNMCheckItem': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
       const memberName = String(p.memberName || p.fileUrl || '').trim();
       const itemKey    = String(p.itemKey || '').trim();
@@ -555,12 +573,15 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
       const { data: member, error: mErr } = await db
         .from('members')
-        .select('id')
+        .select('id, mentor_team')
         .eq('name', memberName)
         .limit(1)
         .maybeSingle();
       if (mErr) return errResponse(mErr.message);
       if (!member) return errResponse(`Member not found: ${memberName}`);
+      if (!canAccessTeam(auth, String(member.mentor_team || ''))) {
+        return errResponse('ไม่มีสิทธิ์แก้ Checklist ของสมาชิกทีมอื่น', 403);
+      }
       const memberId = member.id as string;
 
       const now = new Date().toISOString();
@@ -601,6 +622,9 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       if (mErr) return errResponse(mErr.message);
       if (!member) return jsonResponse({ ok: true, checklist: [], tasks: [], total: 0, done: 0, pct: 0 });
       const m = member as Record<string, unknown>;
+      if (!canAccessTeam(auth, String(m.mentor_team || ''), { allowGrowth: true })) {
+        return errResponse('ไม่มีสิทธิ์ดู Checklist ของสมาชิกทีมอื่น', 403);
+      }
       const memberId = String(m.id);
 
       // BNI Chapter Ideal — Full 41-task mentoring program template
