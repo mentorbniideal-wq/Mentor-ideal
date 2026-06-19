@@ -450,7 +450,19 @@ tbody tr:hover{background:rgba(60,120,80,.05)}
 .clickable-name:hover{color:var(--ac);text-decoration:underline}
 
 /* Light mode */
-body.light{--bg:#f0f2fa;--sf:#ffffff;--sf2:#ebedf5;--bd:#d0d5ea;--tx:#1a1d27;--sub:#5a5f80;--gy:#7b8199}
+body.light{
+  --bg:#F0ECE4;--sf:#F8F4EE;--sf2:#EAE5DC;--sf3:#DDD8CE;
+  --bd:rgba(0,0,0,.09);--bd-hover:rgba(0,0,0,.18);
+  --ac:#8B6A2E;--ac2:#A07A35;--ac3:#6B5020;
+  --ac-dim:rgba(139,106,46,.1);--ac-glow:rgba(139,106,46,.05);
+  --tx:#1A1612;--sub:#6B6158;--gy:#8A7E72;
+  --sh-card:0 1px 4px rgba(0,0,0,.07),0 2px 8px rgba(0,0,0,.04);
+  --sh-float:0 4px 20px rgba(0,0,0,.1),0 1px 4px rgba(0,0,0,.06);
+  --sh-inset:inset 0 1px 0 rgba(0,0,0,.04);
+}
+body.light header.command-top{background:rgba(248,244,238,.96);border-bottom-color:rgba(0,0,0,.09)}
+body.light .rail-card{background:var(--sf2);border-color:rgba(0,0,0,.06)}
+body.light #login{background:radial-gradient(ellipse at 30% 20%,#E8E2D8,#F0ECE4 60%)}
 body.light .gs-drop,body.light .mbox,body.light .bk-box,body.light #meeting{background:var(--sf)}
 
 /* ── Toast ── */

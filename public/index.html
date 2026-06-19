@@ -27,16 +27,19 @@
   --ac-dim:rgba(200,169,106,.1);--bd-hover:rgba(200,169,106,.2);
 }
 body.light{
-  --bg:#F5F2EC;--bg2:#FFFFFF;--bg3:#EDE9E1;--bg4:#DDD8CC;
-  --white:#1A1612;--border:rgba(0,0,0,.08);
-  --gray:#6B5E50;--gray2:#4A3E34;
-  --gold:#8B6A2E;--gold2:#6E5220;
-  --green:#059669;--greenl:rgba(5,150,105,0.12);
-  --yellow:#D97706;--yellowl:rgba(217,119,6,0.12);
-  --red:#DC2626;--redl:rgba(220,38,38,0.12);
-  --sh-card:0 1px 4px rgba(0,0,0,.08),0 4px 12px rgba(0,0,0,.05);
-  --sh-float:0 4px 16px rgba(0,0,0,.12),0 1px 4px rgba(0,0,0,.06);
+  --bg:#F0ECE4;--bg2:#F8F4EE;--bg3:#EAE5DC;--bg4:#DDD8CE;
+  --white:#1A1612;--border:rgba(0,0,0,.09);
+  --gray:#6B6158;--gray2:#4A4138;
+  --gold:#8B6A2E;--gold2:#6B5020;
+  --green:#059669;--greenl:rgba(5,150,105,.12);
+  --yellow:#D97706;--yellowl:rgba(217,119,6,.12);
+  --red:#DC2626;--redl:rgba(220,38,38,.12);
+  --sh-card:0 1px 4px rgba(0,0,0,.07),0 2px 8px rgba(0,0,0,.04);
+  --sh-float:0 4px 20px rgba(0,0,0,.1),0 1px 4px rgba(0,0,0,.06);
 }
+body.light .login-panel{background:var(--bg2);border-color:rgba(0,0,0,.09)}
+body.light #growthApp .tabs{background:var(--bg3);border-bottom-color:var(--border)}
+body.light .sum-output{background:var(--bg3);color:var(--white)}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);min-height:100vh;overflow-x:hidden;transition:background .2s,color .2s;}
 button,a,[role="button"]{touch-action:manipulation;}
@@ -2550,7 +2553,7 @@ function toggleTheme(){
   var isLight=document.body.classList.toggle('light');
   document.querySelectorAll('.theme-btn,#themeBtn').forEach(function(b){b.textContent=isLight?'🌙':'☀️';});
   var meta=document.getElementById('meta-theme-color');
-  if(meta)meta.setAttribute('content',isLight?'#F2F6F3':'#1A1816');
+  if(meta)meta.setAttribute('content',isLight?'#F0ECE4':'#1A1816');
   try{localStorage.setItem('bni_theme',isLight?'light':'dark');}catch(e){}
 }
 function toast(msg,dur){var el=document.getElementById('toast');el.textContent=msg;el.classList.add('on');setTimeout(function(){el.classList.remove('on');},dur||2000);}
