@@ -732,13 +732,22 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         .order('display_score', { ascending: true });
       if (error) return errResponse(error.message);
 
-      // Batch-fetch monthly scores for TL evolution display
+      // Batch-fetch monthly scores + mentoring_mode in parallel
       const allMemberIds = (rows || []).map((m: Record<string, unknown>) => String(m.id)).filter(Boolean);
-      const { data: scoreRows } = allMemberIds.length
-        ? await db.from('monthly_scores').select('member_id, year, month, score')
-            .in('member_id', allMemberIds)
-            .order('year', { ascending: true }).order('month', { ascending: true })
-        : { data: [] };
+      const [{ data: scoreRows }, { data: modeMemberRows }] = await Promise.all([
+        allMemberIds.length
+          ? db.from('monthly_scores').select('member_id, year, month, score')
+              .in('member_id', allMemberIds)
+              .order('year', { ascending: true }).order('month', { ascending: true })
+          : Promise.resolve({ data: [] }),
+        allMemberIds.length
+          ? db.from('members').select('id, mentoring_mode').in('id', allMemberIds)
+          : Promise.resolve({ data: [] }),
+      ]);
+      const growthModeMap: Record<string, string> = {};
+      for (const r of (modeMemberRows || []) as Record<string, unknown>[]) {
+        growthModeMap[String(r.id)] = String(r.mentoring_mode || 'active');
+      }
       const MONTH_LBL: Record<number, string> = {1:'JAN',2:'FEB',3:'MAR',4:'APR',5:'MAY',6:'JUN',7:'JUL',8:'AUG',9:'SEP',10:'OCT',11:'NOV',12:'DEC'};
       const growthHistMap: Record<string, { label: string; score: number }[]> = {};
       for (const s of (scoreRows || []) as Record<string, unknown>[]) {
@@ -793,6 +802,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           bniDays: bniDaysN,
           tyfcbPerDay: bniDaysN > 0 ? Math.round(tyfcb / bniDaysN) : 0,
           scoreHistory: growthHistMap[String(m.id)] || [],
+          mentoringMode: growthModeMap[String(m.id)] || 'active',
         };
       });
       const chapterAttendRate = (chapterAttend + chapterAbsent) > 0

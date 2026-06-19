@@ -2098,6 +2098,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
         <button class="stb" onclick="gsub('leaderboard',this)">🏆 Board</button>
         <button class="stb" onclick="gsub('achievements',this)">🎖 Awards</button>
         <button class="stb" onclick="gsub('teams',this);gTeamsLoad()">👥 Teams</button>
+        <button class="stb" onclick="gsub('growthwatch',this);gWatchLoad()">🔵 GW</button>
       </div>
       <div class="sub-pane on" id="gs-pulse">
         <div id="g-pulse-content"><div class="lt">⏳ กำลังโหลด...</div></div>
@@ -2107,6 +2108,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
       </div>
       <div class="sub-pane" id="gs-teams">
         <div id="g-teams-content"><div class="lt">⏳ กำลังโหลด...</div></div>
+      </div>
+      <div class="sub-pane" id="gs-growthwatch">
+        <div id="g-gw-content"><div class="lt">⏳ กำลังโหลด...</div></div>
       </div>
       <div class="sub-pane" id="gs-leaderboard">
         <div class="lb-tabs">
@@ -3740,7 +3744,10 @@ function loadMentorWorkHub(){
 }
 function renderMentorMembers(){
   var f=S.curMFilter;
-  var list=S.teamMembers.filter(function(m){
+  // Separate GW members from active — GW should NOT appear in regular team list
+  var gwMembers=(S.teamMembers||[]).filter(function(m){return m.mentoringMode==='growth_watch';});
+  var activeMembers=(S.teamMembers||[]).filter(function(m){return m.mentoringMode!=='growth_watch';});
+  var list=activeMembers.filter(function(m){
     var effTl=m.tl||m.bniTl||'none';
     if(f==='all')return true;
     if(f==='absent')return (m.absent||0)>0;
@@ -3748,9 +3755,9 @@ function renderMentorMembers(){
     if(f==='nocontact')return !!m.noMentorContact;
     return effTl===f;
   });
-  if(!list.length){document.getElementById('mentor-members').innerHTML='<div class="empty"><div class="empty-i">🔍</div>ไม่พบ</div>';return;}
-  // Team Health Summary (computed from all team members, not filtered)
-  var all=S.teamMembers;
+  if(!list.length&&!gwMembers.length){document.getElementById('mentor-members').innerHTML='<div class="empty"><div class="empty-i">🔍</div>ไม่พบ</div>';return;}
+  // Team Health Summary (computed from ACTIVE members only)
+  var all=activeMembers;
   var tlCount={green:0,yellow:0,red:0,black:0,none:0};
   var totScore=0,scoreCt=0,abCount=0;
   all.forEach(function(m){
@@ -3784,6 +3791,32 @@ function renderMentorMembers(){
       +'<div class="mm" id="mmbox-'+m.row+'" style="display:none;margin-top:-.2rem;margin-bottom:.35rem;">'
       +'<div class="mm-n">💬 จากตูมตาม:</div><div class="mm-t">'+m.mcMsg+'</div></div>';
   });
+  // Growth Watch section (members moved to GW — read-only for mentors)
+  if(gwMembers.length){
+    html+='<div class="sh" style="margin-top:.75rem;display:flex;align-items:center;justify-content:space-between;">'
+      +'<span>🔵 Growth Watch ('+gwMembers.length+' คน)</span>'
+      +'<span style="font-size:.62rem;color:var(--gray2);">ดูแลโดย Growth Coordinator</span>'
+      +'</div>';
+    gwMembers.forEach(function(m){
+      var score=Math.max(m.latest||0,m.bniScore||0,m.score||0)||0;
+      var tl=m.tl||m.bniTl||'none';
+      var initials=(m.nick||m.name||'').slice(0,2);
+      html+='<div class="mr" style="opacity:.85;border-left:3px solid #60A5FA;" onclick="openDetail(\''+m.name.replace(/'/g,"\\'")+'\')">'+
+        '<div class="av" style="background:rgba(96,165,250,.15);color:#60A5FA;">'+initials+'</div>'+
+        '<div class="mi">'+
+          '<div class="mn">'+escHtml(m.name.split(' ').slice(0,2).join(' '))+(m.nick?' ('+escHtml(m.nick)+')':'')+'</div>'+
+          '<div class="ms" style="color:#60A5FA;font-size:.68rem;">🔵 Growth Watch — Growth ดูแลอยู่</div>'+
+        '</div>'+
+        '<div style="text-align:right;">'+
+          '<div class="msc" style="color:'+sc(score)+'">'+score+'</div>'+
+        '</div>'+
+        '<div class="tld" style="background:#60A5FA;"></div>'+
+        '</div>';
+    });
+    if(S.isMC){
+      html+='<div style="font-size:.68rem;color:var(--gray2);text-align:center;margin:.25rem 0 .5rem;">กด 📊 คะแนน ในรายละเอียดสมาชิก เพื่อดึงกลับทีม</div>';
+    }
+  }
   document.getElementById('mentor-members').innerHTML=html;
 }
 
@@ -8668,6 +8701,52 @@ function gRenewalLoad(force){
 }
 
 // ── Growth Team Comparison ───────────────────────────────────
+function gWatchLoad(){
+  var el=document.getElementById('g-gw-content');if(!el)return;
+  var members=S.allMembers||[];
+  var gw=members.filter(function(m){return m.mentoringMode==='growth_watch';});
+  if(!gw.length){
+    el.innerHTML='<div style="text-align:center;padding:2rem 1rem;">'
+      +'<div style="font-size:2rem;margin-bottom:.5rem;">🔵</div>'
+      +'<div style="font-size:.88rem;font-weight:700;margin-bottom:.35rem;">ยังไม่มีสมาชิกใน Growth Watch</div>'
+      +'<div style="font-size:.72rem;color:var(--gray2);line-height:1.7;">Growth Watch คือโหมดที่ Growth Coordinator ดูแลสมาชิกแทน Mentor<br>ไปที่รายชื่อสมาชิก (MC) แล้วกด "🔵 GW" เพื่อย้ายสมาชิกเข้า</div>'
+      +'</div>';
+    return;
+  }
+  var atRisk=gw.filter(function(m){return(m.score||0)<50;});
+  var normal=gw.filter(function(m){return(m.score||0)>=50;});
+  var html='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem;margin-bottom:.75rem;">'
+    +'<div class="stat-box"><div class="stat-num" style="color:#60A5FA">'+gw.length+'</div><div class="stat-lbl">GW ทั้งหมด</div></div>'
+    +'<div class="stat-box"><div class="stat-num" style="color:#10B981">'+normal.length+'</div><div class="stat-lbl">ปกติดี ≥50</div></div>'
+    +'<div class="stat-box"><div class="stat-num" style="color:#EF4444">'+atRisk.length+'</div><div class="stat-lbl">น่าเป็นห่วง</div></div>'
+    +'</div>';
+  function gwRow(m){
+    var score=m.score||0;
+    var initials=(m.nick||m.name||'').slice(0,2);
+    var sColor=score>=70?'#10B981':score>=50?'#F59E0B':score>=30?'#EF4444':'#64748B';
+    var evo=tlEvoDots(m.scoreHistory||[]);
+    return '<div class="mr" onclick="openDetail(\''+m.name.replace(/'/g,"\\'")+'\')">'+
+      '<div class="av" style="background:rgba(96,165,250,.15);color:#60A5FA;">'+escHtml(initials)+'</div>'+
+      '<div class="mi">'+
+        '<div class="mn">'+escHtml(m.name.split(' ').slice(0,2).join(' '))+(m.nick?' ('+escHtml(m.nick)+')':'')+'</div>'+
+        '<div class="ms" style="color:var(--gray2);">เดิม: '+escHtml(m.mentor||'ไม่มีทีม')+'</div>'+
+        evo+
+      '</div>'+
+      '<div style="text-align:right;"><div class="msc" style="color:'+sColor+'">'+score+'</div></div>'+
+      '<div class="tld" style="background:#60A5FA;"></div>'+
+      '</div>';
+  }
+  if(atRisk.length){
+    html+='<div class="sh" style="color:#EF4444;">⚠️ น่าเป็นห่วง ('+atRisk.length+' คน)</div>';
+    html+=atRisk.map(gwRow).join('');
+  }
+  if(normal.length){
+    html+='<div class="sh" style="color:#10B981;">✅ ปกติดี ('+normal.length+' คน)</div>';
+    html+=normal.map(gwRow).join('');
+  }
+  el.innerHTML=html;
+}
+
 function gTeamsLoad(){
   var el=document.getElementById('g-teams-content');
   var members=S.allMembers||[];

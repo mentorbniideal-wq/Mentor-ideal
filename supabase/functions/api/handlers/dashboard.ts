@@ -624,15 +624,19 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       if (error) return errResponse(error.message);
 
       const memberIds = (members || []).map((m: Record<string, unknown>) => String(m.id));
-      const { data: scoreHist } = await db.from('monthly_scores')
-        .select('member_id, year, month, score').in('member_id', memberIds)
-        .order('year', { ascending: true }).order('month', { ascending: true });
-      const [{ data: mentorLogs }, { data: renewals }] = await Promise.all([
+      const [{ data: scoreHist }, { data: modeRows }, { data: mentorLogs }, { data: renewals }] = await Promise.all([
+        db.from('monthly_scores').select('member_id, year, month, score').in('member_id', memberIds)
+          .order('year', { ascending: true }).order('month', { ascending: true }),
+        db.from('members').select('id, mentoring_mode').in('id', memberIds),
         db.from('mentor_logs').select('member_id, session_date, created_at')
           .in('member_id', memberIds).order('created_at', { ascending: false }),
         db.from('renewals').select('member_id, expiry_date, workflow_status')
           .in('member_id', memberIds),
       ]);
+      const modeMap: Record<string, string> = {};
+      for (const r of (modeRows || []) as Record<string, unknown>[]) {
+        modeMap[String(r.id)] = String(r.mentoring_mode || 'active');
+      }
 
       const histMap: Record<string, { month: string; score: number | null }[]> = {};
       for (const s of (scoreHist || []) as Record<string, unknown>[]) {
@@ -668,6 +672,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
           noMentorContact: contactAgeDays == null || contactAgeDays > 14,
           renewal: renewal.expiry_date || '',
           renewalWorkflowStatus: renewal.workflow_status || '',
+          mentoringMode: modeMap[mid] || 'active',
         };
       });
 

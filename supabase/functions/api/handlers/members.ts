@@ -308,13 +308,19 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
       const lookup = await findMemberByLegacyPayload(db, p);
       if (lookup.error || !lookup.member) return errResponse(lookup.error || 'member not found');
+      const mid = lookup.member.id;
 
-      const { error } = await db
-        .from('members')
-        .delete()
-        .eq('id', lookup.member.id);
+      // Manually clean up tables without ON DELETE CASCADE before deleting member
+      await db.from('one_to_one_logs').delete().eq('initiator_id', mid);
+      await db.from('one_to_one_logs').delete().eq('partner_id', mid);
+      await db.from('power_teams').delete().or(`member_a_id.eq.${mid},member_b_id.eq.${mid}`);
+      await db.from('cross_team_synergy').delete().or(`member_a_id.eq.${mid},member_b_id.eq.${mid}`);
+      await db.from('visitor_log').update({ invited_by: null }).eq('invited_by', mid);
+      await db.from('mc_assignments').update({ member_id: null }).eq('member_id', mid);
+      await db.from('growth_tasks').update({ member_id: null }).eq('member_id', mid);
+
+      const { error } = await db.from('members').delete().eq('id', mid);
       if (error) return errResponse(error.message);
-      // ON DELETE CASCADE removes all child rows automatically
       return jsonResponse({ ok: true, deleted: lookup.member.name });
     }
 
