@@ -106,7 +106,8 @@ function computeGaps(cats: Record<string, number>, actual: Record<string, unknow
   // Target: next zone threshold above current score
   const ftTarget = totalScore >= 70 ? 70 : totalScore >= 50 ? 70 : totalScore >= 30 ? 50 : 30;
   const ftNeeded = Math.max(0, ftTarget - totalScore);
-  const ftNextTl = ftTarget >= 70 ? 'green' : 'yellow';
+  // nextTl = current tier (where they are now), not goal tier — per CLAUDE.md audit rule
+  const ftNextTl = totalScore >= 70 ? 'green' : totalScore >= 50 ? 'yellow' : totalScore >= 30 ? 'yellow' : 'red';
 
   return { gaps, ftNextTl, ftNeeded };
 }

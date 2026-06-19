@@ -1,6 +1,6 @@
 # BNI IDEAL Mentor System — Audit Log
 
-**Audit date:** 2026-06-19 (security, role-flow and accessibility remediation)
+**Audit date:** 2026-06-19 (security, role-flow, accessibility remediation + F-32 fast-track tier fix)
 **Scope:** Full project (GAS legacy + Supabase Edge Functions + static frontend)
 **Auditor:** Claude Code (claude-sonnet-4-6)
 
@@ -14,7 +14,7 @@
 | 1 — Bug scan (all TS/JS/HTML/SQL) | Complete |
 | 2 — Code cleanliness | Complete |
 | 3 — Integration check | Complete |
-| 4 — Fix CRITICAL/HIGH issues | Complete — 18 fixes applied (13 prior + 5 new) |
+| 4 — Fix CRITICAL/HIGH issues | Complete — 19 fixes applied (13 prior + 5 new + 1 follow-up) |
 | 5 — Write this log | Complete |
 | 6 — Persist audit rules to CLAUDE.md | Already present — no change needed |
 
@@ -70,6 +70,7 @@
 | F-29 | LOW | `handlers/alerts.ts` | Stub handlers (dismissAlert, getDismissedAlerts, getTeamNotifs, etc.) no auth | **FIXED** (2026-06-19) — central API auth gate |
 | F-30 | LOW | `handlers/public.ts` | Uses `getServiceClient()` (bypasses RLS) for public endpoints | **MITIGATED** (2026-06-19) — safe-column allowlists; contact PII removed |
 | F-31 | LOW | `migrations/20260615000017_seed_growth_revenue.sql` | All `membership_age` seeded as `'#REF!'` (Excel artifact); runtime guards correctly | Known issue |
+| F-32 | HIGH | `handlers/dashboard.ts` | `computeGaps()` line 109: `ftNextTl` returned goal tier ('green' for yellow-zone) instead of current tier | **FIXED** (2026-06-19) |
 
 ---
 
@@ -99,6 +100,11 @@
 **File:** `supabase/migrations/20260618000022_add_mentor_alert_cron.sql`
 **Before:** Directly called `cron.schedule(... call_cron_job(...))` — would fail on fresh DB where seed hasn't run yet.
 **After:** Added `DO $$ IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'call_cron_job') THEN CREATE FUNCTION ... END $$` guard before the schedule call.
+
+### FIX-32: `computeGaps()` — `ftNextTl` returned goal tier instead of current tier
+**File:** `supabase/functions/api/handlers/dashboard.ts` line 109
+**Before:** `const ftNextTl = ftTarget >= 70 ? 'green' : 'yellow'` — returns 'green' for yellow-zone members (score 50–69) because their ftTarget is 70.
+**After:** `const ftNextTl = totalScore >= 70 ? 'green' : totalScore >= 50 ? 'yellow' : totalScore >= 30 ? 'yellow' : 'red'` — returns current tier color, matching CLAUDE.md audit rule.
 
 ---
 
@@ -144,11 +150,6 @@ Added `requireAuth(db, p, [...])` as first statement in `getDashboard`, `getMCDa
 
 | # | Finding | Why deferred |
 |---|---------|--------------|
-| F-24 | Notifications pool shared across all roles | Needs schema migration (`target_role` column) |
-| F-25 | `updateVisitor`/`saveSprintPlan` missing ownership checks | Low exploitability; data non-sensitive |
-| F-26 | `ackAssignment` no team ownership check | Low exploitability |
 | F-27 | Dead cases in dashboard.ts (`getMentorActivity`, `getMentorPerformance`) | Harmless dead code |
-| F-28 | `logUsage` no auth | Analytics data only; not PII |
-| F-29 | Alert stub handlers no auth | Stubs return empty data; no write exposure |
 | F-30 | `getServiceClient()` in public.ts bypasses RLS | Public data only; no PII exposure |
 | F-31 | Seed `membership_age = '#REF!'` | Runtime handler guards correctly; data not displayed |
