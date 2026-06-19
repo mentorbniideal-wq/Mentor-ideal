@@ -1173,22 +1173,22 @@ main{
   padding:24px;
   overflow:auto;
 }
-.command-hero{
-  background:linear-gradient(135deg,rgba(36,40,39,.92),rgba(29,33,32,.76));
-  border:1px solid rgba(200,169,106,.1);
-  border-radius:18px;
-  padding:20px 22px;
-  margin-bottom:18px;
-  display:flex;
-  align-items:flex-end;
-  justify-content:space-between;
-  gap:18px;
-}
-.command-eyebrow{font-size:10px;color:var(--ac);font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px}
-.command-heading{font-size:26px;font-weight:900;letter-spacing:-.02em;line-height:1.05}
-.command-copy{font-size:12px;color:var(--sub);margin-top:8px;max-width:680px;line-height:1.6}
-.command-quick{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-.command-pill{background:rgba(255,255,255,.035);border:1px solid var(--bd);color:var(--sub);border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700;white-space:nowrap}
+/* KPI Hero — Option 4 card grid */
+.kpi-hero-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:14px;margin-bottom:14px}
+.kpi-hero-main{background:var(--sf);border-radius:18px;padding:26px 28px;display:flex;flex-direction:column;gap:6px;cursor:default}
+.kpi-hero-eyebrow{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--sub);margin-bottom:2px}
+.kpi-hero-number{font-size:56px;font-weight:900;line-height:1;letter-spacing:-.04em}
+.kpi-hero-bar{height:5px;background:var(--sf2);border-radius:3px;overflow:hidden;margin-top:6px}
+.kpi-hero-bar-fill{height:100%;border-radius:3px;transition:width .8s cubic-bezier(.25,.8,.25,1)}
+.kpi-side-card{background:var(--sf);border-radius:18px;padding:22px 20px;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;transition:opacity .15s}
+.kpi-side-card:hover{opacity:.85}
+.kpi-side-num{font-size:40px;font-weight:900;line-height:1;letter-spacing:-.03em;margin-top:6px}
+.kpi-team-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}
+.kpi-team-card{background:var(--sf2);border-radius:14px;padding:16px 14px;cursor:pointer;transition:all .2s}
+.kpi-team-card:hover{background:var(--sf);transform:translateY(-2px);box-shadow:var(--sh-float)}
+.kpi-team-name{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--sub);margin-bottom:8px}
+.kpi-team-score{font-size:28px;font-weight:900;line-height:1;letter-spacing:-.02em}
+.kpi-team-count{font-size:11px;color:var(--sub);margin-top:5px}
 #mc-ov.sec.on{
   display:grid;
   grid-template-columns:minmax(0,1fr) 318px;
@@ -1320,18 +1320,7 @@ main{
 
     <!-- MC Overview — Redesigned -->
     <div id="mc-ov" class="sec on">
-      <div class="command-hero">
-        <div>
-          <div class="command-eyebrow">Live Chapter Intelligence</div>
-          <div class="command-heading">BNI IDEAL Command Center</div>
-          <div class="command-copy">Monitor chapter health, mentor activity, risk signals, reports, renewal pressure, and member movement from one operational cockpit.</div>
-        </div>
-        <div class="command-quick">
-          <span class="command-pill">MC View</span>
-          <span class="command-pill">Auto Refresh</span>
-          <span class="command-pill">Member 360 Ready</span>
-        </div>
-      </div>
+      <div id="mc-kpi-hero"></div>
 
       <aside class="command-rail">
         <div class="rail-card">
@@ -3082,8 +3071,52 @@ function buildMCFilters(){
 }
 
 // ─── MC: Render All ──────────────────────────────
+function renderKpiHero(){
+  var el=document.getElementById('mc-kpi-hero');if(!el)return;
+  var mem=D.mem||[],ren=D.ren||[],teams=D.teams||[];
+  var sc=mem.filter(function(m){return m.bniTl!=='none';});
+  var avg=sc.length?Math.round(sc.reduce(function(a,m){return a+m.bniScore;},0)/sc.length):0;
+  var avgC=avg>=70?'var(--gr)':avg>=50?'var(--ye)':avg>=30?'var(--re)':'var(--sub)';
+  var avgLabel=avg>=70?'Green':'Yellow';
+  var atRisk=mem.filter(function(m){return m.bniTl!=='none'&&m.bniScore<50;}).length;
+  var ren45=ren.filter(function(r){return r.diffDays<=45;}).length;
+
+  var html='<div class="kpi-hero-grid">'
+    +'<div class="kpi-hero-main">'
+    +'<div class="kpi-hero-eyebrow">Chapter Score เฉลี่ย</div>'
+    +'<div class="kpi-hero-number" style="color:'+avgC+'">'+avg+'</div>'
+    +'<div class="kpi-hero-bar"><div class="kpi-hero-bar-fill" style="width:'+Math.min(100,avg)+'%;background:'+avgC+'"></div></div>'
+    +'<div style="font-size:12px;color:var(--sub);margin-top:6px">'+sc.length+' คนมีข้อมูล · '+avgLabel+' Zone</div>'
+    +'</div>'
+    +'<div class="kpi-side-card" onclick="sw(\'mc-risk\',document.querySelector(\'#mc-tabs .tb:nth-child(6)\'),\'mc\')">'
+    +'<div class="kpi-hero-eyebrow">At Risk</div>'
+    +'<div class="kpi-side-num" style="color:var(--re)">'+atRisk+'</div>'
+    +'<div style="font-size:11px;color:var(--sub);margin-top:auto;padding-top:12px">Score &lt; 50 pts</div>'
+    +'</div>'
+    +'<div class="kpi-side-card" onclick="sw(\'mc-ren\',document.querySelector(\'#mc-tabs .tb:nth-child(5)\'),\'mc\')">'
+    +'<div class="kpi-hero-eyebrow">Renewal ≤45 วัน</div>'
+    +'<div class="kpi-side-num" style="color:var(--ye)">'+ren45+'</div>'
+    +'<div style="font-size:11px;color:var(--sub);margin-top:auto;padding-top:12px">ต้องต่ออายุเร็วๆ นี้</div>'
+    +'</div>'
+    +'</div>';
+
+  if(teams.length){
+    html+='<div class="kpi-team-grid">';
+    teams.forEach(function(t){
+      var tc=t.avg>=70?'var(--gr)':t.avg>=50?'var(--ye)':t.avg>=30?'var(--re)':'var(--sub)';
+      html+='<div class="kpi-team-card" onclick="sw(\'mc-team\',document.querySelector(\'#mc-tabs .tb:nth-child(3)\'),\'mc\');loadDesktopScorecard()">'
+        +'<div class="kpi-team-name">'+(t.team||'—')+'</div>'
+        +'<div class="kpi-team-score" style="color:'+tc+'">'+(t.avg||'—')+'</div>'
+        +'<div class="kpi-team-count">'+(t.count||0)+' คน</div>'
+        +'</div>';
+    });
+    html+='</div>';
+  }
+  el.innerHTML=html;
+}
+
 function renderMCAll(){
-  renderChapterPulse();renderFocusBar();
+  renderKpiHero();renderChapterPulse();renderFocusBar();
   renderDonut();renderBar();renderIntelGrid();
   renderChapterHealth();renderSeatMap();
   renderMem();renderFT();renderMTTeams();renderRen();renderRisk();renderCoach();renderPriority();
