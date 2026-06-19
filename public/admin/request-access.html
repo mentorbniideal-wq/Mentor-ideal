@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ขอ Access — BNI Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root{--bg:#0a1628;--card:#0e2040;--mint:#d7fefa;--accent:#3dd6f5;--text:#e8f4f8;--muted:#7a9bb5;--red:#ff6b6b;--green:#06d6a0;--border:#1a3a5c}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Poppins',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.5rem}
+  .card{background:var(--card);border-radius:16px;padding:2rem;max-width:480px;width:100%}
+  .logo{font-size:2rem;margin-bottom:.25rem}
+  h1{font-size:1.1rem;color:var(--mint);margin-bottom:.4rem}
+  .sub{font-size:.8rem;color:var(--muted);margin-bottom:1.5rem;line-height:1.6}
+  .user-chip{background:#0a2040;border:1px solid var(--border);border-radius:8px;padding:.6rem .9rem;display:flex;align-items:center;gap:.6rem;margin-bottom:1.5rem}
+  .user-chip .av{width:32px;height:32px;border-radius:50%;background:var(--accent);color:#000;font-weight:700;font-size:.85rem;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .user-chip .info{font-size:.8rem}
+  .user-chip .email{color:var(--muted);font-size:.72rem}
+  label{display:block;font-size:.72rem;color:var(--muted);margin-bottom:.3rem;margin-top:.9rem}
+  input,textarea{width:100%;background:#0a2040;border:1px solid var(--border);color:var(--text);padding:.65rem .8rem;border-radius:8px;font-size:.82rem;font-family:inherit}
+  input:focus,textarea:focus{outline:none;border-color:var(--accent)}
+  textarea{resize:vertical;min-height:80px}
+  .sections-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-top:.35rem}
+  .sec-check{display:flex;align-items:center;gap:.5rem;background:#0a2040;border:1px solid var(--border);border-radius:7px;padding:.5rem .7rem;cursor:pointer;font-size:.78rem;transition:border-color .15s}
+  .sec-check:hover{border-color:var(--accent)}
+  .sec-check input{width:14px;height:14px;accent-color:var(--accent);flex-shrink:0}
+  .edit-row{display:flex;align-items:center;gap:.6rem;margin-top:.9rem;background:#0a2040;border:1px solid var(--border);border-radius:8px;padding:.65rem .8rem}
+  .edit-row input{width:16px;height:16px;accent-color:var(--accent);flex-shrink:0}
+  .edit-row label{margin:0;font-size:.82rem;color:var(--text)}
+  .edit-row small{font-size:.7rem;color:var(--muted);display:block;margin-top:.1rem}
+  .btn{width:100%;padding:.8rem;background:var(--accent);color:#000;border:none;border-radius:10px;font-size:.9rem;font-weight:700;cursor:pointer;margin-top:1.4rem;transition:opacity .15s}
+  .btn:hover{opacity:.85}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);margin-top:.6rem}
+  .btn-ghost:hover{border-color:var(--muted);opacity:1}
+  .msg{font-size:.82rem;min-height:1.2rem;margin-top:.8rem;line-height:1.5}
+  .msg.ok{color:var(--green)}
+  .msg.err{color:var(--red)}
+  /* Login screen */
+  #login-screen{text-align:center}
+  #login-screen .logo{font-size:3rem}
+  #login-screen h1{margin-bottom:.5rem}
+  #login-screen .sub{margin-bottom:2rem}
+  .btn-google{background:#fff;color:#333;display:flex;align-items:center;justify-content:center;gap:.6rem;font-size:.9rem;font-weight:600;padding:.9rem;border-radius:10px;border:none;cursor:pointer;width:100%;margin-top:1rem;transition:opacity .15s}
+  .btn-google:hover{opacity:.9}
+  .g-icon{width:20px;height:20px}
+  /* Success screen */
+  #success-screen{text-align:center;display:none}
+  #success-screen .check{font-size:3rem;margin-bottom:.75rem}
+</style>
+</head>
+<body>
+
+<!-- Login screen (shown when no Google session) -->
+<div class="card" id="login-screen" style="display:none">
+  <div class="logo">🔐</div>
+  <h1>เข้าสู่ระบบ Admin</h1>
+  <p class="sub">ล็อกอินด้วย Google เพื่อยื่นขอ Access เข้าระบบ BNI IDEAL Admin Panel</p>
+  <button class="btn-google" onclick="signInGoogle()">
+    <svg class="g-icon" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.5l6.8-6.8C35.8 2.4 30.2 0 24 0 14.7 0 6.7 5.5 2.8 13.5l7.9 6.1C12.7 13.2 17.9 9.5 24 9.5z"/><path fill="#4285F4" d="M46.2 24.6c0-1.6-.1-3.1-.4-4.6H24v8.7h12.5c-.5 2.9-2.2 5.3-4.7 7l7.3 5.7c4.3-4 6.8-9.9 6.8-16.8z"/><path fill="#FBBC05" d="M10.7 28.7A14.7 14.7 0 0 1 9.5 24c0-1.6.3-3.2.8-4.7L2.4 13c-1.5 3.1-2.4 6.5-2.4 10 0 3.5.9 6.9 2.4 10l8.3-4.3z"/><path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.3-5.7c-2 1.4-4.6 2.2-7.9 2.2-6.1 0-11.3-3.7-13.2-9.1l-8.3 4.3C6.6 42.5 14.7 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
+    เข้าสู่ระบบด้วย Google
+  </button>
+  <div id="login-msg" class="msg"></div>
+</div>
+
+<!-- Request form -->
+<div class="card" id="request-screen" style="display:none">
+  <div class="logo">🔔</div>
+  <h1>ขอสิทธิ์เข้าระบบ</h1>
+  <p class="sub">อีเมลของคุณยังไม่ได้รับสิทธิ์เข้า Admin Panel กรอกข้อมูลด้านล่าง แล้ว MC จะรีวิวและอนุมัติให้</p>
+
+  <div class="user-chip" id="user-chip">
+    <div class="av" id="user-av">?</div>
+    <div class="info">
+      <div id="user-name">กำลังโหลด...</div>
+      <div class="email" id="user-email">—</div>
+    </div>
+  </div>
+
+  <label>ชื่อ-นามสกุล (เพื่อให้ MC รู้ว่าใครขอ)</label>
+  <input id="req-name" type="text" placeholder="เช่น สมชาย ใจดี">
+
+  <label>หมวดที่ต้องการเข้าดู <span style="color:var(--muted)">(เลือกได้หลายอย่าง)</span></label>
+  <div class="sections-grid">
+    <label class="sec-check"><input type="checkbox" value="dashboard"> 📊 Dashboard</label>
+    <label class="sec-check"><input type="checkbox" value="members"> 👥 Members</label>
+    <label class="sec-check"><input type="checkbox" value="issues"> ⚠️ Issues</label>
+    <label class="sec-check"><input type="checkbox" value="checkin"> ✅ Check-in</label>
+    <label class="sec-check"><input type="checkbox" value="revenue"> 💰 Revenue</label>
+    <label class="sec-check"><input type="checkbox" value="broadcast"> 📢 Broadcast</label>
+  </div>
+
+  <div class="edit-row">
+    <input type="checkbox" id="req-edit">
+    <div>
+      <label for="req-edit">ขอสิทธิ์แก้ไขข้อมูล (ไม่ใช่แค่ดู)</label>
+      <small>ถ้าไม่ติ๊ก = ดูอย่างเดียว (View Only)</small>
+    </div>
+  </div>
+
+  <label>เหตุผลที่ต้องการเข้า (ไม่บังคับ)</label>
+  <textarea id="req-reason" placeholder="เช่น เป็นผู้ช่วย MC ดูแลข้อมูล chapter หรือ เป็นเลขา chapter..."></textarea>
+
+  <button class="btn" id="req-submit" onclick="submitRequest()">ส่งคำขอ</button>
+  <button class="btn btn-ghost" onclick="signOutAndBack()">ออกจากระบบ / ใช้อีเมลอื่น</button>
+  <div id="req-msg" class="msg"></div>
+</div>
+
+<!-- Success screen -->
+<div class="card" id="success-screen">
+  <div class="check">✅</div>
+  <h1 style="color:var(--green)">ส่งคำขอเรียบร้อยแล้ว!</h1>
+  <p class="sub" style="margin-top:.75rem">MC จะได้รับการแจ้งเตือนและรีวิวคำขอของคุณ หลังจากอนุมัติ คุณสามารถเข้าระบบได้ทันที</p>
+  <button class="btn" style="margin-top:1.5rem" onclick="window.location.href='/index.html'">กลับหน้าหลัก</button>
+</div>
+
+<div class="card" id="loading-screen">
+  <p style="text-align:center;color:var(--muted);padding:2rem 0">⏳ กำลังตรวจสอบ...</p>
+</div>
+
+<script>
+const SUPABASE_URL  = 'https://itwyjhlfemxsfbimshby.supabase.co';
+const SUPABASE_ANON = 'sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
+const ADMIN_API     = SUPABASE_URL + '/functions/v1/admin-api';
+
+let _sb, _session;
+
+function getSb() {
+  if (!_sb) _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+  return _sb;
+}
+
+function show(id) {
+  ['loading-screen','login-screen','request-screen','success-screen']
+    .forEach(s => document.getElementById(s).style.display = s === id ? '' : 'none');
+}
+
+async function init() {
+  const sb = getSb();
+  // Handle OAuth redirect callback
+  await new Promise(resolve => {
+    const { data: { subscription } } = sb.auth.onAuthStateChange((ev) => {
+      if (ev === 'SIGNED_IN' || ev === 'INITIAL_SESSION' || ev === 'SIGNED_OUT') {
+        subscription.unsubscribe(); resolve();
+      }
+    });
+    setTimeout(() => { subscription.unsubscribe(); resolve(); }, 2000);
+  });
+
+  const { data: { session } } = await sb.auth.getSession();
+  _session = session;
+
+  if (!session) { show('login-screen'); return; }
+
+  // Check if already MC → redirect to admin
+  const roleRes = await fetch(SUPABASE_URL + '/functions/v1/api', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'getMyRole', token: session.access_token }),
+  });
+  const role = await roleRes.json();
+  if (role.ok && role.isMC) {
+    window.location.href = '/admin/index.html';
+    return;
+  }
+
+  // Show request form pre-filled with user info
+  const u = session.user;
+  document.getElementById('user-av').textContent = (u.user_metadata?.full_name || u.email || '?').slice(0,1).toUpperCase();
+  document.getElementById('user-name').textContent = u.user_metadata?.full_name || u.email;
+  document.getElementById('user-email').textContent = u.email;
+  document.getElementById('req-name').value = u.user_metadata?.full_name || '';
+  show('request-screen');
+}
+
+async function signInGoogle() {
+  document.getElementById('login-msg').textContent = '';
+  const { error } = await getSb().auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.href },
+  });
+  if (error) document.getElementById('login-msg').innerHTML = '<span class="err">' + error.message + '</span>';
+}
+
+async function signOutAndBack() {
+  await getSb().auth.signOut();
+  window.location.href = '/index.html';
+}
+
+async function submitRequest() {
+  const btn = document.getElementById('req-submit');
+  const msg = document.getElementById('req-msg');
+  btn.disabled = true;
+  msg.textContent = '';
+
+  const sections = Array.from(document.querySelectorAll('.sec-check input:checked')).map(el => el.value);
+  if (!sections.length) {
+    msg.innerHTML = '<span class="err">กรุณาเลือกอย่างน้อย 1 หมวดที่ต้องการเข้า</span>';
+    btn.disabled = false;
+    return;
+  }
+
+  const name = document.getElementById('req-name').value.trim();
+  const editAccess = document.getElementById('req-edit').checked;
+  const reason = document.getElementById('req-reason').value.trim();
+
+  const res = await fetch(ADMIN_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'submitAccessRequest',
+      token: _session.access_token,
+      name, sections, editAccess, reason,
+    }),
+  });
+  const r = await res.json();
+
+  if (r.alreadyPending) {
+    show('success-screen');
+    document.querySelector('#success-screen h1').textContent = 'คุณได้ส่งคำขอแล้ว!';
+    document.querySelector('#success-screen .sub').textContent = 'รอ MC อนุมัติอยู่นะครับ ถ้ายังไม่ได้รับสิทธิ์ติดต่อ MC โดยตรง';
+    return;
+  }
+  if (r.error === 'already_assigned') {
+    msg.innerHTML = '<span class="ok">คุณมีสิทธิ์เข้าระบบแล้ว กลับไปที่ <a href="/admin/index.html" style="color:var(--accent)">Admin Panel</a></span>';
+    btn.disabled = false;
+    return;
+  }
+  if (!r.ok) {
+    msg.innerHTML = '<span class="err">เกิดข้อผิดพลาด: ' + (r.error || 'unknown') + '</span>';
+    btn.disabled = false;
+    return;
+  }
+
+  show('success-screen');
+}
+
+init();
+</script>
+</body>
+</html>

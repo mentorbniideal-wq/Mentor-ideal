@@ -59,8 +59,8 @@
     });
     const role = await res.json();
     if (!role.ok || !role.isMC) {
-      alert('Admin access required (MC only)');
-      window.location.href = '/index.html';
+      // Authenticated with Google but no MC role — show access request form
+      window.location.href = '/admin/request-access.html';
       return null;
     }
 
@@ -69,8 +69,32 @@
 
     const nameEl = document.getElementById('adminName');
     if (nameEl) nameEl.textContent = role.displayName || 'MC';
+
+    // Show pending access request badge on Settings nav link
+    _loadRequestBadge();
+
     return window.ADMIN_SESSION;
   }
+
+  async function _loadRequestBadge() {
+    try {
+      const r = await adminCall({ action: 'getAccessRequests' });
+      if (!r || !r.ok) return;
+      const pending = (r.requests || []).filter(req => req.status === 'pending').length;
+      if (pending > 0) {
+        document.querySelectorAll('a[href="settings.html"]').forEach(link => {
+          if (!link.querySelector('.req-badge')) {
+            const b = document.createElement('span');
+            b.className = 'req-badge';
+            b.style.cssText = 'background:#ef4444;color:#fff;padding:1px 6px;border-radius:10px;font-size:10px;margin-left:5px;font-weight:700;';
+            b.textContent = String(pending);
+            link.appendChild(b);
+          }
+        });
+      }
+    } catch(e) { /* non-critical */ }
+  }
+  window._loadRequestBadge = _loadRequestBadge;
   window.checkAdminAuth = checkAdminAuth;
 
   window.adminLogout = async function() {

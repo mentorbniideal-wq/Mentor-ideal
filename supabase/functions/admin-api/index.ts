@@ -25,6 +25,8 @@ const ROUTES: Record<string, string> = {
   // Settings
   'getRoleAssignments': 'settings', 'addRoleAssignment': 'settings',
   'removeRoleAssignment': 'settings', 'getConnectionStatus': 'settings',
+  'submitAccessRequest': 'settings', 'getAccessRequests': 'settings',
+  'approveAccessRequest': 'settings', 'rejectAccessRequest': 'settings',
 };
 
 const HANDLERS: Record<string, (p: Record<string, unknown>) => Promise<Response>> = {

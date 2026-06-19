@@ -41,6 +41,19 @@
   .check-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent)}
   .check-row label{font-size:13px;color:var(--text)}
   .loading{color:var(--muted);text-align:center;padding:24px}
+  .req-card{background:#0a2040;border-radius:8px;padding:14px;margin-bottom:10px;border-left:3px solid #ef4444}
+  .req-card .req-email{font-size:12px;color:var(--yellow);font-weight:600}
+  .req-card .req-meta{font-size:11px;color:var(--muted);margin:.3rem 0 .5rem}
+  .req-card .req-secs{display:flex;flex-wrap:wrap;gap:4px;margin:.4rem 0}
+  .req-card .req-sec{background:#1a3a5c;border-radius:4px;padding:2px 7px;font-size:11px}
+  .req-card .req-actions{display:grid;grid-template-columns:1fr 1fr 2fr 2fr auto;gap:6px;align-items:center;margin-top:10px}
+  .req-card .req-actions select,.req-card .req-actions input{background:#1a3a5c;border:1px solid #2a4a6c;color:var(--text);padding:5px;border-radius:5px;font-size:11px}
+  .btn-approve{background:var(--green);color:#000;border:none;padding:5px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700}
+  .btn-reject{background:transparent;border:1px solid var(--red);color:var(--red);padding:5px 12px;border-radius:5px;cursor:pointer;font-size:11px}
+  .hist-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #1a3a5c;font-size:12px}
+  .hist-row:last-child{border-bottom:none}
+  .badge-ok{background:var(--green);color:#000;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700}
+  .badge-no{background:var(--red);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700}
 </style>
 </head>
 <body>
@@ -57,6 +70,21 @@
   <button class="logout" onclick="adminLogout()">Logout</button>
 </nav>
 <main>
+  <!-- Pending Access Requests (shown only when there are pending ones) -->
+  <div class="section" id="req-section" style="display:none;border:1px solid #ef4444;">
+    <h3 style="color:#ef4444;">🔔 คำขอ Access รอการอนุมัติ (<span id="req-count">0</span> รายการ)</h3>
+    <div id="req-loading" class="loading">กำลังโหลด...</div>
+    <div id="req-list"></div>
+  </div>
+
+  <!-- Approved / Rejected history (collapsed) -->
+  <details style="margin-bottom:24px">
+    <summary style="cursor:pointer;color:var(--muted);font-size:13px;padding:8px 0">▸ ประวัติคำขอที่รีวิวแล้ว</summary>
+    <div class="section" style="margin-top:8px">
+      <div id="req-history-list" class="loading">กำลังโหลด...</div>
+    </div>
+  </details>
+
   <h2>System Status</h2>
   <div class="status-cards" id="statusCards">
     <div class="loading" style="grid-column:1/-1">กำลังโหลด...</div>
@@ -167,8 +195,86 @@ function setRAMsg(txt, color) {
   el.textContent = txt; el.style.color = color;
 }
 
+let _allRequests = [];
+
+async function loadRequests() {
+  const r = await adminCall({ action: 'getAccessRequests' });
+  if (!r || !r.ok) return;
+  _allRequests = r.requests || [];
+  renderRequests();
+}
+
+function renderRequests() {
+  const pending  = _allRequests.filter(r => r.status === 'pending');
+  const reviewed = _allRequests.filter(r => r.status !== 'pending');
+  const sec = document.getElementById('req-section');
+  document.getElementById('req-loading').style.display = 'none';
+
+  if (pending.length > 0) {
+    sec.style.display = '';
+    document.getElementById('req-count').textContent = pending.length;
+    document.getElementById('req-list').innerHTML = pending.map(req => `
+      <div class="req-card" id="rc-${req.id}">
+        <div class="req-email">${req.email}</div>
+        <div class="req-meta">${req.name||'—'} &nbsp;•&nbsp; ${new Date(req.created_at).toLocaleString('th-TH')}</div>
+        ${req.reason ? `<div style="font-size:12px;color:var(--text);margin-bottom:.4rem">"${req.reason}"</div>` : ''}
+        <div class="req-secs">${(req.requested_sections||[]).map(s=>`<span class="req-sec">${s}</span>`).join('')}
+          ${req.edit_access ? '<span class="req-sec" style="border-color:var(--yellow);color:var(--yellow)">✏️ Edit</span>' : '<span class="req-sec">👁 View</span>'}
+        </div>
+        <div class="req-actions">
+          <select id="role-${req.id}">
+            <option value="growth">growth</option>
+            <option value="toomtam">toomtam</option>
+            <option value="aof">aof</option>
+            <option value="draft">draft</option>
+            <option value="phai">phai</option>
+            <option value="amp">amp</option>
+            <option value="mc">mc</option>
+          </select>
+          <input id="team-${req.id}" type="text" placeholder="ทีม (ถ้ามี)">
+          <button class="btn-approve" onclick="approveReq('${req.id}')">✅ อนุมัติ</button>
+          <button class="btn-reject"  onclick="rejectReq('${req.id}')">❌ ปฏิเสธ</button>
+        </div>
+      </div>`).join('');
+  } else {
+    sec.style.display = 'none';
+  }
+
+  // History
+  document.getElementById('req-history-list').innerHTML = reviewed.length
+    ? reviewed.map(req => `
+        <div class="hist-row">
+          <span class="${req.status==='approved'?'badge-ok':'badge-no'}">${req.status==='approved'?'อนุมัติ':'ปฏิเสธ'}</span>
+          <span style="flex:1">${req.email} <span style="color:var(--muted)">(${req.name||''})</span></span>
+          <span style="color:var(--muted);font-size:11px">${new Date(req.created_at).toLocaleDateString('th-TH')}</span>
+        </div>`).join('')
+    : '<p style="color:var(--muted);font-size:12px;text-align:center;padding:12px">ยังไม่มีประวัติ</p>';
+}
+
+async function approveReq(id) {
+  const role     = document.getElementById('role-'+id)?.value;
+  const teamName = document.getElementById('team-'+id)?.value.trim() || null;
+  const isMentor = ['toomtam','aof','draft','phai','amp'].includes(role);
+  const r = await adminCall({ action: 'approveAccessRequest', id, role, teamName, isMentor });
+  if (!r?.ok) { alert('เกิดข้อผิดพลาด: ' + r?.error); return; }
+  _allRequests = _allRequests.map(req => req.id===id ? {...req, status:'approved'} : req);
+  renderRequests();
+  loadRA();
+  _loadRequestBadge();
+}
+
+async function rejectReq(id) {
+  if (!confirm('ปฏิเสธคำขอนี้?')) return;
+  const r = await adminCall({ action: 'rejectAccessRequest', id });
+  if (!r?.ok) { alert('เกิดข้อผิดพลาด'); return; }
+  _allRequests = _allRequests.map(req => req.id===id ? {...req, status:'rejected'} : req);
+  renderRequests();
+  _loadRequestBadge();
+}
+
 async function init() {
   await checkAdminAuth();
+  loadRequests();
   loadStatus();
   loadRA();
 }
