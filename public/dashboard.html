@@ -195,9 +195,9 @@ main{flex:1;padding:28px 32px;max-width:1680px;width:100%;margin:0 auto}
 .mt-prog-fill{height:100%;border-radius:2px;transition:width .5s}
 .mt-member-table{width:100%;border-collapse:collapse;font-size:12px}
 .mt-member-table th{color:var(--sub);font-weight:600;padding:7px 14px 5px;text-align:left;border-bottom:1px solid var(--bd);font-size:10px;white-space:nowrap}
-.mt-member-table td{padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:middle}
+.mt-member-table td{padding:8px 14px;border-bottom:1px solid var(--bd);vertical-align:middle}
 .mt-member-table tr:last-child td{border-bottom:none}
-.mt-member-table tr:hover td{background:rgba(255,255,255,.025);cursor:pointer}
+.mt-member-table tr:hover td{background:var(--sf2);cursor:pointer}
 .mt-tag-row{display:flex;gap:6px;padding:10px 18px;flex-wrap:wrap;border-bottom:1px solid var(--bd)}
 .mt-tag{font-size:10px;font-weight:600;padding:3px 9px;border-radius:99px;background:var(--sf);border:1px solid var(--bd)}
 .kl{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--sub);margin-bottom:5px}
@@ -764,7 +764,7 @@ body.dark .gs-drop,body.dark .mbox,body.dark .bk-box,body.dark #meeting{backgrou
 .mct-step-hdr{display:flex;align-items:center;gap:7px;margin-bottom:8px}
 .mct-step-num{background:var(--ac);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
 .mct-step-title{font-weight:700;font-size:14px;flex:1}
-.mct-step-time{font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);border-radius:4px;padding:2px 7px}
+.mct-step-time{font-size:10px;color:var(--sub);background:var(--sf2);border-radius:4px;padding:2px 7px}
 .mct-line{display:flex;gap:8px;align-items:flex-start;padding:3px 0;font-size:13px;color:var(--sub)}
 .mct-line.script{color:var(--tx)}
 .mct-line.action{color:var(--tx)}
@@ -804,10 +804,10 @@ body.dark .gs-drop,body.dark .mbox,body.dark .bk-box,body.dark #meeting{backgrou
 .rv-tbl th:hover{color:var(--tx);}
 .rv-tbl th.sort-asc::after{content:' ↑';}
 .rv-tbl th.sort-desc::after{content:' ↓';}
-.rv-tbl td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:middle;white-space:nowrap;}
+.rv-tbl td{padding:9px 12px;border-bottom:1px solid var(--bd);vertical-align:middle;white-space:nowrap;}
 .rv-tbl tr:last-child td{border-bottom:none;}
-.rv-tbl tr:hover td{background:rgba(255,255,255,.025);}
-.rv-pbar{background:rgba(255,255,255,.08);border-radius:3px;height:5px;overflow:hidden;width:70px;display:inline-block;vertical-align:middle;}
+.rv-tbl tr:hover td{background:var(--sf2);}
+.rv-pbar{background:var(--bd);border-radius:3px;height:5px;overflow:hidden;width:70px;display:inline-block;vertical-align:middle;}
 .rv-pbar-f{height:100%;border-radius:3px;}
 .rv-edt{background:none;border:none;cursor:pointer;color:var(--sub);font-size:12px;padding:3px 6px;border-radius:6px;transition:all .15s;}
 .rv-edt:hover{background:rgba(194,220,0,.12);color:var(--ac);}
@@ -825,7 +825,7 @@ body.dark .gs-drop,body.dark .mbox,body.dark .bk-box,body.dark #meeting{backgrou
 .gsh-prog-fill{height:100%;border-radius:6px;transition:width .5s;}
 .gsh-group{background:var(--sf2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
 .gsh-grp-hdr{padding:14px 16px;cursor:pointer;display:flex;align-items:center;gap:10px;user-select:none;}
-.gsh-grp-hdr:hover{background:rgba(255,255,255,.03);}
+.gsh-grp-hdr:hover{background:var(--sf2);}
 .gsh-grp-name{font-size:13px;font-weight:700;flex:1;}
 .gsh-grp-meta{font-size:11px;color:var(--sub);}
 .gsh-grp-bar{height:3px;background:var(--sf);margin:0 16px;}
@@ -834,14 +834,14 @@ body.dark .gs-drop,body.dark .mbox,body.dark .bk-box,body.dark #meeting{backgrou
 .gsh-grp-body.open{display:block;}
 .gsh-tbl{width:100%;border-collapse:collapse;font-size:12px;}
 .gsh-tbl th{color:var(--sub);font-weight:600;padding:8px 12px 6px;text-align:left;border-bottom:1px solid var(--bd);font-size:11px;white-space:nowrap;}
-.gsh-tbl td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:middle;}
+.gsh-tbl td{padding:9px 12px;border-bottom:1px solid var(--bd);vertical-align:middle;}
 .gsh-tbl tr:last-child td{border-bottom:none;}
-.gsh-tbl tr:hover td{background:rgba(255,255,255,.02);}
-.gsh-mini-bar{background:rgba(255,255,255,.08);border-radius:3px;height:5px;overflow:hidden;width:70px;}
+.gsh-tbl tr:hover td{background:var(--sf2);}
+.gsh-mini-bar{background:var(--bd);border-radius:3px;height:5px;overflow:hidden;width:70px;}
 .gsh-mini-fill{height:100%;border-radius:3px;}
 .gsh-edt{background:none;border:none;cursor:pointer;color:var(--sub);font-size:13px;padding:3px 6px;border-radius:6px;}
 .gsh-edt:hover{background:var(--sf);color:var(--tx);}
-.gsh-add-row{display:flex;align-items:center;justify-content:center;padding:10px 16px;border-top:1px dashed rgba(255,255,255,.08);cursor:pointer;font-size:12px;color:var(--sub);transition:all .2s;}
+.gsh-add-row{display:flex;align-items:center;justify-content:center;padding:10px 16px;border-top:1px dashed var(--bd);cursor:pointer;font-size:12px;color:var(--sub);transition:all .2s;}
 .gsh-add-row:hover{color:var(--ac);background:rgba(60,120,80,.06);}
 #gsh-modal{position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:700;display:none;align-items:center;justify-content:center;}
 #gsh-modal.open{display:flex;}
@@ -869,9 +869,9 @@ body.dark .gs-drop,body.dark .mbox,body.dark .bk-box,body.dark #meeting{backgrou
 .rd-tbl-wrap{background:var(--sf2);border-radius:12px;overflow:hidden;margin-top:12px;}
 .rd-tbl{width:100%;border-collapse:collapse;font-size:12px;}
 .rd-tbl th{color:var(--sub);font-weight:600;padding:9px 12px;border-bottom:1px solid var(--bd);text-align:left;font-size:11px;white-space:nowrap;}
-.rd-tbl td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:middle;}
+.rd-tbl td{padding:9px 12px;border-bottom:1px solid var(--bd);vertical-align:middle;}
 .rd-tbl tr:last-child td{border-bottom:none;}
-.rd-tbl tr:hover td{background:rgba(255,255,255,.02);}
+.rd-tbl tr:hover td{background:var(--sf2);}
 .rd-badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;}
 .rd-y{background:rgba(16,185,129,.15);color:#10B981;}
 .rd-n{background:rgba(239,68,68,.1);color:#ef4444;}
@@ -896,9 +896,9 @@ body.dark .gs-drop,body.dark .mbox,body.dark .bk-box,body.dark #meeting{backgrou
 .ml-tbl-wrap{background:var(--sf2);border-radius:12px;overflow:hidden;margin-top:12px;}
 .ml-tbl{width:100%;border-collapse:collapse;font-size:12px;}
 .ml-tbl th{color:var(--sub);font-weight:600;padding:9px 12px;border-bottom:1px solid var(--bd);text-align:left;font-size:11px;white-space:nowrap;}
-.ml-tbl td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:middle;}
+.ml-tbl td{padding:9px 12px;border-bottom:1px solid var(--bd);vertical-align:middle;}
 .ml-tbl tr:last-child td{border-bottom:none;}
-.ml-tbl tr:hover td{background:rgba(255,255,255,.02);}
+.ml-tbl tr:hover td{background:var(--sf2);}
 #ml-modal{position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:800;display:none;align-items:center;justify-content:center;}
 #ml-modal.open{display:flex;}
 .ml-mbox{background:var(--sf);border-radius:16px;padding:24px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;}
@@ -923,9 +923,9 @@ body.dark .gs-drop,body.dark .mbox,body.dark .bk-box,body.dark #meeting{backgrou
 .utc-badge{display:inline-block;padding:2px 9px;border-radius:99px;font-size:10px;font-weight:700;margin-top:6px}
 .usage-log-tbl{width:100%;border-collapse:collapse;font-size:12px}
 .usage-log-tbl th{color:var(--sub);font-weight:600;padding:8px 12px 6px;text-align:left;border-bottom:1px solid var(--bd);font-size:11px;white-space:nowrap}
-.usage-log-tbl td{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:middle}
+.usage-log-tbl td{padding:8px 12px;border-bottom:1px solid var(--bd);vertical-align:middle}
 .usage-log-tbl tr:last-child td{border-bottom:none}
-.usage-log-tbl tr:hover td{background:rgba(255,255,255,.025)}
+.usage-log-tbl tr:hover td{background:var(--sf2)}
 .usage-plat{display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 7px;border-radius:99px;background:var(--sf);border:1px solid var(--bd)}
 /* ── Add New Member Modal ── */
 #nm-modal{position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:900;display:none;align-items:center;justify-content:center}
@@ -3552,12 +3552,13 @@ function renderKPI(){
 }
 function pct(v,t){return t?Math.round((v||0)*100/t):0;}
 
+function chartColors(){var dark=document.body.classList.contains('dark');return{grid:dark?'rgba(255,255,255,.06)':'rgba(0,0,0,.07)',tick:dark?'#8b92b8':'#78716C',border:dark?'#1a1d27':document.documentElement.style.getPropertyValue('--sf')||'#EAE7DC'};}
 function renderDonut(){
   var sm=D.sm,data=[sm.green||0,sm.yellow||0,sm.red||0,sm.black||0,sm.none||0];
   var colors=['#00d4aa','#ffc14d','#ff6b6b','#8b92b8','#4b5563'],labels=['🟢 Green','🟡 Yellow','🔴 Red','⚫ Black','⚪ N/A'];
   if(dc)dc.destroy();
   dc=new Chart(document.getElementById('donut').getContext('2d'),{type:'doughnut',
-    data:{labels:labels,datasets:[{data:data,backgroundColor:colors,borderWidth:2,borderColor:'#1a1d27'}]},
+    data:{labels:labels,datasets:[{data:data,backgroundColor:colors,borderWidth:2,borderColor:chartColors().border}]},
     options:{cutout:'66%',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return' '+c.label+': '+c.raw+' คน';}}}},animation:{duration:400}}});
   document.getElementById('dleg').innerHTML=labels.map(function(l,i){
     return '<div class="dli"><span class="dd" style="background:'+colors[i]+'"></span><span style="color:var(--sub)">'+l+'</span><span style="font-weight:600;margin-left:auto">'+data[i]+'</span></div>';
@@ -3573,8 +3574,8 @@ function renderBar(){
         backgroundColor:D.teams.map(function(t){return t.avg>=70?'rgba(86,200,130,.75)':t.avg>=50?'rgba(255,193,77,.75)':t.avg>=30?'rgba(255,107,107,.75)':'rgba(96,165,250,.75)';}),
         borderRadius:5,borderSkipped:false}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
-      scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#8b92b8'}},
-        y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#8b92b8'},min:0,max:100,
+      scales:{x:{grid:{color:chartColors().grid},ticks:{color:chartColors().tick}},
+        y:{grid:{color:chartColors().grid},ticks:{color:chartColors().tick},min:0,max:100,
           afterBuildTicks:function(ax){ax.ticks=[0,30,50,70,100].map(function(v){return{value:v};});}}}
     }});
 }
@@ -3730,7 +3731,7 @@ function renderFT(){
       '</div>'+
       '<div class="pm" style="margin-bottom:10px">'+
         '<div class="pmf" style="width:'+Math.min(100,m.bniScore)+'%"></div>'+
-        '<div style="position:absolute;left:'+Math.min(99,target)+'%;top:0;bottom:0;width:2px;background:rgba(255,255,255,.4)"></div>'+
+        '<div style="position:absolute;left:'+Math.min(99,target)+'%;top:0;bottom:0;width:2px;background:var(--sub)"></div>'+
       '</div>'+
       (acts||'<div style="font-size:11px;color:var(--sub)">ไม่มีข้อมูล Fast Track</div>')+
       '<div style="margin-top:8px"><button class="bx" onclick="openIMD(\''+esc(m.name)+'\')">📊 ดู Dashboard</button> <button class="bx" onclick="openModal(\''+esc(m.name)+'\')">⚡ Actions</button></div>'+
@@ -4871,7 +4872,7 @@ function renderAccList(){
     +list.map(function(a){
       var secs=(a.admin_sections||[]).map(function(s){return '<span style="background:rgba(61,214,245,.15);color:var(--ac);padding:1px 6px;border-radius:4px;font-size:10px;margin-right:2px">'+escH(ACC_SECTION_LABELS[s]||s)+'</span>';}).join('');
       var badge=a.is_mc?'<span style="background:rgba(200,169,106,.2);color:#d7fefa;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700">MC</span>':a.is_mentor?'<span style="background:rgba(61,214,245,.15);color:var(--ac);padding:1px 7px;border-radius:4px;font-size:10px">Mentor</span>':'<span style="background:rgba(100,116,139,.2);color:var(--sub);padding:1px 7px;border-radius:4px;font-size:10px">'+escH(a.role)+'</span>';
-      return '<tr style="border-bottom:1px solid rgba(255,255,255,.04)" onmouseenter="this.style.background=\'rgba(255,255,255,.025)\'" onmouseleave="this.style.background=\'\'">'
+      return '<tr style="border-bottom:1px solid var(--bd)" onmouseenter="this.style.background=\'var(--sf2)\'" onmouseleave="this.style.background=\'\'">'
         +'<td style="padding:8px 14px;font-size:11px;color:var(--sub)">'+escH(a.email)+'</td>'
         +'<td style="padding:8px 14px;font-weight:600">'+escH(a.display_name||'—')+'</td>'
         +'<td style="padding:8px 14px">'+badge+'</td>'
@@ -6011,11 +6012,11 @@ function renderJIBar(){
   jc=new Chart(document.getElementById('jiBar').getContext('2d'),{type:'bar',
     data:{labels:labels,datasets:[
       {label:'% ให้ (RG)',data:data,backgroundColor:data.map(function(v){return v>55?'rgba(255,107,107,.75)':v<45?'rgba(255,193,77,.75)':'rgba(86,200,130,.75)';}),borderRadius:4},
-      {label:'เป้า (50%)',data:data.map(function(){return 50;}),type:'line',borderColor:'rgba(255,255,255,.3)',borderWidth:1,pointRadius:0,fill:false}
+      {label:'เป้า (50%)',data:data.map(function(){return 50;}),type:'line',borderColor:'rgba(28,26,18,.2)',borderWidth:1,pointRadius:0,fill:false}
     ]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return' '+c.dataset.label+': '+c.raw+'%';}}}},
-      scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#8b92b8',font:{size:10}}},
-        y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#8b92b8'},min:0,max:100}}}});
+      scales:{x:{grid:{color:chartColors().grid},ticks:{color:chartColors().tick,font:{size:10}}},
+        y:{grid:{color:chartColors().grid},ticks:{color:chartColors().tick},min:0,max:100}}}});
 }
 
 function renderGOvActivity(){
@@ -6698,7 +6699,7 @@ function enterMeeting(){
   if(mdc)mdc.destroy();
   var data=[sm.green||0,sm.yellow||0,sm.red||0,sm.black||0,sm.none||0];
   mdc=new Chart(document.getElementById('mt-donut').getContext('2d'),{type:'doughnut',
-    data:{labels:['Green','Yellow','Red','Black','N/A'],datasets:[{data:data,backgroundColor:['#00d4aa','#ffc14d','#ff6b6b','#8b92b8','#4b5563'],borderWidth:2,borderColor:'#1a1d27'}]},
+    data:{labels:['Green','Yellow','Red','Black','N/A'],datasets:[{data:data,backgroundColor:['#00d4aa','#ffc14d','#ff6b6b','#8b92b8','#4b5563'],borderWidth:2,borderColor:chartColors().border}]},
     options:{cutout:'60%',plugins:{legend:{display:true,position:'bottom',labels:{color:'#8b92b8',font:{size:11}}}}}});
   document.getElementById('meeting').style.display='flex';
 }
@@ -6993,8 +6994,8 @@ function renderTrendChart(){
   tdc=new Chart(ctx.getContext('2d'),{type:'line',
     data:{labels:labels.slice(-avgs.length),datasets:[{label:'BNI Avg',data:avgs,borderColor:'#6c63ff',backgroundColor:'rgba(60,120,80,.1)',borderWidth:2,pointRadius:4,pointBackgroundColor:'#6c63ff',tension:.3,fill:true}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
-      scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#8b92b8',font:{size:10}}},
-        y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#8b92b8'},min:0,max:100,suggestedMin:0}}}});
+      scales:{x:{grid:{color:chartColors().grid},ticks:{color:chartColors().tick,font:{size:10}}},
+        y:{grid:{color:chartColors().grid},ticks:{color:chartColors().tick},min:0,max:100,suggestedMin:0}}}});
 }
 
 // ══ FEATURE 4: ACTIVITY HEATMAP ═══════════════════
@@ -7275,7 +7276,7 @@ function buildTMDRecommend(mems){
             '<span style="font-size:11px;font-weight:700;color:'+urgCol+'">'+urgLbl+'</span>'+
           '</div>'+
           '<div style="display:flex;flex-wrap:wrap;gap:4px">'+
-            pri.reasons.map(function(r){return'<span style="font-size:10px;background:rgba(255,255,255,.06);border:1px solid var(--bd);border-radius:4px;padding:2px 7px;color:var(--sub)">'+esc(r)+'</span>';}).join('')+
+            pri.reasons.map(function(r){return'<span style="font-size:10px;background:var(--sf2);border:1px solid var(--bd);border-radius:4px;padding:2px 7px;color:var(--sub)">'+esc(r)+'</span>';}).join('')+
           '</div>'+
         '</div>'+
         '<div style="display:flex;gap:5px;flex-shrink:0;padding-top:2px">'+
@@ -7311,7 +7312,7 @@ function buildIMDScore(m){
         '<button onclick="document.querySelectorAll(\'#imd-tabs .tb\')[3].click()" style="font-size:10px;padding:3px 8px;background:rgba(86,200,130,.12);border:1px solid rgba(86,200,130,.3);border-radius:5px;color:var(--gr);cursor:pointer">ดูทั้งหมด →</button>'+
       '</div>'+
       ftTop.map(function(ft){
-        return'<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px">'+
+        return'<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--bd);font-size:12px">'+
           '<span>'+(ft.icon||'💡')+' <strong>'+esc(ft.cat)+'</strong> — '+esc(ft.action)+'</span>'+
           '<span style="color:var(--gr);font-weight:700;flex-shrink:0;margin-left:10px">+'+ft.gain+'pt</span>'+
         '</div>';
@@ -7611,8 +7612,8 @@ function buildIMDCharts(mem){
       idc1=new Chart(c1.getContext('2d'),{type:'line',
         data:{labels:labels,datasets:[{label:'BNI Score',data:pts,borderColor:'#6c63ff',backgroundColor:'rgba(60,120,80,.12)',borderWidth:2,pointRadius:5,pointBackgroundColor:pts.map(function(s){return s>=70?'#00d4aa':s>=50?'#ffc14d':s>=30?'#ff6b6b':'#60a5fa';}),tension:.3,fill:true}]},
         options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
-          scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#8b92b8',font:{size:10}}},
-            y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#8b92b8'},min:0,max:100,suggestedMin:0}}}});
+          scales:{x:{grid:{color:chartColors().grid},ticks:{color:chartColors().tick,font:{size:10}}},
+            y:{grid:{color:chartColors().grid},ticks:{color:chartColors().tick},min:0,max:100,suggestedMin:0}}}});
     }
     // Category bar chart
     var c2=document.getElementById('idc2');
@@ -7622,11 +7623,11 @@ function buildIMDCharts(mem){
       idc2=new Chart(c2.getContext('2d'),{type:'bar',
         data:{labels:Object.keys(cd),datasets:[
           {label:'ทำได้',data:Object.values(cd),backgroundColor:['#00d4aa','#ffc14d','#f472b6','#60a5fa','#a78bfa'],borderRadius:5},
-          {label:'เป้า',data:Object.keys(cd).map(function(k){return max[k];}),backgroundColor:'rgba(255,255,255,.06)',borderRadius:5}
+          {label:'เป้า',data:Object.keys(cd).map(function(k){return max[k];}),backgroundColor:'var(--sf2)',borderRadius:5}
         ]},
         options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#8b92b8',font:{size:10}}}},
-          scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#8b92b8'}},
-            y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#8b92b8'},min:0}}}});
+          scales:{x:{grid:{color:chartColors().grid},ticks:{color:chartColors().tick}},
+            y:{grid:{color:chartColors().grid},ticks:{color:chartColors().tick},min:0}}}});
     }
   }
 }
@@ -7822,7 +7823,7 @@ function renderTrendSection(){
         avgs.push(vs.length?Math.round(vs.reduce(function(a,b){return a+b;},0)/vs.length):null);
       }
       lbl.textContent='BNI Score Trend (Chapter Avg)';note.textContent=haHist.length+' คน มีประวัติ';
-      tdc2=new Chart(ctx.getContext('2d'),{type:'line',data:{labels:labs,datasets:[{label:'BNI Avg',data:avgs,borderColor:'#6c63ff',backgroundColor:'rgba(60,120,80,.12)',borderWidth:2,pointRadius:5,pointBackgroundColor:'#6c63ff',tension:.35,fill:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#8b92b8',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#8b92b8'},min:0,max:100}}}});
+      tdc2=new Chart(ctx.getContext('2d'),{type:'line',data:{labels:labs,datasets:[{label:'BNI Avg',data:avgs,borderColor:'#6c63ff',backgroundColor:'rgba(60,120,80,.12)',borderWidth:2,pointRadius:5,pointBackgroundColor:'#6c63ff',tension:.35,fill:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:chartColors().grid},ticks:{color:chartColors().tick,font:{size:10}}},y:{grid:{color:chartColors().grid},ticks:{color:chartColors().tick},min:0,max:100}}}});
     } else {_renderBarTrend(ctx,'BNI Score — ทุกคน','score','#6c63ff',0,100);lbl.textContent='BNI Score Distribution';note.textContent='ไม่มีข้อมูล Trend รายเดือน';}
   } else if(trendMetric==='attend'){
     _renderBarTrend(ctx,'Attendance Rate %','attendRate','#00d4aa',0,100);lbl.textContent='Attendance Rate — แยกสมาชิก';note.textContent='สีเขียว ≥80% · สีเหลือง ≥60% · สีแดง <60%';
@@ -7847,7 +7848,7 @@ function _renderBarTrend(ctx,label,key,color,ymin,ymax){
     return color+'cc';
   });
   document.getElementById('trend-main-note').textContent='ทั้งหมด '+list.length+' คน (เรียงจากมากสุด)';
-  tdc2=new Chart(ctx.getContext('2d'),{type:'bar',data:{labels:labs,datasets:[{label:label,data:data,backgroundColor:bg,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#8b92b8',font:{size:9},maxRotation:45}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#8b92b8'},min:ymin||0,suggestedMax:ymax||undefined}}}});
+  tdc2=new Chart(ctx.getContext('2d'),{type:'bar',data:{labels:labs,datasets:[{label:label,data:data,backgroundColor:bg,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:chartColors().grid},ticks:{color:chartColors().tick,font:{size:9},maxRotation:45}},y:{grid:{color:chartColors().grid},ticks:{color:chartColors().tick},min:ymin||0,suggestedMax:ymax||undefined}}}});
 }
 function _renderZoneDist(ctx){
   var z={green:0,yellow:0,red:0,black:0,none:0};
@@ -8656,8 +8657,8 @@ function openMCT(name){
     var zoneIco={green:'🟢',yellow:'🟡',red:'🔴',blue:'🔵',none:'⚪'};
     var summHtml='<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px">'+
       '<span class="badge b-'+tlK(m.bniTl)+'">'+zoneIco[m.bniTl||'none']+' BNI '+m.bniScore+' pt</span>'+
-      '<span class="badge" style="background:rgba(255,255,255,.07)">ขาด '+m.absent+' ครั้ง</span>'+
-      (cd!==null?'<span class="badge" style="background:rgba(255,255,255,.07)">ติดต่อ '+cd+' วันที่แล้ว</span>':'<span class="badge" style="background:rgba(255,107,107,.12);color:var(--re)">ยังไม่ได้ติดต่อ</span>')+
+      '<span class="badge" style="background:var(--sf2)">ขาด '+m.absent+' ครั้ง</span>'+
+      (cd!==null?'<span class="badge" style="background:var(--sf2)">ติดต่อ '+cd+' วันที่แล้ว</span>':'<span class="badge" style="background:rgba(255,107,107,.12);color:var(--re)">ยังไม่ได้ติดต่อ</span>')+
       (ren&&ren.diffDays<=60?'<span class="badge" style="background:rgba(255,193,77,.12);color:var(--ye)">⏰ Renewal '+ren.diffDays+' วัน</span>':'')+
       (openRep?'<span class="badge" style="background:rgba(255,107,107,.12);color:var(--re)">📋 Report ค้าง</span>':'')+
       (pri.score>0?'<span class="badge" style="background:rgba(200,160,80,.12);color:#a78bfa">Priority '+pri.score+'</span>':'')+
@@ -9027,7 +9028,7 @@ function renderCMD(r){
     +'<div style="font-size:11px;color:var(--sub);margin-bottom:4px">🏆 Chapter Revenue Goal</div>'
     +'<div style="font-size:32px;font-weight:900;color:'+barC+'">'+pct+'%</div>'
     +'<div style="font-size:12px;color:var(--sub);margin-bottom:10px">฿'+fmtBig(r.totalRecv)+' / ฿'+fmtBig(r.chapterGoal)+'</div>'
-    +'<div style="background:rgba(255,255,255,.1);border-radius:6px;height:10px;overflow:hidden;margin-bottom:12px"><div style="height:100%;width:'+Math.min(100,pct)+'%;background:'+barC+';border-radius:6px;transition:width .8s"></div></div>'
+    +'<div style="background:var(--bd);border-radius:6px;height:10px;overflow:hidden;margin-bottom:12px"><div style="height:100%;width:'+Math.min(100,pct)+'%;background:'+barC+';border-radius:6px;transition:width .8s"></div></div>'
     +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">'
     +'<div style="text-align:center"><div style="font-size:11px;color:var(--sub)">ขาด</div><div style="font-size:14px;font-weight:700;color:var(--re)">฿'+fmtBig(r.gap||0)+'</div></div>'
     +'<div style="text-align:center"><div style="font-size:11px;color:var(--sub)">Run Rate/เดือน</div><div style="font-size:14px;font-weight:700;color:var(--ac)">฿'+fmtMon(r.runRate||0)+'</div></div>'
@@ -9491,7 +9492,7 @@ function gshRenderGroup(g,gi){
       if(!isNaN(n)&&str!=='')return'<td style="text-align:right;font-weight:700;white-space:nowrap;">'+gshFmtNum(n)+'</td>';
       return'<td></td>';
     }).join('');
-    totalHtml='<tr style="background:rgba(255,255,255,.06);border-top:1px solid var(--bd);">'+ttds+'<td></td></tr>';
+    totalHtml='<tr style="background:var(--sf2);border-top:1px solid var(--bd);">'+ttds+'<td></td></tr>';
   }
 
   return'<div class="gsh-group">'
