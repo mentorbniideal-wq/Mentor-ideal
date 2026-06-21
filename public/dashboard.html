@@ -7154,6 +7154,12 @@ function openIMD(name){
   imdCurrentName=name;
   document.getElementById('imd-name').textContent=mem.name+(mem.nick?' ('+mem.nick+')':'');
   document.getElementById('imd-sub').textContent=(mem.mentor||'ไม่มีทีม');
+  // Fetch business description if not yet loaded
+  if(mem.business===undefined){
+    gsr('getMemberDetail',{memberName:name},function(r){
+      if(r.ok&&r.business!=null){mem.business=r.business;var s=document.getElementById('imd-s0');if(s)s.innerHTML=buildIMDScore(mem);}
+    });
+  }
   var tl=S.role==='mc'?mem.bniTl:mem.tl;
   var sc=S.role==='mc'?mem.bniScore:mem.score;
   var zEl=document.getElementById('imd-zone');
@@ -7339,7 +7345,9 @@ function buildIMDScore(m){
     '<div class="m360g">'+
       '<div class="m360c"><div class="m360l">คะแนนปัจจุบัน</div><div style="font-size:36px;font-weight:800;color:'+tlC(m.bniTl)+'">'+m.bniScore+'</div><span class="badge b-'+tlK(m.bniTl)+'">'+tlL(m.bniTl)+'</span></div>'+
       '<div class="m360c"><div class="m360l">Avg ('+((m.hist&&m.hist.length)||0)+' เดือน) / ขาด</div><div style="font-size:28px;font-weight:700">'+(m.scoreAvg||'—')+'</div><div style="font-size:12px;color:'+(m.absent>=riskThresh.absent?'var(--re)':'var(--sub)')+'">ขาด '+m.absent+' ครั้ง</div></div>'+
-    '</div>'+ftHtml;
+    '</div>'+
+    (m.business?'<div style="font-size:12px;color:var(--sub);margin:8px 2px 0;">🏢 ธุรกิจ: <strong style="color:var(--tx)">'+esc(m.business)+'</strong></div>':'')+
+    ftHtml;
 }
 function buildIMDCats(m){
   var c=m.cats||{};

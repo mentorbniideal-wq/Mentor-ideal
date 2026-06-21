@@ -4085,7 +4085,8 @@ function buildDetail(d){
   var keysHTML=keys.map(function(k){var rawPct=Math.round(k.act/Math.max(1,k.tgt)*100);var pct=Math.min(100,rawPct);var col=bc(rawPct);var pctLbl='<div class="kpct" style="color:'+col+'">'+rawPct+'%</div>';return '<div class="kr"><div class="ki">'+k.icon+'</div><div class="kl">'+k.label+'</div><div class="kbw"><div class="kb" style="width:'+pct+'%;background:'+col+'"></div></div><div class="kv">'+k.act+'/'+k.tgt+'</div>'+pctLbl+'</div>';}).join('');
   var prHTML=(d.priorities||[]).map(function(p,i){var bg=p.type==='emergency'?'var(--redl)':p.type==='warning'?'rgba(245,158,11,.1)':p.type==='quick'?'rgba(194,220,0,.1)':'rgba(59,130,246,.1)';var brd=p.type==='emergency'?'#EF4444':p.type==='warning'?'#F59E0B':p.type==='quick'?'var(--gold)':'#3B82F6';return '<div class="pc" style="background:'+bg+';border-left-color:'+brd+'"><div class="pn">Priority '+(i+1)+'</div><div class="pt">'+p.title+'</div><div class="pa">'+p.action.replace(/\n/g,'<br>')+'</div><div class="pg">🎯 '+p.target+'</div></div>';}).join('');
 
-  // Renewal badge
+  // Business + Renewal badge
+  var bizBadge = d.business ? '<div style="font-size:.72rem;color:var(--gray2);margin-top:.2rem;">🏢 '+escHtml(d.business)+'</div>' : '';
   var renewalBadge = d.renewal ? '<div style="font-size:.75rem;color:var(--gray2);margin-top:.25rem;">💳 Renewal: <span style="color:var(--white);font-weight:600;">'+escHtml(d.renewal)+'</span></div>' : '';
 
   // Attendance breakdown card
@@ -4113,7 +4114,7 @@ function buildDetail(d){
     +'<div><div style="font-size:1rem;">'+(score>=70?'🟢 เขียว':score>=50?'🟡 เหลือง':score>=30?'🔴 แดง':'⚫ ดำ')+'</div>'
     +'<div style="font-size:.72rem;color:var(--gray2);">Balance: '+escHtml(d.balance)+'</div></div></div>'
     +'<div class="attend-pill" style="background:'+attendBg+';color:'+attendC+'">'+attendTxt+'</div>'
-    +renewalBadge+'</div>';
+    +bizBadge+renewalBadge+'</div>';
 
   var safeWorkspaceName=d.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   var workspaceActions=!S.isMC&&S.role!=='growth'

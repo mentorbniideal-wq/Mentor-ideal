@@ -525,8 +525,11 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       if (denied) return errResponse(denied, 403);
       const memberId = String(mv.id);
 
-      const { data: scores } = await db.from('monthly_scores').select('year, month, score')
-        .eq('member_id', memberId).order('year', { ascending: true }).order('month', { ascending: true });
+      const [{ data: scores }, { data: bizRow }] = await Promise.all([
+        db.from('monthly_scores').select('year, month, score')
+          .eq('member_id', memberId).order('year', { ascending: true }).order('month', { ascending: true }),
+        db.from('biz_profiles').select('description').eq('member_id', memberId).maybeSingle(),
+      ]);
       const scoreHistory = (scores || []).map((s: Record<string, unknown>) => ({
         year:  Number(s.year),
         month: Number(s.month),
@@ -639,6 +642,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         cats, attendRisk, fastTrack, priorities, balance,
         given: Number(mv.given_thb) || 0, recv: Number(mv.received_thb) || 0,
         actual, target, weeks, scoreHistory,
+        business: (bizRow as Record<string, unknown> | null)?.description ?? null,
         coreIssue: auth.role === 'growth'
           ? null
           : mv.open_core_issue

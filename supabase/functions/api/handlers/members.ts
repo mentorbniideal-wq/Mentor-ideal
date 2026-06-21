@@ -243,6 +243,7 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       const mentorTeam = normalizeTeam(p.mentorTeam ?? p.mentor ?? p.targetTeam);
       const email      = textValue(p.email) || null;
       const phone      = textValue(p.phone) || null;
+      const business   = textValue(p.business || p.businessCategory || p.description) || null;
       // joinDate: the actual BNI join date (YYYY-MM-DD) — distinct from created_at
       const joinDateRaw = textValue(p.joinDate || p.startDate);
       const joinDate    = joinDateRaw && /^\d{4}-\d{2}-\d{2}$/.test(joinDateRaw) ? joinDateRaw : null;
@@ -268,6 +269,16 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
         .select('id, name, nickname, mentor_team, email, phone, joined_date')
         .single();
       if (error) return errResponse(error.message);
+
+      // Save business description to biz_profiles (shared with LINE bot)
+      if (business) {
+        const memberId0 = (data as Record<string, unknown>).id as string;
+        await db.from('biz_profiles').upsert({
+          member_id:   memberId0,
+          description: business,
+          updated_at:  new Date().toISOString(),
+        }, { onConflict: 'member_id' });
+      }
       const d = data as Record<string, unknown>;
       const memberId = d.id as string;
 
@@ -747,10 +758,14 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       const rawMembers = Array.isArray(p.members) ? p.members as Record<string, unknown>[] : [];
       if (!rawMembers.length) return errResponse('members array required');
 
+      const businessMap: Record<string, string> = {};
       const rows = rawMembers.map((m) => {
-        const jd = String(m.joined_date || m.startDate || m.joinDate || '').trim();
+        const jd  = String(m.joined_date || m.startDate || m.joinDate || '').trim();
+        const biz = String(m.business || m.description || '').trim();
+        const nm  = String(m.name || '').trim();
+        if (biz && nm) businessMap[nm] = biz;
         return {
-          name:          String(m.name || '').trim(),
+          name:          nm,
           nickname:      String(m.nick || m.nickname || '').trim(),
           mentor_team:   m.mentor_team || m.mentorTeam ? String(m.mentor_team || m.mentorTeam) : null,
           is_new_member: true,
@@ -776,6 +791,24 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       if (renewalRows.length) {
         await db.from('renewals').upsert(renewalRows, { onConflict: 'member_id', ignoreDuplicates: true });
       }
+
+      // Save business descriptions to biz_profiles for members that provided one
+      if (Object.keys(businessMap).length > 0) {
+        const insertedRows = (inserted || []) as Record<string, unknown>[];
+        // Re-fetch names for the inserted IDs
+        const { data: nameRows } = await db.from('members').select('id, name').in('id', insertedRows.map(r => r.id));
+        const bizRows = (nameRows || [])
+          .filter((r: Record<string, unknown>) => businessMap[String(r.name)])
+          .map((r: Record<string, unknown>) => ({
+            member_id:   r.id,
+            description: businessMap[String(r.name)],
+            updated_at:  new Date().toISOString(),
+          }));
+        if (bizRows.length) {
+          await db.from('biz_profiles').upsert(bizRows, { onConflict: 'member_id' });
+        }
+      }
+
       return jsonResponse({ ok: true, count: rows.length });
     }
 
