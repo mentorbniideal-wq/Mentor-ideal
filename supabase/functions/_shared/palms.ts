@@ -29,7 +29,8 @@ export interface PalmsResult {
   color:     'green' | 'yellow' | 'red' | 'black';
 }
 
-export function trafficLight(score: number): 'green' | 'yellow' | 'red' | 'black' {
+export function trafficLight(score: number): 'green' | 'yellow' | 'red' | 'black' | 'none' {
+  if (!score || score <= 0) return 'none'; // aligns with SQL fn_traffic_light behavior
   if (score >= 70) return 'green';
   if (score >= 50) return 'yellow';
   if (score >= 30) return 'red';

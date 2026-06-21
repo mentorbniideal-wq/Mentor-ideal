@@ -328,7 +328,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         // Fast Track: suggest highest-gain next actions per PALMS tier
         const fastTrack: { icon: string; cat: string; action: string; gain: number; curVal: string; tgtVal: string }[] = [];
         if (cats) {
-          const wks = Math.max(1, Math.floor(bniDays / 7));
+          const wks = Math.max(1, Math.min(26, Math.floor(bniDays / 7)));
           const mos = Math.max(1, wks / 4);
           const fmt = (v: number) => v >= 1000000 ? (v / 1000000).toFixed(1) + 'M' : v >= 1000 ? Math.round(v / 1000) + 'K' : String(Math.round(v));
 
@@ -393,6 +393,8 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
           mentoringMode: contact.mentoringMode,
           noMentorContact: false, mentorContactDays: null as number | null,
           scoreAvg: hist.length ? Math.round(hist.reduce((a, v) => a + v, 0) / hist.length) : score,
+          renewalSoon: m.days_to_expiry !== null && Number(m.days_to_expiry) <= 45,
+          renewalDays: m.days_to_expiry !== null ? Number(m.days_to_expiry) : null,
         };
       });
 
@@ -526,7 +528,9 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       const { data: scores } = await db.from('monthly_scores').select('year, month, score')
         .eq('member_id', memberId).order('year', { ascending: true }).order('month', { ascending: true });
       const scoreHistory = (scores || []).map((s: Record<string, unknown>) => ({
-        month: MONTH_LABELS[Number(s.month)] || String(s.month),
+        year:  Number(s.year),
+        month: Number(s.month),
+        label: MONTH_LABELS[Number(s.month)] || String(s.month),
         score: Number(s.score) || null,
       }));
 
@@ -568,7 +572,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
 
       // Fast Track actions (same algorithm as getDashboard)
       const fmt = (v: number) => v >= 1000000 ? (v / 1000000).toFixed(1) + 'M' : v >= 1000 ? Math.round(v / 1000) + 'K' : String(Math.round(v));
-      const wks = Math.max(1, Math.floor(bniDays / 7));
+      const wks = Math.max(1, Math.min(26, Math.floor(bniDays / 7)));
       const mos = Math.max(1, wks / 4);
       const fastestActions: { icon: string; cat: string; action: string; gain: number; curVal: string; tgtVal: string }[] = [];
       if (cats) {
@@ -678,11 +682,11 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         modeMap[String(r.id)] = String(r.mentoring_mode || 'active');
       }
 
-      const histMap: Record<string, { month: string; score: number | null }[]> = {};
+      const histMap: Record<string, { year: number; month: number; label: string; score: number | null }[]> = {};
       for (const s of (scoreHist || []) as Record<string, unknown>[]) {
         const mid = String(s.member_id);
         if (!histMap[mid]) histMap[mid] = [];
-        histMap[mid].push({ month: MONTH_LABELS[Number(s.month)] || '', score: Number(s.score) || null });
+        histMap[mid].push({ year: Number(s.year), month: Number(s.month), label: MONTH_LABELS[Number(s.month)] || '', score: Number(s.score) || null });
       }
       const lastContactMap: Record<string, string> = {};
       for (const l of (mentorLogs || []) as Record<string, unknown>[]) {

@@ -32,7 +32,7 @@ function catsFromPalms(value: unknown): Record<string, number> | null {
 type FtAction = { icon: string; cat: string; action: string; gain: number; curVal: string; tgtVal: string };
 
 function computeFastTrack(cats: Record<string, number>, actual: Record<string, number>, bniDays: number): FtAction[] {
-  const wks  = Math.max(1, Math.floor(bniDays / 7));
+  const wks  = Math.max(1, Math.min(26, Math.floor(bniDays / 7)));
   const mos  = Math.max(1, wks / 4);
   const fmtB = (v: number) => v >= 1000000 ? (v / 1000000).toFixed(1) + 'M' : v >= 1000 ? Math.round(v / 1000) + 'K' : String(Math.round(v));
   const ft: FtAction[] = [];
@@ -117,24 +117,40 @@ export async function handlePublic(p: Record<string, unknown>): Promise<Response
     case 'getSimulateData': {
       const { data, error } = await db
         .from('v_member_dashboard')
-        .select('name, nickname, mentor_team, display_score, traffic_light, palms_detail, rg, visitors, one_to_one, ceu, tyfcb_thb, bni_days, absent, attend, late, medical, sub')
+        .select('id, name, nickname, mentor_team, display_score, traffic_light, palms_detail, rg, visitors, one_to_one, ceu, tyfcb_thb, bni_days, absent, attend, late, medical, sub')
         .eq('is_archived', false)
         .order('name');
       if (error) return errResponse(error.message);
 
-      const members = ((data || []) as Record<string, unknown>[]).map(m => {
-        const cats   = catsFromPalms(m.palms_detail);
-        const actual = actualFromRow(m);
+      const rows = (data || []) as Record<string, unknown>[];
+      const memberIds = rows.map(m => String(m.id));
+      const { data: scoreRows } = memberIds.length
+        ? await db.from('monthly_scores').select('member_id, year, month, score')
+            .in('member_id', memberIds)
+            .order('year', { ascending: true }).order('month', { ascending: true })
+        : { data: [] };
+      const MLABELS = ['','JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+      const histMap: Record<string, { year: number; month: number; label: string; score: number | null }[]> = {};
+      for (const s of (scoreRows || []) as Record<string, unknown>[]) {
+        const mid = String(s.member_id);
+        if (!histMap[mid]) histMap[mid] = [];
+        histMap[mid].push({ year: num(s.year), month: num(s.month), label: MLABELS[num(s.month)] || '', score: num(s.score) || null });
+      }
+
+      const members = rows.map(m => {
+        const cats    = catsFromPalms(m.palms_detail);
+        const actual  = actualFromRow(m);
         const bniDays = num(m.bni_days);
         return {
-          name:      text(m.name),
-          nick:      text(m.nickname),
-          mentor:    text(m.mentor_team),
-          bniScore:  num(m.display_score),
-          bniTl:     simTl(m.traffic_light),
+          name:         text(m.name),
+          nick:         text(m.nickname),
+          mentor:       text(m.mentor_team),
+          bniScore:     num(m.display_score),
+          bniTl:        simTl(m.traffic_light),
           cats,
           actual,
-          fastTrack: cats ? computeFastTrack(cats, actual, bniDays) : [],
+          fastTrack:    cats ? computeFastTrack(cats, actual, bniDays) : [],
+          scoreHistory: histMap[String(m.id)] || [],
         };
       });
       return jsonResponse({ ok: true, members });

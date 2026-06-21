@@ -66,6 +66,12 @@
 | F-25 | MEDIUM | `handlers/meetings.ts` | `updateVisitor` no ownership check; `saveSprintPlan` delete op no MC restriction | **FIXED** (2026-06-19) |
 | F-26 | MEDIUM | `handlers/comms.ts` | `ackAssignment` no team ownership check | **FIXED** (2026-06-19) |
 | F-27 | LOW | `handlers/dashboard.ts` | `getMentorActivity` / `getMentorPerformance` dead code — routing sends both to growth.ts | Known issue |
+| F-33 | HIGH | `handlers/dashboard.ts` | `scoreHistory` in `getMemberDetail` / `getMyTeam` missing `year` + numeric `month` fields → frontend `(a.year*100+a.month)` sort returned NaN → chronological order broken | **FIXED** (2026-06-21) |
+| F-34 | HIGH | `handlers/dashboard.ts` | `wks` in fastTrack block missing `Math.min(26,…)` cap in `getMemberDetail` (line 571) → long-tenure members show inflated referral/1-2-1 targets vs `computeGaps()` which was already capped | **FIXED** (2026-06-21) |
+| F-35 | MEDIUM | `handlers/dashboard.ts` | `renewalSoon` field never set on member objects in `getDashboard` → mobile renewal badge (`.mr-act` "💳 Renewal ใกล้") never rendered | **FIXED** (2026-06-21) |
+| F-36 | MEDIUM | `_shared/palms.ts` | `trafficLight(0)` returned `'black'` but SQL `fn_traffic_light(0)` returns `'none'` → `verifyScoring` reported false mismatches for zero-score members | **FIXED** (2026-06-21) |
+| F-37 | MEDIUM | `handlers/public.ts` | `getSimulateData` never returned `scoreHistory` → TL Evolution dots in public member directory profile never rendered | **FIXED** (2026-06-21) |
+| F-38 | MEDIUM | `handlers/public.ts` | `computeFastTrack()` missing `Math.min(26,…)` cap on `wks` → same inflated target bug as F-34 in public directory fast-track suggestions | **FIXED** (2026-06-21) |
 | F-28 | LOW | `handlers/usage.ts` | `logUsage` no auth — analytics data pollutable | **FIXED** (2026-06-19) — central API auth gate |
 | F-29 | LOW | `handlers/alerts.ts` | Stub handlers (dismissAlert, getDismissedAlerts, getTeamNotifs, etc.) no auth | **FIXED** (2026-06-19) — central API auth gate |
 | F-30 | LOW | `handlers/public.ts` | Uses `getServiceClient()` (bypasses RLS) for public endpoints | **MITIGATED** (2026-06-19) — safe-column allowlists; contact PII removed |
