@@ -424,22 +424,22 @@ tbody tr:hover{background:rgba(28,26,18,.04)}
 #sync-modal{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:800;display:none;align-items:center;justify-content:center}
 #sync-modal.open{display:flex}
 .sync-box{background:var(--sf);border:1px solid var(--bd);border-radius:16px;padding:24px;width:460px;max-width:94vw;max-height:90vh;overflow-y:auto}
-.sync-title{font-size:16px;font-weight:700;color:#F0B429;margin-bottom:4px}
+.sync-title{font-size:16px;font-weight:700;color:var(--ac);margin-bottom:4px}
 .sync-sub{font-size:12px;color:var(--sub);margin-bottom:18px}
 .sync-sect{background:var(--sf2);border-radius:10px;padding:13px 14px;margin-bottom:12px;border:1px solid var(--bd)}
 .sync-sect-title{font-size:11px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px}
 .sync-sect label{font-size:13px;display:block;margin-bottom:5px}
-.sync-file{width:100%;background:var(--sf);border:1px dashed rgba(240,180,41,.35);border-radius:8px;padding:9px 10px;color:var(--tx);font-size:12px;box-sizing:border-box;cursor:pointer}
-.sync-file::-webkit-file-upload-button{background:rgba(240,180,41,.15);border:1px solid rgba(240,180,41,.4);border-radius:6px;color:#F0B429;padding:3px 10px;cursor:pointer;font-size:11px}
+.sync-file{width:100%;background:var(--sf);border:1px dashed var(--ac);border-radius:8px;padding:9px 10px;color:var(--tx);font-size:12px;box-sizing:border-box;cursor:pointer}
+.sync-file::-webkit-file-upload-button{background:var(--ac-dim);border:1px solid var(--bd-hover);border-radius:6px;color:var(--ac);padding:3px 10px;cursor:pointer;font-size:11px}
 .sync-note{font-size:11px;color:var(--sub);margin-top:4px}
 .sync-badge{display:inline-block;background:rgba(16,185,129,.15);color:#10B981;font-size:10px;padding:2px 7px;border-radius:4px;margin-top:5px}
-.sync-btn{width:100%;background:#F0B429;color:#0F1923;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;margin-top:4px;font-family:inherit;transition:opacity .2s}
+.sync-btn{width:100%;background:var(--ac);color:var(--bg);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;margin-top:4px;font-family:inherit;transition:opacity .2s}
 .sync-btn:hover{opacity:.9}
 .sync-btn:disabled{opacity:.5;cursor:not-allowed}
 .sync-progress{display:none;background:var(--sf2);border-radius:8px;padding:11px 13px;margin-top:10px}
 .sync-step{padding:3px 0;font-size:12px;color:var(--sub)}
 .sync-step.s-done{color:#10B981}
-.sync-step.s-active{color:#F0B429}
+.sync-step.s-active{color:var(--ac)}
 .sync-step.s-error{color:#EF4444}
 .sync-step.s-skip{color:var(--sub);opacity:.5}
 .sync-macts{display:flex;gap:8px;margin-top:14px}
@@ -1297,9 +1297,9 @@ main{
       <button class="bsm" id="btn-ar" onclick="toggleAR()" title="Auto-refresh">⏸</button>
       <button class="bsm bac" id="btn-meeting" onclick="enterMeeting()" style="display:none">Meeting</button>
       <button class="bsm" onclick="toggleLight()" id="themeBtn" title="Light/Dark">🌙</button>
-      <button class="bsm" id="btn-monthly-sync" onclick="openSyncModal()" style="display:none;background:rgba(240,180,41,.15);border-color:rgba(240,180,41,.4);color:#F0B429;font-weight:700;" title="Monthly Sync วันที่ 5">Sync</button>
+      <button class="bsm" id="btn-monthly-sync" onclick="openSyncModal()" style="display:none;background:var(--ac-dim);border-color:var(--bd-hover);color:var(--ac);font-weight:700;" title="Monthly Sync วันที่ 5">Sync</button>
       <button class="bsm" id="btn-role-growth" onclick="switchDesktopRole('growth')" style="display:none;background:rgba(139,92,246,.16);border-color:rgba(139,92,246,.42);color:#C4B5FD;font-weight:800;" title="ไปหน้า Growth Desktop">Growth View</button>
-      <button class="bsm" id="btn-role-mc" onclick="switchDesktopRole('mc')" style="display:none;background:rgba(200,169,106,.12);border-color:rgba(200,169,106,.32);color:#C8A96A;font-weight:800;" title="กลับหน้า MC Desktop">MC View</button>
+      <button class="bsm" id="btn-role-mc" onclick="switchDesktopRole('mc')" style="display:none;background:var(--ac-dim);border-color:var(--bd-hover);color:var(--ac);font-weight:800;" title="กลับหน้า MC Desktop">MC View</button>
       <button class="bsm" id="btn-notif" onclick="openNotifPanel()" title="Notifications" style="position:relative;display:none">🔔<span id="notif-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:#ef4444;color:#fff;border-radius:99px;font-size:9px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;padding:0 3px"></span></button>
       <button class="bsm bac" onclick="manualReload()">Refresh</button>
       <button onclick="window.open('index.html','_blank')" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818CF8;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">Mobile</button>
@@ -1443,7 +1443,7 @@ main{
         <button class="zp" id="mf-gw-gw" onclick="setGWFilter('growth_watch',this)" style="color:#60a5fa">🔵 GW</button>
         <select id="mso" onchange="colSortState={col:'',dir:1};document.querySelectorAll('.sort-arrow').forEach(function(s){s.textContent='↕';});renderMem();saveFilters()"><option value="sd">คะแนน ↓</option><option value="sa">คะแนน ↑</option><option value="na">ชื่อ A→Z</option><option value="ad">ขาด ↓</option></select>
         <button class="btn-exp" onclick="exportMemberCSV()">📥 Export CSV</button>
-        <button onclick="nmOpen()" style="background:rgba(200,160,80,.12);border:1px solid rgba(60,120,80,.4);color:var(--ac);border-radius:6px;padding:5px 13px;font-size:12px;font-weight:700;cursor:pointer">➕ เพิ่มสมาชิกใหม่</button>
+        <button onclick="nmOpen()" style="background:var(--ac-dim);border:1px solid var(--bd-hover);color:var(--ac);border-radius:6px;padding:5px 13px;font-size:12px;font-weight:700;cursor:pointer">➕ เพิ่มสมาชิกใหม่</button>
         <button class="bsm" onclick="toggleAdvFil()" style="font-size:11px">⚙️ ตัวกรองเพิ่ม</button>
       </div>
       <div class="adv-fil" id="adv-fil">
@@ -1471,7 +1471,7 @@ main{
           <div style="font-size:14px;font-weight:700">📈 Chapter Scorecard</div>
           <div style="display:flex;gap:7px;">
             <button class="bsm" onclick="_scLoaded=false;loadDesktopScorecard()" style="font-size:11px">🔄 โหลดใหม่</button>
-            <button id="btn-lt-summary" onclick="openLTSummary()" style="font-size:11px;background:rgba(240,180,41,.15);border:1px solid rgba(240,180,41,.4);color:#F0B429;border-radius:6px;padding:4px 12px;cursor:pointer;font-weight:700;display:none">📄 SUMMARY</button>
+            <button id="btn-lt-summary" onclick="openLTSummary()" style="font-size:11px;background:var(--ac-dim);border:1px solid var(--bd-hover);color:var(--ac);border-radius:6px;padding:4px 12px;cursor:pointer;font-weight:700;display:none">📄 SUMMARY</button>
           </div>
         </div>
         <div id="mc-sc-body"><div style="color:var(--sub);font-size:13px;text-align:center;padding:20px">กด "📈 Mentor Teams" แล้วเลื่อนลงมาดู Scorecard ได้เลย — <button class="bsm" onclick="loadDesktopScorecard()" style="font-size:11px">โหลด Scorecard</button></div></div>
@@ -1548,7 +1548,7 @@ main{
           <h2 style="font-size:14px;font-weight:700;margin:0">🎯 Visitor Conversion Funnel</h2>
           <div style="font-size:11px;color:var(--sub);margin-top:3px">ติดตาม Visitor ตั้งแต่เยี่ยมชม → สมัคร → เป็นสมาชิก</div>
         </div>
-        <button onclick="visOpenAdd()" style="background:rgba(200,160,80,.12);border:1px solid rgba(60,120,80,.4);color:var(--ac);border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">➕ เพิ่ม Visitor</button>
+        <button onclick="visOpenAdd()" style="background:var(--ac-dim);border:1px solid var(--bd-hover);color:var(--ac);border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">➕ เพิ่ม Visitor</button>
       </div>
       <div id="vis-funnel" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap"></div>
       <div id="vis-table"></div>
@@ -2240,7 +2240,7 @@ main{
       <div id="sub-8w" class="sub-panel on">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
           <div style="font-size:11px;color:var(--sub)">ติดตามความก้าวหน้าของสมาชิกที่อยู่ใน BNI ไม่ถึง 3 เดือน (≤12 สัปดาห์)</div>
-          <button onclick="nmOpen()" style="background:rgba(200,160,80,.12);border:1px solid rgba(60,120,80,.4);color:var(--ac);border-radius:6px;padding:5px 13px;font-size:12px;font-weight:700;cursor:pointer">➕ เพิ่มสมาชิกใหม่</button>
+          <button onclick="nmOpen()" style="background:var(--ac-dim);border:1px solid var(--bd-hover);color:var(--ac);border-radius:6px;padding:5px 13px;font-size:12px;font-weight:700;cursor:pointer">➕ เพิ่มสมาชิกใหม่</button>
         <button class="bsm" onclick="load8WProgress(true)" style="font-size:11px">↺ รีเฟรช</button>
         </div>
         <div id="mc-8w-summary"></div>
@@ -2252,7 +2252,7 @@ main{
           <div style="font-size:11px;color:var(--sub)">บันทึกผลการประเมิน 90 วันตาม BNI Global — ครบ 90 วัน MC ประเมิน Passport + PALMS + พร้อม graduate ไหม</div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <input id="rd-filter" placeholder="ค้นหา Mentee..." style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;color:var(--tx);font-size:12px;outline:none;width:160px;" oninput="rdRender()">
-            <button class="bsm" style="background:rgba(240,180,41,.15);border-color:rgba(240,180,41,.4);color:#F0B429;font-weight:700;" onclick="rdOpenNew()">+ New Review</button>
+            <button class="bsm" style="background:var(--ac-dim);border-color:var(--bd-hover);color:var(--ac);font-weight:700;" onclick="rdOpenNew()">+ New Review</button>
             <button class="bsm" onclick="rdLoad(true)" style="font-size:11px">↺</button>
           </div>
         </div>
@@ -2265,7 +2265,7 @@ main{
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <select id="ml-filter-team" style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;color:var(--tx);font-size:12px;outline:none;" onchange="mlRender()"><option value="">ทุกทีม</option></select>
             <input id="ml-filter-mentee" placeholder="ค้นหา Mentee..." style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;color:var(--tx);font-size:12px;outline:none;width:150px;" oninput="mlRender()">
-            <button class="bsm" style="background:rgba(200,160,80,.12);border-color:rgba(60,120,80,.4);color:#818cf8;font-weight:700;" onclick="mlOpenNew()">+ Log Activity</button>
+            <button class="bsm" style="background:rgba(139,92,246,.1);border-color:rgba(139,92,246,.3);color:#818cf8;font-weight:700;" onclick="mlOpenNew()">+ Log Activity</button>
             <button class="bsm" onclick="mlLoad(true)" style="font-size:11px">↺</button>
           </div>
         </div>
@@ -2371,7 +2371,7 @@ main{
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
         <div><h2 style="font-size:15px;font-weight:800;margin:0">🗓️ Monthly Sprint Board</h2>
           <div style="font-size:11px;color:var(--sub);margin-top:3px">วางแผนรายเดือน Growth + Mentor ร่วมกัน</div></div>
-        <button onclick="sprintOpenAdd()" style="background:rgba(200,160,80,.12);border:1px solid rgba(60,120,80,.4);color:var(--ac);border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">➕ สร้าง Sprint</button>
+        <button onclick="sprintOpenAdd()" style="background:var(--ac-dim);border:1px solid var(--bd-hover);color:var(--ac);border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">➕ สร้าง Sprint</button>
       </div>
       <div id="sprint-content"><div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div></div>
     </div>
@@ -2391,7 +2391,7 @@ main{
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
         <div><h2 style="font-size:15px;font-weight:800;margin:0">⚡ Power Team Manager</h2>
           <div style="font-size:11px;color:var(--sub);margin-top:3px">เพิ่ม / แก้ไข / ย้ายทีม / ลบ สมาชิก Power Team</div></div>
-        <button onclick="ptOpenAdd()" style="background:rgba(200,160,80,.12);border:1px solid rgba(60,120,80,.4);color:var(--ac);border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">➕ เพิ่มสมาชิก</button>
+        <button onclick="ptOpenAdd()" style="background:var(--ac-dim);border:1px solid var(--bd-hover);color:var(--ac);border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">➕ เพิ่มสมาชิก</button>
       </div>
       <div id="pt-mgr-content"><div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div></div>
     </div>
@@ -2463,7 +2463,7 @@ main{
     </div>
 
     <div class="sync-sect">
-      <div class="sync-sect-title">2. Traffic Lights Evolution CSV <span style="color:#F0B429;font-size:10px">(แนะนำ)</span></div>
+      <div class="sync-sect-title">2. Traffic Lights Evolution CSV <span style="color:var(--ac);font-size:10px">(แนะนำ)</span></div>
       <label>ไฟล์ "Traffic Lights Evolution.csv"</label>
       <input type="file" class="sync-file" id="sync-tl-file" accept=".csv">
       <div class="sync-note">BNI Connect → Traffic Lights → Export CSV — ใช้สำหรับ Trend ย้อนหลัง 12 เดือน</div>
@@ -6846,6 +6846,13 @@ function toggleLight(){
   if(btn) btn.textContent = isDark ? '☀️' : '🌙';
   const mc = document.querySelector('meta[name="theme-color"]');
   if(mc) mc.content = isDark ? '#1A1816' : '#C8C3B2';
+  // Re-render charts so axis colors update immediately
+  setTimeout(function(){
+    try{ if(dc||bc){ renderDonut(); renderBar(); } }catch(e){}
+    try{ if(jc){ renderJIBar(); } }catch(e){}
+    try{ if(mdc){ renderMTTeams(); } }catch(e){}
+    try{ if(tdc||tdc2){ var a=document.querySelector('.td-btn.on'); if(a)a.click(); } }catch(e){}
+  }, 50);
 }
 
 // ══ FEATURE 8: TOAST (replace all alert()) ════════
@@ -7355,24 +7362,28 @@ function buildIMDHistory(m){
   var hasTrend=scoreHistory.length>0||hist.length>0;
   if(hasTrend){
     html+='<div class="sh" style="margin-bottom:8px"><h2 style="font-size:13px">📅 คะแนนรายเดือน ('+(scoreHistory.length||hist.length)+' เดือน)</h2></div>';
-    html+='<div style="font-size:10px;color:var(--sub);margin-bottom:8px;padding:6px 10px;background:var(--sf2);border-radius:6px;border-left:3px solid var(--ac)">'
-      +'📈 ดึงจาก <b>Traffic Lights Evolution</b> / monthly score import เพื่อดูคะแนนแต่ละเดือนว่าขึ้นหรือลง'
-      +'</div>';
-    html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px;margin-bottom:18px">';
-    var rev=scoreHistory.length?[].concat(scoreHistory).reverse():[].concat(hist).reverse().map(function(v,i){return{label:'เดือน -'+(i+1),score:v};});
-    rev.forEach(function(item,i){
+    // Build timeline items array sorted chronologically
+    var tlItems=scoreHistory.length
+      ?[].concat(scoreHistory).sort(function(a,b){return(a.year*100+a.month)-(b.year*100+b.month);})
+      :[].concat(hist).reverse().map(function(v,i){return{label:'M'+(i+1),score:v};});
+    var MNAMES=['','JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    html+='<div id="imd-score-tl" class="score-tl-wrap"><div class="score-tl-inner">';
+    tlItems.forEach(function(item,i){
       var sc=Number(item.score)||0;
-      var tl=sc>=70?'green':sc>=50?'yellow':sc>=30?'red':'blue';
-      var prev=rev[i+1]?Number(rev[i+1].score)||0:null;
-      var arrow=prev!=null?(sc>prev?'↑':sc<prev?'↓':''):'';
-      var arrowColor=arrow==='↑'?'var(--gr)':arrow==='↓'?'var(--re)':'var(--sub)';
-      html+='<div style="background:var(--sf2);border-radius:8px;padding:8px 6px;text-align:center">';
-      html+='<div style="font-size:10px;color:var(--sub);margin-bottom:2px">'+esc(item.label||('เดือน -'+(i+1)))+'</div>';
-      html+='<div style="font-size:20px;font-weight:800;color:'+tlC(tl)+'">'+sc+'</div>';
-      html+='<div style="font-size:11px;color:'+arrowColor+'">'+arrow+'</div>';
+      var tlCls=sc>=70?'tl-green':sc>=50?'tl-yellow':sc>=30?'tl-red':'tl-black';
+      var prev=tlItems[i-1]?Number(tlItems[i-1].score)||0:null;
+      var delta=prev!=null?sc-prev:null;
+      var dStr=delta===null?'':delta>0?'▲'+delta:delta<0?'▼'+Math.abs(delta):'—';
+      var dCls=delta===null?'eq':delta>0?'up':delta<0?'dn':'eq';
+      var lbl=item.month&&item.year?(MNAMES[item.month]||item.month)+' '+String(item.year).slice(2):(item.label||('M'+(i+1)));
+      html+='<div class="tl-item">';
+      html+='<div class="tl-dot '+tlCls+'">'+sc+'</div>';
+      html+='<div class="tl-card"><div class="tl-month">'+lbl+'</div>';
+      html+='<div class="tl-score" style="color:var(--'+(sc>=70?'gr':sc>=50?'ye':sc>=30?'re':'gy')+')">'+sc+'</div>';
+      html+='<div class="tl-delta '+dCls+'">'+dStr+'</div></div>';
       html+='</div>';
     });
-    html+='</div>';
+    html+='</div></div>';
   }
   if(!reps.length&&!msgs.length)return html+'<div class="es">ไม่มีประวัติ Reports/Messages</div>';
   if(reps.length){
@@ -8661,7 +8672,7 @@ function openMCT(name){
       (cd!==null?'<span class="badge" style="background:var(--sf2)">ติดต่อ '+cd+' วันที่แล้ว</span>':'<span class="badge" style="background:rgba(255,107,107,.12);color:var(--re)">ยังไม่ได้ติดต่อ</span>')+
       (ren&&ren.diffDays<=60?'<span class="badge" style="background:rgba(255,193,77,.12);color:var(--ye)">⏰ Renewal '+ren.diffDays+' วัน</span>':'')+
       (openRep?'<span class="badge" style="background:rgba(255,107,107,.12);color:var(--re)">📋 Report ค้าง</span>':'')+
-      (pri.score>0?'<span class="badge" style="background:rgba(200,160,80,.12);color:#a78bfa">Priority '+pri.score+'</span>':'')+
+      (pri.score>0?'<span class="badge" style="background:rgba(139,92,246,.1);color:#a78bfa">Priority '+pri.score+'</span>':'')+
       (gMem&&gP!==null?'<span class="badge" style="background:rgba(86,200,130,.1);color:#00d4aa">💰 Growth '+gP+'%</span>':'')+
     '</div>';
     var stepsHtml=steps.map(function(s){
@@ -9096,7 +9107,7 @@ function renderCross(r){
       +'</div>'
       +(reasons.length?'<div style="font-size:10px;color:var(--ac);margin-bottom:8px">💡 '+reasons.join(' · ')+'</div>':'')
       +'<div style="display:flex;gap:6px">'
-      +'<button onclick="crossAssign(\''+safeN1+'\',\''+safeN2+'\',\''+safeT1+'\',\''+safeT2+'\')" style="background:rgba(200,160,80,.12);border:1px solid rgba(60,120,80,.4);color:var(--ac);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-weight:600">📌 Assign 1-2-1</button>'
+      +'<button onclick="crossAssign(\''+safeN1+'\',\''+safeN2+'\',\''+safeT1+'\',\''+safeT2+'\')" style="background:var(--ac-dim);border:1px solid var(--bd-hover);color:var(--ac);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-weight:600">📌 Assign 1-2-1</button>'
       +'</div></div>';
   }).join('');
 
