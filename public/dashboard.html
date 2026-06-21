@@ -2889,6 +2889,7 @@ function gsr(a,p,cb){
   if(S&&S.token)payload.token=S.token;
   fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify(payload)}).then(function(r){return r.json();}).then(function(r){cb(r);}).catch(function(e){cb({ok:false,error:e.message});});
 }
+function call(a,p,cb){gsr(a,p,cb||function(){});}
 function ld(v){document.getElementById('ov').style.display=v?'flex':'none';}
 
 // ── Login: now handled by Google OAuth ────────────────────────
@@ -3300,9 +3301,9 @@ function visSave(){
   var d=document.getElementById('vis-in-date').value;
   var parts=d.split('-');var thDate=parts[2]+'/'+parts[1]+'/'+parts[0];
   document.getElementById('vis-add-modal').style.display='none';
-  gsr('addVisitor',{role:'mc',date:thDate,name:name,
+  gsr('addVisitor',{role:'mc',visitDate:thDate,visitorName:name,
     profession:document.getElementById('vis-in-prof').value.trim(),
-    invitedBy:document.getElementById('vis-in-invby').value.trim(),
+    invitedByName:document.getElementById('vis-in-invby').value.trim(),
     status:document.getElementById('vis-in-status').value,
     notes:document.getElementById('vis-in-notes').value.trim()
   },function(r){

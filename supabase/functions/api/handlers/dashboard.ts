@@ -662,7 +662,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
 
       const { data: members, error } = await db
         .from('v_member_dashboard')
-        .select('id, name, nickname, display_score, traffic_light, absent, tyfcb_thb, open_core_issue, given_thb, received_thb, palms_detail')
+        .select('id, name, nickname, display_score, traffic_light, absent, tyfcb_thb, open_core_issue, given_thb, received_thb, palms_detail, days_to_expiry')
         .eq('mentor_team', teamName).eq('is_archived', false)
         .order('display_score', { ascending: false });
       if (error) return errResponse(error.message);
@@ -717,6 +717,8 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
           renewal: renewal.expiry_date || '',
           renewalWorkflowStatus: renewal.workflow_status || '',
           mentoringMode: modeMap[mid] || 'active',
+          renewalSoon: m.days_to_expiry !== null && Number(m.days_to_expiry) <= 45,
+          renewalDays: m.days_to_expiry !== null ? Number(m.days_to_expiry) : null,
         };
       });
 

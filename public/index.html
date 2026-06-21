@@ -4016,12 +4016,12 @@ function buildDetail(d){
     var effTl=d.bniTl||bs.tl,effScore=d.bniScore||bs.total;
     var gapMap={};(ft.gaps||[]).forEach(function(g){gapMap[g.cat]=g;});
     var ALL_CATS=[
-      {cat:'Attendance',icon:'🏛️',sk:'absent', max:15},
-      {cat:'Referral',  icon:'💡',sk:'ref',     max:15},
-      {cat:'TYFB',      icon:'💰',sk:'tyfcb',   max:15},
-      {cat:'Visitor',   icon:'👥',sk:'visitor',  max:20},
-      {cat:'1-2-1',     icon:'🤝',sk:'one21',   max:15},
-      {cat:'CEU',       icon:'📚',sk:'training', max:20}
+      {cat:'ลดการขาด',  label:'Attendance',icon:'🏛️',sk:'absent',   max:15},
+      {cat:'Referral',  label:'Referral',  icon:'💡',sk:'ref',      max:15},
+      {cat:'TYFCB',     label:'TYFCB',     icon:'💰',sk:'tyfcb',    max:15},
+      {cat:'Visitor',   label:'Visitor',   icon:'👥',sk:'visitor',  max:20},
+      {cat:'1-2-1',     label:'1-2-1',     icon:'🤝',sk:'one21',   max:15},
+      {cat:'CEU/Training',label:'CEU',     icon:'📚',sk:'training', max:20}
     ];
     var nextLabel=ft.nextTl==='green'?'🟢 เขียว':'🟡 เหลือง';
     var ftColor=ft.nextTl==='green'?'#10B981':'#F59E0B';
@@ -4040,7 +4040,7 @@ function buildDetail(d){
         // header row
         +'<div style="display:flex;align-items:center;gap:5px;margin-bottom:2px;">'
         +'<span style="font-size:.75rem;">'+c.icon+'</span>'
-        +'<span style="font-size:.72rem;font-weight:600;flex:1;">'+c.cat+'</span>'
+        +'<span style="font-size:.72rem;font-weight:600;flex:1;">'+(c.label||c.cat)+'</span>'
         +'<span style="font-size:.65rem;font-family:IBM Plex Mono,monospace;color:'+barC+';">'+pts+'/'+c.max+'</span>'
         +(isMax?'<span style="font-size:.68rem;color:#10B981;margin-left:4px;">✅</span>':'')
         +'</div>'
@@ -4049,7 +4049,7 @@ function buildDetail(d){
         +'<div style="height:100%;width:'+pct+'%;background:'+barC+';border-radius:2px;"></div></div>'
         // action (if gap)
         +(isMax?'':
-          '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 6px;background:rgba('+(ft.nextTl==='green'&&gap===ft.fastestActions[0]?'240,180,41':'255,255,255')+',.04);border-radius:6px;border-left:2px solid '+barC+';">'
+          '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 6px;background:'+(ft.nextTl==='green'&&gap===ft.fastestActions[0]?'rgba(194,220,0,.08)':'var(--border)')+';border-radius:6px;border-left:2px solid '+barC+';">'
           +'<span style="font-size:.68rem;color:var(--gray2);flex:1;">'+escHtml(gap.action)+'</span>'
           +'<span style="font-size:.72rem;font-weight:800;color:'+barC+';white-space:nowrap;margin-left:6px;">+'+gap.gain+' pts</span>'
           +'</div>')
@@ -4943,7 +4943,7 @@ window.onload=function(){
 };
 
 function loadNotifBadges(){
-  fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'getUnreadCounts',role:'system'})})
+  fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'getUnreadCounts',token:S&&S.token,role:S&&S.role})})
     .then(function(res){return res.json();})
     .then(function(r){
       if(!r||!r.ok) return;
