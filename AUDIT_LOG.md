@@ -1,6 +1,7 @@
 # BNI IDEAL Mentor System — Audit Log
 
-**Audit date:** 2026-06-19 (security, role-flow, accessibility remediation + F-32 fast-track tier fix)
+**Audit date:** 2026-06-21 (data consistency + frontend bug fixes + deploy)
+**Previous audit:** 2026-06-19 (security, role-flow, accessibility remediation + F-32 fast-track tier fix)
 **Scope:** Full project (GAS legacy + Supabase Edge Functions + static frontend)
 **Auditor:** Claude Code (claude-sonnet-4-6)
 
@@ -72,6 +73,12 @@
 | F-36 | MEDIUM | `_shared/palms.ts` | `trafficLight(0)` returned `'black'` but SQL `fn_traffic_light(0)` returns `'none'` → `verifyScoring` reported false mismatches for zero-score members | **FIXED** (2026-06-21) |
 | F-37 | MEDIUM | `handlers/public.ts` | `getSimulateData` never returned `scoreHistory` → TL Evolution dots in public member directory profile never rendered | **FIXED** (2026-06-21) |
 | F-38 | MEDIUM | `handlers/public.ts` | `computeFastTrack()` missing `Math.min(26,…)` cap on `wks` → same inflated target bug as F-34 in public directory fast-track suggestions | **FIXED** (2026-06-21) |
+| F-39 | CRITICAL | `public/dashboard.html:3303` | `visSave()` sent `name/date/invitedBy` but handler expected `visitorName/visitDate/invitedByName` → every visitor add failed silently | **FIXED** (2026-06-21) |
+| F-40 | CRITICAL | `public/dashboard.html:5059-5136` | `call()` invoked 6× (notifications, archive, deleteMember) but never defined in desktop → `ReferenceError` at runtime | **FIXED** (2026-06-21) — added `call()` as alias for `gsr()` |
+| F-41 | HIGH | `public/index.html:4018-4024` | `ALL_CATS` keys `'Attendance'/'TYFB'/'CEU'` didn't match backend strings `'ลดการขาด'/'TYFCB'/'CEU/Training'` → 3/6 PALMS categories always showed ✅, hid improvement suggestions | **FIXED** (2026-06-21) — added `label` field for display |
+| F-42 | MEDIUM | `handlers/dashboard.ts getMyTeam` | `renewalSoon` never set on member objects → mentor team renewal badge never appeared | **FIXED** (2026-06-21) |
+| F-43 | MEDIUM | `public/index.html:4946` | `getUnreadCounts` called with `role:'system'` (invalid) instead of real `S.role` | **FIXED** (2026-06-21) |
+| F-44 | LOW | `public/dashboard.html:4379` + `handlers/members.ts` | `nmSave()` sends `business` field but no `business` column in members table — silently dropped | Known issue — no crash |
 | F-28 | LOW | `handlers/usage.ts` | `logUsage` no auth — analytics data pollutable | **FIXED** (2026-06-19) — central API auth gate |
 | F-29 | LOW | `handlers/alerts.ts` | Stub handlers (dismissAlert, getDismissedAlerts, getTeamNotifs, etc.) no auth | **FIXED** (2026-06-19) — central API auth gate |
 | F-30 | LOW | `handlers/public.ts` | Uses `getServiceClient()` (bypasses RLS) for public endpoints | **MITIGATED** (2026-06-19) — safe-column allowlists; contact PII removed |
