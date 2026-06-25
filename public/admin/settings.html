@@ -85,6 +85,24 @@
     </div>
   </details>
 
+  <!-- LINE Team Mapping -->
+  <div class="section" id="lineTeamSection">
+    <h3>LINE Notification Mapping (ผู้รับแจ้งเตือนต่อทีม)</h3>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px">กำหนดว่า Mentor แต่ละทีมใช้ LINE account ใดรับการแจ้งเตือนจากลูกทีม — เปลี่ยนได้เองทุกเมื่อ</p>
+    <div id="ltLoading" class="loading">กำลังโหลด...</div>
+    <table id="ltTable" style="display:none">
+      <thead><tr><th>ทีม</th><th>หัวหน้า / บทบาท</th><th>LINE ที่ผูกอยู่</th><th>เปลี่ยนเป็น</th><th></th></tr></thead>
+      <tbody id="ltBody"></tbody>
+      <tbody id="ltGrowthBody"></tbody>
+    </table>
+    <div id="ltMsg" style="font-size:12px;min-height:18px;margin-top:10px"></div>
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid #1a3a5c">
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px">หลังตั้งค่า LINE ครบแล้ว กด Provision เพื่ออัพโหลด Rich Menu และมอบหมาย menu ให้แต่ละ user</p>
+      <button class="btn-add" id="btnProvision" onclick="provisionMenus()" style="min-width:180px">🚀 Provision LINE Menus</button>
+      <div id="provMsg" style="font-size:12px;min-height:18px;margin-top:10px"></div>
+    </div>
+  </div>
+
   <h2>System Status</h2>
   <div class="status-cards" id="statusCards">
     <div class="loading" style="grid-column:1/-1">กำลังโหลด...</div>
@@ -278,9 +296,78 @@ async function rejectReq(id) {
   _loadRequestBadge();
 }
 
+let _availableMembers = [];
+
+async function loadLineTeamMappings() {
+  const r = await adminCall({ action: 'getLineTeamMappings' });
+  document.getElementById('ltLoading').style.display = 'none';
+  if (!r || !r.ok) { document.getElementById('ltMsg').textContent = '⚠️ โหลดไม่ได้: ' + r?.error; return; }
+  _availableMembers = r.availableMembers || [];
+  const memberOpts = _availableMembers.map(m =>
+    `<option value="${m.lineUserId}">${m.nickname || m.name} (${m.lineUserId.slice(0,8)}…)</option>`
+  ).join('');
+  const renderRow = (t, label) => `
+    <tr id="lt-${t.name}">
+      <td><strong>${label || t.name}</strong></td>
+      <td>${t.leader_name || '—'}</td>
+      <td style="font-size:11px;color:var(--muted)">${
+        t.linkedMember
+          ? `✅ ${t.linkedMember.nickname || t.linkedMember.name}`
+          : t.currentLineId ? `⚠️ ${t.currentLineId.slice(0,8)}… (ไม่พบสมาชิก)` : '—'
+      }</td>
+      <td>
+        <select id="ltSel-${t.name}" style="min-width:140px">
+          <option value="">— เลือก —</option>
+          ${memberOpts}
+        </select>
+      </td>
+      <td><button class="btn-add" style="padding:6px 12px;font-size:11px" onclick="saveLineTeam('${t.name}')">บันทึก</button></td>
+    </tr>`;
+  document.getElementById('ltBody').innerHTML = (r.teams || []).map(t => renderRow(t, t.name)).join('');
+  if (r.growth) {
+    document.getElementById('ltGrowthBody').innerHTML =
+      `<tr><td colspan="5" style="padding:6px 10px;font-size:11px;color:var(--muted);border-top:2px dashed #1a3a5c">Growth / Special Roles</td></tr>`
+      + renderRow(r.growth, '🌱 Growth');
+  }
+  document.getElementById('ltTable').style.display = '';
+}
+
+async function saveLineTeam(teamName) {
+  const sel = document.getElementById('ltSel-' + teamName);
+  const lineUserId = sel?.value || '';
+  const r = await adminCall({ action: 'setLineTeamMapping', teamName, lineUserId });
+  const msg = document.getElementById('ltMsg');
+  if (r?.ok) {
+    msg.textContent = `✅ บันทึก ${teamName} แล้ว`;
+    msg.style.color = 'var(--green)';
+    setTimeout(() => loadLineTeamMappings(), 800);
+  } else {
+    msg.textContent = '❌ ' + r?.error;
+    msg.style.color = 'var(--red)';
+  }
+}
+
+async function provisionMenus() {
+  const btn = document.getElementById('btnProvision');
+  const msg = document.getElementById('provMsg');
+  btn.disabled = true; btn.textContent = '⏳ กำลัง Provision…';
+  msg.textContent = ''; msg.style.color = 'var(--muted)';
+  const r = await adminCall({ action: 'provisionLineMenus' });
+  btn.disabled = false; btn.textContent = '🚀 Provision LINE Menus';
+  if (r?.ok) {
+    msg.textContent = `✅ Provision สำเร็จ — Webhook: ${r.webhookEndpoint || ''}`;
+    msg.style.color = 'var(--green)';
+    loadStatus();
+  } else {
+    msg.textContent = '❌ ' + (r?.error || 'เกิดข้อผิดพลาด');
+    msg.style.color = 'var(--red)';
+  }
+}
+
 async function init() {
   await checkAdminAuth();
   loadRequests();
+  loadLineTeamMappings();
   loadStatus();
   loadRA();
 }
