@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#123c35">
+  <title>MY IDEAL · Action Center</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="./config.js"></script>
+  <style>
+    :root{--ink:#123c35;--gold:#b89a64;--paper:#f6f2e9;--muted:#6e7773;--line:#ded7ca;--white:#fff;--red:#b65245;--green:#1f7a64}
+    *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Thonburi","Noto Sans Thai",sans-serif;min-height:100vh}
+    body:before{content:"";position:fixed;inset:0;background:url("/assets/line/rich-menu-zen-texture-v1.png") center/cover;opacity:.09;pointer-events:none}
+    .shell{position:relative;max-width:520px;margin:auto;padding:calc(20px + env(safe-area-inset-top)) 18px calc(34px + env(safe-area-inset-bottom))}
+    .eyebrow{font-size:11px;letter-spacing:.18em;color:var(--gold);font-weight:700}
+    .hero{padding:22px 4px 16px}.hero h1{font-size:26px;margin:8px 0 4px;line-height:1.25}.hero p{margin:0;color:var(--muted);font-size:14px}
+    .score{display:flex;align-items:end;gap:8px;margin-top:14px}.score strong{font-size:46px;line-height:1}.score span{padding-bottom:6px;color:var(--muted)}
+    .tabs{display:flex;gap:7px;margin:4px 0 16px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}.tabs::-webkit-scrollbar{display:none}
+    .tab{flex:0 0 auto;border:1px solid var(--line);background:rgba(255,255,255,.58);color:var(--ink);border-radius:14px;padding:10px 14px;font-size:12px;font-family:inherit;cursor:pointer;white-space:nowrap}
+    .tab.active{background:var(--ink);color:#fff;border-color:var(--ink)}.tab.hidden{display:none}
+    .card{background:rgba(255,255,255,.86);border:1px solid rgba(18,60,53,.09);border-radius:22px;padding:20px;box-shadow:0 18px 50px rgba(25,45,38,.08);display:none}.card.active{display:block}
+    .card h2{font-size:20px;margin:0 0 4px}.hint{color:var(--muted);font-size:13px;margin:0 0 18px}
+    label{display:block;font-size:12px;font-weight:700;margin:14px 0 7px}
+    input,select,textarea{width:100%;border:1px solid var(--line);border-radius:13px;padding:13px 14px;background:#fff;color:var(--ink);font:inherit;font-size:15px}
+    textarea{min-height:100px;resize:vertical}
+    button.submit{width:100%;border:0;border-radius:14px;background:var(--ink);color:#fff;padding:14px;margin-top:18px;font-weight:700;font-size:15px;cursor:pointer}
+    .status{min-height:24px;text-align:center;font-size:13px;color:var(--muted);padding:12px 4px}
+    .status.ok{color:var(--green)}.status.err{color:var(--red)}
+    .loading{padding:40px 20px;text-align:center;color:var(--muted)}
+    .renewal-box{background:var(--ink);color:#fff;border-radius:16px;padding:18px;margin-bottom:16px;text-align:center}
+    .renewal-box .days{font-size:52px;font-weight:700;line-height:1}.renewal-box .rlabel{font-size:13px;opacity:.8;margin-top:4px}
+    .renewal-box.urgent{background:var(--red)}
+    .assign-list{display:flex;flex-direction:column;gap:10px}
+    .assign-item{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px}
+    .assign-item p{margin:0 0 8px;font-size:14px}.assign-item small{color:var(--muted);font-size:12px}
+    .assign-item button{border:1px solid var(--ink);background:transparent;color:var(--ink);border-radius:10px;padding:6px 14px;font-size:12px;cursor:pointer;margin-top:8px}
+    .assign-item button.done{background:var(--ink);color:#fff}
+  </style>
+</head>
+<body>
+<main class="shell">
+  <div id="loading" class="loading">กำลังเชื่อมต่อ MY IDEAL…</div>
+  <div id="app" hidden>
+    <section class="hero">
+      <div class="eyebrow">MY IDEAL · ACTION CENTER</div>
+      <h1 id="welcome">สวัสดีครับ</h1>
+      <p>ทำเรื่องสำคัญได้ในที่เดียว</p>
+      <div class="score"><strong id="score">—</strong><span>/100 · <b id="traffic">—</b></span></div>
+    </section>
+
+    <nav class="tabs" id="tabNav">
+      <button class="tab member-tab" data-view="absence">ลา</button>
+      <button class="tab member-tab" data-view="121">1-2-1</button>
+      <button class="tab member-tab" data-view="goal">เป้าหมาย</button>
+      <button class="tab member-tab" data-view="visitor">แขกพิเศษ</button>
+      <button class="tab mentor-tab hidden" data-view="mentor-log">📋 บันทึก</button>
+      <button class="tab mentor-tab hidden" data-view="follow-up">📌 ติดตาม</button>
+      <button class="tab mentor-tab hidden" data-view="renewal">🔄 Renewal</button>
+      <button class="tab member-tab" data-view="issue">ช่วยเหลือ</button>
+      <button class="tab assign-tab hidden" data-view="assignments">📎 งาน</button>
+    </nav>
+
+    <!-- ลา -->
+    <form class="card" data-card="absence">
+      <h2>แจ้งลา / ส่งแทน</h2><p class="hint">แจ้งทีมล่วงหน้าอย่างเป็นระบบ</p>
+      <label>ประเภท</label><select name="absenceType"><option>ลา</option><option>ส่ง sub</option></select>
+      <label>วันที่ประชุม</label><input type="date" name="meetingDate" required>
+      <label>ชื่อผู้มาแทน (ถ้ามี)</label><input name="subName" placeholder="ชื่อผู้มาแทน">
+      <label>รายละเอียด</label><textarea name="reason" placeholder="เหตุผลหรือข้อมูลที่ทีมควรรู้"></textarea>
+      <button class="submit">ยืนยันการแจ้ง</button>
+    </form>
+
+    <!-- 1-2-1 -->
+    <form class="card" data-card="121">
+      <h2>นัดหมาย 1-2-1</h2><p class="hint">บันทึกนัดเพื่อไม่ให้การติดตามหลุด</p>
+      <label>ชื่อสมาชิก</label><input name="partnerName" required placeholder="ชื่อหรือชื่อเล่น">
+      <label>วันที่นัด</label><input type="date" name="meetingDate" required>
+      <button class="submit">บันทึกนัดหมาย</button>
+    </form>
+
+    <!-- เป้าหมาย -->
+    <form class="card" data-card="goal">
+      <h2>เป้าหมายของฉัน</h2><p class="hint">เลือกหนึ่งสิ่งสำคัญที่อยากขยับ</p>
+      <label>หัวข้อ</label>
+      <select name="goalType">
+        <option value="ref">Referral</option>
+        <option value="visitor">Visitor</option>
+        <option value="oto">1-2-1</option>
+        <option value="ceu">CEU</option>
+        <option value="tyfb">TYFB</option>
+      </select>
+      <label>เป้าหมาย</label><input type="number" name="target" min="1" required>
+      <button class="submit">บันทึกเป้าหมาย</button>
+    </form>
+
+    <!-- แขกพิเศษ -->
+    <form class="card" data-card="visitor">
+      <h2>พาแขกมาเยี่ยม</h2><p class="hint">บันทึกแขกที่นำมาเข้าร่วม</p>
+      <label>ชื่อแขก</label><input name="visitorName" required placeholder="ชื่อ-นามสกุล">
+      <label>วันที่ประชุม</label><input type="date" name="visitDate" required>
+      <label>หมายเหตุ (ธุรกิจ ความต้องการ)</label><textarea name="notes" placeholder="ข้อมูลเพิ่มเติม"></textarea>
+      <button class="submit">บันทึกแขกพิเศษ</button>
+    </form>
+
+    <!-- ขอความช่วยเหลือ -->
+    <form class="card" data-card="issue">
+      <h2>ขอความช่วยเหลือ</h2><p class="hint">ข้อมูลนี้ใช้เพื่อให้ Mentor ช่วยติดตามอย่างเหมาะสม</p>
+      <label>เรื่องที่อยากให้ช่วย</label>
+      <textarea name="issueText" required placeholder="เล่าได้เต็มที่ ทีมจะรับเรื่องอย่างระมัดระวัง"></textarea>
+      <button class="submit">ส่งให้ทีม Mentor</button>
+    </form>
+
+    <!-- บันทึก Mentor (Mentor only) -->
+    <form class="card" data-card="mentor-log">
+      <h2>บันทึก Mentor</h2><p class="hint">บันทึกการ coaching เพื่อติดตามพัฒนาการ</p>
+      <label>ชื่อสมาชิก</label><input name="menteeName" required placeholder="ชื่อหรือชื่อเล่น">
+      <label>วันที่พบ</label><input type="date" name="sessionDate" required>
+      <label>สิ่งที่คุยกัน</label><textarea name="notes" required placeholder="สรุปสั้นๆ ว่าคุยเรื่องอะไร"></textarea>
+      <label>ขั้นตอนถัดไป</label><textarea name="nextActions" placeholder="สิ่งที่ตกลงจะทำต่อ (ถ้ามี)"></textarea>
+      <button class="submit">บันทึกการ coaching</button>
+    </form>
+
+    <!-- Follow-up (Mentor only) -->
+    <form class="card" data-card="follow-up">
+      <h2>บันทึก Follow-up</h2><p class="hint">อัพเดทสถานะ Core Issue ของสมาชิก</p>
+      <label>ชื่อสมาชิก</label><input name="memberName" required placeholder="ชื่อหรือชื่อเล่น">
+      <label>บันทึก follow-up</label>
+      <textarea name="note" required placeholder="อัพเดทล่าสุด หรือสิ่งที่ทำไปแล้ว"></textarea>
+      <button class="submit">บันทึก Follow-up</button>
+    </form>
+
+    <!-- Renewal (Mentor only) -->
+    <div class="card" data-card="renewal">
+      <h2>🔄 Renewal</h2><p class="hint">ข้อมูลการต่ออายุสมาชิกภาพของคุณ</p>
+      <div id="renewalContent" class="loading" style="padding:16px 0">กำลังโหลด…</div>
+    </div>
+
+    <!-- Assignments -->
+    <div class="card" data-card="assignments">
+      <h2>📎 งานที่ได้รับ</h2><p class="hint">งานมอบหมายจาก MC</p>
+      <div id="assignmentsContent" class="assign-list"><div class="loading" style="padding:16px 0">กำลังโหลด…</div></div>
+    </div>
+
+    <div id="status" class="status"></div>
+  </div>
+</main>
+<script>
+const cfg = window.BNI_LIFF_CONFIG || {};
+let accessToken = '', _role = 'member';
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+
+function getRequestedAction() {
+  const q = new URLSearchParams(location.search);
+  if (q.get('action')) return q.get('action');
+  const pathAction = location.pathname.match(
+    /\/liff\/(mentor-log|follow-up|issue|renewal|assignments|absence|121|goal|visitor)\/?$/,
+  );
+  if (pathAction) return pathAction[1];
+  const liffState = q.get('liff.state');
+  if (!liffState) return '';
+  const stateQuery = liffState.includes('?') ? liffState.slice(liffState.indexOf('?') + 1) : liffState;
+  return new URLSearchParams(stateQuery).get('action') || '';
+}
+
+function applyRoleTabs(role) {
+  if (role === 'mentor') {
+    // Mentor: hide most member tabs, show mentor-only
+    ['121','goal','visitor'].forEach(v => {
+      const t = $(`[data-view="${v}"]`);
+      if (t) t.classList.add('hidden');
+    });
+    $$('.mentor-tab').forEach(t => t.classList.remove('hidden'));
+  }
+  // assign-tab shown later if there are pending assignments
+}
+
+function show(view) {
+  $$('.tab,.card').forEach(x => x.classList.remove('active'));
+  $(`[data-view="${view}"]`)?.classList.add('active');
+  $(`[data-card="${view}"]`)?.classList.add('active');
+  history.replaceState(null, '', `?action=${view}`);
+  if (view === 'renewal') loadRenewal();
+  if (view === 'assignments') loadAssignments();
+}
+
+async function api(payload) {
+  const r = await fetch(cfg.apiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...payload, accessToken }),
+  });
+  return r.json();
+}
+
+async function loadRenewal() {
+  const box = $('#renewalContent');
+  const r = await api({ action: 'renewal' });
+  if (!r.ok) { box.textContent = r.error || 'โหลดไม่ได้'; return; }
+  const d = r.daysToExpiry;
+  const urgent = d !== null && d <= 45;
+  box.innerHTML = d === null
+    ? '<p style="text-align:center;color:var(--muted)">ไม่พบข้อมูลวันหมดอายุ</p>'
+    : `<div class="renewal-box ${urgent ? 'urgent' : ''}">
+        <div class="days">${d}</div>
+        <div class="rlabel">วัน${urgent ? ' — ต้องต่ออายุด่วน ⚠️' : ' ที่เหลือ'}</div>
+       </div>
+       <p style="text-align:center;font-size:13px;color:var(--muted)">ติดต่อ MC เพื่อต่อสมาชิกภาพครับ</p>`;
+}
+
+async function loadAssignments() {
+  const box = $('#assignmentsContent');
+  const cached = window._cachedAssignments;
+  const r = cached !== null && cached !== undefined
+    ? { ok: true, assignments: cached }
+    : await api({ action: 'get-assignments' });
+  window._cachedAssignments = null;
+  if (!r.ok) { box.innerHTML = `<p style="color:var(--muted);text-align:center">${r.error || 'โหลดไม่ได้'}</p>`; return; }
+  if (!r.assignments?.length) { box.innerHTML = '<p style="color:var(--muted);text-align:center;padding:16px">ไม่มีงานค้างอยู่ 🎉</p>'; return; }
+  box.innerHTML = r.assignments.map(a => `
+    <div class="assign-item" id="ai-${a.id}">
+      <p>${a.assignment_text}</p>
+      <small>${a.due_date ? 'ครบกำหนด ' + a.due_date : (a.mentor_team || '')}</small>
+      <br><button onclick="ackAssignment('${a.id}',this)">รับทราบ</button>
+    </div>`).join('');
+}
+
+async function ackAssignment(id, btn) {
+  btn.disabled = true; btn.textContent = 'กำลังบันทึก…';
+  const r = await api({ action: 'ack-assignment', assignmentId: id });
+  if (r.ok) {
+    btn.textContent = 'รับทราบแล้ว ✓'; btn.classList.add('done');
+    btn.closest('.assign-item').style.opacity = '.45';
+  } else {
+    btn.textContent = 'ลองใหม่'; btn.disabled = false;
+  }
+}
+
+async function init() {
+  try {
+    const q = new URLSearchParams(location.search);
+    let r;
+    if (q.get('preview') === '1') {
+      r = { ok: true, member: { nickname: 'พีท' }, dashboard: { display_score: 68, traffic_light: 'yellow' }, role: 'mentor', mentorTeamName: 'TOOMTAM' };
+    } else {
+      if (!cfg.liffId || cfg.liffId.startsWith('REPLACE')) throw new Error('ยังไม่ได้ตั้งค่า LINE LIFF ID');
+      await liff.init({ liffId: cfg.liffId });
+      if (!liff.isLoggedIn()) { liff.login(); return; }
+      accessToken = liff.getAccessToken();
+      r = await api({ action: 'bootstrap' });
+    }
+    if (!r.ok) {
+      // Not linked yet — show friendly registration guide instead of raw error
+      const isNotLinked = (r.error || '').includes('ยังไม่ได้เชื่อม') || (r.error || '').includes('not linked');
+      $('#loading').innerHTML = isNotLinked
+        ? `<div style="text-align:center;padding:24px 8px">
+            <div style="font-size:48px;margin-bottom:12px">🔐</div>
+            <div style="font-size:17px;font-weight:700;color:var(--ink);margin-bottom:8px">ยังไม่ได้เชื่อมบัญชี</div>
+            <div style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:18px">
+              ขอรหัสจาก MC แล้วพิมพ์ใน LINE Bot ว่า<br>
+              <b style="color:var(--ink)">เชื่อม ตามด้วยรหัส</b><br>
+              เช่น: เชื่อม ABCD1234
+            </div>
+            <div style="font-size:12px;color:var(--muted)">รหัสใช้ได้ครั้งเดียวและมีวันหมดอายุ</div>
+          </div>`
+        : `<div style="text-align:center;padding:24px 8px;color:var(--red)">${r.error}</div>`;
+      return;
+    }
+    _role = r.role || 'member';
+    $('#welcome').textContent = `สวัสดี คุณ${r.member.nickname || r.member.name}`;
+    $('#score').textContent = Math.round(r.dashboard?.display_score || 0);
+    $('#traffic').textContent = String(r.dashboard?.traffic_light || 'none').toUpperCase();
+    applyRoleTabs(_role);
+    // Pre-load assignments to decide tab visibility, cache for loadAssignments()
+    const asgn = await api({ action: 'get-assignments' });
+    window._cachedAssignments = asgn.ok ? asgn.assignments || [] : null;
+    if (window._cachedAssignments?.length) {
+      $('[data-view="assignments"]')?.classList.remove('hidden');
+    }
+    $('#loading').hidden = true;
+    $('#app').hidden = false;
+    const defaultView = getRequestedAction() || (_role === 'mentor' ? 'mentor-log' : 'absence');
+    show(defaultView);
+  } catch (e) {
+    $('#loading').innerHTML = `<div style="text-align:center;padding:24px 8px;color:var(--red)">${e.message}</div>`;
+  }
+}
+
+$$('.tab').forEach(b => b.addEventListener('click', () => show(b.dataset.view)));
+$$('form').forEach(f => f.addEventListener('submit', async e => {
+  e.preventDefault();
+  const action = f.dataset.card;
+  const payload = Object.fromEntries(new FormData(f));
+  const st = $('#status');
+  st.className = 'status'; st.textContent = 'กำลังบันทึก…';
+  const r = await api({ action, ...payload });
+  st.textContent = r.message || r.error || 'เรียบร้อย';
+  st.className = `status ${r.ok ? 'ok' : 'err'}`;
+  if (r.ok) f.reset();
+}));
+
+init();
+</script>
+</body>
+</html>

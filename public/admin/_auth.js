@@ -23,7 +23,7 @@
     payload.token = session.access_token;
     const res = await fetch(ADMIN_API, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_ANON },
       body: JSON.stringify(payload),
     });
     return res.json();
@@ -54,7 +54,7 @@
 
     const res = await fetch('https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_ANON },
       body: JSON.stringify({ action: 'getMyRole', token: session.access_token }),
     });
     const role = await res.json();

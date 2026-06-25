@@ -27,22 +27,34 @@
   --ac-dim:rgba(194,220,0,.12);--bd-hover:rgba(194,220,0,.20);
 }
 body.dark{
-  --bg:#1A1816;--bg2:#232120;--bg3:#2A2826;--bg4:#333130;
-  --gold:#C8A96A;--gold2:#D4B480;--ac:var(--gold);
-  --green:#10B981;--greenl:rgba(16,185,129,0.15);
-  --yellow:#F59E0B;--yellowl:rgba(245,158,11,0.15);
-  --red:#EF4444;--redl:rgba(239,68,68,0.15);
-  --gray:#A89C8E;--gray2:#C8C0B0;
-  --white:#EDE9E3;--border:rgba(255,235,180,.065);
-  --sh-card:0 2px 8px rgba(0,0,0,.28),0 1px 2px rgba(0,0,0,.18);
-  --sh-float:0 8px 24px rgba(0,0,0,.4),0 2px 8px rgba(0,0,0,.22);
-  --ac-dim:rgba(200,169,106,.1);--bd-hover:rgba(200,169,106,.2);
+  --bg:#101310;--bg2:#171B17;--bg3:#1E231E;--bg4:#282D27;
+  --gold:#BDA67A;--gold2:#D2BE96;--ac:var(--gold);
+  --green:#86A18C;--greenl:rgba(134,161,140,.13);
+  --yellow:#C1A46D;--yellowl:rgba(193,164,109,.13);
+  --red:#B87972;--redl:rgba(184,121,114,.13);
+  --gray:#8F938A;--gray2:#B8B1A3;
+  --white:#F0EBE1;--txt:#F0EBE1;--border:rgba(218,198,158,.12);
+  --sh-card:0 10px 28px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,248,231,.025);
+  --sh-float:0 24px 64px rgba(0,0,0,.38),0 4px 18px rgba(0,0,0,.2);
+  --ac-dim:rgba(189,166,122,.09);--bd-hover:rgba(210,190,150,.25);
 }
-body.dark .login-panel{background:var(--bg2);border-color:rgba(0,0,0,.1)}
-body.dark #growthApp .tabs{background:var(--bg3);border-bottom-color:rgba(0,0,0,.12)}
+body.dark .login-panel{background:var(--bg2);border-color:var(--border)}
+body.dark .hdr{background:rgba(16,19,16,.92)}
+body.dark #loginScreen::before{background:radial-gradient(circle,rgba(189,166,122,.10) 0%,transparent 68%)}
+body.dark #growthApp .tabs{background:var(--bg2);border-bottom-color:var(--border)}
 body.dark .sum-output{background:var(--bg3);color:var(--white)}
 body.dark .fb.on{color:var(--bg2)}
-body.dark .stb.on{background:rgba(92,60,16,.18);color:var(--gold)}
+body.dark .stb.on{background:rgba(189,166,122,.12);color:var(--gold)}
+body.dark .card,body.dark .gm-card,body.dark .rpt-card,body.dark .mentor-hub-card,
+body.dark .report-history-card,body.dark .pt-card,body.dark .bc-msg-card,
+body.dark .alert-card,body.dark .perf-card{border:1px solid var(--border)}
+body.dark .fs,body.dark .fi,body.dark .ft,body.dark .mentor-search,
+body.dark .log-input,body.dark .rpt-reply-input{box-shadow:inset 0 1px 0 rgba(255,248,231,.02)}
+body.dark .overlay,body.dark .notif-panel,body.dark .nm-form-overlay,
+body.dark .gen-overlay{background:rgba(5,7,5,.78);backdrop-filter:blur(8px)}
+body.dark button:focus-visible,body.dark a:focus-visible,body.dark input:focus-visible,
+body.dark select:focus-visible,body.dark textarea:focus-visible,
+body.dark [tabindex]:focus-visible{outline-color:var(--gold)}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--white);min-height:100vh;overflow-x:hidden;transition:background .2s,color .2s;}
 button,a,[role="button"]{touch-action:manipulation;}
@@ -671,6 +683,13 @@ button,[role="button"],.fb,.dir-fb,.renew-btn,.action-btn,.log-btn,.gt-btn{min-h
 .th-stat{text-align:center;flex:1;min-width:52px;}
 .th-num{font-size:1.05rem;font-weight:700;font-family:'IBM Plex Mono',monospace;}
 .th-lbl{font-size:.58rem;color:var(--gray2);margin-top:.1rem;}
+.mentor-home-reminder{margin-bottom:.5rem;display:flex;align-items:center;justify-content:space-between;gap:.5rem;}
+.mentor-home-reminder-copy{font-size:.78rem;color:var(--gold);}
+.mentor-home-line-btn{flex-shrink:0;padding:.25rem .6rem;background:rgba(6,199,85,.15);border:1px solid rgba(6,199,85,.3);border-radius:.4rem;color:#06C755;font-size:.7rem;cursor:pointer;font-family:Sarabun,sans-serif;}
+.mentor-growth-watch{opacity:.85;border-left:3px solid var(--bl,#60A5FA);}
+.mentor-growth-watch .av{background:rgba(96,165,250,.15);color:var(--bl,#60A5FA);}
+.mentor-growth-watch .ms{color:var(--bl,#60A5FA);font-size:.68rem;}
+.mentor-growth-watch .tld{background:var(--bl,#60A5FA);}
 /* ── Coaching Guide ── */
 .cg-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:.6rem .75rem;margin-bottom:.5rem;}
 .cg-card.cg-critical{border-color:rgba(239,68,68,.45);}
@@ -823,6 +842,65 @@ button,[role="button"],.fb,.dir-fb,.renew-btn,.action-btn,.log-btn,.gt-btn{min-h
 .sum-copy-btn:active{transform:scale(.98);opacity:.85;}
 .sum-gen-btn{width:100%;background:rgba(204,34,41,.15);border:1px solid var(--bnibordr);border-radius:11px;padding:.65rem;font-size:.85rem;font-weight:600;font-family:Sarabun,sans-serif;color:#FF6B6B;cursor:pointer;transition:all .15s;margin-bottom:.5rem;}
 .sum-gen-btn:active{transform:scale(.98);}
+body.dark #growthApp .hdr{background:rgba(16,19,16,.94);border-bottom-color:var(--border)}
+body.dark #growthApp .hdr-role{background:var(--gold);color:#17140F}
+body.dark #growthApp .tabs{background:var(--bg2);border-bottom-color:var(--border)}
+body.dark #growthApp .tb.on{background:var(--ac-dim);color:var(--gold);border-bottom-color:transparent}
+body.dark .ch-sc{background:linear-gradient(145deg,#171B17,#111511);border-color:var(--border)}
+body.dark .ch-sc-title{color:var(--gold)}
+body.dark .ch-sc-title::after{background:var(--border)}
+body.dark .nudge-card.p1{background:var(--redl);border-color:var(--red)}
+body.dark .nudge-card.p2{background:var(--yellowl);border-color:var(--yellow)}
+body.dark .nudge-card.p3{background:rgba(142,132,154,.09);border-color:#91859B}
+body.dark .nudge-card.p4{background:rgba(143,147,138,.08);border-color:var(--gray)}
+body.dark .nudge-quick-btn{background:var(--redl);border-color:rgba(184,121,114,.3);color:#D6A39E}
+body.dark .ach-card::before{background:linear-gradient(90deg,transparent,rgba(189,166,122,.5),transparent)}
+body.dark .sum-output{background:#0C0F0C;border-color:var(--border);color:var(--white)}
+body.dark .sum-copy-btn{background:var(--gold);color:#17140F}
+body.dark .sum-gen-btn{background:var(--ac-dim);border-color:var(--border);color:var(--gold)}
+/* Mentor Home — Quiet Luxury */
+body.dark #mentor-myteam{
+  background:
+    radial-gradient(circle at 92% 0%,rgba(189,166,122,.08),transparent 28%),
+    linear-gradient(180deg,rgba(255,248,231,.018),transparent 220px);
+  border-radius:16px;
+}
+body.dark #mentor-myteam .th-card{
+  background:linear-gradient(145deg,rgba(189,166,122,.105),rgba(23,27,23,.92));
+  border-color:rgba(189,166,122,.24);
+  box-shadow:0 12px 28px rgba(0,0,0,.18),inset 0 1px rgba(255,248,231,.025);
+}
+body.dark #mentor-myteam .th-stat{padding:.16rem .08rem;}
+body.dark #mentor-myteam .th-stat+.th-stat{border-left:1px solid rgba(189,166,122,.12);}
+body.dark #mentor-myteam .f3-card{
+  background:linear-gradient(145deg,var(--bg2),#121612);
+  border-color:var(--border);
+  box-shadow:0 7px 18px rgba(0,0,0,.13);
+}
+body.dark #mentor-myteam .f3-card.f3-e{background:linear-gradient(145deg,var(--redl),var(--bg2));border-color:rgba(184,121,114,.38);}
+body.dark #mentor-myteam .f3-card.f3-w{background:linear-gradient(145deg,var(--yellowl),var(--bg2));border-color:rgba(190,157,93,.36);}
+body.dark #mentor-myteam .f3-card.f3-q{background:linear-gradient(145deg,rgba(116,134,139,.10),var(--bg2));border-color:rgba(126,148,153,.30);}
+body.dark #mentor-myteam .wa-card{border:1px solid var(--border);border-left-width:3px;background:var(--bg2);box-shadow:0 6px 18px rgba(0,0,0,.10);}
+body.dark #mentor-myteam .wa-e{border-left-color:var(--red);background:linear-gradient(90deg,var(--redl),var(--bg2) 34%);}
+body.dark #mentor-myteam .wa-w{border-left-color:var(--yellow);background:linear-gradient(90deg,var(--yellowl),var(--bg2) 34%);}
+body.dark #mentor-myteam .wa-q{border-left-color:#7E9499;background:linear-gradient(90deg,rgba(126,148,153,.09),var(--bg2) 34%);}
+body.dark #mentor-myteam .wa-p{border-left-color:var(--gray);background:linear-gradient(90deg,rgba(143,147,138,.07),var(--bg2) 34%);}
+body.dark #mentor-myteam .wa-ok{border-left-color:var(--green);background:linear-gradient(90deg,var(--greenl),var(--bg2) 34%);}
+body.dark #mentor-myteam .gt-card{border:1px solid var(--border);border-left:3px solid #91859B;background:linear-gradient(90deg,rgba(145,133,155,.09),var(--bg2) 38%);}
+body.dark #mentor-myteam .gt-team{color:#B9ADBF;background:rgba(145,133,155,.12);}
+body.dark #mentor-myteam .gt-btn-done{background:#768E7B;color:#F5F1E8;}
+body.dark #mentor-myteam .filter-bar{padding:.32rem;border-radius:999px;background:rgba(12,15,12,.46);border:1px solid rgba(189,166,122,.10);}
+body.dark #mentor-myteam .filter-bar .fb{background:transparent;color:var(--gray2)!important;border-color:transparent!important;}
+body.dark #mentor-myteam .filter-bar .fb.on{background:var(--gold);border-color:var(--gold)!important;color:#17140F!important;}
+body.dark #mentor-myteam .mentor-home-reminder{
+  background:linear-gradient(145deg,rgba(189,166,122,.10),rgba(23,27,23,.94));
+  border-color:rgba(189,166,122,.22);
+}
+body.dark #mentor-myteam .mentor-home-line-btn{background:rgba(118,142,123,.13);border-color:rgba(118,142,123,.32);color:#A9BDAE;}
+body.dark #mentor-myteam .mentor-growth-watch{border-left-color:#7E9499;background:linear-gradient(90deg,rgba(126,148,153,.075),var(--bg2) 30%);}
+body.dark #mentor-myteam .mentor-growth-watch .av{background:rgba(126,148,153,.12);color:#A8B9BC;}
+body.dark #mentor-myteam .mentor-growth-watch .ms{color:#A8B9BC;}
+body.dark #mentor-myteam .mentor-growth-watch .tld{background:#7E9499;}
 
 /* ── MC Assignments ────────────────────────────────────────── */
 .asgn-form{background:var(--card);border-radius:12px;padding:14px;margin-bottom:14px;border:1px solid var(--border);}
@@ -1112,6 +1190,92 @@ button,[role="button"],.fb,.dir-fb,.renew-btn,.action-btn,.log-btn,.gt-btn{min-h
   .gateway-title{font-size:2rem}
   .gateway-sub{font-size:.76rem}
   .gateway-tile{padding:.86rem}
+}
+/* Landing / Login — Quiet Luxury (independent from app theme) */
+body #loginScreen{
+  color:#F1EDE4;
+  background:
+    radial-gradient(circle at 88% 18%,rgba(189,166,122,.13),transparent 27%),
+    radial-gradient(circle at 12% 88%,rgba(109,132,115,.10),transparent 30%),
+    linear-gradient(145deg,#0D100D 0%,#131813 50%,#0E120F 100%);
+}
+body #loginScreen::before{
+  width:560px;
+  height:560px;
+  top:-210px;
+  right:-150px;
+  background:radial-gradient(circle,rgba(189,166,122,.10) 0%,transparent 68%);
+}
+#loginScreen .gateway-kicker{
+  color:#CFBB92;
+  background:rgba(189,166,122,.08);
+  border-color:rgba(210,190,150,.20);
+}
+#loginScreen .gateway-title{color:#F3EEE4;text-shadow:0 3px 24px rgba(0,0,0,.22);}
+#loginScreen .gateway-title span{color:#CDB88E;}
+#loginScreen .gateway-sub{color:#BDB6A9;}
+#loginScreen .login-panel{
+  background:linear-gradient(145deg,rgba(29,34,29,.96),rgba(20,24,20,.96));
+  border-color:rgba(210,190,150,.18);
+  box-shadow:0 24px 60px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,248,231,.035);
+}
+#loginScreen .login-panel-mark{
+  color:#D5C196;
+  background:rgba(189,166,122,.10);
+  border-color:rgba(210,190,150,.22);
+}
+#loginScreen .login-panel-title{color:#F1EDE4;}
+#loginScreen .login-panel-sub{color:#AAA396;}
+#loginScreen .google-login-pro{
+  background:#F1EDE4;
+  color:#20241F;
+  box-shadow:0 10px 26px rgba(0,0,0,.25);
+}
+#loginScreen .google-login-pro:hover{
+  background:#FAF7F0;
+  box-shadow:0 14px 34px rgba(0,0,0,.30);
+}
+#loginScreen .public-panel{
+  background:rgba(23,27,23,.82);
+  border-color:rgba(210,190,150,.14);
+  box-shadow:0 18px 44px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,248,231,.025);
+}
+#loginScreen .public-panel-title{color:#C9B78F;}
+#loginScreen .public-panel-note{color:#999488;}
+#loginScreen .gateway-tile{
+  color:#F1EDE4;
+  background:linear-gradient(145deg,rgba(36,41,36,.94),rgba(27,31,27,.94));
+  border-color:rgba(210,190,150,.13);
+  box-shadow:0 9px 24px rgba(0,0,0,.20),inset 0 1px 0 rgba(255,248,231,.025);
+}
+#loginScreen .gateway-tile:hover{
+  background:linear-gradient(145deg,rgba(42,47,41,.98),rgba(29,34,29,.98));
+  border-color:rgba(210,190,150,.32);
+}
+#loginScreen .gateway-name{color:#F1EDE4;}
+#loginScreen .gateway-desc{color:#AAA396;}
+#loginScreen .gateway-arrow{color:#CDB88E;}
+#loginScreen .gateway-ico{
+  color:#D5C196;
+  background:rgba(189,166,122,.09);
+  border-color:rgba(210,190,150,.18);
+}
+#loginScreen .sim-tile.gateway-tile{
+  background:linear-gradient(145deg,rgba(54,49,58,.48),rgba(28,31,28,.96));
+  border-color:rgba(151,139,157,.26)!important;
+}
+#loginScreen .sim-tile .gateway-ico{
+  color:#C1B5C5;
+  background:rgba(145,133,155,.11);
+  border-color:rgba(177,163,184,.22);
+}
+#loginScreen .training-tile.gateway-tile{
+  background:linear-gradient(145deg,rgba(39,54,43,.62),rgba(27,32,28,.96));
+  border-color:rgba(118,142,123,.28)!important;
+}
+#loginScreen .training-tile .gateway-ico{
+  background:rgba(118,142,123,.12);
+  border-color:rgba(148,169,152,.23);
 }
 /* ── Training Check ── */
 #trainingScreen{position:fixed;inset:0;background:var(--bg);z-index:200;display:none;flex-direction:column;overflow:hidden;}
@@ -1566,11 +1730,13 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
         <button class="tr-pill" onclick="trSet('audience','mentor',this)">Mentor / Growth</button>
         <button class="tr-pill" onclick="trSet('audience','leader',this)">Leadership</button>
       </div>
-      <div class="tr-control-title">รูปแบบ</div>
+      <div class="tr-control-title">รูปแบบ / สถานที่</div>
       <div class="tr-pills" id="tr-format-pills">
         <button class="tr-pill on" onclick="trSet('format','all',this)">ทั้งหมด</button>
         <button class="tr-pill" onclick="trSet('format','online',this)">Online</button>
-        <button class="tr-pill" onclick="trSet('format','onsite',this)">On-site</button>
+        <button class="tr-pill" onclick="trSet('format','onsite',this)">On-site (ทุกที่)</button>
+        <button class="tr-pill" onclick="trSet('format','onsite-bkk',this)">🏙 กรุงเทพฯ</button>
+        <button class="tr-pill" onclick="trSet('format','onsite-province',this)">🗺 ต่างจังหวัด</button>
       </div>
       <input class="tr-search" id="tr-person" type="text" placeholder="ชื่อคนที่จะแนะนำ เช่น นุ่น, member ใหม่, คน CEU น้อย..." oninput="trRender()">
       <input class="tr-search" id="tr-search" type="text" placeholder="ค้นหาชื่อคอร์ส / สถานที่ / keyword เช่น MSP, Zoom, Mandarin" oninput="trRender()" style="margin-top:8px;">
@@ -1958,6 +2124,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
         <button class="tr-pill" onclick="mtrSet('mentor',this)">👑 Mentor/Growth</button>
       </div>
       <div id="mtr-ceu-alert"></div>
+      <!-- MC only: add custom event -->
+      <div id="mtr-add-btn" style="display:none;margin-bottom:.6rem;">
+        <button onclick="openAddEventModal()" style="width:100%;background:rgba(194,220,0,.1);border:1px dashed rgba(194,220,0,.4);color:var(--gold);border-radius:10px;padding:.6rem;font-size:.8rem;cursor:pointer;font-family:inherit;">+ เพิ่ม Event พิเศษ</button>
+      </div>
       <div id="mtr-list"></div>
     </div>
 
@@ -2556,6 +2726,62 @@ function call(action,params,cb){
   fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify(p)}).then(function(r){return r.json();}).then(function(r){cb(null,r);}).catch(function(e){cb(e,null);});
 }
 function gsr(action,params,cb){call(action,params,function(err,r){cb(r||{ok:false,error:err?err.message:'error'});});}
+function callPublic(action,params,cb){
+  var p=Object.assign({},params||{});p.action=action;
+  fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify(p)}).then(function(r){return r.json();}).then(cb).catch(function(){cb({ok:false});});
+}
+function openAddEventModal(){
+  var m=document.getElementById('addEventModal');if(!m)return;
+  // Reset form
+  document.getElementById('aev-date').value='';
+  document.getElementById('aev-title').value='';
+  document.getElementById('aev-time').value='';
+  document.getElementById('aev-location').value='';
+  document.getElementById('aev-price').value='';
+  document.getElementById('aev-note').value='';
+  document.getElementById('aev-aud-ceu').checked=true;
+  document.getElementById('aev-aud-new').checked=false;
+  document.getElementById('aev-aud-mentor').checked=false;
+  document.getElementById('aev-aud-leader').checked=false;
+  document.getElementById('aev-error').textContent='';
+  m.style.display='flex';
+}
+function closeAddEventModal(){
+  var m=document.getElementById('addEventModal');if(m)m.style.display='none';
+}
+function submitAddEvent(){
+  var date=document.getElementById('aev-date').value.trim();
+  var title=document.getElementById('aev-title').value.trim();
+  var errEl=document.getElementById('aev-error');
+  if(!date||!title){errEl.textContent='กรุณาระบุวันที่และชื่อ Event';return;}
+  var audience=[];
+  if(document.getElementById('aev-aud-ceu').checked)audience.push('ceu');
+  if(document.getElementById('aev-aud-new').checked)audience.push('new');
+  if(document.getElementById('aev-aud-mentor').checked)audience.push('mentor');
+  if(document.getElementById('aev-aud-leader').checked)audience.push('leader');
+  if(!audience.length)audience=['ceu'];
+  var event={
+    date:date,title:title,
+    course:document.getElementById('aev-course').value,
+    format:document.getElementById('aev-format').value,
+    time:document.getElementById('aev-time').value.trim(),
+    location:document.getElementById('aev-location').value.trim(),
+    price:document.getElementById('aev-price').value.trim(),
+    early:'',
+    audience:audience,
+    note:document.getElementById('aev-note').value.trim(),
+  };
+  errEl.textContent='กำลังบันทึก...';
+  gsr('saveTrainingEvent',{role:'mc',event:event},function(r){
+    if(!r||!r.ok){errEl.textContent=r&&r.error||'บันทึกไม่สำเร็จ';return;}
+    _trCustomEvents.push(r.event);
+    _trCustomLoaded=true;
+    closeAddEventModal();
+    trRender();
+    mtrRender();
+    toast('✅ เพิ่ม Event แล้ว','ok');
+  });
+}
 function sc(s){return !s?'#64748B':s>=70?'#10B981':s>=50?'#F59E0B':s>=30?'#EF4444':'#64748B';}
 function tlc(tl){return tl==='green'?'#10B981':tl==='yellow'?'#F59E0B':tl==='red'?'#EF4444':tl==='none'?'#A78BFA':'#64748B';}
 function avbg(tl){return tl==='green'?'rgba(16,185,129,.2)':tl==='yellow'?'rgba(245,158,11,.2)':tl==='red'?'rgba(239,68,68,.2)':tl==='none'?'rgba(167,139,250,.18)':'rgba(100,116,139,.2)';}
@@ -2572,7 +2798,7 @@ function toggleTheme(){
   var isDark=document.body.classList.toggle('dark');
   document.querySelectorAll('.theme-btn,#themeBtn').forEach(function(b){b.textContent=isDark?'☀️':'🌙';});
   var meta=document.getElementById('meta-theme-color');
-  if(meta)meta.setAttribute('content',isDark?'#1A1816':'#C8C3B2');
+  if(meta)meta.setAttribute('content',isDark?'#101310':'#C8C3B2');
   try{if(isDark){localStorage.setItem('bni_theme','dark');}else{localStorage.removeItem('bni_theme');};}catch(e){}
 }
 function toast(msg,dur){var el=document.getElementById('toast');el.textContent=msg;el.classList.add('on');setTimeout(function(){el.classList.remove('on');},dur||2000);}
@@ -2788,6 +3014,10 @@ function enterApp(r){
     loadMentorNotifBadge();
   }
   loadLineMembers();
+  // Auto-open simulator if URL has ?action=simulate
+  if(new URLSearchParams(location.search).get('action')==='simulate'){
+    setTimeout(openSimulate,300);
+  }
 }
 function logout(){
   var sb=getSbAuth();
@@ -3820,19 +4050,19 @@ function renderMentorMembers(){
     abCount+=m.absent||0;
   });
   var avgScore=scoreCt?Math.round(totScore/scoreCt):0;
-  var avgColor=avgScore>=70?'#10B981':avgScore>=50?'#F59E0B':avgScore>=30?'#EF4444':'#64748B';
+  var avgColor=avgScore>=70?'var(--green)':avgScore>=50?'var(--yellow)':avgScore>=30?'var(--red)':'var(--gray)';
   var html='<div class="th-card">'
     +'<div class="th-stat"><div class="th-num" style="color:'+avgColor+'">'+avgScore+'</div><div class="th-lbl">เฉลี่ย</div></div>'
-    +'<div class="th-stat"><div class="th-num" style="color:#10B981">'+tlCount.green+'</div><div class="th-lbl">🟢 เขียว</div></div>'
-    +'<div class="th-stat"><div class="th-num" style="color:#F59E0B">'+tlCount.yellow+'</div><div class="th-lbl">🟡 เหลือง</div></div>'
-    +'<div class="th-stat"><div class="th-num" style="color:#EF4444">'+tlCount.red+'</div><div class="th-lbl">🔴 แดง</div></div>'
-    +'<div class="th-stat"><div class="th-num" style="color:#64748B">'+tlCount.black+'</div><div class="th-lbl">⚫ ดำ</div></div>'
-    +(tlCount.none>0?'<div class="th-stat"><div class="th-num" style="color:#A78BFA;">'+tlCount.none+'</div><div class="th-lbl">⭐ ใหม่</div></div>':'')
-    +(abCount>0?'<div class="th-stat"><div class="th-num" style="color:#EF4444">'+abCount+'</div><div class="th-lbl">ขาด</div></div>':'')
+    +'<div class="th-stat"><div class="th-num" style="color:var(--green)">'+tlCount.green+'</div><div class="th-lbl">🟢 เขียว</div></div>'
+    +'<div class="th-stat"><div class="th-num" style="color:var(--yellow)">'+tlCount.yellow+'</div><div class="th-lbl">🟡 เหลือง</div></div>'
+    +'<div class="th-stat"><div class="th-num" style="color:var(--red)">'+tlCount.red+'</div><div class="th-lbl">🔴 แดง</div></div>'
+    +'<div class="th-stat"><div class="th-num" style="color:var(--gray)">'+tlCount.black+'</div><div class="th-lbl">⚫ ดำ</div></div>'
+    +(tlCount.none>0?'<div class="th-stat"><div class="th-num" style="color:var(--gold2);">'+tlCount.none+'</div><div class="th-lbl">⭐ ใหม่</div></div>':'')
+    +(abCount>0?'<div class="th-stat"><div class="th-num" style="color:var(--red)">'+abCount+'</div><div class="th-lbl">ขาด</div></div>':'')
     +'</div>';
-  html+='<div class="card" style="background:rgba(194,220,0,.08);border-color:rgba(194,220,0,.2);margin-bottom:.5rem;display:flex;align-items:center;justify-content:space-between;gap:.5rem;">'
-      +'<div style="font-size:.78rem;color:var(--gold);">📋 ส่งรายงาน Line ตูมตามก่อน 18:00 วันพฤหัส</div>'
-      +'<button onclick="openLineBroadcast(\''+((S.teamName)||'').replace(/'/g,"\\'")+'\');" style="flex-shrink:0;padding:.25rem .6rem;background:rgba(6,199,85,.15);border:1px solid rgba(6,199,85,.3);border-radius:.4rem;color:#06C755;font-size:.7rem;cursor:pointer;font-family:Sarabun,sans-serif;">📢 LINE ทีม</button>'
+  html+='<div class="card mentor-home-reminder">'
+      +'<div class="mentor-home-reminder-copy">📋 ส่งรายงาน Line ตูมตามก่อน 18:00 วันพฤหัส</div>'
+      +'<button class="mentor-home-line-btn" onclick="openLineBroadcast(\''+((S.teamName)||'').replace(/'/g,"\\'")+'\');">📢 LINE ทีม</button>'
       +'</div>';
   list.forEach(function(m){
     html+=mentorMemberRow(m,"openDetail('"+m.name.replace(/'/g,"\\'")+"')");
@@ -3853,16 +4083,16 @@ function renderMentorMembers(){
       var score=Math.max(m.latest||0,m.bniScore||0,m.score||0)||0;
       var tl=m.tl||m.bniTl||'none';
       var initials=(m.nick||m.name||'').slice(0,2);
-      html+='<div class="mr" style="opacity:.85;border-left:3px solid #60A5FA;" onclick="openDetail(\''+m.name.replace(/'/g,"\\'")+'\')">'+
-        '<div class="av" style="background:rgba(96,165,250,.15);color:#60A5FA;">'+initials+'</div>'+
+      html+='<div class="mr mentor-growth-watch" onclick="openDetail(\''+m.name.replace(/'/g,"\\'")+'\')">'+
+        '<div class="av">'+initials+'</div>'+
         '<div class="mi">'+
           '<div class="mn">'+escHtml(m.name.split(' ').slice(0,2).join(' '))+(m.nick?' ('+escHtml(m.nick)+')':'')+'</div>'+
-          '<div class="ms" style="color:#60A5FA;font-size:.68rem;">🔵 Growth Watch — Growth ดูแลอยู่</div>'+
+          '<div class="ms">🔵 Growth Watch — Growth ดูแลอยู่</div>'+
         '</div>'+
         '<div style="text-align:right;">'+
           '<div class="msc" style="color:'+sc(score)+'">'+score+'</div>'+
         '</div>'+
-        '<div class="tld" style="background:#60A5FA;"></div>'+
+        '<div class="tld"></div>'+
         '</div>';
     });
     if(S.isMC){
@@ -4388,7 +4618,8 @@ function loadReportForm(selectedName){
   });
   document.getElementById('mentor-report-c').innerHTML='<div class="card"><div class="ct">📝 ส่ง Core Issue ให้ MC</div>'
     +'<div class="fg"><label class="fl" for="rc-mem">Mentee *</label><select class="fs" id="rc-mem"><option value="">— เลือก —</option>'+opts.join('')+'</select></div>'
-    +'<div class="fg"><label class="fl" for="rc-core">Core Issue หลัก *</label><select class="fs" id="rc-core"><option value="">— เลือก —</option><option>ขาดประชุม / มาสาย</option><option>ยอด Referral ต่ำ</option><option>ไม่ทำ 1-2-1 / ทำไม่ครบ</option><option>รอการต่ออายุ</option><option>ธุรกิจยุ่ง / ไม่มีเวลาทำ 5 Keys</option><option>ยังไม่เรียน CEU</option></select></div>'
+    +'<div class="fg"><label class="fl" for="rc-core">เหตุผลที่ส่งรายงาน *</label><select class="fs" id="rc-core" onchange="toggleReportOtherReason()"><option value="">— เลือก —</option><option>ขาดประชุม / มาสาย</option><option>ยอด Referral ต่ำ</option><option>ไม่ทำ 1-2-1 / ทำไม่ครบ</option><option>รอการต่ออายุ</option><option>ธุรกิจยุ่ง / ไม่มีเวลาทำ 5 Keys</option><option>ยังไม่เรียน CEU</option><option value="__other__">อื่น ๆ — ระบุเอง</option></select></div>'
+    +'<div class="fg" id="rc-other-wrap" style="display:none"><label class="fl" for="rc-other">ระบุเหตุผล *</label><textarea class="ft" id="rc-other" maxlength="300" placeholder="อธิบายเหตุผลหรือสถานการณ์ที่ต้องการรายงานให้ MC ทราบ"></textarea><div style="font-size:10px;color:var(--gray2);margin-top:5px">ระบุให้ชัดเจนและกระชับ ไม่เกิน 300 ตัวอักษร</div></div>'
     +'<div class="fg"><label class="fl" for="rc-act">Action ที่ทำแล้ว</label><textarea class="ft" id="rc-act" placeholder="เช่น โทรคุยแล้ว และนัด 1-2-1 วันศุกร์"></textarea></div>'
     +'<div class="fg"><label class="fl" for="rc-plan">แผนสัปดาห์ถัดไป</label><textarea class="ft" id="rc-plan" placeholder="เช่น ติดตามผลหลังประชุม และช่วยหา Visitor"></textarea></div>'
     +'<div class="fg"><label class="fl" for="rc-follow">วันที่ติดตามครั้งถัดไป</label><input class="fi" type="date" id="rc-follow"></div>'
@@ -4396,9 +4627,24 @@ function loadReportForm(selectedName){
     +'<div class="sh">ประวัติและสถานะรายงาน</div><div id="mentor-report-history"><div class="lt">⏳ กำลังโหลด...</div></div>';
   loadMentorReportHistory();
 }
+function toggleReportOtherReason(){
+  var select=document.getElementById('rc-core');
+  var wrap=document.getElementById('rc-other-wrap');
+  var input=document.getElementById('rc-other');
+  if(!select||!wrap||!input)return;
+  var isOther=select.value==='__other__';
+  wrap.style.display=isOther?'block':'none';
+  if(isOther){setTimeout(function(){input.focus();},0);}
+  else input.value='';
+}
 function submitReport(){
   var sel=document.getElementById('rc-mem').value;var core=document.getElementById('rc-core').value;var act=document.getElementById('rc-act').value;var plan=document.getElementById('rc-plan').value;
-  if(!sel||!core){toast('❌ กรุณาเลือก Mentee และ Core Issue');return;}
+  if(!sel||!core){toast('❌ กรุณาเลือก Mentee และเหตุผลที่ส่งรายงาน');return;}
+  if(core==='__other__'){
+    core=(document.getElementById('rc-other').value||'').trim();
+    if(core.length<3){toast('❌ กรุณาระบุเหตุผลเพิ่มเติมอย่างน้อย 3 ตัวอักษร');document.getElementById('rc-other').focus();return;}
+  }
+  core=core.trim().slice(0,300);
   var parts=sel.split('|');
   var rowVal=parts[0]==='null'?null:parseInt(parts[0]);
   var btn=document.getElementById('rc-submit');btn.disabled=true;btn.textContent='⏳ กำลังส่ง...';
@@ -4408,6 +4654,7 @@ function submitReport(){
       toast('✅ ส่งรายงานให้ MC แล้ว');
       S._selectedMentee=parts[1];
       document.getElementById('rc-act').value='';document.getElementById('rc-plan').value='';
+      document.getElementById('rc-core').value='';document.getElementById('rc-other').value='';toggleReportOtherReason();
       loadMentorReportHistory();loadMentorWorkHub();if(!rowVal)loadMyTeam();
     }else toast('❌ '+(err?err.message:r&&r.error));
   });
@@ -6839,23 +7086,46 @@ function closeDirectory() {
 
 // ── TRAINING CHECK (Public) ────────────────────────────
 var TRAINING_EVENTS = [
-  {date:'2026-06-04', title:'Networking Training', course:'networking', format:'online', time:'13:00-16:00', location:'Zoom', early:'450 บาท ภายใน 28 พ.ค. 2569', price:'650 บาท', audience:['ceu'], note:'เพิ่มทักษะ Networking และใช้เป็นคอร์ส CEU สำหรับคนคะแนน Training ต่ำ'},
-  {date:'2026-06-09', title:'MSP', course:'msp', format:'onsite', time:'10:00-17:00', location:'Mandarin Hotel Samyan ชั้น 1', early:'1,350 บาท ภายใน 2 มิ.ย. 2569', price:'1,550 บาท', audience:['new','ceu'], note:'เหมาะที่สุดสำหรับ Member ใหม่ที่ต้องเรียน MSP ภายใน 30 วัน'},
-  {date:'2026-06-19', title:'Advanced MSP', course:'advanced', format:'onsite', time:'10:00-17:00', location:'Mandarin Hotel', early:'1,350 บาท ภายใน 12 มิ.ย. 2569', price:'1,550 บาท', audience:['ceu','mentor'], note:'เหมาะกับคนที่ผ่าน MSP แล้วและต้องการยกระดับการใช้ระบบ BNI ให้ลึกขึ้น'},
-  {date:'2026-06-24', title:'LTM Master Connector & Gold Club Cof.', course:'club', format:'online', time:'13:00-17:00', location:'Zoom', early:'450 บาท ภายใน 17 มิ.ย. 2569', price:'650 บาท', audience:['ceu','leader'], note:'เหมาะกับคนที่อยากต่อยอด Connection และทำงานเชิง leadership'},
-  {date:'2026-06-24', title:'President / VP / Mentor / Growth / 1st Year Club', course:'club', format:'online', time:'18:00-20:30', location:'Zoom', early:'450 บาท ภายใน 17 มิ.ย. 2569', price:'650 บาท', audience:['mentor','leader'], note:'เหมาะกับ Mentor, Growth และทีมบริหาร chapter โดยตรง'},
-  {date:'2026-06-26', title:'MSP', course:'msp', format:'onsite', time:'10:00-17:00', location:'Mandarin Hotel', early:'1,350 บาท ภายใน 19 มิ.ย. 2569', price:'1,550 บาท', audience:['new','ceu'], note:'ตัวเลือก MSP รอบปลายเดือน สำหรับ Member ใหม่ที่ยังไม่ครบ requirement'},
+  {date:'2026-06-24', title:'LTM Master Connector & Gold Club Cof.', course:'club', format:'online', time:'13:00-17:00', location:'Zoom', early:'', price:'650 บาท', audience:['ceu','leader'], note:'เหมาะกับคนที่อยากต่อยอด Connection และทำงานเชิง leadership (Early Bird หมดแล้ว)'},
+  {date:'2026-06-24', title:'President / VP / Mentor / Growth / 1st Year Club', course:'club', format:'online', time:'18:00-20:30', location:'Zoom', early:'', price:'650 บาท', audience:['mentor','leader'], note:'เหมาะกับ Mentor, Growth และทีมบริหาร chapter โดยตรง (Early Bird หมดแล้ว)'},
+  {date:'2026-06-26', title:'MSP', course:'msp', format:'onsite', time:'10:00-17:00', location:'Mandarin Hotel Samyan ชั้น 1', early:'', price:'1,550 บาท', audience:['new','ceu'], note:'ตัวเลือก MSP รอบปลายเดือน สำหรับ Member ใหม่ที่ยังไม่ครบ requirement (Early Bird หมดแล้ว)'},
   {date:'2026-07-03', title:'1-2-1 Training', course:'121', format:'online', time:'13:00-16:00', location:'Zoom', early:'450 บาท ภายใน 26 มิ.ย. 2569', price:'650 บาท', audience:['ceu'], note:'เหมาะกับคนที่ต้องเพิ่มคุณภาพ 1-2-1 และสร้าง referral relationship'},
-  {date:'2026-07-07', title:'MSP', course:'msp', format:'onsite', time:'10:00-17:00', location:'Mandarin Hotel', early:'1,350 บาท ภายใน 30 มิ.ย. 2569', price:'1,550 บาท', audience:['new','ceu'], note:'MSP รอบต้นเดือน เหมาะกับ member ใหม่ที่เริ่มนับ 30 วันในช่วงปลาย มิ.ย./ต้น ก.ค.'},
+  {date:'2026-07-06', title:'Monthly Townhall', course:'networking', format:'online', time:'09:00-10:00', location:'Zoom ID: 938-7980-8386', early:'', price:'ฟรี — ไม่ต้องลงทะเบียน', audience:['ceu'], note:'Monthly Townhall ประจำเดือน — เข้า Zoom ได้เลย ไม่ต้องลงทะเบียน Link: https://bnionline.zoom.us/j/93879808386'},
+  {date:'2026-07-07', title:'MSP', course:'msp', format:'onsite', time:'10:00-17:00', location:'Mandarin Hotel Samyan ชั้น 1', early:'1,350 บาท ภายใน 30 มิ.ย. 2569', price:'1,550 บาท', audience:['new','ceu'], note:'MSP รอบต้นเดือน เหมาะกับ member ใหม่ที่เริ่มนับ 30 วันในช่วงปลาย มิ.ย./ต้น ก.ค.'},
   {date:'2026-07-15', title:'President / VP / Mentor / Growth Club', course:'club', format:'online', time:'18:00-20:30', location:'Zoom', early:'450 บาท ภายใน 8 ก.ค. 2569', price:'650 บาท', audience:['mentor','leader'], note:'เหมาะสำหรับทีม Mentor/Growth/Leadership ที่ต้อง align การทำงานร่วมกัน'},
-  {date:'2026-07-17', title:'Advanced MSP', course:'advanced', format:'onsite', time:'10:00-17:00', location:'Mandarin Hotel', early:'1,350 บาท ภายใน 10 ก.ค. 2569', price:'1,550 บาท', audience:['ceu','mentor'], note:'เหมาะกับ member ที่พร้อมต่อยอดหลัง MSP และอยากเข้าใจ BNI แบบ advance'},
-  {date:'2026-07-22', title:'MSP', course:'msp', format:'onsite', time:'10:00-17:00', location:'Mandarin Hotel', early:'1,350 บาท ภายใน 15 ก.ค. 2569', price:'1,550 บาท', audience:['new','ceu'], note:'MSP รอบท้ายเดือน ใช้แนะนำ member ใหม่ที่ต้องล็อกวันเรียนล่วงหน้า'}
+  {date:'2026-07-17', title:'Advanced MSP', course:'advanced', format:'onsite', time:'10:00-17:00', location:'Mandarin Hotel Samyan ชั้น 1', early:'1,350 บาท ภายใน 10 ก.ค. 2569', price:'1,550 บาท', audience:['ceu','mentor'], note:'เหมาะกับ member ที่พร้อมต่อยอดหลัง MSP และอยากเข้าใจ BNI แบบ advance'},
+  {date:'2026-07-22', title:'MSP', course:'msp', format:'onsite', time:'10:00-17:00', location:'Mandarin Hotel Samyan ชั้น 1', early:'1,350 บาท ภายใน 15 ก.ค. 2569', price:'1,550 บาท', audience:['new','ceu'], note:'MSP รอบท้ายเดือน ใช้แนะนำ member ใหม่ที่ต้องล็อกวันเรียนล่วงหน้า'}
 ];
 var TR = { course:'all', audience:'all', format:'all' };
+var _trCustomEvents = [];
+var _trCustomLoaded = false;
+function trLoadCustomEvents(cb){
+  if(_trCustomLoaded){if(cb)cb();return;}
+  callPublic('getTrainingEvents',{},function(r){
+    if(r&&r.ok&&Array.isArray(r.events))_trCustomEvents=r.events;
+    _trCustomLoaded=true;
+    if(cb)cb();
+  });
+}
+function trAllEvents(){
+  var today=new Date();today.setHours(0,0,0,0);
+  // Merge: hardcoded first (has early-bird detail), API second — dedup by date+title prefix
+  var seen={};
+  var all=[];
+  TRAINING_EVENTS.forEach(function(e){
+    var key=(e.date||'')+'|'+(e.title||'').toLowerCase().slice(0,10);
+    seen[key]=true;all.push(e);
+  });
+  (_trCustomEvents||[]).forEach(function(e){
+    var key=(e.date||'')+'|'+(e.title||'').toLowerCase().slice(0,10);
+    if(!seen[key]){seen[key]=true;all.push(e);}
+  });
+  return all.filter(function(e){return trDateObj(e)>=today;});
+}
 function openTrainingCheck(){
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('trainingScreen').style.display='flex';
-  trRender();
+  trLoadCustomEvents(function(){trRender();});
 }
 function closeTrainingCheck(){
   document.getElementById('trainingScreen').style.display='none';
@@ -6891,15 +7161,27 @@ function trTags(e){
 }
 function trMatch(e,q){
   if(TR.course!=='all'&&e.course!==TR.course)return false;
-  if(TR.audience!=='all'&&e.audience.indexOf(TR.audience)<0)return false;
-  if(TR.format!=='all'&&e.format!==TR.format)return false;
+  if(TR.audience!=='all'&&(e.audience||[]).indexOf(TR.audience)<0)return false;
+  if(TR.format!=='all'){
+    if(TR.format==='online'&&e.format!=='online')return false;
+    if(TR.format==='onsite'&&e.format!=='onsite')return false;
+    if(TR.format==='onsite-bkk'){
+      if(e.format!=='onsite')return false;
+      var vr=e.venueRegion||'';
+      if(vr&&vr!=='bangkok')return false;
+    }
+    if(TR.format==='onsite-province'){
+      if(e.format!=='onsite')return false;
+      if((e.venueRegion||'')!=='province')return false;
+    }
+  }
   if(!q)return true;
-  var hay=[e.title,e.location,e.note,e.course,e.format,e.audience.join(' ')].join(' ').toLowerCase();
+  var hay=[e.title,e.location,e.note,e.course,e.format,(e.audience||[]).join(' ')].join(' ').toLowerCase();
   return hay.indexOf(q)>=0;
 }
 function trRenderReco(list){
-  var now=new Date();now.setHours(0,0,0,0);
-  function nextBy(fn){return TRAINING_EVENTS.filter(function(e){return trDateObj(e)>=now&&fn(e);}).sort(function(a,b){return trDateObj(a)-trDateObj(b);})[0];}
+  var all=trAllEvents();
+  function nextBy(fn){return all.filter(fn).sort(function(a,b){return trDateObj(a)-trDateObj(b);})[0];}
   var msp=nextBy(function(e){return e.course==='msp';});
   var ceu=nextBy(function(e){return e.audience.indexOf('ceu')>=0;});
   var mentor=nextBy(function(e){return e.audience.indexOf('mentor')>=0;});
@@ -6913,10 +7195,11 @@ function trRenderReco(list){
 function trRender(){
   var searchEl=document.getElementById('tr-search');
   var q=(searchEl&&searchEl.value||'').trim().toLowerCase();
-  var visible=TRAINING_EVENTS.filter(function(e){return trMatch(e,q);}).sort(function(a,b){return trDateObj(a)-trDateObj(b);});
+  var all=trAllEvents();
+  var visible=all.filter(function(e){return trMatch(e,q);}).sort(function(a,b){return trDateObj(a)-trDateObj(b);});
   trRenderReco(visible);
-  document.getElementById('tr-total').textContent=TRAINING_EVENTS.length+' คอร์ส';
-  document.getElementById('tr-count').textContent='แสดง '+visible.length+' คอร์ส จาก '+TRAINING_EVENTS.length+' คอร์ส';
+  document.getElementById('tr-total').textContent=all.length+' คอร์ส';
+  document.getElementById('tr-count').textContent='แสดง '+visible.length+' คอร์ส จาก '+all.length+' คอร์ส';
   var host=document.getElementById('tr-list');
   if(!visible.length){host.innerHTML='<div class="tr-empty">ไม่พบคอร์สที่ตรงเงื่อนไข ลองเปลี่ยน filter หรือคำค้นหา</div>';return;}
   var html='',cur='';
@@ -6924,21 +7207,44 @@ function trRender(){
     var d=trDateObj(e),mk=trMonthKey(d);
     if(mk!==cur){cur=mk;html+='<div class="tr-month">'+escHtml(mk)+'</div><div class="tr-list">';}
     var mon=d.toLocaleDateString('en-US',{month:'short'}).toUpperCase();
+    var priceStr=e.early?'Early Bird: '+escHtml(e.early)+' · ปกติ '+escHtml(e.price||''):escHtml(e.price||'');
+    var canDel=e._id&&D.role==='mc';
     html+='<div class="tr-card">'+
       '<div class="tr-date"><div class="tr-day">'+d.getDate()+'</div><div class="tr-mon">'+mon+'</div></div>'+
       '<div class="tr-info">'+
-        '<div class="tr-title">'+escHtml(e.title)+'</div>'+
+        '<div class="tr-title">'+escHtml(e.title)+(e._id?' <span style="font-size:.6rem;color:var(--gray2);font-weight:400">[custom]</span>':'')+'</div>'+
         '<div class="tr-tags">'+trTags(e)+'</div>'+
-        '<div class="tr-meta">🕒 '+escHtml(e.time)+'<br>📍 '+escHtml(e.location)+'<br>💳 Early Bird: '+escHtml(e.early)+' · ปกติ '+escHtml(e.price)+'<br>🎯 '+escHtml(e.note)+'</div>'+
-        '<div class="tr-actions"><button class="tr-copy" onclick="trCopyAdvice('+TRAINING_EVENTS.indexOf(e)+')">Copy คำแนะนำ</button><span class="tr-deadline">'+trFmtDate(d)+'</span></div>'+
+        '<div class="tr-meta">🕒 '+escHtml(e.time||'')+'<br>📍 '+escHtml(e.location||'')+'<br>💳 '+priceStr+'<br>🎯 '+escHtml(e.note||'')+'</div>'+
+        '<div class="tr-actions">'+
+          '<button class="tr-copy" onclick="trCopyAdviceObj('+JSON.stringify(JSON.stringify(e))+')">Copy คำแนะนำ</button>'+
+          (canDel?'<button class="tr-copy" style="background:rgba(239,68,68,.15);color:#ef4444;margin-left:4px" onclick="trDeleteCustom(\''+escHtml(e._id||'')+'\')">ลบ</button>':'')+
+          '<span class="tr-deadline">'+trFmtDate(d)+'</span>'+
+        '</div>'+
       '</div></div>';
     var next=visible[idx+1],nextMk=next?trMonthKey(trDateObj(next)):'';
     if(nextMk!==cur)html+='</div>';
   });
   host.innerHTML=html;
 }
+function trCopyAdviceObj(jsonStr){
+  var e=JSON.parse(jsonStr);if(!e)return;
+  trDoCopy(e);
+}
+function trDeleteCustom(id){
+  if(!confirm('ลบ Event นี้ออกจากปฏิทินพิเศษ?'))return;
+  gsr('deleteTrainingEvent',{role:'mc',id:id},function(r){
+    if(!r||!r.ok){toast('ลบไม่สำเร็จ','err');return;}
+    _trCustomEvents=_trCustomEvents.filter(function(e){return e._id!==id;});
+    trRender();
+    mtrRender();
+    toast('ลบแล้ว','ok');
+  });
+}
 function trCopyAdvice(i){
   var e=TRAINING_EVENTS[i];if(!e)return;
+  trDoCopy(e);
+}
+function trDoCopy(e){
   var name=(document.getElementById('tr-person').value||'member').trim()||'member';
   var d=trDateObj(e);
   var text='แนะนำคอร์สสำหรับ '+name+'\n\n'+
@@ -8597,7 +8903,6 @@ function mtrSet(val,btn){
 function mentorCalLoad(){
   _mtrFilter='all';
   document.querySelectorAll('#mtr-pills .tr-pill').forEach(function(b,i){b.classList.toggle('on',i===0);});
-  // Show CEU alert: team members with low CEU
   var ceuAlert=document.getElementById('mtr-ceu-alert');
   if(ceuAlert){
     var low=(S.teamMembers||[]).filter(function(m){
@@ -8611,12 +8916,13 @@ function mentorCalLoad(){
       ceuAlert.innerHTML='<div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:10px;padding:.5rem .75rem;margin-bottom:.6rem;font-size:.75rem;color:#10B981;">✅ Mentee ทุกคน CEU เต็มแล้ว</div>';
     }
   }
-  mtrRender();
+  // Add-event button (MC only)
+  var addBtn=document.getElementById('mtr-add-btn');
+  if(addBtn)addBtn.style.display=S.role==='mc'?'block':'none';
+  trLoadCustomEvents(function(){mtrRender();});
 }
 function mtrRender(){
-  var now=new Date();now.setHours(0,0,0,0);
-  var list=TRAINING_EVENTS.filter(function(e){
-    if(trDateObj(e)<now)return false;
+  var list=trAllEvents().filter(function(e){
     if(_mtrFilter==='all')return true;
     return e.audience.indexOf(_mtrFilter)>=0;
   }).sort(function(a,b){return trDateObj(a)-trDateObj(b);});
@@ -8631,54 +8937,56 @@ function mtrRender(){
     var isCeu=e.audience.indexOf('ceu')>=0;
     var isMentor=e.audience.indexOf('mentor')>=0;
     var isNew=e.audience.indexOf('new')>=0;
-    var idx=TRAINING_EVENTS.indexOf(e);
+    var ev=JSON.stringify(JSON.stringify(e));
+    var priceStr=e.early?'Early Bird: '+escHtml(e.early)+' | ปกติ: '+escHtml(e.price||''):escHtml(e.price||'');
     html+='<div style="display:flex;gap:.7rem;padding:.75rem;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:.5rem;">'
       +'<div style="text-align:center;min-width:38px;flex-shrink:0;"><div style="font-size:1.3rem;font-weight:800;line-height:1;color:var(--white);">'+d.getDate()+'</div><div style="font-size:.6rem;color:var(--gray2);text-transform:uppercase;">'+mon+'</div></div>'
       +'<div style="flex:1;min-width:0;">'
-        +'<div style="font-size:.84rem;font-weight:700;margin-bottom:3px;">'+escHtml(e.title)+'</div>'
-        +'<div style="font-size:.7rem;color:var(--gray2);line-height:1.6;">🕒 '+escHtml(e.time)+' · '+(e.format==='online'?'Online 🖥':'On-site 📍')+' '+escHtml(e.location)+'<br>💳 Early Bird: '+escHtml(e.early)+'</div>'
+        +'<div style="font-size:.84rem;font-weight:700;margin-bottom:3px;">'+escHtml(e.title)+(e._id?' <span style="font-size:.6rem;color:var(--gray2);font-weight:400">[custom]</span>':'')+'</div>'
+        +'<div style="font-size:.7rem;color:var(--gray2);line-height:1.6;">🕒 '+escHtml(e.time||'')+' · '+(e.format==='online'?'Online 🖥':'On-site 📍')+' '+escHtml(e.location||'')+'<br>💳 '+priceStr+'</div>'
         +'<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px;">'
         +(isCeu?'<span class="tr-tag ceu">📚 CEU</span>':'')
         +(isNew?'<span class="tr-tag msp">⭐ New Member</span>':'')
         +(isMentor?'<span class="tr-tag lead">👑 Mentor</span>':'')
         +(e.format==='online'?'<span class="tr-tag">Online</span>':'<span class="tr-tag">On-site</span>')
         +'</div>'
-        +'<div style="font-size:.68rem;color:var(--gray2);margin-top:4px;">🎯 '+escHtml(e.note)+'</div>'
+        +'<div style="font-size:.68rem;color:var(--gray2);margin-top:4px;">🎯 '+escHtml(e.note||'')+'</div>'
         +'<div style="display:flex;gap:.4rem;margin-top:.5rem;flex-wrap:wrap;">'
-          +'<button onclick="mtrCopy('+idx+')" style="background:var(--bg2);border:1px solid var(--border);color:var(--gray2);border-radius:7px;padding:4px 10px;font-size:.72rem;cursor:pointer;font-family:inherit;">📋 Copy ข้อความ</button>'
-          +(S.teamName?'<button onclick="mtrSendLine('+idx+')" style="background:rgba(6,199,85,.12);border:1px solid rgba(6,199,85,.3);color:#06C755;border-radius:7px;padding:4px 10px;font-size:.72rem;cursor:pointer;font-family:inherit;">📲 ส่ง LINE ให้ Mentee</button>':'')
+          +'<button onclick="mtrCopy('+ev+')" style="background:var(--bg2);border:1px solid var(--border);color:var(--gray2);border-radius:7px;padding:4px 10px;font-size:.72rem;cursor:pointer;font-family:inherit;">📋 Copy ข้อความ</button>'
+          +(S.teamName?'<button onclick="mtrSendLine('+ev+')" style="background:rgba(6,199,85,.12);border:1px solid rgba(6,199,85,.3);color:#06C755;border-radius:7px;padding:4px 10px;font-size:.72rem;cursor:pointer;font-family:inherit;">📲 ส่ง LINE ให้ Mentee</button>':'')
+          +(e._id&&S.role==='mc'?'<button onclick="trDeleteCustom(\''+escHtml(e._id||'')+'\');" style="background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);color:#ef4444;border-radius:7px;padding:4px 10px;font-size:.72rem;cursor:pointer;font-family:inherit;">ลบ</button>':'')
         +'</div>'
       +'</div>'
       +'</div>';
   });
   host.innerHTML=html;
 }
-function mtrCopy(idx){
-  var e=TRAINING_EVENTS[idx];if(!e)return;
+function mtrCopy(jsonStr){
+  var e=typeof jsonStr==='string'?JSON.parse(jsonStr):jsonStr;if(!e)return;
   var d=trDateObj(e);
   var low=(S.teamMembers||[]).filter(function(m){
     var c=m.cats||null;
     return c?(c.training||0)<20:(m.ceu||0)<4;
   }).map(function(m){return m.nick||m.name.split(' ')[0];}).join(', ');
   var text='📅 แนะนำ Training: '+e.title+'\n'
-    +'📆 '+trFmtDate(d)+' เวลา '+e.time+'\n'
-    +'📍 '+e.location+'\n'
-    +'💳 Early Bird: '+e.early+' | ปกติ: '+e.price+'\n'
-    +'🎯 '+e.note
+    +'📆 '+trFmtDate(d)+' เวลา '+(e.time||'')+'\n'
+    +'📍 '+(e.location||'')+'\n'
+    +(e.early?'💳 Early Bird: '+e.early+' | ปกติ: '+(e.price||'')+'\n':'💳 ราคา: '+(e.price||'')+'\n')
+    +'🎯 '+(e.note||'')
     +(low?'\n\n(Mentee CEU ยังไม่เต็ม: '+low+')':'');
   if(navigator.clipboard){navigator.clipboard.writeText(text).then(function(){toast('✅ Copy แล้ว');}).catch(function(){trFallbackCopy(text);});}
   else trFallbackCopy(text);
 }
-function mtrSendLine(idx){
-  var e=TRAINING_EVENTS[idx];if(!e)return;
+function mtrSendLine(jsonStr){
+  var e=typeof jsonStr==='string'?JSON.parse(jsonStr):jsonStr;if(!e)return;
   var d=trDateObj(e);
   var msg='📅 แนะนำ Training เพิ่ม CEU\n\n'
-    +e.title+'\n'
+    +(e.title||'')+'\n'
     +'📆 '+trFmtDate(d)+'\n'
-    +'🕒 '+e.time+'\n'
-    +'📍 '+e.location+'\n'
-    +'💳 Early Bird: '+e.early+'\n'
-    +'🎯 '+e.note+'\n\n'
+    +'🕒 '+(e.time||'')+'\n'
+    +'📍 '+(e.location||'')+'\n'
+    +(e.early?'💳 Early Bird: '+e.early+'\n':'💳 '+(e.price||'')+'\n')
+    +'🎯 '+(e.note||'')+'\n\n'
     +'สนใจแจ้ง Mentor ได้เลยครับ/ค่ะ 🙏';
   _lineTarget={broadcast:true, teamName:S.teamName||''};
   document.getElementById('line-modal-title').textContent='📲 ส่ง LINE ทีม '+(S.teamName||'');
@@ -9258,6 +9566,72 @@ function _doRoleSwitch(r){
         <button onclick="rsConfirmPin()" style="background:#6366f1;border:none;color:#fff;border-radius:8px;padding:10px 18px;font-weight:700;cursor:pointer;font-family:'Sarabun',sans-serif;font-size:13px;">เข้า</button>
       </div>
       <div id="rs-error" style="color:#f87171;font-size:11px;margin-top:6px;min-height:14px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Custom Training Event Modal (MC only) -->
+<div id="addEventModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:2000;align-items:flex-end;justify-content:center;">
+  <div style="background:var(--bg2);border-radius:16px 16px 0 0;padding:1.2rem 1rem 2rem;width:100%;max-width:500px;max-height:90vh;overflow-y:auto;box-sizing:border-box;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+      <div style="font-size:1rem;font-weight:800;">+ เพิ่ม Event พิเศษ</div>
+      <button onclick="closeAddEventModal()" style="background:none;border:none;color:var(--gray2);font-size:1.3rem;cursor:pointer;">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:.7rem;">
+      <div>
+        <label style="font-size:.75rem;color:var(--gray2);display:block;margin-bottom:3px;">วันที่ *</label>
+        <input id="aev-date" type="date" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--white);font-size:.85rem;font-family:inherit;">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:var(--gray2);display:block;margin-bottom:3px;">ชื่อ Event *</label>
+        <input id="aev-title" type="text" placeholder="เช่น Chapter Special Event" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--white);font-size:.85rem;font-family:inherit;">
+      </div>
+      <div style="display:flex;gap:.5rem;">
+        <div style="flex:1;">
+          <label style="font-size:.75rem;color:var(--gray2);display:block;margin-bottom:3px;">ประเภท</label>
+          <select id="aev-course" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--white);font-size:.85rem;font-family:inherit;">
+            <option value="networking">Networking</option>
+            <option value="msp">MSP</option>
+            <option value="advanced">Advanced MSP</option>
+            <option value="121">1-2-1</option>
+            <option value="club">Club / Leadership</option>
+          </select>
+        </div>
+        <div style="flex:1;">
+          <label style="font-size:.75rem;color:var(--gray2);display:block;margin-bottom:3px;">รูปแบบ</label>
+          <select id="aev-format" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--white);font-size:.85rem;font-family:inherit;">
+            <option value="online">Online</option>
+            <option value="onsite">On-site</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:var(--gray2);display:block;margin-bottom:3px;">เวลา</label>
+        <input id="aev-time" type="text" placeholder="เช่น 09:00-12:00" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--white);font-size:.85rem;font-family:inherit;">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:var(--gray2);display:block;margin-bottom:3px;">สถานที่ / Zoom ID</label>
+        <input id="aev-location" type="text" placeholder="เช่น Zoom ID: 123-456-7890 หรือ Mandarin Hotel" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--white);font-size:.85rem;font-family:inherit;">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:var(--gray2);display:block;margin-bottom:3px;">ราคา (เช่น 650 บาท, ฟรี)</label>
+        <input id="aev-price" type="text" placeholder="เช่น 650 บาท" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--white);font-size:.85rem;font-family:inherit;">
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:var(--gray2);display:block;margin-bottom:3px;">กลุ่มเป้าหมาย</label>
+        <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:3px;">
+          <label style="font-size:.78rem;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="aev-aud-ceu" checked> 📚 CEU</label>
+          <label style="font-size:.78rem;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="aev-aud-new"> ⭐ Member ใหม่</label>
+          <label style="font-size:.78rem;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="aev-aud-mentor"> 👑 Mentor/Growth</label>
+          <label style="font-size:.78rem;display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="aev-aud-leader"> 🎖 Leadership</label>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:.75rem;color:var(--gray2);display:block;margin-bottom:3px;">หมายเหตุ / คำแนะนำ</label>
+        <textarea id="aev-note" rows="2" placeholder="ทำไมถึงแนะนำ event นี้..." style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--white);font-size:.85rem;font-family:inherit;resize:none;"></textarea>
+      </div>
+      <div id="aev-error" style="color:#ef4444;font-size:.75rem;min-height:16px;"></div>
+      <button onclick="submitAddEvent()" style="background:var(--gold);border:none;color:#0a0a0a;border-radius:10px;padding:.75rem;font-weight:800;font-size:.9rem;cursor:pointer;font-family:inherit;width:100%;">บันทึก Event</button>
     </div>
   </div>
 </div>

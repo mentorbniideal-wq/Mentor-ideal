@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LINE Simulator — BNI Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="_auth.js"></script>
+<style>
+:root{--bg:#0a1628;--card:#0e2040;--line-green:#06C755;--line-dark:#00B900;--bubble-bot:#fff;--bubble-user:#dcf8c6;--text:#111;--muted:#666;--border:#e0e0e0;--header:#0e2040;--qr-bg:#f0f0f0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans Thai',sans-serif;background:var(--bg);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+/* Top bar */
+.topbar{background:var(--header);color:#fff;padding:.6rem 1rem;display:flex;align-items:center;gap:1rem;flex-shrink:0;border-bottom:1px solid #1a3a5c}
+.topbar h1{font-size:.9rem;font-weight:700;color:#3dd6f5}
+.back-link{color:#7a9bb5;text-decoration:none;font-size:.8rem}
+.back-link:hover{color:#3dd6f5}
+.role-tabs{display:flex;gap:.35rem;margin-left:.5rem}
+.role-tab{padding:.3rem .75rem;border-radius:20px;font-size:.75rem;cursor:pointer;border:1px solid #1a3a5c;background:transparent;color:#7a9bb5;transition:all .15s}
+.role-tab.active{background:var(--line-green);border-color:var(--line-green);color:#fff;font-weight:700}
+.member-select{background:#0a2040;border:1px solid #1a3a5c;color:#e8f4f8;padding:.3rem .6rem;border-radius:8px;font-size:.75rem;max-width:180px}
+/* Layout */
+.layout{display:flex;flex:1;overflow:hidden;gap:0}
+/* Rich menu panel */
+.rich-panel{width:220px;background:#1a1a2e;border-right:1px solid #1a3a5c;display:flex;flex-direction:column;flex-shrink:0}
+.rich-panel-title{font-size:.65rem;color:#7a9bb5;padding:.5rem .75rem;border-bottom:1px solid #1a3a5c;text-transform:uppercase;letter-spacing:.05em}
+.rich-grid{display:grid;gap:2px;padding:4px;flex:1}
+.rich-grid.grid-3x2{grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr)}
+.rich-grid.grid-7{grid-template-columns:repeat(3,1fr);grid-template-rows:auto auto}
+.rich-btn{background:#0e1a30;border:1px solid #1a3a5c;border-radius:6px;padding:.4rem .25rem;cursor:pointer;text-align:center;transition:all .15s;color:#e8f4f8;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:52px}
+.rich-btn:hover{background:#1a3a5c;border-color:var(--line-green)}
+.rich-btn.row2 .rich-btn{font-size:.62rem}
+.rich-label{font-size:.65rem;font-weight:600;line-height:1.2}
+.rich-sub{font-size:.52rem;color:#7a9bb5;letter-spacing:.03em}
+/* Chat area */
+.chat-wrap{flex:1;display:flex;flex-direction:column;background:#e5ddd5;overflow:hidden}
+.chat-header{background:var(--line-green);color:#fff;padding:.5rem 1rem;font-size:.85rem;font-weight:700;display:flex;align-items:center;gap:.5rem;flex-shrink:0}
+.chat-msgs{flex:1;overflow-y:auto;padding:.75rem;display:flex;flex-direction:column;gap:.5rem}
+.msg-row{display:flex;align-items:flex-end;gap:.4rem}
+.msg-row.bot{justify-content:flex-start}
+.msg-row.user{justify-content:flex-end}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--line-green);color:#fff;font-size:.75rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.bubble{max-width:72%;padding:.5rem .75rem;border-radius:12px;font-size:.82rem;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+.bubble.bot{background:#fff;border-top-left-radius:2px;color:#111}
+.bubble.user{background:var(--bubble-user);border-bottom-right-radius:2px;color:#111}
+.bubble.card{background:#fff;border-radius:12px;border-top-left-radius:2px;padding:.6rem .75rem;min-width:200px}
+.card-eyebrow{font-size:.6rem;color:var(--line-green);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.2rem}
+.card-title{font-size:.82rem;font-weight:700;margin-bottom:.3rem}
+.card-body{font-size:.78rem;color:#333;white-space:pre-wrap;line-height:1.5}
+.card-actions{display:flex;flex-direction:column;gap:.25rem;margin-top:.5rem;border-top:1px solid #eee;padding-top:.4rem}
+.card-action-btn{background:var(--line-green);color:#fff;border:none;border-radius:6px;padding:.35rem .5rem;font-size:.75rem;cursor:pointer;text-align:center;width:100%}
+.card-action-btn.ghost{background:transparent;color:var(--line-green);border:1px solid var(--line-green)}
+.ts{font-size:.6rem;color:#999;align-self:flex-end;flex-shrink:0;margin-bottom:2px}
+.liff-chip{display:inline-flex;align-items:center;gap:.3rem;background:#f0f9f4;border:1px solid var(--line-green);border-radius:16px;padding:.25rem .6rem;font-size:.72rem;color:var(--line-dark);font-weight:600;cursor:pointer}
+.liff-chip:hover{background:#dcf8e6}
+.loading-dot{animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:.3}50%{opacity:1}}
+/* Quick replies */
+.qr-area{background:#fff;border-top:1px solid var(--border);padding:.5rem;flex-shrink:0}
+.qr-chips{display:flex;gap:.4rem;overflow-x:auto;padding-bottom:.3rem;scrollbar-width:thin}
+.qr-chip{background:#fff;border:1px solid var(--line-green);color:var(--line-dark);border-radius:16px;padding:.3rem .65rem;font-size:.75rem;cursor:pointer;white-space:nowrap;flex-shrink:0;font-weight:500;transition:all .15s}
+.qr-chip:hover{background:var(--line-green);color:#fff}
+.input-row{display:flex;gap:.5rem;margin-top:.4rem}
+.msg-input{flex:1;border:1px solid var(--border);border-radius:20px;padding:.4rem .9rem;font-size:.82rem;outline:none;font-family:inherit}
+.msg-input:focus{border-color:var(--line-green)}
+.send-btn{background:var(--line-green);color:#fff;border:none;border-radius:50%;width:36px;height:36px;cursor:pointer;font-size:1.1rem;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.send-btn:disabled{background:#ccc;cursor:not-allowed}
+/* Empty state */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#999;gap:.5rem;font-size:.82rem}
+.empty-state .icon{font-size:2.5rem}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="settings.html" class="back-link">← Settings</a>
+  <h1>LINE Simulator</h1>
+  <div class="role-tabs">
+    <button class="role-tab active" data-role="member" onclick="setRole('member')">👤 Member</button>
+    <button class="role-tab" data-role="mentor" onclick="setRole('mentor')">🎓 Mentor</button>
+    <button class="role-tab" data-role="mc" onclick="setRole('mc')">👑 MC</button>
+    <button class="role-tab" data-role="growth" onclick="setRole('growth')">🌱 Growth</button>
+  </div>
+  <select class="member-select" id="memberSel" onchange="onMemberChange()" style="display:none">
+    <option value="">— เลือกสมาชิก —</option>
+  </select>
+</div>
+
+<div class="layout">
+  <!-- Rich menu -->
+  <div class="rich-panel">
+    <div class="rich-panel-title">Rich Menu</div>
+    <div class="rich-grid grid-3x2" id="richGrid"></div>
+  </div>
+
+  <!-- Chat -->
+  <div class="chat-wrap">
+    <div class="chat-header">
+      <span>🤖</span>
+      <span id="chatName">BNI IDEAL Bot</span>
+      <span style="margin-left:auto;font-size:.7rem;opacity:.8" id="simAs"></span>
+    </div>
+    <div class="chat-msgs" id="chatMsgs">
+      <div class="empty-state">
+        <div class="icon">💬</div>
+        <div>เลือก Role แล้วกดปุ่มใน Rich Menu หรือ Quick Reply</div>
+      </div>
+    </div>
+    <div class="qr-area">
+      <div class="qr-chips" id="qrChips"></div>
+      <div class="input-row">
+        <input class="msg-input" id="msgInput" type="text" placeholder="พิมพ์ข้อความ..." onkeydown="if(event.key==='Enter')sendMsg()">
+        <button class="send-btn" id="sendBtn" onclick="sendMsg()">➤</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const LIFF_URL  = 'https://liff.line.me/2010463406-BiCHsS2X';
+const APP_URL   = 'https://bni-mentor-system.vercel.app';
+const API_URL   = 'https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
+const ANON_KEY  = 'sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
+
+async function apiCall(payload) {
+  payload.token = window.ADMIN_SESSION?.token;
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + ANON_KEY },
+    body: JSON.stringify(payload),
+  });
+  return res.json();
+}
+
+const ROLES = {
+  member: {
+    label: 'สมาชิก',
+    qr: ['สถานะ', 'ประวัติ', 'ทีม', 'แนะนำ', 'ลา', 'ส่ง sub'],
+    rich: [
+      { label:'คะแนนของฉัน', sub:'SCORE & ACTION', cmd:'สถานะ' },
+      { label:'ประวัติ',      sub:'MY PROGRESS',   cmd:'ประวัติ' },
+      { label:'นัด 1-2-1',   sub:'CONNECT',        liff:'121' },
+      { label:'ลา / ส่งแทน', sub:'ATTENDANCE',     liff:'absence' },
+      { label:'เป้าหมาย',    sub:'MY GOAL',        liff:'goal' },
+      { label:'ขอความช่วยเหลือ',sub:'PRIVATE SUPPORT',liff:'issue'},
+      { label:'จำลองคะแนน', sub:'PALMS SIMULATOR', url:'/' },
+    ],
+    gridClass: 'grid-7',
+    needsMember: true,
+  },
+  mentor: {
+    label: 'Mentor',
+    qr: ['focus 3', 'ทีม', 'สถานะ', 'ประวัติ', 'ลา'],
+    rich: [
+      { label:'Focus 3',     sub:'PRIORITY MEMBERS', cmd:'focus 3' },
+      { label:'ทีมของฉัน',   sub:'TEAM PULSE',       cmd:'ทีม' },
+      { label:'บันทึก Mentor',sub:'MENTOR LOG',      liff:'mentor-log' },
+      { label:'งานติดตาม',   sub:'FOLLOW-UP',        liff:'follow-up' },
+      { label:'รายงานปัญหา', sub:'CORE ISSUE',       liff:'issue' },
+      { label:'Renewal',     sub:'MEMBER JOURNEY',   liff:'renewal' },
+    ],
+    gridClass: 'grid-3x2',
+    needsMember: true,
+  },
+  mc: {
+    label: 'MC',
+    qr: ['chapter pulse', 'ทุกทีม', 'สถานะ', 'ประวัติ'],
+    rich: [
+      { label:'Chapter Pulse',sub:'LIVE OVERVIEW',    cmd:'chapter pulse' },
+      { label:'Mentor Team', sub:'TEAM HEALTH',       cmd:'ทุกทีม' },
+      { label:'Alerts',      sub:'NEEDS ATTENTION',   cmd:'alerts' },
+      { label:'มอบหมายงาน', sub:'ASSIGNMENT',        liff:'assignments' },
+      { label:'Reports',     sub:'INSIGHTS',          url:'/dashboard?view=reports' },
+      { label:'ตั้งค่าระบบ', sub:'ADMIN',            url:'/admin/settings.html' },
+    ],
+    gridClass: 'grid-3x2',
+    needsMember: false,
+  },
+  growth: {
+    label: 'Growth',
+    qr: ['chapter pulse', 'ทุกทีม', 'แนะนำ', 'ประวัติ'],
+    rich: [
+      { label:'Growth Pulse',sub:'OPPORTUNITY',  cmd:'chapter pulse' },
+      { label:'Referral Match',sub:'SMART CONNECT',cmd:'แนะนำ' },
+      { label:'Visitor',     sub:'GUEST JOURNEY', cmd:'visitor log' },
+      { label:'Growth Tasks',sub:'NEXT ACTIONS',  url:'/dashboard?view=growth-tasks' },
+      { label:'Power Team',  sub:'SYNERGY',       url:'/dashboard?view=power-team' },
+      { label:'Chapter Trend',sub:'MOMENTUM',     cmd:'chapter trend' },
+    ],
+    gridClass: 'grid-3x2',
+    needsMember: false,
+  },
+};
+
+let currentRole = 'member';
+let currentMember = '';
+let currentUserId = '';
+let members = [];
+let sending = false;
+
+async function init() {
+  await checkAdminAuth();
+  await loadMembers();
+  setRole('member');
+}
+
+async function loadMembers() {
+  try {
+    const r = await apiCall({ action: 'getMemberList', role: 'mc' });
+    members = (r?.members || r?.items || []).filter(m => !m.is_archived);
+    const sel = document.getElementById('memberSel');
+    members.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.name || m.id;
+      opt.textContent = `${m.nickname || m.name?.split(' ')[0] || '?'} (${m.mentor_team || '—'})`;
+      sel.appendChild(opt);
+    });
+  } catch(_) {}
+}
+
+async function onMemberChange() {
+  const sel = document.getElementById('memberSel');
+  currentMember = sel.value;
+  currentUserId = '';
+  updateSimAs();
+  if (!currentMember) return;
+  // Look up LINE user ID
+  try {
+    const r = await adminCall({ action: 'simulateLineMessage', text: '__ping', memberName: currentMember });
+    // If it errors with "ยังไม่ได้เชื่อม", that's fine — we'll surface it on send
+  } catch(_) {}
+}
+
+function setRole(role) {
+  currentRole = role;
+  document.querySelectorAll('.role-tab').forEach(t => t.classList.toggle('active', t.dataset.role === role));
+  const cfg = ROLES[role];
+  const sel = document.getElementById('memberSel');
+  sel.style.display = cfg.needsMember ? '' : 'none';
+  if (!cfg.needsMember) { currentMember = ''; currentUserId = ''; }
+  renderRichMenu(cfg);
+  renderQR(cfg);
+  updateSimAs();
+}
+
+function renderRichMenu(cfg) {
+  const grid = document.getElementById('richGrid');
+  grid.className = `rich-grid ${cfg.gridClass}`;
+
+  if (cfg.gridClass === 'grid-7') {
+    // 3 on top row, 4 on bottom — use CSS grid areas
+    grid.innerHTML = '';
+    cfg.rich.forEach((btn, i) => {
+      const el = document.createElement('div');
+      el.className = 'rich-btn';
+      if (i >= 3) el.style.cssText = 'font-size:.6rem'; // smaller bottom row
+      el.innerHTML = `<span class="rich-label">${btn.label}</span><span class="rich-sub">${btn.sub}</span>`;
+      el.onclick = () => handleRichBtn(btn);
+      grid.appendChild(el);
+    });
+  } else {
+    grid.innerHTML = cfg.rich.map((btn, i) => `
+      <div class="rich-btn" onclick="handleRichBtnByIdx(${i})">
+        <span class="rich-label">${btn.label}</span>
+        <span class="rich-sub">${btn.sub}</span>
+      </div>`).join('');
+  }
+}
+
+function handleRichBtnByIdx(i) { handleRichBtn(ROLES[currentRole].rich[i]); }
+function handleRichBtn(btn) {
+  if (btn.url) { window.open(btn.url, '_blank'); return; }
+  if (btn.liff) {
+    addBotMsg(null, `📱 หน้า LIFF เปิดขึ้นมาครับ\n(${btn.label})`);
+    window.open(`${LIFF_URL}?action=${btn.liff}`, '_blank');
+    return;
+  }
+  if (btn.cmd) sendText(btn.cmd);
+}
+
+function renderQR(cfg) {
+  document.getElementById('qrChips').innerHTML = cfg.qr.map(q =>
+    `<div class="qr-chip" onclick="sendText('${q}')">${q}</div>`).join('');
+}
+
+function updateSimAs() {
+  const el = document.getElementById('simAs');
+  const cfg = ROLES[currentRole];
+  if (cfg.needsMember && currentMember) {
+    const m = members.find(x => x.name === currentMember);
+    el.textContent = `แสดงในฐานะ: ${m?.nickname || currentMember}`;
+  } else if (!cfg.needsMember) {
+    el.textContent = `แสดงในฐานะ: ${cfg.label}`;
+  } else {
+    el.textContent = '';
+  }
+}
+
+function sendMsg() {
+  const input = document.getElementById('msgInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  sendText(text);
+}
+
+async function sendText(text) {
+  if (sending) return;
+  const cfg = ROLES[currentRole];
+  if (cfg.needsMember && !currentMember) {
+    addSystemMsg('⚠️ กรุณาเลือกสมาชิกก่อนครับ');
+    return;
+  }
+
+  addUserMsg(text);
+  const loadId = addLoading();
+  sending = true;
+  document.getElementById('sendBtn').disabled = true;
+
+  try {
+    const payload = { action: 'simulateLineMessage', text };
+    if (currentMember) payload.memberName = currentMember;
+    if (currentUserId) payload.userId = currentUserId;
+
+    const r = await adminCall(payload);
+    removeLoading(loadId);
+
+    if (!r || !r.ok) {
+      addSystemMsg(`⚠️ ${r?.error || 'ไม่ได้รับการตอบกลับ'}`);
+    } else if (!r.messages || r.messages.length === 0) {
+      addSystemMsg('🔇 Bot ไม่ได้ตอบกลับ (คำสั่งนี้อาจไม่รองรับหรือ user ยังไม่ได้เชื่อม LINE)');
+    } else {
+      for (const msgGroup of r.messages) {
+        for (const msg of (Array.isArray(msgGroup) ? msgGroup : [msgGroup])) {
+          renderBotMessage(msg);
+        }
+      }
+    }
+  } catch(e) {
+    removeLoading(loadId);
+    addSystemMsg(`❌ Error: ${e.message}`);
+  } finally {
+    sending = false;
+    document.getElementById('sendBtn').disabled = false;
+  }
+}
+
+function renderBotMessage(msg) {
+  if (!msg || typeof msg !== 'object') return;
+  const type = msg.type;
+
+  if (type === 'text') {
+    addBotMsg(null, String(msg.text || ''), msg.quickReply?.items);
+    return;
+  }
+
+  if (type === 'flex') {
+    const c = msg.contents;
+    if (!c) { addBotMsg(null, '[Flex Message]'); return; }
+    renderFlexContainer(c);
+    return;
+  }
+
+  addBotMsg(null, `[${type} message]`);
+}
+
+function renderFlexContainer(c) {
+  const type = c.type;
+  if (type === 'bubble') {
+    renderFlexBubble(c);
+  } else if (type === 'carousel') {
+    (c.contents || []).forEach(b => renderFlexBubble(b));
+  } else {
+    addBotMsg('card', JSON.stringify(c, null, 2));
+  }
+}
+
+function renderFlexBubble(b) {
+  const hero = b.hero;
+  const header = b.header;
+  const body = b.body;
+  const footer = b.footer;
+
+  let eyebrow = '';
+  let title = '';
+  let bodyText = '';
+  let actions = [];
+
+  // Extract eyebrow from header
+  if (header) {
+    const texts = flattenFlexText(header);
+    eyebrow = texts.join(' ');
+  }
+
+  // Extract title + body text
+  if (body) {
+    const contents = body.contents || [];
+    contents.forEach((item, i) => {
+      if (item.type === 'text' && item.size === 'xl' && !title) {
+        title = item.text || '';
+      } else {
+        const t = flattenFlexText(item);
+        if (t.length) bodyText += (bodyText ? '\n' : '') + t.join('\n');
+      }
+    });
+  }
+
+  // Extract actions from footer
+  if (footer) {
+    const items = footer.contents || [];
+    items.forEach(item => {
+      if (item.type === 'button' && item.action) {
+        actions.push(item.action);
+      } else {
+        const nested = item.contents || [];
+        nested.forEach(n => {
+          if (n.type === 'button' && n.action) actions.push(n.action);
+        });
+      }
+    });
+  }
+
+  const row = document.createElement('div');
+  row.className = 'msg-row bot';
+  row.innerHTML = `
+    <div class="avatar">🤖</div>
+    <div class="bubble card">
+      ${eyebrow ? `<div class="card-eyebrow">${escHtml(eyebrow)}</div>` : ''}
+      ${title ? `<div class="card-title">${escHtml(title)}</div>` : ''}
+      ${bodyText ? `<div class="card-body">${escHtml(bodyText)}</div>` : ''}
+      ${actions.length ? `<div class="card-actions">${actions.map(a => renderActionBtn(a)).join('')}</div>` : ''}
+    </div>
+    <span class="ts">${nowTime()}</span>`;
+  appendMsg(row);
+}
+
+function flattenFlexText(node) {
+  if (!node) return [];
+  if (typeof node === 'string') return [node];
+  if (node.type === 'text') return [node.text || ''];
+  if (node.contents) return node.contents.flatMap(c => flattenFlexText(c));
+  return [];
+}
+
+function renderActionBtn(action) {
+  if (!action) return '';
+  const label = escHtml(action.label || action.text || '');
+  if (action.type === 'message') {
+    return `<button class="card-action-btn" onclick="sendText('${escAttr(action.text || '')}')">${label}</button>`;
+  }
+  if (action.type === 'uri') {
+    const url = action.uri || '#';
+    return `<a href="${escAttr(url)}" target="_blank" class="card-action-btn ghost" style="display:block;text-decoration:none">${label}</a>`;
+  }
+  return `<button class="card-action-btn ghost">${label}</button>`;
+}
+
+// ── DOM helpers ───────────────────────────────────────────────────
+function addUserMsg(text) {
+  const row = document.createElement('div');
+  row.className = 'msg-row user';
+  row.innerHTML = `<span class="ts">${nowTime()}</span><div class="bubble user">${escHtml(text)}</div>`;
+  appendMsg(row);
+}
+
+function addBotMsg(cls, text, qrItems) {
+  const row = document.createElement('div');
+  row.className = 'msg-row bot';
+  row.innerHTML = `
+    <div class="avatar">🤖</div>
+    <div class="bubble ${cls || 'bot'}">${escHtml(text)}</div>
+    <span class="ts">${nowTime()}</span>`;
+  appendMsg(row);
+
+  // Render quick reply chips as small tappable chips below
+  if (qrItems && qrItems.length) {
+    const qrRow = document.createElement('div');
+    qrRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:.3rem;padding:.25rem .5rem .25rem 44px;';
+    qrItems.forEach(item => {
+      const a = item.action || {};
+      const chip = document.createElement('div');
+      chip.className = 'qr-chip';
+      chip.style.cssText = 'font-size:.7rem;padding:.2rem .5rem';
+      chip.textContent = a.label || a.text || '';
+      if (a.text) chip.onclick = () => sendText(a.text);
+      else if (a.uri) chip.onclick = () => window.open(a.uri, '_blank');
+      qrRow.appendChild(chip);
+    });
+    document.getElementById('chatMsgs').appendChild(qrRow);
+    scrollBottom();
+  }
+}
+
+function addSystemMsg(text) {
+  const el = document.createElement('div');
+  el.style.cssText = 'text-align:center;font-size:.72rem;color:#888;padding:.25rem 0';
+  el.textContent = text;
+  appendMsg(el);
+}
+
+let _loadingId = 0;
+function addLoading() {
+  const id = ++_loadingId;
+  const row = document.createElement('div');
+  row.className = 'msg-row bot';
+  row.id = `loading-${id}`;
+  row.innerHTML = `<div class="avatar">🤖</div><div class="bubble bot"><span class="loading-dot">●</span> <span class="loading-dot" style="animation-delay:.2s">●</span> <span class="loading-dot" style="animation-delay:.4s">●</span></div>`;
+  appendMsg(row);
+  return id;
+}
+
+function removeLoading(id) {
+  const el = document.getElementById(`loading-${id}`);
+  if (el) el.remove();
+}
+
+function appendMsg(el) {
+  const msgs = document.getElementById('chatMsgs');
+  // Remove empty state
+  const empty = msgs.querySelector('.empty-state');
+  if (empty) empty.remove();
+  msgs.appendChild(el);
+  scrollBottom();
+}
+
+function scrollBottom() {
+  const msgs = document.getElementById('chatMsgs');
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function nowTime() {
+  return new Date().toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' });
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) { return String(s||'').replace(/"/g,'&quot;'); }
+
+init();
+</script>
+</body>
+</html>

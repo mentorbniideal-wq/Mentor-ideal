@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<style>
+@font-face{font-family:Thonburi;src:local("Thonburi")}
+*{box-sizing:border-box}html,body{margin:0;width:2500px;height:1686px;overflow:hidden}
+body{font-family:Thonburi,-apple-system,BlinkMacSystemFont,sans-serif;background:#f6f2e9;color:#123c35}
+.texture{position:absolute;inset:0;background:url("../public/assets/line/rich-menu-background-v3.png") center/cover no-repeat}
+.wash{position:absolute;inset:0;background:linear-gradient(115deg,rgba(255,253,248,.06),rgba(255,252,245,.20) 46%,rgba(244,241,229,.02))}
+#menu{position:relative;width:100%;height:100%;padding:34px;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);gap:22px}
+#menu.layout-7{display:flex;flex-direction:column;gap:22px}
+#menu.layout-7 .row{display:flex;gap:22px;flex:1}
+#menu.layout-7 .row .cell{flex:1}
+.cell{position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px solid rgba(181,143,76,.46);border-radius:34px;background:rgba(255,253,247,.58);box-shadow:0 18px 46px rgba(40,58,49,.09),inset 0 1px 0 rgba(255,255,255,.76);backdrop-filter:blur(3px)}
+.cell:before{content:"";position:absolute;top:0;left:19%;right:19%;height:4px;background:linear-gradient(90deg,transparent,#c8a45f,transparent)}
+.cell:after{content:"";position:absolute;inset:17px;border:1px solid rgba(184,154,100,.18);border-radius:23px;pointer-events:none}
+.icon{position:absolute;top:52px;left:64px;color:#a98547;font:600 28px "Avenir Next",sans-serif;letter-spacing:5px}
+.ornament{width:74px;height:2px;background:#b89a64;margin-bottom:45px;position:relative}
+.ornament:before,.ornament:after{content:"";position:absolute;top:-4px;width:10px;height:10px;border:1px solid #b89a64;transform:rotate(45deg);background:rgba(255,253,247,.75)}
+.ornament:before{left:-5px}.ornament:after{right:-5px}
+.title{font-size:76px;font-weight:700;line-height:1.15;text-align:center;max-width:735px;letter-spacing:-1px;text-shadow:0 1px 0 rgba(255,255,255,.7)}
+.title.long{font-size:68px}.sub{font:600 26px "Avenir Next",sans-serif;letter-spacing:7px;color:rgba(18,60,53,.66);margin-top:34px;text-align:center}
+</style>
+</head>
+<body><div class="texture"></div><div class="wash"></div><main id="menu"></main>
+<script>
+const data={
+member:[["01","คะแนนของฉัน","SCORE & ACTION"],["02","ประวัติ","MY PROGRESS"],["03","นัด 1-2-1","CONNECT"],["04","ลา / ส่งแทน","ATTENDANCE"],["05","เป้าหมาย","MY GOAL"],["06","ขอความช่วยเหลือ","PRIVATE SUPPORT"],["07","จำลองคะแนน","PALMS SIMULATOR"]],
+mentor:[["01","Focus 3","PRIORITY MEMBERS"],["02","ทีมของฉัน","TEAM PULSE"],["03","บันทึก Mentor","MENTOR LOG"],["04","งานติดตาม","FOLLOW-UP"],["05","รายงานปัญหา","CORE ISSUE"],["06","Renewal","MEMBER JOURNEY"]],
+mc:[["01","Chapter Pulse","LIVE OVERVIEW"],["02","Mentor Team","TEAM HEALTH"],["03","Alerts","NEEDS ATTENTION"],["04","มอบหมายงาน","ASSIGNMENT"],["05","Reports","INSIGHTS"],["06","ตั้งค่าระบบ","ADMIN"]],
+growth:[["01","Growth Pulse","OPPORTUNITY"],["02","Referral Match","SMART CONNECT"],["03","Visitor","GUEST JOURNEY"],["04","Growth Tasks","NEXT ACTIONS"],["05","Power Team","SYNERGY"],["06","Chapter Trend","MOMENTUM"]]
+};
+const role=new URLSearchParams(location.search).get("role")||"member";
+const items=data[role];
+const cell=x=>`<section class="cell"><div class="icon">${x[0]}</div><div class="ornament"></div><div class="title ${x[1].length>12?"long":""}">${x[1]}</div><div class="sub">${x[2]}</div></section>`;
+const menu=document.getElementById("menu");
+if(role==="member"&&items.length===7){
+  menu.classList.add("layout-7");
+  menu.innerHTML=`<div class="row">${items.slice(0,3).map(cell).join("")}</div><div class="row">${items.slice(3).map(cell).join("")}</div>`;
+}else{
+  menu.innerHTML=items.map(cell).join("");
+}
+</script></body></html>

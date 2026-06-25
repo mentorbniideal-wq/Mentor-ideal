@@ -1,0 +1,23 @@
+# Keep Google Apps Script deployment limited to legacy GAS files.
+# Browser-only/static frontend and Supabase backend files must not be pushed to GAS.
+
+public/**
+supabase/**
+migration-exports/**
+.claude/**
+.codex/**
+.agents/**
+.git/**
+.vercel/**
+
+vercel.json
+power_team_data.json
+*.md
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.py
+.env
+.env.*
