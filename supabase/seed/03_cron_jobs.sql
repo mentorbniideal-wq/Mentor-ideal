@@ -106,6 +106,13 @@ SELECT cron.schedule(
   $$SELECT call_cron_job('purgeExpiredDismissals');$$
 );
 
+-- Daily 00:00 UTC (07:00 TH) — Passport LT reminder (2 days ahead)
+SELECT cron.schedule(
+  'daily-passport-lt-reminder',
+  '0 0 * * *',
+  $$SELECT call_cron_job('passportLtReminder');$$
+);
+
 -- ── Verify schedule ───────────────────────────────────────────
 -- Run after setup:
 -- SELECT jobname, schedule, command FROM cron.job ORDER BY jobname;

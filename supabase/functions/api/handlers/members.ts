@@ -733,6 +733,44 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
     }
 
     // ── Passport to Success Scheduler (MC only) ────────────────
+    case 'getPassportCalendar': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      try {
+        const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+        const from = today.toISOString().split('T')[0];
+        const toDate = new Date(today); toDate.setDate(today.getDate() + 28);
+        const to = toDate.toISOString().split('T')[0];
+        const { data, error } = await db
+          .from('passport_sessions')
+          .select('id, scheduled_date, title, lt_role, assigned_lt_name, assigned_lt_member_id, status, week_no, member_id, members!passport_sessions_member_id_fkey(name, nickname)')
+          .gte('scheduled_date', from)
+          .lte('scheduled_date', to)
+          .in('status', ['scheduled', 'notified'])
+          .order('scheduled_date', { ascending: true })
+          .order('week_no', { ascending: true });
+        if (error) return errResponse(error.message);
+        const sessions = ((data || []) as Record<string, unknown>[]).map(s => {
+          const m = ((s as any)['members!passport_sessions_member_id_fkey'] || s.members || {}) as Record<string, unknown>;
+          return {
+            id: String(s.id || ''),
+            date: String(s.scheduled_date || ''),
+            memberName: String(m.name || ''),
+            memberNick: String(m.nickname || m.name || ''),
+            title: String(s.title || s.lt_role || ''),
+            ltRole: String(s.lt_role || ''),
+            ltName: String(s.assigned_lt_name || ''),
+            ltMemberId: s.assigned_lt_member_id ? String(s.assigned_lt_member_id) : null,
+            status: String(s.status || 'scheduled'),
+            weekNo: Number(s.week_no) || 0,
+          };
+        });
+        return jsonResponse({ ok: true, sessions });
+      } catch (e) {
+        return errResponse(e instanceof Error ? e.message : 'Passport calendar failed');
+      }
+    }
+
     case 'getPassportBoard': {
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);

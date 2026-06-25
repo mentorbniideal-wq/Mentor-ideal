@@ -1428,6 +1428,9 @@ main{
       <!-- ─ Zone F : Seat Map ─ -->
       <div id="mc-seat-map" style="margin-top:20px"></div>
 
+      <!-- ─ Zone G : Passport Calendar ─ -->
+      <div id="mc-passport-cal" style="margin-top:20px"></div>
+
       <!-- Hidden legacy containers (used by other tabs) -->
       <div id="mc-dig" style="display:none"></div>
       <div id="mc-kpi" style="display:none"></div>
@@ -3016,14 +3019,27 @@ var DESKTOP_ROLE_TARGET=(function(){
   }catch(e){return '';}
 })();
 function getSbAuth(){if(!_sbAuth&&window.supabase){_sbAuth=window.supabase.createClient(SUPABASE_URL_AUTH,SUPABASE_ANON,{auth:{autoRefreshToken:true,persistSession:true}});}return _sbAuth;}
+function isLineInApp(){return /Line\/|LIFF/i.test(navigator.userAgent);}
 function signInWithGoogle(){
+  if(isLineInApp()){showLineOpenBanner();return;}
   var sb=getSbAuth();
   if(!sb){document.getElementById('lerr').textContent='กรุณารอสักครู่แล้วลองใหม่';return;}
   var btn=document.getElementById('google-login-btn');
   if(btn){btn.disabled=true;btn.style.opacity='.6';}
   sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin+window.location.pathname}});
 }
+function showLineOpenBanner(){
+  var url=window.location.href;
+  var el=document.getElementById('lerr');
+  if(el){el.style.cssText='color:#f97316;font-size:12px;text-align:center;line-height:1.6;max-width:300px;margin:.5rem auto';
+    el.innerHTML='⚠️ LINE Browser ไม่รองรับ Google Login<br>'
+      +'กรุณากด <b>···</b> → <b>เปิดใน Browser</b><br>'
+      +'หรือคัดลอกลิงก์ไปเปิดใน Chrome/Safari<br>'
+      +'<button onclick="navigator.clipboard&&navigator.clipboard.writeText(\''+url+'\').then(function(){this.textContent=\'✅ คัดลอกแล้ว\';}.bind(this))" style="margin-top:8px;padding:6px 16px;border-radius:8px;border:1px solid #f97316;background:transparent;color:#f97316;font-size:12px;cursor:pointer">📋 คัดลอก URL</button>';
+  }
+}
 function checkSession(){
+  if(isLineInApp()){document.getElementById('login').style.display='flex';setTimeout(showLineOpenBanner,100);return;}
   var sb=getSbAuth();
   if(!sb){document.getElementById('login').style.display='flex';return;}
   sb.auth.getSession().then(function(res){
@@ -3323,7 +3339,7 @@ function renderKpiHero(){
 function renderMCAll(){
   renderKpiHero();renderChapterPulse();renderFocusBar();
   renderDonut();renderBar();renderIntelGrid();
-  renderChapterHealth();renderSeatMap();
+  renderChapterHealth();renderSeatMap();renderPassportCal();
   renderMem();renderFT();renderMTTeams();renderRen();renderRisk();renderCoach();renderPriority();
   renderKPI();renderSmartAlerts();renderAlertDigest();
   renderGWBadge();
@@ -3394,6 +3410,60 @@ function renderSeatMap(){
     });
     el.innerHTML=html;
   });
+}
+
+// ══ PASSPORT CALENDAR ═════════════════════════════════════════
+var _passCalCache=null;
+function renderPassportCal(){
+  var el=document.getElementById('mc-passport-cal');if(!el)return;
+  if(_passCalCache){_buildPassCalHTML(el,_passCalCache);return;}
+  el.innerHTML='<div style="color:var(--sub);font-size:12px;text-align:center;padding:10px">กำลังโหลด Passport Calendar...</div>';
+  gsr('getPassportCalendar',{role:'mc'},function(r){
+    if(!r||!r.ok){el.innerHTML='<div class="kc" style="margin-top:0"><div style="font-size:13px;font-weight:600;margin-bottom:6px">📅 Passport Calendar</div><div style="color:var(--re);font-size:12px">'+(r&&r.error?r.error:'ไม่สามารถโหลดได้')+'</div></div>';return;}
+    _passCalCache=r.sessions||[];
+    _buildPassCalHTML(el,_passCalCache);
+  });
+}
+function _buildPassCalHTML(el,sessions){
+  if(!sessions.length){
+    el.innerHTML='<div class="kc" style="margin-top:0">'
+      +'<div style="font-size:13px;font-weight:600;margin-bottom:6px">📅 Passport Calendar</div>'
+      +'<div style="color:var(--sub);font-size:12px;text-align:center;padding:10px 0">ไม่มี Session ใน 4 สัปดาห์หน้า</div>'
+      +'</div>';
+    return;
+  }
+  var statusDot={scheduled:'🔵',notified:'🟡',completed:'🟢',missed:'⚫'};
+  var rows=sessions.map(function(s){
+    var d=new Date(s.date+'T00:00:00');
+    var dStr=d.toLocaleDateString('th-TH',{weekday:'short',month:'short',day:'numeric'});
+    return '<tr>'
+      +'<td style="padding:6px 10px;font-size:11px;white-space:nowrap;color:var(--sub)">'+dStr+'</td>'
+      +'<td style="padding:6px 10px;font-size:12px;font-weight:600">'+esc(s.memberNick||s.memberName)+'</td>'
+      +'<td style="padding:6px 10px;font-size:11px;color:var(--sub);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(s.title||s.ltRole)+'</td>'
+      +'<td style="padding:6px 10px;font-size:12px">'+esc(s.ltName||'—')+'</td>'
+      +'<td style="padding:6px 4px;text-align:center;font-size:13px">'+(statusDot[s.status]||'⚪')+'</td>'
+      +'</tr>';
+  }).join('');
+  el.innerHTML='<div class="kc" style="margin-top:0">'
+    +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">'
+    +'<span style="font-size:13px;font-weight:600">📅 Passport Calendar — New Member Meetings</span>'
+    +'<button class="bsm" onclick="_passCalCache=null;renderPassportCal()" style="font-size:10px;margin-left:auto">↺</button>'
+    +'</div>'
+    +'<div class="tw"><table style="width:100%;border-collapse:collapse">'
+    +'<thead><tr style="font-size:11px;color:var(--sub);border-bottom:1px solid var(--bd)">'
+    +'<th style="padding:4px 10px;text-align:left;font-weight:500">วันที่</th>'
+    +'<th style="padding:4px 10px;text-align:left;font-weight:500">New Member</th>'
+    +'<th style="padding:4px 10px;text-align:left;font-weight:500">Session</th>'
+    +'<th style="padding:4px 10px;text-align:left;font-weight:500">LT ที่รับผิดชอบ</th>'
+    +'<th style="padding:4px 4px;text-align:center;font-weight:500"></th>'
+    +'</tr></thead>'
+    +'<tbody>'+rows+'</tbody>'
+    +'</table></div>'
+    +'<div style="font-size:11px;color:var(--sub);margin-top:8px;display:flex;align-items:center;gap:8px">'
+    +'<span>🔵 scheduled · 🟡 notified · 🟢 completed</span>'
+    +'<button class="bsm" onclick="sw(\'mc-passport\',document.querySelector(\'#mc-tabs .tb[onclick*=mc-passport]\'),\'mc\');loadPassportBoard()" style="font-size:10px;margin-left:auto">จัดการ Passport ▸</button>'
+    +'</div>'
+    +'</div>';
 }
 
 // ══ VISITOR LOG ═══════════════════════════════════════════════

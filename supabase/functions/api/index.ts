@@ -91,6 +91,7 @@ const ROUTES: Record<string, string> = {
   'previewPalmsSummaryImport': 'members', 'syncPalmsSummaryImport': 'members',
   'getPassportBoard': 'members', 'syncPassportEnrollments': 'members',
   'updatePassportSession': 'members', 'savePassportLtAssignment': 'members',
+  'getPassportCalendar': 'members',
 
   // Coaching / Core Issue
   'saveCoreIssue': 'coaching', 'getCoachingGuide': 'coaching',

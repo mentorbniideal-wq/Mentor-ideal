@@ -2673,14 +2673,27 @@ var SUPABASE_URL_AUTH='https://itwyjhlfemxsfbimshby.supabase.co';
 var API_HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_ANON};
 var _sbAuth=null;
 function getSbAuth(){if(!_sbAuth&&window.supabase){_sbAuth=window.supabase.createClient(SUPABASE_URL_AUTH,SUPABASE_ANON,{auth:{autoRefreshToken:true,persistSession:true}});}return _sbAuth;}
+function isLineInApp(){return /Line\/|LIFF/i.test(navigator.userAgent);}
 function signInWithGoogle(){
+  if(isLineInApp()){showLineOpenBanner();return;}
   var sb=getSbAuth();
   if(!sb){toast('❌ กรุณารอสักครู่แล้วลองใหม่');return;}
   var btn=document.getElementById('google-login-btn');
   if(btn){btn.disabled=true;btn.textContent='กำลังโหลด...';}
   sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin+window.location.pathname}});
 }
+function showLineOpenBanner(){
+  var url=window.location.href;
+  var err=document.getElementById('login-err');
+  if(err){err.style.cssText='color:#f97316;font-size:12px;line-height:1.7;max-width:280px;margin:.5rem auto;text-align:center';
+    err.innerHTML='⚠️ LINE Browser ไม่รองรับ Google Login<br>'
+      +'กด <b>···</b> แล้วเลือก <b>เปิดใน Browser</b><br>'
+      +'หรือคัดลอกลิงก์ไปเปิดใน Chrome / Safari<br>'
+      +'<button onclick="navigator.clipboard&&navigator.clipboard.writeText(\''+url+'\').then(function(){this.textContent=\'✅ คัดลอกแล้ว\';}.bind(this))" style="margin-top:8px;padding:6px 16px;border-radius:8px;border:1px solid #f97316;background:transparent;color:#f97316;font-size:12px;cursor:pointer">📋 คัดลอก URL</button>';
+  }
+}
 function checkSession(){
+  if(isLineInApp()){document.getElementById('loginScreen').style.display='flex';setTimeout(showLineOpenBanner,100);return;}
   var sb=getSbAuth();
   if(!sb){document.getElementById('loginScreen').style.display='flex';return;}
   sb.auth.getSession().then(function(res){

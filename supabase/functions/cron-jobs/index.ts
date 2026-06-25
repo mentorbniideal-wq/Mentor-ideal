@@ -55,6 +55,7 @@ Deno.serve(async (req: Request) => {
       case 'line121AutoReminder':     await line121AutoReminder(db);      break;
       case 'renewalPush':             await renewalPush(db);              break;
       case 'purgeExpiredDismissals':  await purgeExpiredDismissals(db);   break;
+      case 'passportLtReminder':      await passportLtReminder(db);      break;
       case 'provisionLineExperience': {
         const result = await provisionLineExperience(db);
         console.log('[cron-jobs] LINE provisioned:', JSON.stringify(result));
@@ -475,4 +476,60 @@ async function renewalPush(db: DB): Promise<void> {
 async function purgeExpiredDismissals(db: DB): Promise<void> {
   const { error } = await db.rpc('fn_purge_expired_dismissals');
   if (error) console.error('[purge-dismissals] Error:', error);
+}
+
+// ── Daily 07:00 TH: remind LT of passport sessions in 2 days ─
+async function passportLtReminder(db: DB): Promise<void> {
+  const token = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || '';
+  if (!token) return;
+
+  // Target date = today (Bangkok) + 2 days
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+  const target = new Date(now);
+  target.setDate(target.getDate() + 2);
+  const targetDate = target.toISOString().split('T')[0];
+
+  const { data: sessions } = await db
+    .from('passport_sessions')
+    .select('id, title, lt_role, assigned_lt_member_id, assigned_lt_name, members(name, nickname)')
+    .eq('scheduled_date', targetDate)
+    .in('status', ['scheduled', 'notified']);
+
+  if (!sessions?.length) return;
+
+  for (const s of (sessions as Record<string, unknown>[]) ) {
+    const ltMemberId = s.assigned_lt_member_id ? String(s.assigned_lt_member_id) : null;
+    if (!ltMemberId) continue;
+
+    const { data: lineLink } = await db
+      .from('line_members')
+      .select('line_user_id')
+      .eq('member_id', ltMemberId)
+      .maybeSingle();
+    if (!lineLink) continue;
+    const userId = String((lineLink as Record<string, unknown>).line_user_id || '');
+    if (!userId) continue;
+
+    const m = (s.members || {}) as Record<string, unknown>;
+    const memberName = String(m.nickname || m.name || 'New Member');
+    const ltName = String(s.assigned_lt_name || s.lt_role || '');
+    const sessionTitle = String(s.title || s.lt_role || 'Passport Session');
+
+    await linePush(userId,
+      `🗓️ Passport to Success — แจ้งเตือน\n` +
+      `────────────────────\n` +
+      (ltName ? `สวัสดีคุณ${ltName} 👋\n\n` : '') +
+      `อีก 2 วัน คุณมีนัดพบ New Member:\n\n` +
+      `👤 ${memberName}\n` +
+      `📋 ${sessionTitle}\n` +
+      `📅 ${targetDate}\n\n` +
+      `เจอกันที่ประชุม BNI IDEAL นะครับ 🙏`,
+      {
+        db,
+        idempotencyKey: `passport-lt-reminder:${String(s.id)}:${targetDate}`,
+        notificationType: 'passport_lt_reminder',
+        source: 'cron-jobs',
+      },
+    );
+  }
 }

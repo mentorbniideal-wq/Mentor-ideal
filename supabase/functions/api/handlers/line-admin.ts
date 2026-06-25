@@ -458,7 +458,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
     // ── GET: absence log (last 50) ────────────────────────────
     case 'getAbsenceLog': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const { data, error } = await db
@@ -487,7 +487,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
     // ── GET: absence log (last 10) ────────────────────────────
     case 'getAbsenceLogRecent': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const { data, error } = await db
@@ -516,7 +516,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
     // ── GET: LINE issue reports (last 30) ─────────────────────
     case 'getLineIssues': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const { data, error } = await db
@@ -586,7 +586,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
     // ── GET: onboarding status for all enrolled members ───────
     case 'getOnboardingStatus': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
       // Find active enrolled members (removed_at is null)
@@ -636,7 +636,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
     // ── GET: onboarding message templates ─────────────────────
     case 'getOnboardingMessages': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const { data, error } = await db
@@ -662,7 +662,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
     // ── GET: preview a specific onboarding week message ───────
     case 'getOnboardingPreview': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const weekNum = Number(p.weekNum || 1);
@@ -753,7 +753,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
     // ── MENTOR BROADCAST: mentor sends to own team members ────
     case 'mentorBroadcast': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const message  = String(p.message || '').trim();
@@ -822,7 +822,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
           continue;
         }
         const richMenuId = String((JSON.parse(createBody) as Record<string, unknown>).richMenuId || '');
-        const imageUrl = `${appUrl}/assets/line/rich-menu-${role}-v2.jpg`;
+        const imageUrl = `${appUrl}/assets/line/rich-menu-${role}-v4.jpg`;
         const imageRes = await fetch(imageUrl);
         if (!imageRes.ok) {
           results.push({ role, ok: false, richMenuId, error: `image ${imageRes.status}: ${imageUrl}` });

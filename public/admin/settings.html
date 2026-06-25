@@ -274,9 +274,10 @@ async function approveReq(id) {
   const role     = document.getElementById('role-'+id)?.value;
   const teamName = document.getElementById('team-'+id)?.value.trim() || null;
   const isMentor = ['toomtam','aof','draft','phai','amp'].includes(role);
+  const isMC = role === 'mc';
   const r = await adminCall({
     action: 'approveAccessRequest',
-    id, role, teamName, isMentor,
+    id, role, teamName, isMentor, isMC,
     sections: req.requested_sections || [],
     editAccess: Boolean(req.edit_access),
   });

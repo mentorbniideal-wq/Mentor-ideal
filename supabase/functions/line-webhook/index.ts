@@ -1185,7 +1185,7 @@ async function schedule121(db: ReturnType<typeof getServiceClient>, memberName: 
     return `⚠️ พบชื่อใกล้เคียงหลายคน\n${names}\n\nกรุณาพิมพ์ชื่อให้ละเอียดขึ้นครับ`;
   }
   const partner = candidates[0];
-  await db.from('one_to_one_logs').insert({ initiator_id: (me as any).id, partner_id: (partner as any).id, scheduled_date: new Date().toISOString().split('T')[0] });
+  await db.from('one_to_one_logs').insert({ initiator_id: (me as any).id, partner_id: (partner as any).id, partner_name: String((partner as any).nickname || (partner as any).name || partnerName), scheduled_date: new Date().toISOString().split('T')[0] });
   return `นัด 1-2-1 กับ ${(partner as any).nickname || partnerName} บันทึกแล้วครับ 🤝\nเจอกันแล้วพิมพ์ "เจอแล้ว" นะครับ`;
 }
 
