@@ -5067,6 +5067,13 @@ function syncPassportBoard(){
   });
 }
 function renderPassportBoard(){
+  if(!D.mem||!D.mem.length){
+    gsr('getDesktopDashboard',{role:'mc'},function(r2){
+      if(r2&&r2.ok){D.mem=r2.members||[];D.sm=r2.summary||{};D.teams=r2.teams||[];D.ren=r2.renewal||[];}
+      renderPassportBoard();
+    });
+    return;
+  }
   var d=_passportData||{}, members=d.members||[], sessions=d.sessions||[], assignments=d.assignments||[], templates=d.templates||[];
   badge('badge-passport',sessions.filter(function(s){return ['scheduled','notified','declined','rescheduled','missed'].indexOf(s.status)>=0;}).length);
   var active=members.filter(function(m){return m.status==='active';}).length;
@@ -5193,8 +5200,13 @@ function load8WProgress(force){
   el.innerHTML='<div style="color:var(--sub);font-size:13px;text-align:center;padding:30px">⏳ กำลังโหลด...</div>';
   gsr('getNewMembers',{role:'mc'},function(r){
     if(!r.ok){el.innerHTML='<div style="color:var(--re);padding:20px">❌ '+(r.error||'')+'</div>';return;}
-    _8wLoaded=true;
-    render8WProgress(r.members||[]);
+    function finish(){_8wLoaded=true;render8WProgress(r.members||[]);}
+    if(S.role==='mc'){
+      gsr('getPassportBoard',{role:'mc'},function(pr){
+        if(pr&&pr.ok){_passportLoaded=true;_passportData=pr;}
+        finish();
+      });
+    }else finish();
   });
 }
 // ══ GROWTH WATCH ══════════════════════════════════════════════════
@@ -6000,6 +6012,31 @@ function w8Remove(rowNum,memberName){
 }
 function render8WProgress(nmList){
   function nmKey(v){return String(v||'').trim().toLowerCase().replace(/\s+/g,' ');}
+  function passportFor8WMember(m,nm){
+    var rows=(_passportData&&_passportData.members)||[];
+    var keyId=String(m.id||nm.id||'');
+    var keyName=nmKey(m.name||nm.name);
+    var keyNick=nmKey(m.nick||m.nickname||nm.nick);
+    return rows.find(function(p){
+      var pm=p.members||{};
+      return (keyId&&String(p.member_id||pm.id||'')===keyId)
+        || (keyName&&nmKey(pm.name)===keyName)
+        || (keyNick&&nmKey(pm.nickname)===keyNick);
+    })||null;
+  }
+  function passportMiniCard(p){
+    if(!p)return '<div style="border:1px dashed var(--bd);border-radius:9px;padding:8px 10px;margin:9px 0;background:var(--sf2);font-size:11px;color:var(--sub)">🛂 Passport: ยังไม่พบตาราง · กดแท็บ Passport แล้ว Sync สมาชิกใหม่</div>';
+    var total=p.total||((p.sessions||[]).length)||0, done=p.done||0, pct=total?Math.round(done/total*100):0;
+    var ns=p.nextSession||{};
+    return '<div style="border:1px solid var(--bd);border-radius:10px;padding:9px 10px;margin:9px 0;background:linear-gradient(135deg,var(--sf2),var(--sf));">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">'
+      +'<div style="font-size:11px;font-weight:900;color:var(--ac)">🛂 Passport '+done+'/'+total+'</div>'
+      +'<button class="bsm" onclick="event.stopPropagation();sw(&quot;mc-passport&quot;,document.querySelector(&quot;#mc-tabs .tb[onclick*=mc-passport]&quot;),&quot;mc&quot;);loadPassportBoard()" style="font-size:10px;padding:3px 8px">เปิด</button>'
+      +'</div>'
+      +'<div style="height:6px;background:var(--bd);border-radius:99px;overflow:hidden;margin-bottom:6px"><div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,var(--ac),#10b981)"></div></div>'
+      +'<div style="font-size:10px;color:var(--sub);line-height:1.45">Next: <b style="color:var(--tx)">W'+(ns.week_no||'—')+' '+esc(ns.title||'')+'</b><br>พบ: <b style="color:var(--tx)">'+esc(ns.assigned_lt_name||ns.lt_role||'ยังไม่กำหนด')+'</b> · '+passportFmtDate(ns.scheduled_date)+'</div>'
+      +'</div>';
+  }
   // Build map from D.mem by name
   var memMap={};
   (D.mem||[]).forEach(function(m){if(m.name)memMap[m.name]=m;});
@@ -6101,6 +6138,7 @@ function render8WProgress(nmList){
     // NM checklist progress
     var nmProg=nm.progress||0;
     var nmStatus=nm.status||'';
+    var passportRow=passportFor8WMember(m,nm);
 
     var safeNmName=m.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     var safeNmRow=nm.rowNum||0;
@@ -6152,6 +6190,7 @@ function render8WProgress(nmList){
         return'<div class="w8-cat"><div class="w8-cat-pts" style="color:'+col+'">'+cd.s+'</div><div class="w8-cat-lbl">/'+cd.m+'<br>'+cd.l+'</div></div>';
       }).join('')
       +'</div>'
+      +passportMiniCard(passportRow)
       // Footer: NM checklist — entire section clickable
       +'<div class="w8-footer">'
       +'<div style="flex:1;cursor:pointer" onclick="event.stopPropagation();openNMCL(\''+m.name.replace(/'/g,"\\'")+'\')">'

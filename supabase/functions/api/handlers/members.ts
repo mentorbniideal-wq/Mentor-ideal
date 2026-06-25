@@ -197,7 +197,7 @@ async function syncPassportEnrollments(db: any): Promise<{ enrolled: number; ses
       if (!weekNo || sessionKey.has(`${enrollmentId}:${tplKey}`)) continue;
       const ltRole = String(t.lt_role || '');
       const asg = assignments[ltRole] || {};
-      const scheduledDate = addDaysYmd(startFriday, Number(t.default_offset_days) || ((weekNo - 1) * 7));
+      const scheduledDate = addDaysYmd(startFriday, t.default_offset_days != null ? Number(t.default_offset_days) : (weekNo - 1) * 7);
       inserts.push({
         enrollment_id: enrollmentId,
         template_id: t.id || null,
