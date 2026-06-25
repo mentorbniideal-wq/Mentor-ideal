@@ -2371,9 +2371,14 @@ main{
               <div style="font-size:13px;font-weight:800">📅 Weekly LT Schedule</div>
               <div style="font-size:10px;color:var(--sub);margin-top:2px">รายการนัดหมายที่ LT ควรรู้ล่วงหน้า</div>
             </div>
-            <select id="passport-status-filter" onchange="renderPassportBoard()" style="background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:6px 9px;font-size:11px">
-              <option value="">ทุกสถานะ</option><option value="scheduled">scheduled</option><option value="confirmed">confirmed</option><option value="declined">declined</option><option value="rescheduled">rescheduled</option><option value="completed">completed</option><option value="missed">missed</option>
-            </select>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+              <select id="passport-week-filter" onchange="renderPassportBoard()" style="background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:6px 9px;font-size:11px">
+                <option value="">ทุก Week</option><option value="1">W1</option><option value="2">W2</option><option value="3">W3</option><option value="4">W4</option><option value="5">W5</option><option value="6">W6</option><option value="7">W7</option><option value="8">W8</option>
+              </select>
+              <select id="passport-status-filter" onchange="renderPassportBoard()" style="background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:6px 9px;font-size:11px">
+                <option value="">ทุกสถานะ</option><option value="scheduled">scheduled</option><option value="confirmed">confirmed</option><option value="declined">declined</option><option value="rescheduled">rescheduled</option><option value="completed">completed</option><option value="missed">missed</option>
+              </select>
+            </div>
           </div>
           <div id="passport-weekly"><div style="color:var(--sub);font-size:13px;text-align:center;padding:26px">กด Passport เพื่อโหลดข้อมูล</div></div>
         </div>
@@ -5075,20 +5080,30 @@ function renderPassportBoard(){
 
   var memById={};members.forEach(function(m){memById[m.member_id]=m;});
   var filter=(document.getElementById('passport-status-filter')||{}).value||'';
-  var upcoming=sessions.slice().filter(function(s){return !filter||s.status===filter;}).sort(function(a,b){return String(a.scheduled_date).localeCompare(String(b.scheduled_date))||((a.week_no||0)-(b.week_no||0));});
+  var weekFilter=(document.getElementById('passport-week-filter')||{}).value||'';
+  var upcoming=sessions.slice().filter(function(s){return (!filter||s.status===filter)&&(!weekFilter||String(s.week_no)===weekFilter);}).sort(function(a,b){return String(a.scheduled_date).localeCompare(String(b.scheduled_date))||((a.week_no||0)-(b.week_no||0))||String(a.title||'').localeCompare(String(b.title||''));});
   var sessionMemberOpts='<option value="">— เลือกคน —</option>'+(D.mem||[]).slice().sort(function(a,b){return String(a.name||'').localeCompare(String(b.name||''));}).map(function(m){return '<option value="'+esc(m.id||'')+'">'+esc(m.nick||m.nickname||m.name||'')+(m.name&&(m.nick||m.nickname)?' · '+esc(m.name):'')+'</option>';}).join('');
   var wEl=document.getElementById('passport-weekly');
   if(wEl){
     if(!upcoming.length)wEl.innerHTML='<div style="color:var(--sub);font-size:12px;text-align:center;padding:22px">ยังไม่มีรายการตามเงื่อนไขนี้</div>';
-    else wEl.innerHTML='<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:960px"><thead><tr style="border-bottom:1px solid var(--bd)">'
-      +'<th style="text-align:left;padding:8px;color:var(--sub);font-size:10px">วันศุกร์</th><th style="text-align:left;padding:8px;color:var(--sub);font-size:10px">Member</th><th style="text-align:left;padding:8px;color:var(--sub);font-size:10px">Week</th><th style="text-align:left;padding:8px;color:var(--sub);font-size:10px">LT</th><th style="text-align:left;padding:8px;color:var(--sub);font-size:10px">สถานะ</th><th style="text-align:right;padding:8px;color:var(--sub);font-size:10px">Action</th></tr></thead><tbody>'
-      +upcoming.map(function(s){
+    else {
+      var lastDate='', rowsHtml='';
+      upcoming.forEach(function(s){
         var m=memById[s.member_id]||{};
         var sid=String(s.id||'').replace(/[^a-zA-Z0-9_-]/g,'_');
-        return '<tr style="border-bottom:1px solid var(--bd)">'
-          +'<td style="padding:9px 8px;font-weight:800;white-space:nowrap">'+passportFmtDate(s.scheduled_date)+'</td>'
+        if(String(s.scheduled_date)!==lastDate){
+          lastDate=String(s.scheduled_date||'');
+          var dayCount=upcoming.filter(function(x){return String(x.scheduled_date||'')===lastDate;}).length;
+          rowsHtml+='<tr><td colspan="6" style="padding:9px 8px;background:var(--sf2);border-top:1px solid var(--bd);border-bottom:1px solid var(--bd)">'
+            +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">'
+            +'<span style="font-size:12px;font-weight:900;color:var(--ac)">📅 '+passportFmtDate(lastDate)+'</span>'
+            +'<span style="font-size:10px;color:var(--sub);font-weight:700">'+dayCount+' sessions</span></div></td></tr>';
+        }
+        rowsHtml+='<tr style="border-bottom:1px solid var(--bd)">'
+          +'<td style="padding:9px 8px;font-weight:800;white-space:nowrap;color:var(--sub)">W'+(s.week_no||'—')+'</td>'
           +'<td style="padding:9px 8px;font-weight:800">'+passportMemberLabel(m)+'</td>'
-          +'<td style="padding:9px 8px"><div style="font-weight:800">W'+(s.week_no||'—')+'</div><div style="font-size:10px;color:var(--sub)">'+esc(s.title||'')+'</div></td>'
+          +'<td style="padding:9px 8px;min-width:260px"><div style="font-weight:800">'+esc(s.title||'')+'</div>'
+          +(s.description?'<div style="font-size:10px;color:var(--sub);line-height:1.45;margin-top:3px;max-width:420px">'+esc(s.description).slice(0,180)+(String(s.description).length>180?'…':'')+'</div>':'')+'</td>'
           +'<td style="padding:9px 8px;min-width:230px"><div style="font-weight:700">'+esc(s.assigned_lt_name||'ยังไม่กำหนด')+'</div><div style="font-size:10px;color:var(--sub);margin-bottom:5px">'+esc(s.lt_role||'—')+'</div>'
           +'<div style="display:flex;gap:5px;align-items:center"><select id="pass-session-lt-'+sid+'" style="max-width:155px;background:var(--sf);border:1px solid var(--bd);color:var(--tx);border-radius:7px;padding:4px 6px;font-size:10px">'+sessionMemberOpts+'</select>'
           +'<button class="bsm" onclick="passportAssignSession(\''+s.id+'\',\''+sid+'\')" style="font-size:10px">กำหนด</button></div></td>'
@@ -5099,8 +5114,11 @@ function renderPassportBoard(){
           +'<button class="bsm" onclick="passportReschedule(\''+s.id+'\')" style="font-size:10px">เลื่อน</button> '
           +'<button class="bsm" onclick="passportSessionStatus(\''+s.id+'\',\'missed\')" style="font-size:10px;color:var(--re)">พลาด</button>'
           +'</td></tr>';
-      }).join('')+'</tbody></table></div>';
-    setTimeout(function(){upcoming.forEach(function(s){var sid=String(s.id||'').replace(/[^a-zA-Z0-9_-]/g,'_'),el=document.getElementById('pass-session-lt-'+sid);if(el&&s.assigned_lt_member_id)el.value=s.assigned_lt_member_id;});},0);
+      });
+      wEl.innerHTML='<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:980px"><thead><tr style="border-bottom:1px solid var(--bd)">'
+        +'<th style="text-align:left;padding:8px;color:var(--sub);font-size:10px;width:56px">Week</th><th style="text-align:left;padding:8px;color:var(--sub);font-size:10px">Member</th><th style="text-align:left;padding:8px;color:var(--sub);font-size:10px">Passport Topic</th><th style="text-align:left;padding:8px;color:var(--sub);font-size:10px">คนที่ต้องพบ / เซ็น</th><th style="text-align:left;padding:8px;color:var(--sub);font-size:10px">สถานะ</th><th style="text-align:right;padding:8px;color:var(--sub);font-size:10px">Action</th></tr></thead><tbody>'+rowsHtml+'</tbody></table></div>';
+      setTimeout(function(){upcoming.forEach(function(s){var sid=String(s.id||'').replace(/[^a-zA-Z0-9_-]/g,'_'),el=document.getElementById('pass-session-lt-'+sid);if(el&&s.assigned_lt_member_id)el.value=s.assigned_lt_member_id;});},0);
+    }
   }
 
   var roleOrder=(templates||[]).map(function(t){return t.lt_role;}).filter(function(v,i,a){return v&&a.indexOf(v)===i;});
