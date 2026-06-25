@@ -18,11 +18,21 @@
 // ============================================================
 
 import { getServiceClient } from '../_shared/db.ts';
-import { linePush, lineMulticast } from '../_shared/line.ts';
+import {
+  bangkokDateKey,
+  bangkokWeekKey,
+  buildIdempotencyKey,
+  linePush,
+  lineMulticast,
+  renewalMilestone,
+} from '../_shared/line.ts';
+import { provisionLineExperience } from '../_shared/line-provision.ts';
 
 Deno.serve(async (req: Request) => {
   const authHeader = req.headers.get('Authorization') || '';
-  const expected   = `Bearer ${Deno.env.get('CRON_SECRET') || ''}`;
+  const cronSecret = Deno.env.get('CRON_SECRET') || '';
+  if (!cronSecret) return new Response('CRON_SECRET is not configured', { status: 503 });
+  const expected   = `Bearer ${cronSecret}`;
   if (authHeader !== expected) return new Response('Unauthorized', { status: 401 });
 
   let body: { job: string };
@@ -45,6 +55,11 @@ Deno.serve(async (req: Request) => {
       case 'line121AutoReminder':     await line121AutoReminder(db);      break;
       case 'renewalPush':             await renewalPush(db);              break;
       case 'purgeExpiredDismissals':  await purgeExpiredDismissals(db);   break;
+      case 'provisionLineExperience': {
+        const result = await provisionLineExperience(db);
+        console.log('[cron-jobs] LINE provisioned:', JSON.stringify(result));
+        break;
+      }
       default:
         console.warn(`[cron-jobs] Unknown job: ${job}`);
     }
@@ -80,10 +95,30 @@ interface MemberRow {
   absent:      number;  // absence count
 }
 
-// ── Helper: get all LINE user IDs ─────────────────────────────
-async function getAllLineUserIds(db: DB): Promise<string[]> {
-  const { data } = await db.from('line_members').select('line_user_id');
-  return (data || []).map((r: { line_user_id: string }) => r.line_user_id);
+async function getLineRecipients(db: DB, notificationType: string): Promise<string[]> {
+  const { data: links } = await db.from('line_members').select('line_user_id, member_id');
+  if (!links?.length) return [];
+  const memberIds = links.map((row: { member_id: string }) => row.member_id);
+  const { data: muted } = await db.from('line_notif_settings')
+    .select('member_id, notif_type')
+    .in('member_id', memberIds)
+    .eq('is_muted', true)
+    .in('notif_type', [notificationType, 'all']);
+  const mutedIds = new Set((muted || []).map((row: { member_id: string }) => row.member_id));
+  return links
+    .filter((row: { member_id: string }) => !mutedIds.has(row.member_id))
+    .map((row: { line_user_id: string }) => row.line_user_id);
+}
+
+async function getMcLineId(db: DB): Promise<string | null> {
+  const { data } = await db.from('settings')
+    .select('key, value')
+    .in('key', ['MC_LINE_USER_ID', 'MC_LINE_ID', 'LINE_ID_MC']);
+  for (const key of ['MC_LINE_USER_ID', 'MC_LINE_ID', 'LINE_ID_MC']) {
+    const value = (data || []).find((row: { key: string }) => row.key === key)?.value;
+    if (value) return String(value);
+  }
+  return null;
 }
 
 // ── Helper: get member data with PALMS breakdown ──────────────
@@ -126,19 +161,19 @@ const TL: Record<string, string> = { green: '🟢', yellow: '🟡', red: '🔴',
 
 // ── Monday 08:00 TH: chapter overview → MC + short motivation → all ──
 async function mondayMorningBrief(db: DB): Promise<void> {
+  const weekKey = bangkokWeekKey();
   // MC detailed brief
-  const { data: setting } = await db.from('settings').select('value').eq('key', 'MC_LINE_USER_ID').single();
-  const mcId = (setting as Record<string, string>)?.value;
+  const mcId = await getMcLineId(db);
 
   if (mcId) {
     const { data: counts } = await db.from('v_member_dashboard')
       .select('traffic_light').eq('is_archived', false);
-    const tally = { green: 0, yellow: 0, red: 0, black: 0 };
+    const tally = { green: 0, yellow: 0, red: 0, black: 0, none: 0 };
     (counts || []).forEach((r: { traffic_light: string }) => {
-      const k = r.traffic_light as keyof typeof tally;
-      if (k in tally) tally[k]++;
+      const k = (r.traffic_light || 'none') as keyof typeof tally;
+      if (k in tally) tally[k]++; else tally.none++;
     });
-    const total = tally.green + tally.yellow + tally.red + tally.black;
+    const total = tally.green + tally.yellow + tally.red + tally.black + tally.none;
     await linePush(mcId,
       `📊 BNI IDEAL — Monday Brief\n` +
       `────────────────────\n` +
@@ -146,13 +181,20 @@ async function mondayMorningBrief(db: DB): Promise<void> {
       `🟡 เหลือง: ${tally.yellow} คน\n` +
       `🔴 แดง  : ${tally.red} คน\n` +
       `⚫ ดำ   : ${tally.black} คน\n` +
+      (tally.none ? `⬜ ยังไม่มีข้อมูล: ${tally.none} คน\n` : '') +
       `────────────────────\n` +
-      `รวม ${total} คน · ดูรายละเอียดใน Dashboard`
+      `รวม ${total} คน · ดูรายละเอียดใน Dashboard`,
+      {
+        db,
+        idempotencyKey: `cron:monday-brief:mc:${weekKey}`,
+        notificationType: 'monday_brief',
+        source: 'cron-jobs',
+      },
     );
   }
 
   // Short motivation to all registered members
-  const userIds = await getAllLineUserIds(db);
+  const userIds = await getLineRecipients(db, 'monday_brief');
   if (userIds.length) {
     await lineMulticast(userIds,
       `🌅 สัปดาห์ใหม่ BNI IDEAL!\n` +
@@ -162,21 +204,20 @@ async function mondayMorningBrief(db: DB): Promise<void> {
       `🤝 นัด 1-2-1 อย่างน้อย 1 ครั้ง\n` +
       `👥 ชวน Visitor มาประชุมวันพฤหัส\n` +
       `────────────────────\n` +
-      `พิมพ์ "สถานะ" ดูคะแนนของคุณ`
+      `พิมพ์ "สถานะ" ดูคะแนนของคุณ`,
+      {
+        db,
+        idempotencyKey: `cron:monday-brief:members:${weekKey}`,
+        notificationType: 'monday_brief',
+        source: 'cron-jobs',
+      },
     );
   }
 }
 
 // ── Wednesday night TH: short pre-meeting ping ───────────────
 async function wednesdayNudge(db: DB): Promise<void> {
-  const userIds = await getAllLineUserIds(db);
-  // Filter muted
-  const { data: muted } = await db.from('line_notif_settings')
-    .select('member_id').eq('notif_type', 'nudge').eq('is_muted', true);
-  const mutedSet = new Set((muted || []).map((r: { member_id: string }) => r.member_id));
-  const { data: lm } = await db.from('line_members').select('line_user_id, member_id').in('line_user_id', userIds);
-  const ids = (lm || []).filter((r: Record<string, unknown>) => !mutedSet.has(String(r.member_id)))
-    .map((r: Record<string, unknown>) => String(r.line_user_id));
+  const ids = await getLineRecipients(db, 'nudge');
   if (ids.length) {
     await lineMulticast(ids,
       `⏰ พรุ่งนี้ประชุม BNI ครับ!\n` +
@@ -184,7 +225,13 @@ async function wednesdayNudge(db: DB): Promise<void> {
       `เตรียมอะไรไว้บ้างแล้ว?\n` +
       `• Referral ✍️\n• Visitor 👥\n• 1-2-1 🤝\n` +
       `────────────────────\n` +
-      `ดูคะแนน → พิมพ์ "สถานะ"`
+      `ดูคะแนน → พิมพ์ "สถานะ"`,
+      {
+        db,
+        idempotencyKey: `cron:wednesday-nudge:${bangkokWeekKey()}`,
+        notificationType: 'nudge',
+        source: 'cron-jobs',
+      },
     );
   }
 }
@@ -220,14 +267,29 @@ async function thursdayBotPush(db: DB): Promise<void> {
       `────────────────────\n` +
       `พิมพ์ "สถานะ" ดูรายละเอียดครับ`;
 
-    await linePush(String(rec.line_user_id), msg);
+    const memberId = String(rec.member_id || '');
+    const { data: muted } = await db.from('line_notif_settings')
+      .select('member_id')
+      .eq('member_id', memberId)
+      .eq('is_muted', true)
+      .in('notif_type', ['score', 'all'])
+      .limit(1);
+    if (muted?.length) continue;
+
+    await linePush(String(rec.line_user_id), msg, {
+      db,
+      idempotencyKey: `cron:thursday-score:${memberId}:${bangkokWeekKey()}`,
+      memberId,
+      notificationType: 'score',
+      source: 'cron-jobs',
+    });
   }
 }
 
 // ── Friday 13:00 TH: post-meeting recap + leaderboard ────────
 async function fridayEveningReminder(db: DB): Promise<void> {
   // 1. Post-meeting message to all members
-  const userIds = await getAllLineUserIds(db);
+  const userIds = await getLineRecipients(db, 'post_meeting');
   if (userIds.length) {
     await lineMulticast(userIds,
       `🏆 BNI ประชุมเสร็จแล้ว! เยี่ยมมาก!\n` +
@@ -237,13 +299,18 @@ async function fridayEveningReminder(db: DB): Promise<void> {
       `🤝 จัดเวลา 1-2-1 กับเพื่อนที่นัดไว้\n` +
       `📝 ส่ง Thank You Note ให้คนที่ส่ง Ref ให้คุณ\n` +
       `────────────────────\n` +
-      `พิมพ์ "สถานะ" เพื่อดูคะแนนอัปเดต`
+      `พิมพ์ "สถานะ" เพื่อดูคะแนนอัปเดต`,
+      {
+        db,
+        idempotencyKey: `cron:friday-recap:members:${bangkokWeekKey()}`,
+        notificationType: 'post_meeting',
+        source: 'cron-jobs',
+      },
     );
   }
 
   // 2. Team leaderboard to MC
-  const { data: setting } = await db.from('settings').select('value').eq('key', 'MC_LINE_USER_ID').single();
-  const mcId = (setting as Record<string, string>)?.value;
+  const mcId = await getMcLineId(db);
   if (!mcId) return;
 
   const { data: teams } = await db.from('mentor_teams').select('name');
@@ -261,18 +328,28 @@ async function fridayEveningReminder(db: DB): Promise<void> {
     const b = (members as { traffic_light: string }[]).filter(m => m.traffic_light === 'black').length;
     lines.push(`${team.name}\nAvg ${avg}pt  🟢${g} 🟡${y} 🔴${r} ⚫${b}`);
   }
-  await linePush(mcId, lines.join('\n────\n'));
+  await linePush(mcId, lines.join('\n────\n'), {
+    db,
+    idempotencyKey: `cron:friday-leaderboard:mc:${bangkokWeekKey()}`,
+    notificationType: 'chapter_pulse',
+    source: 'cron-jobs',
+  });
 }
 
 // ── Monthly: brief summary to MC ─────────────────────────────
 async function monthlyRecap(db: DB): Promise<void> {
-  const { data: setting } = await db.from('settings').select('value').eq('key', 'MC_LINE_USER_ID').single();
-  const mcId = (setting as Record<string, string>)?.value;
+  const mcId = await getMcLineId(db);
   if (!mcId) return;
   await linePush(mcId,
     `📊 Monthly Recap\n────────────────────\n` +
     `เข้า Dashboard เพื่อดูสรุปประจำเดือน\n` +
-    `และวางแผน Coaching เดือนหน้าครับ`
+    `และวางแผน Coaching เดือนหน้าครับ`,
+    {
+      db,
+      idempotencyKey: `cron:monthly-recap:mc:${bangkokDateKey().slice(0, 7)}`,
+      notificationType: 'monthly_recap',
+      source: 'cron-jobs',
+    },
   );
 }
 
@@ -313,7 +390,16 @@ async function mentorTeamAlert(db: DB): Promise<void> {
     lines.push('────────────────────');
     lines.push('แนะนำนัด 1-2-1 เพื่อวาง Action Plan ครับ');
 
-    await linePush(mentorUserId, lines.join('\n'));
+    const snapshotKey = await buildIdempotencyKey((members as {
+      name: string; display_score: number; traffic_light: string;
+    }[]).map((member) => `${member.name}:${member.display_score}:${member.traffic_light}`).sort());
+    await linePush(mentorUserId, lines.join('\n'), {
+      db,
+      idempotencyKey: `cron:mentor-alert:${team.name}:${bangkokWeekKey()}:${snapshotKey}`,
+      memberId: String((mentorMember as { id: string }).id),
+      notificationType: 'mentor_alert',
+      source: 'cron-jobs',
+    });
   }
 }
 
@@ -322,7 +408,7 @@ async function line121AutoReminder(db: DB): Promise<void> {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 7);
   const { data: pending } = await db.from('one_to_one_logs')
-    .select('initiator_id, partner_id, members!initiator_id(name), line_members!inner(line_user_id)')
+    .select('id, initiator_id, partner_id, members!initiator_id(name), line_members!inner(line_user_id)')
     .lt('scheduled_date', cutoff.toISOString().split('T')[0])
     .is('met_at', null);
   for (const rec of (pending || []) as Record<string, unknown>[]) {
@@ -331,7 +417,14 @@ async function line121AutoReminder(db: DB): Promise<void> {
     await linePush(userId,
       `🤝 มีนัด 1-2-1 ที่ยังค้างอยู่ครับ\n` +
       `────────────────────\n` +
-      `พิมพ์ "เจอแล้ว" หลังจากพบกันแล้วนะครับ`
+      `พิมพ์ "เจอแล้ว" หลังจากพบกันแล้วนะครับ`,
+      {
+        db,
+        idempotencyKey: `cron:121-reminder:${String(rec.id)}:${bangkokWeekKey()}`,
+        memberId: String(rec.initiator_id),
+        notificationType: '121_reminder',
+        source: 'cron-jobs',
+      },
     );
   }
 }
@@ -353,13 +446,28 @@ async function renewalPush(db: DB): Promise<void> {
     const days = Math.floor((new Date(String(rec.expiry_date)).getTime() - Date.now()) / 86400000);
     const nick = (rec.members as Record<string, string>)?.nickname || name.split(' ')[0];
     const userId = String((lineRec as Record<string, string>).line_user_id);
-    if (days < 0) {
-      await linePush(userId, `💳 คุณ${nick}: สมาชิกภาพหมดอายุแล้ว ‼️\nกรุณาติดต่อ MC เพื่อต่ออายุด่วนครับ`);
-    } else if (days <= 14) {
-      await linePush(userId, `💳 คุณ${nick}: สมาชิกภาพเหลือ ${days} วัน ⚠️\nต่ออายุก่อนหมดเขตนะครับ`);
-    } else {
-      await linePush(userId, `💳 คุณ${nick}: สมาชิกภาพเหลือ ${days} วัน\nอย่าลืมวางแผนต่ออายุนะครับ`);
-    }
+    const milestone = renewalMilestone(days);
+    if (!milestone) continue;
+    const { data: muted } = await db.from('line_notif_settings')
+      .select('member_id')
+      .eq('member_id', String(rec.member_id))
+      .eq('is_muted', true)
+      .in('notif_type', ['renewal', 'all'])
+      .limit(1);
+    if (muted?.length) continue;
+
+    const message = days < 0
+      ? `💳 คุณ${nick}: สมาชิกภาพหมดอายุแล้ว\nกรุณาติดต่อ MC เพื่อวางแผนขั้นตอนถัดไปครับ`
+      : days <= 14
+      ? `💳 คุณ${nick}: สมาชิกภาพเหลือ ${days} วัน ⚠️\nหากต้องการความช่วยเหลือเรื่องการต่ออายุ ติดต่อ Mentor หรือ MC ได้เลยครับ`
+      : `💳 คุณ${nick}: สมาชิกภาพเหลือ ${days} วัน\nเริ่มวางแผนการต่ออายุล่วงหน้าได้แล้วครับ`;
+    await linePush(userId, message, {
+      db,
+      idempotencyKey: `cron:renewal:${String(rec.member_id)}:${String(rec.expiry_date)}:${milestone}`,
+      memberId: String(rec.member_id),
+      notificationType: 'renewal',
+      source: 'cron-jobs',
+    });
   }
 }
 

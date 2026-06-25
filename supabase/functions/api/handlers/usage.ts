@@ -99,6 +99,62 @@ export async function handleUsage(p: Record<string, unknown>): Promise<Response>
       return jsonResponse({ ok: true, logs, teamStats });
     }
 
+    case 'getLineAnalytics': {
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const days = Math.min(Math.max(Number(p.days) || 30, 1), 180);
+      const since = new Date(Date.now() - days * 86400000).toISOString();
+      const [eventsRes, deliveryRes, aiRes] = await Promise.all([
+        db.from('line_product_events')
+          .select('event_name, source, member_id, occurred_at')
+          .gte('occurred_at', since),
+        db.from('line_message_deliveries')
+          .select('status, notification_type, source, created_at')
+          .gte('created_at', since),
+        db.from('ai_copilot_runs')
+          .select('status, actor_role, source, latency_ms, input_tokens, output_tokens, created_at')
+          .gte('created_at', since),
+      ]);
+      if (eventsRes.error) return errResponse(eventsRes.error.message);
+      if (deliveryRes.error) return errResponse(deliveryRes.error.message);
+      if (aiRes.error) return errResponse(aiRes.error.message);
+
+      const events = (eventsRes.data || []) as Record<string, unknown>[];
+      const deliveries = (deliveryRes.data || []) as Record<string, unknown>[];
+      const aiRuns = (aiRes.data || []) as Record<string, unknown>[];
+      const countBy = (rows: Record<string, unknown>[], key: string) =>
+        rows.reduce((acc: Record<string, number>, row) => {
+          const value = String(row[key] || 'unknown');
+          acc[value] = (acc[value] || 0) + 1;
+          return acc;
+        }, {});
+      const sent = deliveries.filter((row) => row.status === 'sent').length;
+      const failed = deliveries.filter((row) => row.status === 'failed').length;
+      const activeMembers = new Set(events.map((row) => row.member_id).filter(Boolean)).size;
+      const completedAi = aiRuns.filter((row) => row.status === 'completed');
+      const avgLatencyMs = completedAi.length
+        ? Math.round(completedAi.reduce((sum, row) => sum + Number(row.latency_ms || 0), 0) / completedAi.length)
+        : 0;
+
+      return jsonResponse({
+        ok: true,
+        periodDays: days,
+        summary: {
+          totalEvents: events.length,
+          activeMembers,
+          messagesSent: sent,
+          messagesFailed: failed,
+          deliverySuccessRate: sent + failed ? Math.round(sent * 1000 / (sent + failed)) / 10 : null,
+          copilotRuns: aiRuns.length,
+          copilotCompleted: completedAi.length,
+          avgCopilotLatencyMs: avgLatencyMs,
+        },
+        eventsByName: countBy(events, 'event_name'),
+        deliveriesByType: countBy(deliveries, 'notification_type'),
+        aiByRole: countBy(aiRuns, 'actor_role'),
+      });
+    }
+
     default:
       return errResponse(`Unknown usage action: ${action}`);
   }

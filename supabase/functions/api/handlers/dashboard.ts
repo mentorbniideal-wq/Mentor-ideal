@@ -198,9 +198,9 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       if (!auth.ok) return errResponse(auth.error!);
       let dashboardQuery = db
         .from('v_member_dashboard')
-        .select('id, name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb, tyfcb_thb, absent, attend, rg, rr, visitors, one_to_one, ceu, palms_detail, expiry_date, days_to_expiry, bni_days')
+        .select('id, name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb, tyfcb_thb, absent, attend, rg, rr, visitors, one_to_one, ceu, palms_detail, expiry_date, days_to_expiry, bni_days, membership_start_date, joined_date')
         .eq('is_archived', false)
-        .order('display_score', { ascending: false });
+        .order('display_score', { ascending: false, nullsFirst: false });
       if (!auth.isMC && auth.role !== 'growth' && auth.teamName) {
         dashboardQuery = dashboardQuery.eq('mentor_team', auth.teamName);
       }
@@ -245,11 +245,11 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         });
       }
 
-      // ── Batch-fetch phone/email/is_new_member/mentoring_mode (not in all views) ──
+      // ── Batch-fetch profile/contact fields not guaranteed in all views ──
       let contactRowsRaw: Record<string, unknown>[] = [];
       if (memberIds.length) {
         const { data: cr, error: crErr } = await db
-          .from('members').select('id, phone, email, is_new_member, mentoring_mode').in('id', memberIds);
+          .from('members').select('id, phone, email, is_new_member, mentoring_mode, profession, company_name, roster_synced_at').in('id', memberIds);
         if (!crErr && cr) {
           contactRowsRaw = cr as Record<string, unknown>[];
         } else if (crErr) {
@@ -259,12 +259,15 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
           contactRowsRaw = (cr2 || []) as Record<string, unknown>[];
         }
       }
-      const contactMap: Record<string, { phone: string; email: string; isNew: boolean; mentoringMode: string }> = {};
+      const contactMap: Record<string, { phone: string; email: string; isNew: boolean; mentoringMode: string; profession: string; companyName: string; rosterSyncedAt: string }> = {};
       for (const c of contactRowsRaw) {
         contactMap[String(c.id)] = {
           phone: String(c.phone || ''), email: String(c.email || ''),
           isNew: Boolean(c.is_new_member),
           mentoringMode: String(c.mentoring_mode || 'active'),
+          profession: String(c.profession || ''),
+          companyName: String(c.company_name || ''),
+          rosterSyncedAt: String(c.roster_synced_at || ''),
         };
       }
 
@@ -282,7 +285,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         const given   = Number(m.given_thb) || 0;
         const tyfcbV  = Number(m.tyfcb_thb) || 0;
         const absentV = Number(m.absent) || 0;
-        const contact = contactMap[mid] || { phone: '', email: '', isNew: false, mentoringMode: 'active' };
+        const contact = contactMap[mid] || { phone: '', email: '', isNew: false, mentoringMode: 'active', profession: '', companyName: '', rosterSyncedAt: '' };
 
         if (tl in summary) summary[tl]++;
 
@@ -390,11 +393,16 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
           ftNeeded: gapResult.ftNeeded,
           phone: auth.role === 'growth' ? '' : contact.phone,
           email: auth.role === 'growth' ? '' : contact.email,
+          profession: contact.profession,
+          companyName: contact.companyName,
+          rosterSyncedAt: contact.rosterSyncedAt,
           mentoringMode: contact.mentoringMode,
           noMentorContact: false, mentorContactDays: null as number | null,
           scoreAvg: hist.length ? Math.round(hist.reduce((a, v) => a + v, 0) / hist.length) : score,
           renewalSoon: m.days_to_expiry !== null && Number(m.days_to_expiry) <= 45,
           renewalDays: m.days_to_expiry !== null ? Number(m.days_to_expiry) : null,
+          membershipStartDate: m.membership_start_date ? String(m.membership_start_date) : null,
+          joinedDate: m.joined_date ? String(m.joined_date) : null,
         };
       });
 
@@ -494,7 +502,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       };
 
       // ── New member list ──
-      let nmQuery = db.from('members').select('name, nickname, mentor_team')
+      let nmQuery = db.from('members').select('name, nickname, mentor_team, joined_date, membership_start_date')
         .eq('is_new_member', true).eq('is_archived', false);
       if (!auth.isMC && auth.role !== 'growth' && auth.teamName) {
         nmQuery = nmQuery.eq('mentor_team', auth.teamName);
@@ -502,6 +510,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       const { data: nmRows } = await nmQuery;
       const nmList = (nmRows || []).map((m: Record<string, unknown>) => ({
         name: m.name, nick: m.nickname, mentor: m.mentor_team,
+        joinedDate: m.joined_date || m.membership_start_date || null,
       }));
 
       summary['total'] = members.length;
@@ -668,7 +677,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         .from('v_member_dashboard')
         .select('id, name, nickname, display_score, traffic_light, absent, tyfcb_thb, open_core_issue, given_thb, received_thb, palms_detail, days_to_expiry')
         .eq('mentor_team', teamName).eq('is_archived', false)
-        .order('display_score', { ascending: false });
+        .order('display_score', { ascending: false, nullsFirst: false });
       if (error) return errResponse(error.message);
 
       const memberIds = (members || []).map((m: Record<string, unknown>) => String(m.id));
@@ -758,7 +767,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       if (!auth.ok) return errResponse(auth.error!);
       const { data: rows, error } = await db
         .from('v_member_dashboard')
-        .select('name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb')
+        .select('id, name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb')
         .eq('is_archived', false);
       if (error) return errResponse(error.message);
 
@@ -774,21 +783,23 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         if (tl in tlCount) tlCount[tl]++;
       }
 
-      const { data: hist } = await db.from('v_score_history').select('nickname, score, sort_key').order('sort_key', { ascending: false });
+      // Key by member_id (not nickname) — handles null nicknames and duplicate display names
+      const { data: hist } = await db.from('v_score_history').select('member_id, score, sort_key').order('sort_key', { ascending: false });
       const trendMap: Record<string, { curr: number; prev: number }> = {};
       const seen: Record<string, number> = {};
       for (const s of (hist || []) as Record<string, unknown>[]) {
-        const nick = String(s.nickname || '');
-        if (!nick) continue;
-        seen[nick] = (seen[nick] || 0) + 1;
-        if (seen[nick] === 1) trendMap[nick] = { curr: Number(s.score), prev: 0 };
-        else if (seen[nick] === 2) trendMap[nick].prev = Number(s.score);
+        const mid = String(s.member_id || '');
+        if (!mid) continue;
+        seen[mid] = (seen[mid] || 0) + 1;
+        if (seen[mid] === 1) trendMap[mid] = { curr: Number(s.score), prev: 0 };
+        else if (seen[mid] === 2) trendMap[mid].prev = Number(s.score);
       }
 
       const movers = (rows || []).map((m: Record<string, unknown>) => {
+        const mid  = String(m.id || '');
         const nick = String(m.nickname || m.name || '');
         const name = String(m.name || nick);
-        const t = trendMap[nick];
+        const t = trendMap[mid];
         if (!t || !t.prev) return null;
         return { nick, name, tl: m.traffic_light, score: t.curr, prev: t.prev, delta: t.curr - t.prev };
       }).filter(Boolean) as Record<string, unknown>[];
@@ -805,7 +816,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       const { data: rows, error } = await db
         .from('v_member_dashboard')
         .select('name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb')
-        .eq('is_archived', false).order('display_score', { ascending: false });
+        .eq('is_archived', false).order('display_score', { ascending: false, nullsFirst: false });
       if (error) return errResponse(error.message);
       const members = (rows || []).map((m: Record<string, unknown>) => ({
         name: m.name, nick: m.nickname, mentor: m.mentor_team,
@@ -823,7 +834,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         .from('v_member_dashboard')
         .select('id, name, nickname, mentor_team, display_score, traffic_light, absent, given_thb, received_thb')
         .eq('is_archived', false)
-        .order('display_score', { ascending: false });
+        .order('display_score', { ascending: false, nullsFirst: false });
       if (memErr) return errResponse(memErr.message);
 
       const allMem = (memRows || []) as Record<string, unknown>[];

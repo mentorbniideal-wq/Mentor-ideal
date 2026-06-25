@@ -2,29 +2,38 @@
 // Handler: line-admin — saveLineId, getLineIds, sendLineMessage, onboarding, triggers, etc.
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
+import {
+  generateLinkToken,
+  linePush,
+  normalizeLinkToken,
+  sha256Hex,
+  type LineSendOptions,
+} from '../../_shared/line.ts';
+import {
+  buildRichMenu,
+  type RichMenuRole,
+} from '../../_shared/line-rich-menu.ts';
 
-// ── LINE Push helper — no-op when token is absent (dev mode) ──
+// ── Unified LINE Push helper — no-op when token is absent (dev mode) ──
 const LINE_TOKEN = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || '';
 
-async function sendLineMsg(userId: string, text: string): Promise<boolean> {
+async function sendLineMsg(
+  userId: string,
+  text: string,
+  options: LineSendOptions = {},
+): Promise<boolean> {
   if (!LINE_TOKEN) return false;
   try {
-    const res = await fetch('https://api.line.me/v2/bot/message/push', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LINE_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ to: userId, messages: [{ type: 'text', text }] }),
+    const db = options.db || getServiceClient();
+    const result = await linePush(userId, text, {
+      ...options,
+      db,
+      idempotencyKey: options.idempotencyKey || `line-admin:${crypto.randomUUID()}`,
+      source: options.source || 'api/line-admin',
     });
-    if (!res.ok) {
-      const body = await res.text();
-      console.error(`[sendLineMsg] LINE API error ${res.status}: ${body}`);
-      return false;
-    }
-    return true;
+    return result.sent || result.skipped;
   } catch (e) {
-    console.error('[sendLineMsg] fetch error:', e);
+    console.error('[sendLineMsg] LINE send error:', e);
     return false;
   }
 }
@@ -68,6 +77,105 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
   switch (action) {
 
+    // ── SECURE LINK: create one-time member link token (MC only) ─
+    case 'createLineLinkToken': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const memberId = String(p.memberId || '').trim()
+        || await findMemberId(db, String(p.memberName || '').trim());
+      if (!memberId) return errResponse('memberId หรือ memberName required');
+
+      const { data: member } = await db.from('members')
+        .select('id, name, nickname, is_archived')
+        .eq('id', memberId)
+        .maybeSingle();
+      if (!member || (member as Record<string, unknown>).is_archived) {
+        return errResponse('ไม่พบสมาชิกที่ใช้งานอยู่');
+      }
+
+      const { data: existingLink } = await db.from('line_members')
+        .select('line_user_id')
+        .eq('member_id', memberId)
+        .maybeSingle();
+      if (existingLink) return errResponse('สมาชิกคนนี้เชื่อม LINE แล้ว');
+
+      await db.from('line_link_tokens').update({ revoked_at: new Date().toISOString() })
+        .eq('member_id', memberId)
+        .is('used_at', null)
+        .is('revoked_at', null);
+
+      const token = normalizeLinkToken(generateLinkToken(10));
+      const expiresInMinutes = Math.min(
+        Math.max(Number(p.expiresInMinutes) || 30, 5),
+        1440,
+      );
+      const expiresAt = new Date(Date.now() + expiresInMinutes * 60_000).toISOString();
+      const { error } = await db.from('line_link_tokens').insert({
+        member_id: memberId,
+        token_hash: await sha256Hex(token),
+        expires_at: expiresAt,
+        created_by_role: auth.role || 'mc',
+      });
+      if (error) return errResponse(error.message);
+
+      const displayName = String(
+        (member as Record<string, unknown>).nickname
+        || (member as Record<string, unknown>).name
+        || '',
+      );
+      return jsonResponse({
+        ok: true,
+        memberId,
+        displayName,
+        token,
+        command: `เชื่อม ${token}`,
+        expiresAt,
+      });
+    }
+
+    case 'revokeLineLinkTokens': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const memberId = String(p.memberId || '').trim()
+        || await findMemberId(db, String(p.memberName || '').trim());
+      if (!memberId) return errResponse('memberId หรือ memberName required');
+      const { error } = await db.from('line_link_tokens')
+        .update({ revoked_at: new Date().toISOString() })
+        .eq('member_id', memberId)
+        .is('used_at', null)
+        .is('revoked_at', null);
+      if (error) return errResponse(error.message);
+      return jsonResponse({ ok: true });
+    }
+
+    // ── UNLINK: remove a member's LINE account binding (MC only) ─
+    case 'unlinkLineMember': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const memberId = String(p.memberId || '').trim()
+        || await findMemberId(db, String(p.memberName || '').trim());
+      if (!memberId) return errResponse('memberId หรือ memberName required');
+
+      const { data: existing } = await db.from('line_members')
+        .select('line_user_id').eq('member_id', memberId).maybeSingle();
+      if (!existing) return errResponse('สมาชิกคนนี้ไม่มีการเชื่อม LINE อยู่');
+
+      const [{ error: e1 }, { error: e2 }] = await Promise.all([
+        db.from('line_members').delete().eq('member_id', memberId),
+        db.from('line_bot_state').delete().eq('line_user_id',
+          String((existing as Record<string, unknown>).line_user_id)),
+      ]);
+      if (e1) return errResponse(e1.message);
+      // Revoke any pending tokens too
+      await db.from('line_link_tokens')
+        .update({ revoked_at: new Date().toISOString() })
+        .eq('member_id', memberId)
+        .is('used_at', null).is('revoked_at', null);
+      return jsonResponse({ ok: true, unlinked: !e2 });
+    }
+
     // ── SAVE: store role LINE User ID in settings table ──────────
     // Frontend sends { target: roleKey, lineId: lineUserId }
     // roleKey: 'mc' | 'TOOMTAM' | 'Aof' | 'Draft' | 'PHAI' | 'AMP' | 'growth'
@@ -80,13 +188,37 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       if (!target || !lineId) return errResponse('target and lineId required');
 
       const settingKey = `LINE_ID_${target.toUpperCase()}`;
+      const rows = [{ key: settingKey, value: lineId }];
+      if (target.toLowerCase() === 'mc') {
+        rows.push(
+          { key: 'MC_LINE_ID', value: lineId },
+          { key: 'MC_LINE_USER_ID', value: lineId },
+        );
+      }
       const { error } = await db.from('settings').upsert(
-        { key: settingKey, value: lineId },
+        rows,
         { onConflict: 'key' },
       );
       if (error) return errResponse(error.message);
 
-      return jsonResponse({ ok: true });
+      const menuRole = target.toLowerCase() === 'mc'
+        ? 'MC'
+        : target.toLowerCase() === 'growth'
+        ? 'GROWTH'
+        : 'MENTOR';
+      const { data: menuSetting } = await db.from('settings')
+        .select('value').eq('key', `LINE_RICH_MENU_${menuRole}`).maybeSingle();
+      const richMenuId = String((menuSetting as Record<string, unknown> | null)?.value || '');
+      let menuAssigned = false;
+      if (richMenuId && LINE_TOKEN) {
+        const assignRes = await fetch(
+          `https://api.line.me/v2/bot/user/${lineId}/richmenu/${richMenuId}`,
+          { method: 'POST', headers: { Authorization: `Bearer ${LINE_TOKEN}` } },
+        );
+        menuAssigned = assignRes.ok;
+      }
+
+      return jsonResponse({ ok: true, menuAssigned, menuRole: menuRole.toLowerCase() });
     }
 
     // ── GET: role LINE IDs from settings table (MC settings panel) ─
@@ -180,6 +312,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         const sd = scoreMap[id] || { score: 0, tl: 'none' };
         const regAt = row.registered_at ? new Date(String(row.registered_at)).toLocaleDateString('th-TH') : '—';
         return {
+          memberId:     id,
           userId:       String(row.line_user_id || ''),
           name:         String(m.name || ''),
           nick:         String(m.nickname || ''),
@@ -217,7 +350,11 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       if (!lineUserId) return errResponse('lineUserId หรือ memberName required');
 
       const { error } = await db.from('settings').upsert(
-        { key: 'MC_LINE_ID', value: lineUserId },
+        [
+          { key: 'MC_LINE_ID', value: lineUserId },
+          { key: 'MC_LINE_USER_ID', value: lineUserId },
+          { key: 'LINE_ID_MC', value: lineUserId },
+        ],
         { onConflict: 'key' },
       );
       if (error) return errResponse(error.message);
@@ -648,11 +785,112 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       return jsonResponse({ ok: true, sentCount });
     }
 
-    // ── SETUP RICH MENU (stub) ────────────────────────────────
+    // ── SETUP ROLE-BASED RICH MENUS ───────────────────────────
     case 'setupRichMenu': {
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
-      return jsonResponse({ ok: true, note: 'Rich Menu ต้องสร้างผ่าน LINE OA Manager แล้ว link ด้วย LINE API — ยังไม่ได้ implement' });
+      if (!LINE_TOKEN) return errResponse('LINE_CHANNEL_ACCESS_TOKEN ยังไม่ได้ตั้งค่า');
+
+      const appUrl = String(
+        p.appUrl || Deno.env.get('PUBLIC_APP_URL') || 'https://bni-mentor-system.vercel.app',
+      ).replace(/\/$/, '');
+      const liffUrl = String(
+        p.liffUrl || Deno.env.get('LINE_LIFF_URL') || `${appUrl}/liff/`,
+      ).replace(/\/$/, '');
+      const requestedRole = String(p.menuRole || p.targetRole || 'all').toLowerCase();
+      const roles: RichMenuRole[] = requestedRole === 'all'
+        ? ['member', 'mentor', 'mc', 'growth']
+        : ['member', 'mentor', 'mc', 'growth'].includes(requestedRole)
+        ? [requestedRole as RichMenuRole]
+        : [];
+      if (!roles.length) return errResponse('menuRole ต้องเป็น member, mentor, mc, growth หรือ all');
+
+      const results: Record<string, unknown>[] = [];
+      for (const role of roles) {
+        const definition = buildRichMenu(role, liffUrl, appUrl);
+        const createRes = await fetch('https://api.line.me/v2/bot/richmenu', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${LINE_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(definition),
+        });
+        const createBody = await createRes.text();
+        if (!createRes.ok) {
+          results.push({ role, ok: false, error: `create ${createRes.status}: ${createBody}` });
+          continue;
+        }
+        const richMenuId = String((JSON.parse(createBody) as Record<string, unknown>).richMenuId || '');
+        const imageUrl = `${appUrl}/assets/line/rich-menu-${role}-v2.jpg`;
+        const imageRes = await fetch(imageUrl);
+        if (!imageRes.ok) {
+          results.push({ role, ok: false, richMenuId, error: `image ${imageRes.status}: ${imageUrl}` });
+          continue;
+        }
+        const uploadRes = await fetch(`https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${LINE_TOKEN}`,
+            'Content-Type': 'image/jpeg',
+          },
+          body: await imageRes.arrayBuffer(),
+        });
+        if (!uploadRes.ok) {
+          results.push({
+            role,
+            ok: false,
+            richMenuId,
+            error: `upload ${uploadRes.status}: ${(await uploadRes.text()).slice(0, 500)}`,
+          });
+          continue;
+        }
+
+        await db.from('settings').upsert(
+          { key: `LINE_RICH_MENU_${role.toUpperCase()}`, value: richMenuId },
+          { onConflict: 'key' },
+        );
+        if (role === 'member') {
+          const defaultRes = await fetch(
+            `https://api.line.me/v2/bot/user/all/richmenu/${richMenuId}`,
+            { method: 'POST', headers: { Authorization: `Bearer ${LINE_TOKEN}` } },
+          );
+          if (!defaultRes.ok) {
+            results.push({
+              role, ok: false, richMenuId,
+              error: `default ${defaultRes.status}: ${(await defaultRes.text()).slice(0, 500)}`,
+            });
+            continue;
+          }
+        }
+        results.push({ role, ok: true, richMenuId, imageUrl });
+      }
+
+      return jsonResponse({
+        ok: results.every((result) => result.ok === true),
+        appUrl,
+        liffUrl,
+        results,
+      });
+    }
+
+    case 'assignRichMenu': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      if (!LINE_TOKEN) return errResponse('LINE_CHANNEL_ACCESS_TOKEN ยังไม่ได้ตั้งค่า');
+      const lineUserId = String(p.lineUserId || '').trim();
+      const menuRole = String(p.menuRole || 'member').toUpperCase();
+      if (!lineUserId) return errResponse('lineUserId required');
+      const { data: setting } = await db.from('settings')
+        .select('value').eq('key', `LINE_RICH_MENU_${menuRole}`).maybeSingle();
+      const richMenuId = String((setting as Record<string, unknown> | null)?.value || '');
+      if (!richMenuId) return errResponse(`ยังไม่มี Rich Menu สำหรับ ${menuRole}`);
+      const response = await fetch(
+        `https://api.line.me/v2/bot/user/${lineUserId}/richmenu/${richMenuId}`,
+        { method: 'POST', headers: { Authorization: `Bearer ${LINE_TOKEN}` } },
+      );
+      if (!response.ok) return errResponse(`LINE API ${response.status}: ${await response.text()}`);
+      return jsonResponse({ ok: true, lineUserId, menuRole, richMenuId });
     }
 
     // ── SETUP ALL CRON TRIGGERS (calls DB function) ───────────

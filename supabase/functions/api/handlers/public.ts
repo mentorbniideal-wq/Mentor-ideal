@@ -183,6 +183,73 @@ export async function handlePublic(p: Record<string, unknown>): Promise<Response
       });
     }
 
+    // ── getTrainingEvents — public, no auth ─────────────────────
+    // Returns events in the same shape as TRAINING_EVENTS hardcoded array in index.html
+    // so they merge seamlessly in trAllEvents().
+    case 'getTrainingEvents': {
+      const daysAhead = Math.min(365, Math.max(7, Number(p.daysAhead || 120)));
+      const today = new Date();
+      const from = today.toISOString().split('T')[0];
+      const until = new Date(today.getTime() + daysAhead * 86400000).toISOString().split('T')[0];
+
+      const { data: rows, error } = await db.from('bni_events')
+        .select('event_no,name,event_date,time_start,time_end,ceu,category,audience,is_online,location,price_thb,note_th,venue_region')
+        .gte('event_date', from)
+        .lte('event_date', until)
+        .order('event_date', { ascending: true });
+      if (error) return errResponse(error.message);
+
+      // Map category → course value expected by frontend trTags()
+      const courseMap: Record<string, string> = {
+        msp: 'msp', skill: 'skill', lt: 'club', club: 'club', event: 'event',
+      };
+      // Map audience string → audience array expected by trMatch()
+      const audMap: Record<string, string[]> = {
+        all: [], mentor: ['mentor', 'leader'], growth: ['mentor'],
+        new_member: ['new'], lt: ['leader'], president: ['leader'],
+        vp: ['leader'], st: ['leader'],
+      };
+
+      const events = (rows || []).map((r: Record<string, unknown>) => {
+        const name   = String(r.name || '');
+        const cat    = String(r.category || 'skill');
+        const tStart = String(r.time_start || '').slice(0, 5);
+        const tEnd   = String(r.time_end   || '').slice(0, 5);
+        const audStr = String(r.audience || 'all');
+        const ceu    = Number(r.ceu) || 0;
+
+        // Determine course sub-type
+        let course = courseMap[cat] || 'event';
+        if (cat === 'msp' && name.includes('Advanced')) course = 'advanced';
+        if (cat === 'skill') {
+          if (name.includes('1-2-1')) course = '121';
+          else if (name.includes('Networking')) course = 'networking';
+        }
+
+        // Build audience array
+        const audArr: string[] = [...(audMap[audStr] || [])];
+        if (ceu > 0 && !audArr.includes('ceu')) audArr.push('ceu');
+        if (audArr.length === 0) audArr.push('ceu'); // default
+
+        return {
+          date:         String(r.event_date || ''),
+          title:        name,
+          course,
+          format:       r.is_online ? 'online' : 'onsite',
+          time:         tStart && tEnd ? `${tStart}-${tEnd}` : tStart,
+          location:     String(r.location || ''),
+          price:        String(r.price_thb || ''),
+          early:        '',
+          audience:     audArr,
+          note:         String(r.note_th || ''),
+          venueRegion:  r.venue_region ? String(r.venue_region) : null,
+          ceu:          Number(r.ceu) || 0,
+          _source:      'bni_events',
+        };
+      });
+      return jsonResponse({ ok: true, events });
+    }
+
     default:
       return errResponse(`Unknown public action: ${action}`);
   }

@@ -33,12 +33,14 @@ import { handleComms }      from './handlers/comms.ts';
 import { handleLineAdmin }  from './handlers/line-admin.ts';
 import { handleUsage }         from './handlers/usage.ts';
 import { handleNotifications } from './handlers/notifications.ts';
+import { handleCopilot } from './handlers/copilot.ts';
 
 // ── Public actions that require NO PIN ────────────────────────
 const PUBLIC_ACTIONS = new Set([
   'getMemberDirectory',
   'getSimulateData',
   'getMemberPublicDetail',
+  'getTrainingEvents',
 ]);
 
 const AUTH_ACTIONS = new Set([
@@ -69,7 +71,7 @@ const ROUTES: Record<string, string> = {
 
   // Public (anon)
   'getMemberDirectory': 'public', 'getSimulateData': 'public',
-  'getMemberPublicDetail': 'public',
+  'getMemberPublicDetail': 'public', 'getTrainingEvents': 'public',
 
   // Members
   'getMemberList': 'members', 'addNewMember': 'members',
@@ -77,13 +79,18 @@ const ROUTES: Record<string, string> = {
   'moveMemberToTeam': 'members', 'getMembersByTeam': 'members',
   'getTeamHistory': 'members',
   'setMentoringMode': 'members',
-  'archiveMember': 'members', 'unarchiveMember': 'members', 'deleteMember': 'members',
+  'archiveMember': 'members', 'unarchiveMember': 'members', 'deleteMember': 'members', 'updateMember': 'members',
   'removeNewMember': 'members', 'getArchivedMembers': 'members',
   'getNewMembers': 'members', 'saveMemberNote': 'members',
   'getMemberNote': 'members', 'saveScore': 'members',
   'saveStatus': 'members', 'ensureSlot': 'members',
   'getNMChecklist': 'members', 'saveNMCheckItem': 'members',
   'getAdminEmails': 'members', 'addAdminEmail': 'members', 'removeAdminEmail': 'members',
+  'saveTrainingEvent': 'members', 'deleteTrainingEvent': 'members',
+  'previewRosterImport': 'members', 'syncRosterImport': 'members',
+  'previewPalmsSummaryImport': 'members', 'syncPalmsSummaryImport': 'members',
+  'getPassportBoard': 'members', 'syncPassportEnrollments': 'members',
+  'updatePassportSession': 'members', 'savePassportLtAssignment': 'members',
 
   // Coaching / Core Issue
   'saveCoreIssue': 'coaching', 'getCoachingGuide': 'coaching',
@@ -148,6 +155,7 @@ const ROUTES: Record<string, string> = {
 
   // LINE Admin
   'saveLineId': 'line-admin', 'getLineIds': 'line-admin',
+  'createLineLinkToken': 'line-admin', 'revokeLineLinkTokens': 'line-admin', 'unlinkLineMember': 'line-admin',
   'getLineMembers': 'line-admin', 'getLineMembersDetail': 'line-admin',
   'sendLineMessage': 'line-admin', 'sendLineBroadcast': 'line-admin',
   'sendLineIntro': 'line-admin', 'setMCLineId': 'line-admin',
@@ -155,7 +163,7 @@ const ROUTES: Record<string, string> = {
   'enrollOnboarding': 'line-admin', 'removeOnboarding': 'line-admin',
   'sendOnboardingWeek': 'line-admin', 'getOnboardingStatus': 'line-admin',
   'getOnboardingMessages': 'line-admin', 'saveOnboardingMessage': 'line-admin', 'getOnboardingPreview': 'line-admin',
-  'mentorBroadcast': 'line-admin', 'setupRichMenu': 'line-admin',
+  'mentorBroadcast': 'line-admin', 'setupRichMenu': 'line-admin', 'assignRichMenu': 'line-admin',
   'setupAllTriggers': 'line-admin', 'testLineConnection': 'line-admin',
   'triggerScoreAlert': 'line-admin', 'triggerAnniversary': 'line-admin',
   'triggerCheckinReminder': 'line-admin', 'triggerChapterPulse': 'line-admin',
@@ -164,8 +172,11 @@ const ROUTES: Record<string, string> = {
   'triggerMondayBrief': 'line-admin', 'triggerMonthlyRecap': 'line-admin',
   'trigger121Reminder': 'line-admin', 'getAbsenceLogRecent': 'line-admin',
 
+  // AI Copilot (read-only recommendations; write actions require separate confirmation)
+  'askCopilot': 'copilot',
+
   // Usage
-  'logUsage': 'usage', 'getUsageLog': 'usage',
+  'logUsage': 'usage', 'getUsageLog': 'usage', 'getLineAnalytics': 'usage',
 };
 
 const HANDLERS: Record<string, (p: Record<string, unknown>) => Promise<Response>> = {
@@ -185,6 +196,7 @@ const HANDLERS: Record<string, (p: Record<string, unknown>) => Promise<Response>
   'comms':       handleComms,
   'line-admin':  handleLineAdmin,
   'usage':       handleUsage,
+  'copilot':     handleCopilot,
 };
 
 // ── Main entry point ──────────────────────────────────────────

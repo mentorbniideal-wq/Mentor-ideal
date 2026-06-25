@@ -1,5 +1,6 @@
 import { requireAdminAccess } from '../../_shared/admin-auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
+import { lineMulticast, linePush } from '../../_shared/line.ts';
 
 export async function handleAdminBroadcast(p: Record<string, unknown>): Promise<Response> {
   const db   = getServiceClient();
@@ -27,34 +28,40 @@ export async function handleAdminBroadcast(p: Record<string, unknown>): Promise<
 
     if (!message) return errResponse('message required');
 
-    const LINE_TOKEN = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || '';
     let lineDelivered   = false;
     let recipientCount  = 0;
 
-    if (LINE_TOKEN) {
+    if (Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN')) {
       try {
-        const msgs = [{ type: 'text', text: message }];
+        const sendKey = `admin-broadcast:${crypto.randomUUID()}`;
 
         if (targetUserId) {
-          // Push to specific user
-          const res = await fetch('https://api.line.me/v2/bot/message/push', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${LINE_TOKEN}` },
-            body: JSON.stringify({ to: targetUserId, messages: msgs }),
+          const result = await linePush(targetUserId, message, {
+            db,
+            idempotencyKey: sendKey,
+            notificationType: 'admin_broadcast',
+            source: 'admin-api/broadcast',
           });
-          lineDelivered  = res.ok;
+          lineDelivered = result.sent || result.skipped;
           recipientCount = lineDelivered ? 1 : 0;
         } else {
-          // Broadcast to all followers
-          const res = await fetch('https://api.line.me/v2/bot/message/broadcast', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${LINE_TOKEN}` },
-            body: JSON.stringify({ messages: msgs }),
+          // Send only to registered members, preserving access and audit boundaries.
+          const { data: links } = await db.from('line_members').select('line_user_id');
+          const userIds = ((links || []) as { line_user_id: string }[])
+            .map((row) => row.line_user_id)
+            .filter(Boolean);
+          const results = await lineMulticast(userIds, message, {
+            db,
+            idempotencyKey: sendKey,
+            notificationType: 'admin_broadcast',
+            source: 'admin-api/broadcast',
           });
-          lineDelivered  = res.ok;
-          recipientCount = lineDelivered ? -1 : 0; // -1 = all
+          lineDelivered = results.length > 0 && results.every((result) => result.sent || result.skipped);
+          recipientCount = lineDelivered ? userIds.length : 0;
         }
-      } catch { /* swallow — still log to DB */ }
+      } catch (error) {
+        console.error('[admin-broadcast] LINE delivery failed:', error);
+      }
     }
 
     const sentAt = new Date().toISOString();

@@ -1,0 +1,310 @@
+import { corsHeaders } from '../_shared/cors.ts';
+import { getServiceClient } from '../_shared/db.ts';
+import { trackLineEvent } from '../_shared/analytics.ts';
+import { buildIdempotencyKey } from '../_shared/line.ts';
+import { notifyAbsenceStakeholders } from '../_shared/line-absence-notify.ts';
+
+type Db = ReturnType<typeof getServiceClient>;
+
+function response(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' },
+  });
+}
+
+async function resolveLineMember(db: Db, accessToken: string) {
+  if (!accessToken) return { error: 'LINE access token required' };
+  const profileRes = await fetch('https://api.line.me/v2/profile', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!profileRes.ok) return { error: 'LINE session ไม่ถูกต้องหรือหมดอายุ' };
+  const profile = await profileRes.json() as Record<string, unknown>;
+  const userId = String(profile.userId || '');
+  const { data } = await db.from('line_members')
+    .select('member_id, members(id, name, nickname, mentor_team)')
+    .eq('line_user_id', userId)
+    .maybeSingle();
+  if (!data) return { error: 'บัญชี LINE นี้ยังไม่ได้เชื่อมกับสมาชิก', userId, profile };
+  const member = (data as Record<string, unknown>).members as Record<string, unknown>;
+  return { userId, profile, member, memberId: String((data as Record<string, unknown>).member_id) };
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method !== 'POST') return response({ ok: false, error: 'Method not allowed' }, 405);
+
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return response({ ok: false, error: 'Invalid JSON' }, 400);
+  }
+
+  const db = getServiceClient();
+  const identity = await resolveLineMember(db, String(body.accessToken || ''));
+  if ('error' in identity) return response({ ok: false, error: identity.error }, 401);
+  const action = String(body.action || 'bootstrap');
+  const member = identity.member;
+  const memberId = identity.memberId;
+
+  if (action === 'bootstrap') {
+    const [{ data: dashboard }, { data: goals }, { data: notif }] = await Promise.all([
+      db.from('v_member_dashboard')
+        .select('display_score, traffic_light, palms_detail, days_to_expiry')
+        .eq('id', memberId).maybeSingle(),
+      db.from('line_goals').select('goal_type, target').eq('member_id', memberId),
+      db.from('line_notif_settings').select('notif_type, is_muted').eq('member_id', memberId),
+    ]);
+    await trackLineEvent(db, 'liff_opened', {
+      lineUserId: identity.userId,
+      memberId,
+      source: 'liff',
+    });
+    const nick = String(member.nickname || '');
+    const { data: mentorTeam } = await db.from('mentor_teams')
+      .select('name')
+      .or(`leader_name.ilike.%${member.name}%${nick ? `,leader_name.ilike.%${nick}%` : ''}`)
+      .maybeSingle();
+    return response({
+      ok: true,
+      profile: identity.profile,
+      member,
+      dashboard,
+      goals: goals || [],
+      notifications: notif || [],
+      role: mentorTeam ? 'mentor' : 'member',
+      mentorTeamName: (mentorTeam as Record<string, unknown> | null)?.name ?? null,
+    });
+  }
+
+  if (action === 'absence') {
+    const absenceType = String(body.absenceType || 'ลา');
+    if (!['ลา', 'ส่ง sub'].includes(absenceType)) return response({ ok: false, error: 'ประเภทไม่ถูกต้อง' }, 400);
+    const meetingDate = String(body.meetingDate || '');
+    if (!meetingDate) return response({ ok: false, error: 'meetingDate required' }, 400);
+    const detail = absenceType === 'ส่ง sub'
+      ? String(body.subName || '').trim()
+      : String(body.reason || '').trim();
+    const { error } = await db.from('line_absence_log').insert({
+      member_id: memberId,
+      absence_type: absenceType,
+      sub_name: absenceType === 'ส่ง sub' ? detail || null : null,
+      reason: absenceType === 'ลา' ? detail || null : null,
+      week_date: meetingDate,
+    });
+    if (error) return response({ ok: false, error: error.message }, 400);
+    const noticeKey = await buildIdempotencyKey([memberId, meetingDate, absenceType, detail]);
+    await notifyAbsenceStakeholders(db, {
+      memberId,
+      memberName: String(identity.member.name || ''),
+      nickname: String(identity.member.nickname || identity.member.name || ''),
+      mentorTeam: String(identity.member.mentor_team || ''),
+      absenceType,
+      detail,
+      meetingDate,
+      idempotencyKey: `liff:absence:${noticeKey}`,
+      source: 'liff-api',
+    });
+    await trackLineEvent(db, 'liff_absence_submitted', {
+      lineUserId: identity.userId, memberId, source: 'liff', properties: { absenceType },
+    });
+    return response({ ok: true, message: 'บันทึกการแจ้งแล้ว' });
+  }
+
+  if (action === 'issue') {
+    const issueText = String(body.issueText || '').trim();
+    if (issueText.length < 3) return response({ ok: false, error: 'กรุณาระบุรายละเอียดเพิ่มเติม' }, 400);
+    const { error } = await db.from('line_issues').insert({ member_id: memberId, issue_text: issueText });
+    if (error) return response({ ok: false, error: error.message }, 400);
+    await trackLineEvent(db, 'liff_issue_submitted', {
+      lineUserId: identity.userId, memberId, source: 'liff',
+    });
+    return response({ ok: true, message: 'ส่งเรื่องให้ทีม Mentor แล้ว' });
+  }
+
+  if (action === '121') {
+    const partnerName = String(body.partnerName || '').trim();
+    const meetingDate = String(body.meetingDate || '').trim();
+    if (!partnerName || !meetingDate) return response({ ok: false, error: 'กรุณาระบุคู่ 1-2-1 และวันที่' }, 400);
+    const { data: partner } = await db.from('members')
+      .select('id, name').or(`name.ilike.%${partnerName}%,nickname.ilike.%${partnerName}%`)
+      .eq('is_archived', false).limit(1).maybeSingle();
+    if (!partner) return response({ ok: false, error: `ไม่พบ "${partnerName}"` }, 404);
+    const { error } = await db.from('one_to_one_logs').insert({
+      initiator_id: memberId,
+      partner_id: String((partner as Record<string, unknown>).id),
+      partner_name: String((partner as Record<string, unknown>).name),
+      scheduled_date: meetingDate,
+    });
+    if (error) return response({ ok: false, error: error.message }, 400);
+    await trackLineEvent(db, 'liff_121_scheduled', {
+      lineUserId: identity.userId, memberId, source: 'liff',
+    });
+    return response({ ok: true, message: 'บันทึกนัด 1-2-1 แล้ว' });
+  }
+
+  if (action === 'goal') {
+    const goalType = String(body.goalType || '').trim();
+    const target = Number(body.target);
+    if (!['ref', 'visitor', 'oto', 'ceu', 'tyfb'].includes(goalType) || !Number.isFinite(target) || target <= 0) {
+      return response({ ok: false, error: 'เป้าหมายไม่ถูกต้อง' }, 400);
+    }
+    const { error } = await db.from('line_goals').upsert({
+      member_id: memberId, goal_type: goalType, target, set_at: new Date().toISOString(),
+    }, { onConflict: 'member_id,goal_type' });
+    if (error) return response({ ok: false, error: error.message }, 400);
+    await trackLineEvent(db, 'liff_goal_saved', {
+      lineUserId: identity.userId, memberId, source: 'liff', properties: { goalType },
+    });
+    return response({ ok: true, message: 'บันทึกเป้าหมายแล้ว' });
+  }
+
+  if (action === 'mentor-log') {
+    const menteeName = String(body.menteeName || '').trim();
+    const sessionDate = String(body.sessionDate || '').trim();
+    const notes = String(body.notes || '').trim();
+    const nextActions = body.nextActions ? String(body.nextActions).trim() : null;
+    if (!menteeName) return response({ ok: false, error: 'กรุณาระบุชื่อสมาชิก' }, 400);
+    if (!sessionDate) return response({ ok: false, error: 'sessionDate required' }, 400);
+    if (notes.length < 3) return response({ ok: false, error: 'กรุณาระบุ notes เพิ่มเติม' }, 400);
+    const { data: ledTeam } = await db.from('mentor_teams')
+      .select('name')
+      .or(`leader_name.ilike.%${member.name}%${member.nickname ? `,leader_name.ilike.%${member.nickname}%` : ''}`)
+      .maybeSingle();
+    if (!ledTeam) return response({ ok: false, error: 'ต้องเป็น Mentor เท่านั้น' }, 403);
+    const teamName = String((ledTeam as Record<string, unknown>).name);
+    const { data: mentee } = await db.from('members')
+      .select('id')
+      .or(`name.ilike.%${menteeName}%,nickname.ilike.%${menteeName}%`)
+      .eq('is_archived', false)
+      .eq('mentor_team', teamName)
+      .limit(1).maybeSingle();
+    if (!mentee) return response({ ok: false, error: `ไม่พบ "${menteeName}" ในทีม ${teamName}` }, 404);
+    const { error } = await db.from('mentor_logs').insert({
+      mentor_team: teamName,
+      member_id: String((mentee as Record<string, unknown>).id),
+      session_date: sessionDate,
+      notes,
+      next_actions: nextActions,
+    });
+    if (error) return response({ ok: false, error: error.message }, 400);
+    await trackLineEvent(db, 'liff_mentor_log_saved', {
+      lineUserId: identity.userId, memberId, source: 'liff',
+    });
+    return response({ ok: true, message: 'บันทึก Mentor Log แล้วครับ' });
+  }
+
+  if (action === 'follow-up') {
+    const memberName = String(body.memberName || '').trim();
+    const note = String(body.note || '').trim();
+    if (!memberName) return response({ ok: false, error: 'กรุณาระบุชื่อสมาชิก' }, 400);
+    if (note.length < 3) return response({ ok: false, error: 'กรุณาระบุบันทึก follow-up' }, 400);
+    const { data: ledTeam } = await db.from('mentor_teams')
+      .select('name')
+      .or(`leader_name.ilike.%${member.name}%${member.nickname ? `,leader_name.ilike.%${member.nickname}%` : ''}`)
+      .maybeSingle();
+    if (!ledTeam) return response({ ok: false, error: 'ต้องเป็น Mentor เท่านั้น' }, 403);
+    const teamName = String((ledTeam as Record<string, unknown>).name);
+    const { data: targetMember } = await db.from('members')
+      .select('id')
+      .or(`name.ilike.%${memberName}%,nickname.ilike.%${memberName}%`)
+      .eq('is_archived', false)
+      .eq('mentor_team', teamName)
+      .limit(1).maybeSingle();
+    if (!targetMember) return response({ ok: false, error: `ไม่พบ "${memberName}" ในทีม ${teamName}` }, 404);
+    const targetId = String((targetMember as Record<string, unknown>).id);
+    // Find latest open issue or create one
+    const { data: openIssue } = await db.from('core_issues')
+      .select('id')
+      .eq('member_id', targetId)
+      .is('resolved_at', null)
+      .order('opened_at', { ascending: false })
+      .limit(1).maybeSingle();
+    let error;
+    if (openIssue) {
+      ({ error } = await db.from('core_issues')
+        .update({ action_taken: note, follow_up_at: new Date().toISOString() })
+        .eq('id', String((openIssue as Record<string, unknown>).id)));
+    } else {
+      ({ error } = await db.from('core_issues').insert({
+        member_id: targetId,
+        mentor_team: teamName,
+        issue_text: note,
+        action_taken: note,
+        follow_up_at: new Date().toISOString(),
+        opened_at: new Date().toISOString(),
+      }));
+    }
+    const err = error;
+    if (err) return response({ ok: false, error: err.message }, 400);
+    await trackLineEvent(db, 'liff_followup_saved', {
+      lineUserId: identity.userId, memberId, source: 'liff',
+    });
+    return response({ ok: true, message: 'บันทึก Follow-up แล้วครับ' });
+  }
+
+  if (action === 'renewal') {
+    const { data: dash } = await db.from('v_member_dashboard')
+      .select('days_to_expiry, display_score, traffic_light, name, nickname')
+      .eq('id', memberId)
+      .maybeSingle();
+    const d = dash as Record<string, unknown> | null;
+    const daysToExpiry = d?.days_to_expiry != null ? Number(d.days_to_expiry) : null;
+    return response({
+      ok: true,
+      daysToExpiry,
+      trafficLight: String(d?.traffic_light ?? 'red'),
+      score: Number(d?.display_score ?? 0),
+      renewalUrgent: daysToExpiry !== null && daysToExpiry <= 45,
+    });
+  }
+
+  if (action === 'visitor') {
+    const visitorName = String(body.visitorName || '').trim();
+    const visitDate = String(body.visitDate || '').trim();
+    const notes = body.notes ? String(body.notes).trim() : null;
+    if (!visitorName) return response({ ok: false, error: 'visitorName required' }, 400);
+    if (!visitDate) return response({ ok: false, error: 'visitDate required' }, 400);
+    const { error } = await db.from('visitor_log').insert({
+      visitor_name: visitorName,
+      invited_by: memberId,
+      visit_date: visitDate,
+      notes,
+      status: 'pending',
+    });
+    if (error) return response({ ok: false, error: error.message }, 400);
+    await trackLineEvent(db, 'liff_visitor_logged', {
+      lineUserId: identity.userId, memberId, source: 'liff',
+    });
+    return response({ ok: true, message: 'บันทึกแขกพิเศษแล้วครับ' });
+  }
+
+  if (action === 'get-assignments') {
+    const memberTeam = String(member.mentor_team || '');
+    const { data: assignments } = await db.from('mc_assignments')
+      .select('id, assignment_text, due_date, mentor_team')
+      .or(`member_id.eq.${memberId}${memberTeam ? `,mentor_team.eq.${memberTeam}` : ''}`)
+      .is('acknowledged_at', null)
+      .order('due_date', { ascending: true })
+      .limit(10);
+    return response({ ok: true, assignments: assignments || [] });
+  }
+
+  if (action === 'ack-assignment') {
+    const assignmentId = String(body.assignmentId || '').trim();
+    if (!assignmentId) return response({ ok: false, error: 'assignmentId required' }, 400);
+    const memberTeam = String(member.mentor_team || '');
+    const orFilter = memberTeam
+      ? `member_id.eq.${memberId},mentor_team.eq.${memberTeam}`
+      : `member_id.eq.${memberId}`;
+    const { error } = await db.from('mc_assignments')
+      .update({ acknowledged_at: new Date().toISOString() })
+      .eq('id', assignmentId)
+      .or(orFilter);
+    if (error) return response({ ok: false, error: error.message }, 400);
+    return response({ ok: true, message: 'รับทราบแล้วครับ' });
+  }
+
+  return response({ ok: false, error: `Unknown action: ${action}` }, 400);
+});

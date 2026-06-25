@@ -1,6 +1,8 @@
 // Handler: growth — getRiskMembers, getWeeklyActions, getGrowthData, etc.
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
+import { findEvolutionAverageColumn } from '../../_shared/traffic-evolution.ts';
+import { calcPalmsScore } from '../../_shared/palms.ts';
 import { getMentorActivityData } from './dashboard.ts';
 
 const TEAM_ROLE: Record<string, string> = {
@@ -170,20 +172,29 @@ function findMonthlyColumns(headers: string[]): Array<{ idx: number; year: numbe
   return result;
 }
 
-function parseMonthlyScores(rows: string[][], memberMap: Record<string, string>): Array<{ member_id: string; year: number; month: number; score: number; source: string }> {
-  if (!rows || rows.length === 0) return [];
+function parseMonthlyScores(
+  rows: string[][],
+  memberMap: Record<string, string>,
+): {
+  scores: Array<{ member_id: string; year: number; month: number; score: number; source: string }>;
+  averages: Array<{ member_id: string; average_score: number; source_column: string; synced_at: string }>;
+} {
+  if (!rows || rows.length === 0) return { scores: [], averages: [] };
   const headerInfo = findHeaderRow(rows, row => {
     const normalized = row.map(c => String(c || '').toLowerCase().trim());
     return findMonthlyColumns(normalized).length > 0;
   });
-  if (!headerInfo) return [];
+  if (!headerInfo) return { scores: [], averages: [] };
 
   const headers = headerInfo.row.map(c => String(c || '').toLowerCase().trim());
   const nameIdx = findNameColumnIndex(headers, rows, headerInfo.idx + 1, memberMap);
   const monthCols = findMonthlyColumns(headers);
-  if (nameIdx < 0 || monthCols.length === 0) return [];
+  if (nameIdx < 0 || monthCols.length === 0) return { scores: [], averages: [] };
+  const averageIdx = findEvolutionAverageColumn(headers, monthCols.map(col => col.idx));
 
   const scores: Array<{ member_id: string; year: number; month: number; score: number; source: string }> = [];
+  const averages: Array<{ member_id: string; average_score: number; source_column: string; synced_at: string }> = [];
+  const syncedAt = new Date().toISOString();
   for (let ri = headerInfo.idx + 1; ri < rows.length; ri++) {
     const row = rows[ri];
     if (!row || row.length <= nameIdx) continue;
@@ -199,8 +210,19 @@ function parseMonthlyScores(rows: string[][], memberMap: Record<string, string>)
         scores.push({ member_id: memberId, year: col.year, month: col.month, score, source: 'traffic_light_csv' });
       }
     }
+    if (averageIdx >= 0 && row.length > averageIdx) {
+      const average = parseNumber(row[averageIdx]);
+      if (average > 0 && average <= 100) {
+        averages.push({
+          member_id: memberId,
+          average_score: average,
+          source_column: headerInfo.row[averageIdx] || `column_${averageIdx + 1}`,
+          synced_at: syncedAt,
+        });
+      }
+    }
   }
-  return scores;
+  return { scores, averages };
 }
 
 function parseMemberTLCurrentScores(
@@ -303,6 +325,20 @@ async function upsertMonthlyScores(db: ReturnType<typeof getServiceClient>, rows
   return imported;
 }
 
+async function upsertEvolutionAverages(
+  db: ReturnType<typeof getServiceClient>,
+  rows: Array<{ member_id: string; average_score: number; source_column: string; synced_at: string }>,
+): Promise<number> {
+  if (!rows.length) return 0;
+  const deduped = Array.from(new Map(rows.map(row => [row.member_id, row])).values());
+  const { error } = await db.from('traffic_light_evolution_summary').upsert(deduped, {
+    onConflict: 'member_id',
+    ignoreDuplicates: false,
+  });
+  if (error) throw new Error(error.message);
+  return deduped.length;
+}
+
 async function upsertR2YStats(db: ReturnType<typeof getServiceClient>, rows: Array<Record<string, unknown>>): Promise<number> {
   if (!rows.length) return 0;
   const BATCH = 100;
@@ -317,6 +353,52 @@ async function upsertR2YStats(db: ReturnType<typeof getServiceClient>, rows: Arr
     imported += batch.length;
   }
   return imported;
+}
+
+async function upsertPalmsKeySnapshots(
+  db: ReturnType<typeof getServiceClient>,
+  rows: Array<Record<string, unknown>>,
+  period: { year: number; month: number },
+): Promise<number> {
+  if (!rows.length) return 0;
+  const snapshots = rows.map((row) => {
+    const result = calcPalmsScore({
+      attend: Number(row.attend) || 0,
+      absent: Number(row.absent) || 0,
+      late: Number(row.late) || 0,
+      medical: Number(row.medical) || 0,
+      sub: Number(row.sub) || 0,
+      rgi: Number(row.rg) || 0,
+      rgo: 0,
+      visitor: Number(row.visitors) || 0,
+      oto: Number(row.one_to_one) || 0,
+      ceu: Number(row.ceu) || 0,
+      tyfb: Number(row.tyfcb_thb) || 0,
+      bniDays: Number(row.bni_days) || 0,
+    });
+    return {
+      member_id: row.member_id,
+      year: period.year,
+      month: period.month,
+      referral_value: Number(row.rg) || 0,
+      visitor_value: Number(row.visitors) || 0,
+      one_to_one_value: Number(row.one_to_one) || 0,
+      ceu_value: Number(row.ceu) || 0,
+      tyfcb_value: Number(row.tyfcb_thb) || 0,
+      referral_pts: result.referral,
+      visitor_pts: result.visitor,
+      one_to_one_pts: result.oneToOne,
+      ceu_pts: result.ceu,
+      tyfcb_pts: result.tyfb,
+      captured_at: String(row.synced_at || new Date().toISOString()),
+    };
+  });
+  const { error } = await db.from('palms_key_snapshots').upsert(snapshots, {
+    onConflict: 'member_id,year,month',
+    ignoreDuplicates: false,
+  });
+  if (error) throw new Error(error.message);
+  return snapshots.length;
 }
 
 function parseR2YRows(
@@ -477,34 +559,66 @@ async function syncRenewalsFromR2YStats(db: ReturnType<typeof getServiceClient>)
     })
     .filter(Boolean) as Array<Record<string, unknown>>;
 
-  if (!rows.length) return 0;
-  const { error } = await db.from('renewals').upsert(rows, {
-    onConflict: 'member_id',
-    ignoreDuplicates: false,
-  });
-  if (error) throw new Error(error.message);
-  return rows.length;
+  if (rows.length) {
+    const { error } = await db.from('renewals').upsert(rows, {
+      onConflict: 'member_id',
+      ignoreDuplicates: false,
+    });
+    if (error) throw new Error(error.message);
+  }
+
+  // Fallback: members with membership_start_date but no r2y entry (or bni_days=0)
+  const processedIds = new Set(rows.map(r => String(r.member_id)));
+  const { data: mWithStart } = await db
+    .from('members')
+    .select('id, membership_start_date')
+    .eq('is_archived', false)
+    .not('membership_start_date', 'is', null);
+  const fallbackRows = ((mWithStart || []) as Array<Record<string, unknown>>)
+    .filter(m => !processedIds.has(String(m.id)))
+    .map(m => {
+      const existing = existingMap.get(String(m.id));
+      // Don't overwrite a completed renewal with a back-calculated one
+      if (existing?.workflow_status === 'completed') return null;
+      const start = new Date(String(m.membership_start_date));
+      const renewal = new Date(start);
+      renewal.setFullYear(today.getFullYear());
+      renewal.setHours(12, 0, 0, 0);
+      if (renewal.getTime() < today.getTime()) renewal.setFullYear(today.getFullYear() + 1);
+      return {
+        member_id: String(m.id),
+        expiry_date: ymd(renewal),
+        workflow_status: String(existing?.workflow_status || 'pending_contact'),
+        notes: 'Synced from membership_start_date',
+        updated_at: new Date().toISOString(),
+      };
+    })
+    .filter(Boolean) as Array<Record<string, unknown>>;
+
+  if (fallbackRows.length) {
+    await db.from('renewals').upsert(fallbackRows, { onConflict: 'member_id', ignoreDuplicates: false });
+  }
+
+  return rows.length + fallbackRows.length;
 }
 
 // Auto-enroll members whose bni_days < 56 (not yet 8 weeks) as is_new_member = true.
 // Sets joined_date from bni_days if not already set.
 async function autoEnrollNewMembers(db: ReturnType<typeof getServiceClient>): Promise<number> {
-  // Find members with bni_days < 56 who are not yet enrolled and not archived
+  const today = new Date();
+  let enrolled = 0;
+
+  // Pass 1: members with r2y bni_days in the 0–56 range
   const { data: rows } = await db
     .from('r2y_stats')
     .select('member_id, bni_days')
     .gt('bni_days', 0)
     .lt('bni_days', 56);
-  if (!rows || !rows.length) return 0;
-
-  const today = new Date();
-  let enrolled = 0;
-  for (const row of rows as Array<{ member_id: string; bni_days: number }>) {
+  for (const row of (rows || []) as Array<{ member_id: string; bni_days: number }>) {
     const joinedDate = new Date(today);
     joinedDate.setDate(today.getDate() - row.bni_days);
     const joinedDateStr = joinedDate.toISOString().split('T')[0];
 
-    // Only update if not already a new member
     const { data: m } = await db
       .from('members')
       .select('id, is_new_member, is_archived, joined_date')
@@ -513,16 +627,31 @@ async function autoEnrollNewMembers(db: ReturnType<typeof getServiceClient>): Pr
     if (!m || (m as Record<string, unknown>).is_archived) continue;
     if ((m as Record<string, unknown>).is_new_member) continue;
 
-    const upd: Record<string, unknown> = {
-      is_new_member: true,
-      updated_at: new Date().toISOString(),
-    };
-    if (!(m as Record<string, unknown>).joined_date) {
-      upd.joined_date = joinedDateStr;
-    }
+    const upd: Record<string, unknown> = { is_new_member: true, updated_at: new Date().toISOString() };
+    if (!(m as Record<string, unknown>).joined_date) upd.joined_date = joinedDateStr;
     const { error } = await db.from('members').update(upd).eq('id', row.member_id);
     if (!error) enrolled++;
   }
+
+  // Pass 2: members with membership_start_date < 56 days ago but no r2y entry yet
+  const cutoff = new Date(today);
+  cutoff.setDate(today.getDate() - 56);
+  const cutoffStr = cutoff.toISOString().split('T')[0];
+  const { data: recentByDate } = await db
+    .from('members')
+    .select('id, is_new_member, is_archived, joined_date, membership_start_date')
+    .eq('is_archived', false)
+    .eq('is_new_member', false)
+    .gte('membership_start_date', cutoffStr);
+  for (const m of (recentByDate || []) as Array<Record<string, unknown>>) {
+    const startDate = String(m.membership_start_date || '');
+    if (!startDate) continue;
+    const upd: Record<string, unknown> = { is_new_member: true, updated_at: new Date().toISOString() };
+    if (!m.joined_date) upd.joined_date = startDate;
+    const { error } = await db.from('members').update(upd).eq('id', m.id);
+    if (!error) enrolled++;
+  }
+
   return enrolled;
 }
 
@@ -1066,12 +1195,16 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
 
       let nonMentorOk = true, counterOk = true, r2yOk = true, r2ySyncOk = true;
       let renewalOk = true, grOk = true, mtlOk = true;
-      let importedScores = 0, importedR2Y = 0, updatedGR = 0;
+      let importedScores = 0, importedEvolutionAverages = 0, importedR2Y = 0;
+      let importedKeySnapshots = 0, updatedGR = 0;
       const stepErrors: string[] = [];
 
       // Steps 3+4: upsert monthly scores. Traffic Light Evolution keeps history;
       // Member Traffic Light is the current score source for the active sync.
-      const tlScoreRows = tlRows.length ? parseMonthlyScores(tlRows, memberMap) : [];
+      const tlParsed = tlRows.length
+        ? parseMonthlyScores(tlRows, memberMap)
+        : { scores: [], averages: [] };
+      const tlScoreRows = tlParsed.scores;
       const existingScorePeriod = await getExistingLatestScorePeriod(db);
       const scorePeriod = tlScoreRows.length
         ? latestScorePeriod(tlScoreRows)
@@ -1091,6 +1224,13 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           stepErrors.push(`scores: ${(e as Error).message}`);
         }
       }
+      if (tlParsed.averages.length) {
+        try {
+          importedEvolutionAverages = await upsertEvolutionAverages(db, tlParsed.averages);
+        } catch (e) {
+          stepErrors.push(`evolution averages: ${(e as Error).message}`);
+        }
+      }
 
       // Steps 5+6: upsert R2Y stats from R2Y CSV
       const r2yUnmatched: string[] = [];
@@ -1099,6 +1239,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         if (r2yParsed.length) {
           try {
             importedR2Y += await upsertR2YStats(db, r2yParsed);
+            importedKeySnapshots += await upsertPalmsKeySnapshots(db, r2yParsed, scorePeriod);
           } catch (e) {
             r2yOk = false; r2ySyncOk = false;
             stepErrors.push(`r2y: ${(e as Error).message}`);
@@ -1146,6 +1287,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         if (r2yUpserts.length) {
           try {
             importedR2Y += await upsertR2YStats(db, r2yUpserts);
+            importedKeySnapshots += await upsertPalmsKeySnapshots(db, r2yUpserts, scorePeriod);
           } catch (e) {
             mtlOk = false;
             stepErrors.push(`mtl-r2y: ${(e as Error).message}`);
@@ -1196,6 +1338,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
               title: `🔴 Growth Watch — ${urgents.length} คน เข้า Red/Black Zone`,
               body:  urgents.map(m => `• ${m.name} (${m.score} pts)`).join('\n'),
               data:  { members: urgents },
+              target_audience: ['role:mc', 'role:growth'],
             });
           }
           if (warnings.length) {
@@ -1204,6 +1347,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
               title: `⚠️ Growth Watch — ${warnings.length} คน คะแนนต่ำกว่าเกณฑ์ 65 pts`,
               body:  warnings.map(m => `• ${m.name} (${m.score} pts)`).join('\n'),
               data:  { members: warnings },
+              target_audience: ['role:mc', 'role:growth'],
             });
           }
         }
@@ -1212,7 +1356,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       return jsonResponse({
         ok: true,
         nonMentorOk, counterOk, r2yOk, r2ySyncOk, renewalOk, grOk, mtlOk,
-        importedScores, importedR2Y, updatedGivenReceived: updatedGR,
+        importedScores, importedEvolutionAverages, importedR2Y, updatedGivenReceived: updatedGR,
+        importedKeySnapshots,
         autoEnrolled,
         scoreYear: scoreRows.length ? scorePeriod.year : null,
         scoreMonth: scoreRows.length ? scorePeriod.month : null,

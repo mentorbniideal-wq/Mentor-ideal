@@ -49,7 +49,7 @@ export async function handleAdminMembers(p: Record<string, unknown>): Promise<Re
     const { data, error } = await db
       .from('growth_referral_members')
       .select(`
-        id, seq_no, name, nickname, target_thb, received_thb, note,
+        id, seq_no, raw_name, nickname, target_thb, received_thb, note,
         group_id, growth_referral_groups(name)
       `)
       .order('seq_no', { ascending: true });
@@ -63,7 +63,7 @@ export async function handleAdminMembers(p: Record<string, unknown>): Promise<Re
       const crisis = pct >= 80 ? 'normal' : pct >= 40 ? 'watch' : 'critical';
       const grp = r.growth_referral_groups as Record<string, unknown> | null;
       return {
-        id: r.id, seqNo: r.seq_no, name: r.name, nick: r.nickname,
+        id: r.id, seqNo: r.seq_no, name: r.raw_name, nick: r.nickname,
         target, received, pct, note: r.note || '',
         group: grp?.name || '', groupId: r.group_id, crisis,
       };

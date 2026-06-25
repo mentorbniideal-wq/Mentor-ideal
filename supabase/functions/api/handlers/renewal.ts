@@ -204,6 +204,8 @@ export async function handleRenewal(p: Record<string, unknown>): Promise<Respons
       });
 
       if (nextStatus === 'declined') {
+        const targetAudience: string[] = ['role:mc'];
+        if (memberTeam) targetAudience.push(`team:${memberTeam}`);
         await db.from('notifications').insert({
           type: 'renewal_declined',
           severity: 'urgent',
@@ -217,6 +219,7 @@ export async function handleRenewal(p: Record<string, unknown>): Promise<Respons
             reason,
             actorRole,
           },
+          target_audience: targetAudience,
         });
       }
 

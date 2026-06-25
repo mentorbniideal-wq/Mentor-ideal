@@ -16,10 +16,12 @@ export async function handleNotifications(p: Record<string, unknown>): Promise<R
         ? `team:${auth.teamName}`
         : `role:${String(auth.role || '')}`;
 
+      // Filter by target_audience: null means broadcast to all, otherwise must include recipientKey
       const { data, error } = await db
         .from('notifications')
         .select('id, type, severity, title, body, data, created_at, read_at')
         .is('dismissed_at', null)
+        .or(`target_audience.is.null,target_audience.cs.{"${recipientKey}"}`)
         .order('created_at', { ascending: false })
         .limit(50);
       if (error) return errResponse(error.message);
@@ -103,16 +105,22 @@ export async function handleNotifications(p: Record<string, unknown>): Promise<R
 
     // ── Dismiss ALL notifications ─────────────────────────────
     case 'dismissAllNotifications': {
-      const auth = await requireAuth(db, p, ['mc']);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      // Use the same dynamic recipientKey as every other case — never hardcode 'role:mc'
+      const recipientKey = auth.teamName
+        ? `team:${auth.teamName}`
+        : `role:${String(auth.role || '')}`;
 
       const { data: active, error: activeError } = await db.from('notifications')
-        .select('id').is('dismissed_at', null).limit(100);
+        .select('id').is('dismissed_at', null)
+        .or(`target_audience.is.null,target_audience.cs.{"${recipientKey}"}`)
+        .limit(100);
       if (activeError) return errResponse(activeError.message);
       const now = new Date().toISOString();
       const rows = (active || []).map((row: Record<string, unknown>) => ({
         notification_id: String(row.id),
-        recipient_key: 'role:mc',
+        recipient_key: recipientKey,
         dismissed_at: now,
         read_at: now,
       }));

@@ -20,6 +20,8 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
       const followUpAt = String(p.followUpAt || p.follow_up_at || '').trim() || null;
 
       if (!memberName || !issueText) return errResponse('memberName and issue required');
+      if (issueText === '__other__') return errResponse('กรุณาระบุเหตุผลอื่น ๆ ให้ชัดเจน');
+      if (issueText.length > 300) return errResponse('เหตุผลต้องไม่เกิน 300 ตัวอักษร');
 
       // Look up member id
       const lookup = await resolveMemberAccess(db, p);
