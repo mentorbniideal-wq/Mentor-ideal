@@ -1262,18 +1262,32 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       if (Object.keys(mtlData).length) {
         const grMap: Record<string, { given: number; received: number }> = {};
         const r2yUpserts: Array<Record<string, unknown>> = [];
+
+        // Fetch existing bni_days so MTL sync doesn't overwrite it with 0 for new members
+        const mtlMemberIds = Object.keys(mtlData)
+          .map((n) => memberMap[n]).filter(Boolean);
+        const { data: existingMtlStats } = mtlMemberIds.length
+          ? await db.from('r2y_stats').select('member_id, bni_days').in('member_id', mtlMemberIds)
+          : { data: [] };
+        const mtlBniDaysMap: Record<string, number> = {};
+        for (const s of (existingMtlStats || []) as Record<string, unknown>[]) {
+          mtlBniDaysMap[String(s.member_id)] = Number(s.bni_days) || 0;
+        }
+
         for (const [name, item] of Object.entries(mtlData)) {
           const memberId = memberMap[name];
           if (!memberId) continue;
           grMap[name] = { given: item.given, received: item.received };
-          r2yUpserts.push({
+          const upsertRow: Record<string, unknown> = {
             member_id: memberId,
             rg: item.rg, rr: item.rr, visitors: item.visitors,
             one_to_one: item.one_to_one, ceu: item.ceu, tyfcb_thb: item.given,
             official_pts: item.score, attend: item.p, absent: item.a,
             late: item.l, medical: item.m, sub: item.s,
             synced_at: new Date().toISOString(),
-          });
+          };
+          if (memberId in mtlBniDaysMap) upsertRow.bni_days = mtlBniDaysMap[memberId];
+          r2yUpserts.push(upsertRow);
         }
         if (Object.keys(grMap).length) {
           try {
@@ -1478,7 +1492,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         const month = Number(r.month);
         const score = Number(r.score);
         if (!year || !month || !score || month < 1 || month > 12 || year < 2020) continue;
-        scoreRows.push({ member_id: memberId, year, month, score, source: 'manual_history' });
+        scoreRows.push({ member_id: memberId, year, month, score, source: 'manual' });
       }
 
       if (!scoreRows.length) return errResponse(`ไม่พบข้อมูลที่ import ได้ (unmatched: ${unmatched.slice(0,5).join(', ')})`);

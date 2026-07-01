@@ -263,6 +263,7 @@ async function getPassportBoardData(db: any) {
 
 function normalizeMemberName(value: unknown): string {
   return String(value || '')
+    .replace(/\s*\(bni ideal\)\s*/gi, '')
     .toLowerCase()
     .normalize('NFKD')
     .replace(/[^a-z0-9ก-๙]+/g, '');
@@ -1984,6 +1985,7 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
         : { data: [] };
       const bniDaysMap: Record<string, number> = {};
       for (const s of (existingStats || []) as Record<string, unknown>[]) bniDaysMap[String(s.member_id)] = Number(s.bni_days) || 0;
+      // Members NOT in bniDaysMap have no prior r2y_stats row — don't write bni_days:0 for them
 
       const now = new Date().toISOString();
       const errors: string[] = [];
@@ -2023,7 +2025,7 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
         if (snapErr) errors.push(`${row.rawName} snapshot: ${snapErr.message}`);
         else insertedSnapshots++;
 
-        const { error: r2yErr } = await db.from('r2y_stats').upsert({
+        const r2yUpsertRow: Record<string, unknown> = {
           member_id:    memberId,
           rg:           (Number(row.rgi) || 0) + (Number(row.rgo) || 0),
           rr:           (Number(row.rri) || 0) + (Number(row.rro) || 0),
@@ -2032,14 +2034,17 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
           ceu:          Number(row.ceu) || 0,
           tyfcb_thb:    Number(row.revenueGivenThb) || 0,
           official_pts: Number(row.calculatedScore) || 0,
-          bni_days:     bniDaysMap[memberId] || 0,
           attend:       Number(row.present) || 0,
           absent:       Number(row.absent) || 0,
           late:         Number(row.late) || 0,
           medical:      Number(row.medical) || 0,
           sub:          Number(row.substitute) || 0,
           synced_at:    now,
-        }, { onConflict: 'member_id', ignoreDuplicates: false });
+        };
+        // Only include bni_days if member has an existing r2y_stats row — prevents overwriting
+        // valid bni_days (set from R2Y CSV) with 0 on first PALMS import for new members
+        if (memberId in bniDaysMap) r2yUpsertRow.bni_days = bniDaysMap[memberId];
+        const { error: r2yErr } = await db.from('r2y_stats').upsert(r2yUpsertRow, { onConflict: 'member_id', ignoreDuplicates: false });
         if (r2yErr) errors.push(`${row.rawName} r2y: ${r2yErr.message}`);
         else updatedR2Y++;
       }
