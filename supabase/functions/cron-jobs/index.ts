@@ -643,7 +643,7 @@ async function visitorFollowUpReminder(db: DB): Promise<void> {
       `ถ้าสนใจ แจ้ง MC ได้เลยนะครับ 🙏`,
       {
         db,
-        idempotencyKey: `cron:visitor-followup:${String(v.id)}:${cutoffStr}`,
+        idempotencyKey: `cron:visitor-followup:${String(v.id)}:${visitDate}`,
         memberId,
         notificationType: 'visitor_followup',
         source: 'cron-jobs',
