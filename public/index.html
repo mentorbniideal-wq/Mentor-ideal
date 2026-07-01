@@ -3096,8 +3096,6 @@ function enterApp(r){
   }
 }
 function logout(){
-  var sb=getSbAuth();
-  if(sb)sb.auth.signOut();
   clearStoredSession();
   var sb=getSbAuth();if(sb)sb.auth.signOut();
   S={role:null,token:null,pin:null,isMC:false,teamName:null,displayName:null,allMembers:[],teamMembers:[],curFilter:'all',curMFilter:'all',curMentorFilter:'all',curSort:'score-desc'};
