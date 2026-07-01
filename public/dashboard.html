@@ -1273,11 +1273,24 @@ main{
     <div class="llogo">🏆</div>
     <div class="ltitle">BNI <span>IDEAL</span></div>
     <div class="lsub">Mentor Management System · Desktop</div>
-    <button onclick="signInWithGoogle()" id="google-login-btn" style="display:flex;align-items:center;gap:10px;background:#fff;color:#1f1f1f;border:none;border-radius:10px;padding:12px 24px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.3);transition:all .2s;margin:1.5rem auto .5rem;width:100%;justify-content:center;">
-      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.08 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-3.59-13.46-8.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-      Sign in with Google
-    </button>
-    <div id="lerr" style="color:#EF4444;font-size:13px;text-align:center;min-height:1.2em;"></div>
+    <!-- Role selector -->
+    <div id="d-role-panel">
+      <div style="font-size:12px;color:#7a9bb5;margin:1rem 0 .5rem;text-align:center">เลือก Role</div>
+      <select id="d-role-sel" style="width:100%;padding:10px;border-radius:8px;border:1px solid #1a3a5c;background:#0a1628;color:#e8f4f8;font-size:14px;margin-bottom:.75rem">
+        <option value="mc">MC (พีท)</option>
+        <option value="toomtam">TOOMTAM</option>
+        <option value="aof">Aof</option>
+        <option value="draft">Draft</option>
+        <option value="phai">PHAI</option>
+        <option value="amp">AMP</option>
+        <option value="growth">Growth</option>
+      </select>
+      <input id="d-pin-in" type="password" placeholder="PIN" maxlength="10" autocomplete="current-password"
+        style="width:100%;padding:12px;border-radius:8px;border:1px solid #1a3a5c;background:#0a1628;color:#e8f4f8;font-size:20px;text-align:center;letter-spacing:6px;outline:none;margin-bottom:.75rem"
+        onkeydown="if(event.key==='Enter')dPinSubmit()">
+      <button onclick="dPinSubmit()" id="d-pin-btn" style="width:100%;padding:11px;border-radius:8px;border:none;background:#3dd6f5;color:#0a1628;font-size:14px;font-weight:700;cursor:pointer">เข้าสู่ระบบ</button>
+      <div id="lerr" style="color:#EF4444;font-size:13px;text-align:center;min-height:1.2em;margin-top:.5rem"></div>
+    </div>
   </div>
 </div>
 
@@ -3018,59 +3031,65 @@ var DESKTOP_ROLE_TARGET=(function(){
     return (r==='mc'||r==='growth')?r:'';
   }catch(e){return '';}
 })();
+var _sbAuth=null;
+var DSH_SESSION_KEY='bni_dash_session';
 function getSbAuth(){if(!_sbAuth&&window.supabase){_sbAuth=window.supabase.createClient(SUPABASE_URL_AUTH,SUPABASE_ANON,{auth:{autoRefreshToken:true,persistSession:true}});}return _sbAuth;}
-function isLineInApp(){return /Line\/|LIFF/i.test(navigator.userAgent);}
-function signInWithGoogle(){
-  if(isLineInApp()){showLineOpenBanner();return;}
-  var sb=getSbAuth();
-  if(!sb){document.getElementById('lerr').textContent='กรุณารอสักครู่แล้วลองใหม่';return;}
-  var btn=document.getElementById('google-login-btn');
-  if(btn){btn.disabled=true;btn.style.opacity='.6';}
-  sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin+window.location.pathname}});
-}
-function showLineOpenBanner(){
-  var url=window.location.href;
-  var el=document.getElementById('lerr');
-  if(el){el.style.cssText='color:#f97316;font-size:12px;text-align:center;line-height:1.6;max-width:300px;margin:.5rem auto';
-    el.innerHTML='⚠️ LINE Browser ไม่รองรับ Google Login<br>'
-      +'กรุณากด <b>···</b> → <b>เปิดใน Browser</b><br>'
-      +'หรือคัดลอกลิงก์ไปเปิดใน Chrome/Safari<br>'
-      +'<button onclick="navigator.clipboard&&navigator.clipboard.writeText(\''+url+'\').then(function(){this.textContent=\'✅ คัดลอกแล้ว\';}.bind(this))" style="margin-top:8px;padding:6px 16px;border-radius:8px;border:1px solid #f97316;background:transparent;color:#f97316;font-size:12px;cursor:pointer">📋 คัดลอก URL</button>';
-  }
+function getDashSession(){try{return JSON.parse(sessionStorage.getItem(DSH_SESSION_KEY)||'null');}catch{return null;}}
+function storeDashSession(s){try{sessionStorage.setItem(DSH_SESSION_KEY,JSON.stringify(s));}catch{}}
+function clearDashSession(){try{sessionStorage.removeItem(DSH_SESSION_KEY);}catch{}}
+
+function dPinSubmit(){
+  var role=document.getElementById('d-role-sel').value;
+  var pin=(document.getElementById('d-pin-in').value||'').trim();
+  var errEl=document.getElementById('lerr');
+  var btn=document.getElementById('d-pin-btn');
+  errEl.textContent='';
+  if(!pin){errEl.textContent='กรุณาใส่ PIN';return;}
+  btn.disabled=true;btn.textContent='กำลังตรวจสอบ...';
+  fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'login',role:role,pin:pin})})
+    .then(function(r){return r.json();})
+    .then(function(r){
+      btn.disabled=false;btn.textContent='เข้าสู่ระบบ';
+      if(r.ok){
+        S.pin=pin;
+        storeDashSession({role:r.role,pin:pin,displayName:r.displayName,isMC:r.isMC,teamName:r.teamName});
+        document.getElementById('login').style.display='none';
+        enterApp(r);
+      }else{
+        errEl.textContent=r.error||'PIN ไม่ถูกต้อง';
+        document.getElementById('d-pin-in').value='';document.getElementById('d-pin-in').focus();
+      }
+    })
+    .catch(function(){btn.disabled=false;btn.textContent='เข้าสู่ระบบ';errEl.textContent='เกิดข้อผิดพลาด กรุณาลองใหม่';});
 }
 function checkSession(){
-  if(isLineInApp()){document.getElementById('login').style.display='flex';setTimeout(showLineOpenBanner,100);return;}
+  var sess=getDashSession();
+  if(sess&&sess.role&&sess.pin){
+    S.pin=sess.pin;
+    ld(true);
+    fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'login',role:sess.role,pin:sess.pin})})
+      .then(function(r){return r.json();})
+      .then(function(r){ld(false);if(r.ok){enterApp(r);}else{clearDashSession();document.getElementById('login').style.display='flex';}})
+      .catch(function(){ld(false);document.getElementById('login').style.display='flex';});
+    return;
+  }
+  // Fallback: try Google OAuth session
   var sb=getSbAuth();
-  if(!sb){document.getElementById('login').style.display='flex';return;}
-  sb.auth.getSession().then(function(res){
-    var session=res&&res.data&&res.data.session;
-    if(session&&session.access_token){
-      S.token=session.access_token;
-      ld(true);
-      gsr('getMyRole',{token:S.token},function(r){
-        ld(false);
-        if(r.ok){enterApp(r);}
-        else{document.getElementById('lerr').textContent='❌ '+(r.error||'ไม่มีสิทธิ์');document.getElementById('login').style.display='flex';}
-      });
-    }else{
-      document.getElementById('login').style.display='flex';
-    }
-  }).catch(function(){document.getElementById('login').style.display='flex';});
-  sb.auth.onAuthStateChange(function(event,session){
-    if(event==='SIGNED_IN'&&session&&session.access_token&&!S.role){
-      S.token=session.access_token;
-      ld(true);
-      gsr('getMyRole',{token:S.token},function(r){
-        ld(false);
-        if(r.ok){document.getElementById('login').style.display='none';enterApp(r);}
-        else{document.getElementById('lerr').textContent='❌ '+(r.error||'ไม่มีสิทธิ์');document.getElementById('login').style.display='flex';}
-      });
-    }
-  });
+  if(sb){
+    sb.auth.getSession().then(function(res){
+      var session=res&&res.data&&res.data.session;
+      if(session&&session.access_token){
+        S.token=session.access_token;ld(true);
+        gsr('getMyRole',{token:S.token},function(r){ld(false);if(r.ok){enterApp(r);}else{document.getElementById('login').style.display='flex';}});
+      }else{document.getElementById('login').style.display='flex';}
+    }).catch(function(){document.getElementById('login').style.display='flex';});
+  }else{document.getElementById('login').style.display='flex';}
 }
 function gsr(a,p,cb){
   var payload=Object.assign({action:a},p||{});
   if(S&&S.token)payload.token=S.token;
+  if(S&&S.pin)payload.pin=S.pin;
+  if(S&&S.role&&!payload.role)payload.role=S.role;
   fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify(payload)}).then(function(r){return r.json();}).then(function(r){cb(r);}).catch(function(e){cb({ok:false,error:e.message});});
 }
 function call(a,p,cb){gsr(a,p,cb||function(){});}
@@ -3115,24 +3134,29 @@ function enterApp(r){
 function switchDesktopRole(target){
   target=String(target||'').toLowerCase();
   if(!target||target===S.role)return;
-  if(!S.token){alert('กรุณา Login ด้วย Google ก่อนสลับ Role');return;}
   ld(true);
-  gsr('viewAsRole',{targetRole:target,token:S.token},function(r){
-    ld(false);
-    if(!r||!r.ok){alert('สลับ Role ไม่สำเร็จ: '+((r&&r.error)||'ไม่ทราบสาเหตุ'));return;}
-    if(arTimer){clearInterval(arTimer);arTimer=null;}
-    D={mem:[],ren:[],sm:{},teams:[],msgs:[],reps:[]};
-    G={mem:[],sm:{},tasks:[],nm:[],dec:[]};
-    bulkSel={};cmpState=[];
-    if(dc){dc.destroy();dc=null;} if(bc){bc.destroy();bc=null;} if(jc){jc.destroy();jc=null;} if(mdc){mdc.destroy();mdc=null;} if(tdc){tdc.destroy();tdc=null;} if(tdc2){tdc2.destroy();tdc2=null;}
-    enterApp(r);
-  });
+  var switchPayload=S.token
+    ?{action:'viewAsRole',targetRole:target,token:S.token}
+    :{action:'login',role:target,pin:S.pin};
+  fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify(switchPayload)})
+    .then(function(res){return res.json();})
+    .then(function(r){
+      ld(false);
+      if(!r||!r.ok){alert('สลับ Role ไม่สำเร็จ: '+((r&&r.error)||'ไม่ทราบสาเหตุ'));return;}
+      if(arTimer){clearInterval(arTimer);arTimer=null;}
+      D={mem:[],ren:[],sm:{},teams:[],msgs:[],reps:[]};
+      G={mem:[],sm:{},tasks:[],nm:[],dec:[]};
+      bulkSel={};cmpState=[];
+      if(dc){dc.destroy();dc=null;} if(bc){bc.destroy();bc=null;} if(jc){jc.destroy();jc=null;} if(mdc){mdc.destroy();mdc=null;} if(tdc){tdc.destroy();tdc=null;} if(tdc2){tdc2.destroy();tdc2=null;}
+      enterApp(r);
+    })
+    .catch(function(){ld(false);alert('สลับ Role ไม่สำเร็จ');});
 }
 function logout(){
-  var sb=getSbAuth();
-  if(sb)sb.auth.signOut();
+  clearDashSession();
+  var sb=getSbAuth();if(sb)sb.auth.signOut();
   clearInterval(arTimer);arTimer=null;
-  S={role:'',token:null,sr:'',canRoleSwitch:false};
+  S={role:'',token:null,pin:null,sr:'',canRoleSwitch:false};
   D={mem:[],ren:[],sm:{},teams:[],msgs:[],reps:[]};
   G={mem:[],sm:{},tasks:[],nm:[],dec:[]};
   bulkSel={};updateBulkBar();
