@@ -1,141 +1,117 @@
 # BNI IDEAL Mentor System — Audit Log
 
-**Audit date:** 2026-06-26 (Round 5 — LINE Foundation + Passport system + Growth LINE ID)
-**Previous audit:** 2026-06-25 (Round 4 — membership dates + training calendar + edit member)
-**Scope:** Full project (GAS legacy + Supabase Edge Functions + static frontend) — 163 files (58 TS, 22 JS, 16 HTML, 57 SQL)
+**Audit date:** 2026-07-01 (Round 6 — PIN admin auth + Passport Calendar + cron fixes)
+**Previous audit:** 2026-06-26 (Round 5 — LINE Foundation + Passport system)
+**Scope:** Full project (GAS legacy + Supabase Edge Functions + static frontend) — 151 files (52 TS, 22 JS, 16 HTML, 61 SQL)
 **Auditor:** Claude Code (claude-sonnet-4-6)
 
 ---
 
-## Summary (Round 5)
+## Summary (Round 6)
 
 | Phase | Status |
 |-------|--------|
-| 0 — Pre-flight & file listing | Complete (163 files; +16 since Round 4) |
+| 0 — Pre-flight & file listing | Complete (151 files; net -12 since Round 5 due to SQL consolidation) |
 | 1 — Bug scan (all TS/HTML/SQL) | Complete |
 | 2 — Code cleanliness | Complete |
 | 3 — Integration check (ROUTES, fields, auth) | Complete |
-| 4 — Fix CRITICAL/HIGH issues | Complete — 9 fixes (F-67…F-70, F-68/F-69 x6, F-78) |
+| 4 — Fix CRITICAL/HIGH issues | Complete — 5 fixes (F-80→F-84, F-87) |
 | 5 — Write this log | Complete |
 | 6 — Persist audit rules to CLAUDE.md | Already present |
 
 ---
 
-## Findings Table (Round 5 — 2026-06-26)
+## Findings Table (Round 6 — 2026-07-01)
 
 | # | Severity | File | Issue | Status |
 |---|----------|------|-------|--------|
-| F-66 | MEDIUM | `_shared/line.ts`:242 | Simulator `lineReplyMessages()` returns `{ ok, sentCount }` but declared return type expects `{ sent, skipped }` — callers checking `.sent` get `undefined` | Known issue — sim mode only; no production impact |
-| F-67 | HIGH→**FIXED** | `line-webhook/index.ts`:1188 | `schedule121()` insert into `one_to_one_logs` omitted `partner_name` column added in migration 041 — would cause DB error on every LINE "นัด [name]" command | **FIXED** — added `partner_name: (partner.nickname \|\| partner.name \|\| partnerName)` |
-| F-68 | MEDIUM→**FIXED** | `api/handlers/line-admin.ts`:461,490,519,589,639,665 | `getAbsenceLog`, `getAbsenceLogRecent`, `getLineIssues`, `getOnboardingStatus`, `getOnboardingMessages`, `getOnboardingPreview` called `requireAuth(db,p)` with no role list — any authenticated session could read absence and onboarding data | **FIXED** — all 6 now pass `['mc','toomtam','aof','draft','phai','amp']` |
-| F-69 | MEDIUM→**FIXED** | `api/handlers/line-admin.ts`:756 | `mentorBroadcast` called `requireAuth(db,p)` with no role list — any authenticated session could broadcast LINE messages | **FIXED** — added `['mc','toomtam','aof','draft','phai','amp']` role list |
-| F-70 | HIGH→**FIXED** | `api/handlers/line-admin.ts`:825 | `setupRichMenu` admin action fetched `rich-menu-${role}-v2.jpg` — `line-provision.ts` uses `v4`; fetching non-existent v2 assets would silently fail | **FIXED** — changed to `rich-menu-${role}-v4.jpg` |
-| F-71 | MEDIUM | `admin-api/index.ts`:44-66 | No centralized auth guard before dispatch — a new case without internal `requireAuth` would be silently open. Each handler currently has its own guard but no safety net | Known issue — acceptable for now; handlers all guard individually |
-| F-72 | MEDIUM | `cron-jobs/index.ts`:~411 | `line121AutoReminder` uses `!inner` join on `one_to_one_logs → line_members`; if FK not defined in migrations, PostgREST returns zero rows and reminders never fire | Known issue — verify FK existence in migration 041 |
-| F-73 | LOW | `_shared/palms.ts`:73 | `trafficLight(total) as PalmsResult['color']` casts away `'none'` return value; harmless in practice but misleading | Known issue — deferred |
-| F-74 | LOW | `_shared/line-absence-notify.ts`:~67 | `.or()` filter uses string interpolation with `mentorTeam` from DB — commas or dots in team name could break PostgREST filter syntax | Known issue — team names are controlled, very low risk |
-| F-75 | PASS | `public/dashboard.html`:5407 | `accRoleSync(role)` correctly sets `is_mc` only for `mc`, `is_mentor` for 5 mentor names — verified | PASS — no bug |
-| F-76 | LOW | `public/liff/index.html`:197 | Renewal card is a `<div>`, not `<form>` — form submit listener won't trigger on it; fragile design | Known issue — no production bug |
-| F-77 | PASS | `public/liff/index.html`:216,231 | `get-assignments` and `ack-assignment` action names match backend exactly | PASS — no bug |
-| F-78 | MEDIUM→**FIXED** | `public/admin/settings.html`:277 | `approveReq()` computed `isMentor` but never computed `isMC` — MC role approval created `role_assignments` without `is_mc=true` | **FIXED** — added `isMC: role === 'mc'` to payload |
-| F-79 | LOW | `public/liff/index.html`:166 | `applyRoleTabs()` has no fallback for unexpected role values — mentor tabs stay hidden for `mc` role in preview mode | Known issue — preview mode sets `role:'mentor'` anyway |
+| F-80 | CRITICAL→**FIXED** | `admin-api/handlers/settings.ts`:102 | `getAdminSessionInfo` placed after `!isMC` guard — non-MC admin users permanently locked out of admin panel PIN login | **FIXED** — moved `getAdminSessionInfo` block before the MC-only guard |
+| F-81 | HIGH→**FIXED** | `admin-api/handlers/settings.ts`:482 | `.maybeSingle()` on `role_assignments` filtered by `role` (not unique) — throws PGRST116 if two accounts share same role | **FIXED** — added `.limit(1)` before `.maybeSingle()` |
+| F-82 | HIGH→**FIXED** | `cron-jobs/index.ts`:494 | `passportLtReminder` uses ambiguous `members(name,nickname)` — PostgREST HTTP 300 error due to two FK paths from `passport_sessions` to `members`; cron fails silently every run | **FIXED** — changed to `members!passport_sessions_member_id_fkey(name, nickname)` |
+| F-83 | MEDIUM→**FIXED** | `public/admin/_auth.js`:40 | `redirectToLogin()` targeted `/admin/login.html` which does not exist — 404 on any auth failure | **FIXED** — changed to `/admin/index.html` (PIN modal shows on load) |
+| F-84 | MEDIUM→**FIXED** | `api/handlers/members.ts`:754 | Dead code: `(s as any)['members!passport_sessions_member_id_fkey']` is never populated by PostgREST (response key is always `'members'`) — misleading and permanently dead branch | **FIXED** — simplified to `s.members || {}` |
+| F-85 | LOW | `_shared/line.ts`:242 | Sim-mode `lineReplyMessages()` returns `{ ok, sentCount }` vs declared `LineSendResult { sent, skipped }` — **F-66 still present** | Known issue — sim mode only |
+| F-86 | LOW | `cron-jobs/index.ts`:~412 | `line121AutoReminder` uses `line_members!inner(...)` join with no FK path — PostgREST will error — **F-72 still present** | Known issue — deferred |
+| F-87 | LOW→**FIXED** | `public/admin/_auth.js`:29 | `adminCall()` re-auth regex didn't match `'Admin access required'` — stale non-MC session would silently fail all API calls without triggering re-login | **FIXED** — added `Admin access required` to regex |
+| F-88 | INFO | `public/admin/request-access.html` | Still uses Google OAuth — intentional (proves identity before requesting PIN access), `getSbAuth()` safely guards null | Known issue — by design |
 
 ---
 
 ## ROUTES Completeness Check (Phase 3)
 
-All handler `case` values verified against `ROUTES` in `index.ts` and `admin-api/index.ts`.
+**Admin API:** `getAdminSessionInfo` correctly registered in ROUTES → `settings`. All 32 existing routes verified.
 
-**Main API (api/index.ts):** All 150+ routes verified including new Passport routes:
-- `getPassportBoard` → `members` ✅
-- `syncPassportEnrollments` → `members` ✅
-- `updatePassportSession` → `members` ✅
-- `savePassportLtAssignment` → `members` ✅
-
-**Admin API (admin-api/index.ts):** All 35 routes verified. LINE team mapping routes:
-- `getLineTeamMappings` → `settings` ✅
-- `setLineTeamMapping` → `settings` ✅
+**Main API:** `getPassportCalendar` → `members` ✅. All 150+ routes verified — no gaps found.
 
 ---
 
 ## Auth / Security Check (Phase 3)
 
-| Handler | Has requireAuth | Write ops | Assessment |
-|---------|----------------|-----------|------------|
-| line-admin.ts | ✅ All cases (fixed F-68/F-69) | 14 | OK after fix |
-| members.ts (passport) | ✅ MC-only for all Passport mutations | 4 | OK |
-| liff-api/index.ts | ✅ LIFF token validation (no requireAuth — uses LIFF JWT) | 3 | OK |
-| line-webhook/index.ts | N/A — LINE signature verification | 6 | OK — HMAC verified |
-| cron-jobs/index.ts | N/A — service role only | various | OK |
-
-- `DEV_MODE` only in `_shared/auth.ts` ✅
-- No hardcoded tokens or secrets found ✅
-- `public.ts` (no auth) only exposes read-only public data ✅
-- LINE webhook verifies HMAC signature before any processing ✅
+| Area | Status |
+|------|--------|
+| `getAdminSessionInfo` — pre-MC-guard placement | ✅ FIXED (F-80) |
+| All other admin-api handlers — MC guard at line 102 | ✅ Correct |
+| `adminCall()` re-auth detection | ✅ FIXED (F-87) |
+| SUPABASE_ANON key in `_auth.js` | ✅ Publishable anon key — safe for frontend |
+| No hardcoded PINs in source | ✅ Confirmed |
+| No `YOUR_*` placeholders in new files | ✅ Confirmed |
+| DEV_MODE bypass only in `_shared/auth.ts` | ✅ Confirmed |
 
 ---
 
 ## PALMS / Scoring Checks (Phase 1)
 
-All checks from Round 4 remain green:
-
-| Rule | Status |
-|------|--------|
-| `months = weeks / 4` (not 4.333) | ✅ All locations |
-| `effectiveWeeks = Math.min(26, Math.max(1, floor(bniDays/7)))` | ✅ Consistent |
-| `display_score = GREATEST(monthly, official_pts)` | ✅ SQL view + handlers |
-| Traffic light ≥70/≥50/≥30 thresholds | ✅ SQL + TS in sync |
-| NM Checklist denominator = 41 (CHECKLIST_TOTAL) | ✅ Enforced |
-| Month sort: `year*100+month` numeric | ✅ All sort paths |
+All checks from Round 5 remain green. No new PALMS-related code in this round.
 
 ---
 
-## New Features Verified (Round 5 additions)
+## New Features Verified (Round 6 additions)
 
 | Feature | Status |
 |---------|--------|
-| LINE Foundation: webhook HMAC + role dispatch | ✅ Signature verified, roles dispatched correctly |
-| Rich menu provisioning (v4 assets, v5 version key) | ✅ `line-provision.ts` uses v4 assets; `setupRichMenu` now fixed to v4 |
-| `elevatedLineIds` guard (MC/Growth not downgraded to Mentor) | ✅ Guard applied in both LINE_ID_* loop and mentor_teams loop |
-| Passport board: D.mem race condition guard | ✅ `renderPassportBoard()` fetches `getDesktopDashboard` if `D.mem` empty |
-| Passport `offset_days` falsy-zero bug | ✅ Fixed: `t.default_offset_days != null ? Number(...) : fallback` |
-| Growth LINE ID admin UI (ltGrowthBody) | ✅ Settings handler returns `growthRow`; frontend renders it |
-| `accRoleSync` auto-sync on role dropdown change | ✅ Verified correct logic for all roles |
+| PIN admin auth — `_auth.js` rewrite | ✅ Works in LINE browser; session via sessionStorage; `checkAdminAuth()` shows PIN modal or restores session |
+| `getAdminSessionInfo` — role + PIN → full session info | ✅ Fixed (F-80); now reachable for all roles before MC guard |
+| `redirectToLogin()` → `index.html` | ✅ Fixed (F-83); PIN modal shows on load |
+| `passportLtReminder` — FK disambiguation | ✅ Fixed (F-82); matches `getPassportCalendar` pattern |
+| Passport Calendar widget — dashboard Overview | ✅ Renders upcoming sessions; error state visible; refresh button |
+| LINE WebView detection — dashboard.html + index.html | ✅ Banner + copy-URL on login page |
 
 ---
 
 ## Fixes Applied (Phase 4)
 
-### FIX-67: `schedule121()` — missing `partner_name`
-**File:** `supabase/functions/line-webhook/index.ts`:1188
-**Before:** `{ initiator_id: ..., partner_id: ..., scheduled_date: ... }`
-**After:** `{ initiator_id: ..., partner_id: ..., partner_name: String(partner.nickname || partner.name || partnerName), scheduled_date: ... }`
+### FIX-80+81: `getAdminSessionInfo` — moved before MC guard + added `.limit(1)`
+**File:** `supabase/functions/admin-api/handlers/settings.ts`
+**Before:** `getAdminSessionInfo` block at line 474, after `if (!auth.isMC) return errResponse(403)` at line 102 — unreachable for any non-MC role
+**After:** Block moved to run before the MC guard; also added `.limit(1)` to prevent PGRST116 throw when role column is non-unique
 
-### FIX-68/F-69: `requireAuth` missing role lists — 7 endpoints
-**File:** `supabase/functions/api/handlers/line-admin.ts`
-**Lines:** 461, 490, 519, 589, 639, 665, 756
-**Before:** `requireAuth(db, p)` with no role restriction
-**After:** `requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp'])`
+### FIX-82: `passportLtReminder` — FK disambiguation
+**File:** `supabase/functions/cron-jobs/index.ts`:494
+**Before:** `.select('...members(name, nickname)')` → PostgREST HTTP 300 ambiguity error
+**After:** `.select('...members!passport_sessions_member_id_fkey(name, nickname)')` → matches `getPassportCalendar` pattern
 
-### FIX-70: `setupRichMenu` — stale v2 asset URL
-**File:** `supabase/functions/api/handlers/line-admin.ts`:825
-**Before:** `` `${appUrl}/assets/line/rich-menu-${role}-v2.jpg` ``
-**After:** `` `${appUrl}/assets/line/rich-menu-${role}-v4.jpg` ``
+### FIX-83: `redirectToLogin()` — target existing page
+**File:** `public/admin/_auth.js`:40
+**Before:** `window.location.href = '/admin/login.html'` → 404
+**After:** `window.location.href = '/admin/index.html'` → PIN modal shown by `checkAdminAuth()`
 
-### FIX-78: `approveReq()` — missing `isMC` flag
-**File:** `public/admin/settings.html`:276-282
-**Before:** Only `isMentor` computed; MC approvals created `role_assignments` without `is_mc=true`
-**After:** Added `isMC: role === 'mc'` in payload sent to `approveAccessRequest`
+### FIX-84: Dead FK fallback key removed
+**File:** `supabase/functions/api/handlers/members.ts`:754
+**Before:** `(s as any)['members!passport_sessions_member_id_fkey'] || s.members`
+**After:** `s.members` — PostgREST always returns key as `'members'` regardless of hint
+
+### FIX-87: `adminCall()` re-auth regex broadened
+**File:** `public/admin/_auth.js`:29
+**Before:** `/(PIN|ไม่ถูกต้อง|Authentication failed)/i`
+**After:** `/(PIN|ไม่ถูกต้อง|Authentication failed|Admin access required)/i`
 
 ---
 
 ## Code Cleanliness Notes (Phase 2)
 
-- `MENTOR_TEAMS` hardcoded in dashboard.html and webhook — LOW, acceptable for small chapter
-- `_deskTrainCache` never invalidated (F-64 from Round 4) — still deferred
-- `line.ts` simulator return type mismatch (F-66) — sim-only; production unaffected
-- LINE commands in `line-commands.ts` well-structured; no dead branches found
-- `traffic-evolution.ts` cleanly isolated — no cross-function references
+- `_auth.js` no longer imports Supabase SDK for auth — cleaner dependency surface
+- `getSbAuth()` kept for backward compat with `request-access.html` — guarded with null check; safe
+- `passportLtReminder` in cron-jobs follows same pattern as `thursdayBotPush` and `mentorTeamAlert` — consistent style
 
 ---
 
@@ -144,22 +120,23 @@ All checks from Round 4 remain green:
 | # | Severity | Issue |
 |---|----------|-------|
 | F-06 | MEDIUM | Growth/mentor read endpoints open — known design decision |
-| F-07 | MEDIUM | Some cross-team data visible to mentor role in growth view |
 | F-64 | LOW | `_deskTrainCache` never invalidated during session |
-| F-65 | LOW | Hardcoded `TRAINING_EVENTS` becomes redundant when bni_events early-bird data complete |
-| F-66 | MEDIUM | `line.ts` sim mode returns wrong shape (`sentCount` vs `sent/skipped`) |
+| F-65 | LOW | Hardcoded `TRAINING_EVENTS` will become redundant when bni_events early-bird data complete |
+| F-66/F-85 | MEDIUM | `line.ts` sim mode returns wrong shape (`sentCount` vs `sent/skipped`) |
 | F-71 | MEDIUM | No centralized auth guard in admin-api (each handler guards individually) |
-| F-72 | MEDIUM | `line121AutoReminder` `!inner` join — verify FK defined in migration 041 |
+| F-72/F-86 | MEDIUM | `line121AutoReminder` `!inner` join — no FK path; reminders may not fire |
 | F-73 | LOW | `palms.ts` `trafficLight()` cast hides `'none'` return |
 | F-74 | LOW | `line-absence-notify.ts` PostgREST `.or()` uses string interpolation |
-| F-76 | LOW | LIFF renewal card is `<div>` not `<form>` — form listener won't fire on it |
+| F-76 | LOW | LIFF renewal card is `<div>` not `<form>` |
 | F-79 | LOW | `applyRoleTabs()` no fallback for unexpected role values |
+| F-88 | INFO | `request-access.html` still uses Google OAuth — intentional |
 
 ---
 
 ## Prior Round Summary
 
+**Round 5 (2026-06-26):** Fixed F-67 (partner_name missing), F-68/F-69 (requireAuth roles x7), F-70 (v4 asset URL), F-78 (isMC in approveReq).
 **Round 4 (2026-06-25):** Fixed F-61 (event dedup), F-62 (dup check error handling), F-63 (no-data member suggestions).
-**Round 3 (2026-06-22):** Fixed F-57 (notification audience filter), F-58 (monday brief `none` TL), F-59 (duplicate `var d`), F-60 (LINE absence notify target_audience).
+**Round 3 (2026-06-22):** Fixed F-57–F-60 (LINE notification scoping).
 **Round 2 (2026-06-22):** LINE system, unlink flow, schema cache.
 **Round 1:** Initial audit — PALMS scoring, auth matrix, ROUTES.

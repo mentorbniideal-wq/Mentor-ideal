@@ -491,7 +491,7 @@ async function passportLtReminder(db: DB): Promise<void> {
 
   const { data: sessions } = await db
     .from('passport_sessions')
-    .select('id, title, lt_role, assigned_lt_member_id, assigned_lt_name, members(name, nickname)')
+    .select('id, title, lt_role, assigned_lt_member_id, assigned_lt_name, members!passport_sessions_member_id_fkey(name, nickname)')
     .eq('scheduled_date', targetDate)
     .in('status', ['scheduled', 'notified']);
 

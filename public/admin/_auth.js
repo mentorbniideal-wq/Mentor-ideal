@@ -26,7 +26,7 @@
     const res = await fetch(ADMIN_API, { method: 'POST', headers: API_HEADERS, body: JSON.stringify(body) });
     const r = await res.json();
     // Session expired / invalid PIN → force re-login
-    if (!r.ok && r.error && /(PIN|ไม่ถูกต้อง|Authentication failed)/i.test(r.error)) {
+    if (!r.ok && r.error && /(PIN|ไม่ถูกต้อง|Authentication failed|Admin access required)/i.test(r.error)) {
       clearStoredSession();
       showPinModal(window._adminAuthResolve);
     }
@@ -37,7 +37,7 @@
   // ── Logout ──────────────────────────────────────────────────
   window.adminLogout = function () { clearStoredSession(); redirectToLogin(); };
 
-  function redirectToLogin() { window.location.href = '/admin/login.html'; }
+  function redirectToLogin() { window.location.href = '/admin/index.html'; }
 
   // ── Format helpers shared by all admin pages ─────────────────
   window.fmt = {

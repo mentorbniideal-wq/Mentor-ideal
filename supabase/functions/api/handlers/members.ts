@@ -751,7 +751,7 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
           .order('week_no', { ascending: true });
         if (error) return errResponse(error.message);
         const sessions = ((data || []) as Record<string, unknown>[]).map(s => {
-          const m = ((s as any)['members!passport_sessions_member_id_fkey'] || s.members || {}) as Record<string, unknown>;
+          const m = (s.members || {}) as Record<string, unknown>;
           return {
             id: String(s.id || ''),
             date: String(s.scheduled_date || ''),

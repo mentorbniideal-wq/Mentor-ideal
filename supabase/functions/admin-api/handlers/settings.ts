@@ -96,6 +96,30 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     return jsonResponse({ ok: true });
   }
 
+  // ── PIN session verification (open to all authenticated roles) ──────────────
+  if (action === 'getAdminSessionInfo') {
+    const auth = await requireAuth(db, p);
+    if (!auth.ok) return errResponse(auth.error!);
+    const { data: ra } = await db
+      .from('role_assignments')
+      .select('admin_sections, admin_edit_access, display_name')
+      .eq('role', auth.role!)
+      .limit(1)
+      .maybeSingle();
+    const sections: string[] = Array.isArray((ra as Record<string,unknown>)?.admin_sections)
+      ? ((ra as Record<string,unknown>).admin_sections as unknown[]).map(String)
+      : [];
+    return jsonResponse({
+      ok:              true,
+      role:            auth.role,
+      isMC:            auth.isMC,
+      isMentor:        auth.isMentor,
+      displayName:     auth.displayName,
+      adminSections:   sections,
+      adminEditAccess: Boolean((ra as Record<string,unknown>)?.admin_edit_access ?? auth.isMC),
+    });
+  }
+
   // ── MC-only actions ──────────────────────────────────────────────────────────
   const auth = await requireAuth(db, p);
   if (!auth.ok) return errResponse(auth.error!);
@@ -468,30 +492,6 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     );
     if (!response.ok) return errResponse(`LINE ${response.status}: ${(await response.text()).slice(0, 300)}`);
     return jsonResponse({ ok: true, lineUserId, menuRole, richMenuId });
-  }
-
-  // ── PIN-based admin session verification ────────────────────
-  if (action === 'getAdminSessionInfo') {
-    const auth = await requireAuth(db, p);
-    if (!auth.ok) return errResponse(auth.error!);
-    // Look up admin_sections and admin_edit_access from role_assignments (PIN auth doesn't include these)
-    const { data: ra } = await db
-      .from('role_assignments')
-      .select('admin_sections, admin_edit_access, display_name')
-      .eq('role', auth.role!)
-      .maybeSingle();
-    const sections: string[] = Array.isArray((ra as Record<string,unknown>)?.admin_sections)
-      ? ((ra as Record<string,unknown>).admin_sections as unknown[]).map(String)
-      : [];
-    return jsonResponse({
-      ok:           true,
-      role:         auth.role,
-      isMC:         auth.isMC,
-      isMentor:     auth.isMentor,
-      displayName:  auth.displayName,
-      adminSections:    sections,
-      adminEditAccess:  Boolean((ra as Record<string,unknown>)?.admin_edit_access ?? auth.isMC),
-    });
   }
 
   if (action === 'getConnectionStatus') {
