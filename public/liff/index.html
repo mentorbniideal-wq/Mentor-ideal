@@ -56,6 +56,7 @@
       <button class="tab mentor-tab hidden" data-view="mentor-log">📋 บันทึก</button>
       <button class="tab mentor-tab hidden" data-view="follow-up">📌 ติดตาม</button>
       <button class="tab mentor-tab hidden" data-view="renewal">🔄 Renewal</button>
+      <button class="tab member-tab" data-view="progress">📊 ความก้าวหน้า</button>
       <button class="tab member-tab" data-view="issue">ช่วยเหลือ</button>
       <button class="tab assign-tab hidden" data-view="assignments">📎 งาน</button>
     </nav>
@@ -135,6 +136,12 @@
       <div id="renewalContent" class="loading" style="padding:16px 0">กำลังโหลด…</div>
     </div>
 
+    <!-- ความก้าวหน้า -->
+    <div class="card" data-card="progress">
+      <h2>📊 ความก้าวหน้าของฉัน</h2><p class="hint">เปรียบเทียบเป้าหมายกับผลจริงในช่วงนี้</p>
+      <div id="progressContent" class="loading" style="padding:16px 0">กำลังโหลด…</div>
+    </div>
+
     <!-- Assignments -->
     <div class="card" data-card="assignments">
       <h2>📎 งานที่ได้รับ</h2><p class="hint">งานมอบหมายจาก MC</p>
@@ -154,7 +161,7 @@ function getRequestedAction() {
   const q = new URLSearchParams(location.search);
   if (q.get('action')) return q.get('action');
   const pathAction = location.pathname.match(
-    /\/liff\/(mentor-log|follow-up|issue|renewal|assignments|absence|121|goal|visitor)\/?$/,
+    /\/liff\/(mentor-log|follow-up|issue|renewal|assignments|absence|121|goal|visitor|progress)\/?$/,
   );
   if (pathAction) return pathAction[1];
   const liffState = q.get('liff.state');
@@ -182,6 +189,7 @@ function show(view) {
   history.replaceState(null, '', `?action=${view}`);
   if (view === 'renewal') loadRenewal();
   if (view === 'assignments') loadAssignments();
+  if (view === 'progress') loadProgress();
 }
 
 async function api(payload) {
@@ -223,6 +231,47 @@ async function loadAssignments() {
       <small>${a.due_date ? 'ครบกำหนด ' + a.due_date : (a.mentor_team || '')}</small>
       <br><button onclick="ackAssignment('${a.id}',this)">รับทราบ</button>
     </div>`).join('');
+}
+
+async function loadProgress() {
+  const box = $('#progressContent');
+  if (box._loaded) return;
+  const r = await api({ action: 'progress' });
+  if (!r.ok) { box.textContent = r.error || 'โหลดไม่ได้'; return; }
+  const pd = r.palmsDetail || {};
+  const ac = r.actuals || {};
+  const gl = r.goals || {};
+  const TL = { green: '🟢', yellow: '🟡', red: '🔴', black: '⚫', none: '⚫' };
+  const rows = [
+    { key: 'ref',     label: 'Referral',    pts: pd.referral  ?? 0, max: 15, actual: `${ac.referrals ?? 0} ใบ`,     goalUnit: 'ใบ/สัปดาห์' },
+    { key: 'visitor', label: 'Visitor',     pts: pd.visitor   ?? 0, max: 20, actual: `${ac.visitors ?? 0} คน`,      goalUnit: 'คน/เดือน'  },
+    { key: 'oto',     label: '1-2-1',       pts: pd.oneToOne  ?? 0, max: 15, actual: `${ac.oneToOne ?? 0} ครั้ง`,   goalUnit: 'ครั้ง/สัปดาห์' },
+    { key: 'ceu',     label: 'CEU',         pts: pd.ceu       ?? 0, max: 20, actual: `${ac.ceu ?? 0} ครั้ง`,        goalUnit: 'ครั้ง'      },
+    { key: 'tyfb',    label: 'TYFB',        pts: pd.tyfb      ?? 0, max: 15, actual: `฿${(ac.tyfbThb??0).toLocaleString()}`, goalUnit: 'บาท' },
+  ];
+  const totalColor = TL[pd.color || 'none'];
+  let html = `<div style="text-align:center;margin-bottom:16px">
+    <span style="font-size:28px;font-weight:800">${pd.total ?? 0}</span>
+    <span style="font-size:16px;color:var(--muted)"> / 100 คะแนน  ${totalColor}</span>
+    <div style="font-size:12px;color:var(--muted);margin-top:2px">สัปดาห์ที่ ${ac.weeks ?? '-'} ของรอบ</div>
+  </div>`;
+  for (const row of rows) {
+    const pct = Math.round((row.pts / row.max) * 100);
+    const goal = gl[row.key];
+    const goalBadge = goal != null ? `<span style="font-size:11px;color:var(--ink);background:rgba(0,0,0,.07);border-radius:10px;padding:1px 7px">เป้า ${goal} ${row.goalUnit}</span>` : '';
+    html += `<div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:13px;font-weight:600">${row.label} ${goalBadge}</span>
+        <span style="font-size:12px;color:var(--muted)">${row.actual} · ${row.pts}/${row.max} pt</span>
+      </div>
+      <div style="background:rgba(0,0,0,.09);border-radius:6px;height:8px">
+        <div style="background:var(--ink);border-radius:6px;height:8px;width:${pct}%"></div>
+      </div>
+    </div>`;
+  }
+  html += `<div style="margin-top:8px;font-size:12px;color:var(--muted)">ขาด ${ac.absent ?? 0} ครั้ง · คะแนนขาด ${pd.absence ?? 0}/15</div>`;
+  box.innerHTML = html;
+  box._loaded = true;
 }
 
 async function ackAssignment(id, btn) {

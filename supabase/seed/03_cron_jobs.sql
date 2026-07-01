@@ -113,6 +113,20 @@ SELECT cron.schedule(
   $$SELECT call_cron_job('passportLtReminder');$$
 );
 
+-- 1st of each month 09:00 TH (02:00 UTC) — Personal monthly report to all LINE members
+SELECT cron.schedule(
+  'monthly-personal-report',
+  '0 2 1 * *',
+  $$SELECT call_cron_job('monthlyPersonalReport');$$
+);
+
+-- Daily 01:00 UTC (08:00 TH) — Visitor follow-up reminder (14 days after visit)
+SELECT cron.schedule(
+  'daily-visitor-followup',
+  '0 1 * * *',
+  $$SELECT call_cron_job('visitorFollowUpReminder');$$
+);
+
 -- ── Verify schedule ───────────────────────────────────────────
 -- Run after setup:
 -- SELECT jobname, schedule, command FROM cron.job ORDER BY jobname;

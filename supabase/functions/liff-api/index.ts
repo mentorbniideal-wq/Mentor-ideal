@@ -22,12 +22,33 @@ async function resolveLineMember(db: Db, accessToken: string) {
   const profile = await profileRes.json() as Record<string, unknown>;
   const userId = String(profile.userId || '');
   const { data } = await db.from('line_members')
-    .select('member_id, members(id, name, nickname, mentor_team)')
+    .select('member_id, members(id, name, nickname, mentor_team, email)')
     .eq('line_user_id', userId)
     .maybeSingle();
   if (!data) return { error: 'บัญชี LINE นี้ยังไม่ได้เชื่อมกับสมาชิก', userId, profile };
   const member = (data as Record<string, unknown>).members as Record<string, unknown>;
   return { userId, profile, member, memberId: String((data as Record<string, unknown>).member_id) };
+}
+
+async function resolveLeaderTeam(db: Db, member: Record<string, unknown>): Promise<string | null> {
+  const name = String(member.name || '');
+  const nick = String(member.nickname || '');
+  const { data: ledTeam } = await db.from('mentor_teams')
+    .select('name')
+    .or(`leader_name.ilike.%${name}%${nick ? `,leader_name.ilike.%${nick}%` : ''}`)
+    .maybeSingle();
+  if (ledTeam) return String((ledTeam as Record<string, unknown>).name);
+  const email = String(member.email || '').trim().toLowerCase();
+  if (email) {
+    const { data: ra } = await db.from('role_assignments')
+      .select('team_name')
+      .ilike('email', email)
+      .eq('is_mentor', true)
+      .maybeSingle();
+    const teamName = String((ra as Record<string, unknown> | null)?.team_name || '');
+    if (teamName) return teamName;
+  }
+  return null;
 }
 
 Deno.serve(async (req: Request) => {
@@ -61,11 +82,7 @@ Deno.serve(async (req: Request) => {
       memberId,
       source: 'liff',
     });
-    const nick = String(member.nickname || '');
-    const { data: mentorTeam } = await db.from('mentor_teams')
-      .select('name')
-      .or(`leader_name.ilike.%${member.name}%${nick ? `,leader_name.ilike.%${nick}%` : ''}`)
-      .maybeSingle();
+    const leaderTeamName = await resolveLeaderTeam(db, member);
     return response({
       ok: true,
       profile: identity.profile,
@@ -73,8 +90,8 @@ Deno.serve(async (req: Request) => {
       dashboard,
       goals: goals || [],
       notifications: notif || [],
-      role: mentorTeam ? 'mentor' : 'member',
-      mentorTeamName: (mentorTeam as Record<string, unknown> | null)?.name ?? null,
+      role: leaderTeamName ? 'mentor' : 'member',
+      mentorTeamName: leaderTeamName,
     });
   }
 
@@ -168,12 +185,8 @@ Deno.serve(async (req: Request) => {
     if (!menteeName) return response({ ok: false, error: 'กรุณาระบุชื่อสมาชิก' }, 400);
     if (!sessionDate) return response({ ok: false, error: 'sessionDate required' }, 400);
     if (notes.length < 3) return response({ ok: false, error: 'กรุณาระบุ notes เพิ่มเติม' }, 400);
-    const { data: ledTeam } = await db.from('mentor_teams')
-      .select('name')
-      .or(`leader_name.ilike.%${member.name}%${member.nickname ? `,leader_name.ilike.%${member.nickname}%` : ''}`)
-      .maybeSingle();
-    if (!ledTeam) return response({ ok: false, error: 'ต้องเป็น Mentor เท่านั้น' }, 403);
-    const teamName = String((ledTeam as Record<string, unknown>).name);
+    const teamName = await resolveLeaderTeam(db, member);
+    if (!teamName) return response({ ok: false, error: 'ต้องเป็น Mentor เท่านั้น' }, 403);
     const { data: mentee } = await db.from('members')
       .select('id')
       .or(`name.ilike.%${menteeName}%,nickname.ilike.%${menteeName}%`)
@@ -200,12 +213,8 @@ Deno.serve(async (req: Request) => {
     const note = String(body.note || '').trim();
     if (!memberName) return response({ ok: false, error: 'กรุณาระบุชื่อสมาชิก' }, 400);
     if (note.length < 3) return response({ ok: false, error: 'กรุณาระบุบันทึก follow-up' }, 400);
-    const { data: ledTeam } = await db.from('mentor_teams')
-      .select('name')
-      .or(`leader_name.ilike.%${member.name}%${member.nickname ? `,leader_name.ilike.%${member.nickname}%` : ''}`)
-      .maybeSingle();
-    if (!ledTeam) return response({ ok: false, error: 'ต้องเป็น Mentor เท่านั้น' }, 403);
-    const teamName = String((ledTeam as Record<string, unknown>).name);
+    const teamName = await resolveLeaderTeam(db, member);
+    if (!teamName) return response({ ok: false, error: 'ต้องเป็น Mentor เท่านั้น' }, 403);
     const { data: targetMember } = await db.from('members')
       .select('id')
       .or(`name.ilike.%${memberName}%,nickname.ilike.%${memberName}%`)
@@ -304,6 +313,30 @@ Deno.serve(async (req: Request) => {
       .or(orFilter);
     if (error) return response({ ok: false, error: error.message }, 400);
     return response({ ok: true, message: 'รับทราบแล้วครับ' });
+  }
+
+  if (action === 'progress') {
+    const [{ data: dash }, { data: goals }] = await Promise.all([
+      db.from('v_member_dashboard')
+        .select('palms_detail, rg, visitors, one_to_one, ceu, tyfcb_thb, absent, bni_days')
+        .eq('id', memberId).maybeSingle(),
+      db.from('line_goals').select('goal_type, target').eq('member_id', memberId),
+    ]);
+    const d = dash as Record<string, unknown> | null;
+    const actuals = {
+      referrals: Number(d?.rg ?? 0),
+      visitors: Number(d?.visitors ?? 0),
+      oneToOne: Number(d?.one_to_one ?? 0),
+      ceu: Number(d?.ceu ?? 0),
+      tyfbThb: Number(d?.tyfcb_thb ?? 0),
+      absent: Number(d?.absent ?? 0),
+      weeks: Math.min(26, Math.max(1, Math.floor(Number(d?.bni_days ?? 7) / 7))),
+    };
+    const goalMap: Record<string, number> = {};
+    for (const g of (goals || []) as Record<string, unknown>[]) {
+      goalMap[String(g.goal_type)] = Number(g.target);
+    }
+    return response({ ok: true, palmsDetail: d?.palms_detail ?? {}, actuals, goals: goalMap });
   }
 
   return response({ ok: false, error: `Unknown action: ${action}` }, 400);

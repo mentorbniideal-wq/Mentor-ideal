@@ -56,6 +56,8 @@ Deno.serve(async (req: Request) => {
       case 'renewalPush':             await renewalPush(db);              break;
       case 'purgeExpiredDismissals':  await purgeExpiredDismissals(db);   break;
       case 'passportLtReminder':      await passportLtReminder(db);      break;
+      case 'monthlyPersonalReport':   await monthlyPersonalReport(db);   break;
+      case 'visitorFollowUpReminder': await visitorFollowUpReminder(db); break;
       case 'provisionLineExperience': {
         const result = await provisionLineExperience(db);
         console.log('[cron-jobs] LINE provisioned:', JSON.stringify(result));
@@ -534,6 +536,116 @@ async function passportLtReminder(db: DB): Promise<void> {
         db,
         idempotencyKey: `passport-lt-reminder:${String(s.id)}:${targetDate}`,
         notificationType: 'passport_lt_reminder',
+        source: 'cron-jobs',
+      },
+    );
+  }
+}
+
+// ── 1st of month 09:00 TH: personal monthly report to all LINE members ──
+async function monthlyPersonalReport(db: DB): Promise<void> {
+  const { data: lineMembers } = await db.from('line_members')
+    .select('line_user_id, member_id, members(name, nickname)');
+  if (!lineMembers?.length) return;
+
+  const monthKey = bangkokDateKey().slice(0, 7); // YYYY-MM
+  const [year, mon] = monthKey.split('-').map(Number);
+  const thaiMonths = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+  const prevMon = mon === 1 ? 12 : mon - 1;
+  const prevYear = mon === 1 ? year - 1 : year;
+  const monthLabel = `${thaiMonths[prevMon]} ${prevYear + 543}`;
+
+  for (const rec of lineMembers as Record<string, unknown>[]) {
+    const memberName = (rec.members as Record<string, string>)?.name;
+    if (!memberName) continue;
+    const memberId = String(rec.member_id || '');
+
+    const { data: muted } = await db.from('line_notif_settings')
+      .select('member_id').eq('member_id', memberId).eq('is_muted', true)
+      .in('notif_type', ['score', 'all']).limit(1);
+    if (muted?.length) continue;
+
+    const m = await getMemberData(db, memberName);
+    if (!m) continue;
+
+    const pd = m.palms_detail;
+    const nick = m.nickname || memberName.split(' ')[0] || '?';
+    const tlIcon = TL[m.traffic_light] || '📊';
+    const topAction = getTopAction(m);
+
+    const { data: goals } = await db.from('line_goals')
+      .select('goal_type, target').eq('member_id', memberId);
+    const goalMap: Record<string, number> = {};
+    for (const g of (goals || []) as Record<string, unknown>[]) {
+      goalMap[String(g.goal_type)] = Number(g.target);
+    }
+
+    const refGoal  = goalMap['ref']     ? ` / เป้า ${goalMap['ref']} ใบ`     : '';
+    const visGoal  = goalMap['visitor'] ? ` / เป้า ${goalMap['visitor']} คน`  : '';
+    const otoGoal  = goalMap['oto']     ? ` / เป้า ${goalMap['oto']} ครั้ง`  : '';
+    const ceuGoal  = goalMap['ceu']     ? ` / เป้า ${goalMap['ceu']} ครั้ง`  : '';
+
+    const msg =
+      `📊 รายงานประจำเดือน ${monthLabel}\n` +
+      `สวัสดีคุณ${nick} 👋\n` +
+      `────────────────────\n` +
+      `${tlIcon} คะแนนรวม: ${m.display_score}/100 pt\n` +
+      `────────────────────\n` +
+      `📌 รายละเอียด:\n` +
+      `• Referral:  ${m.rg ?? 0} ใบ${refGoal}  (${pd?.referral ?? 0}/15 pt)\n` +
+      `• Visitor:   ${m.visitors ?? 0} คน${visGoal}  (${pd?.visitor ?? 0}/20 pt)\n` +
+      `• 1-2-1:     ${m.one_to_one ?? 0} ครั้ง${otoGoal}  (${pd?.oneToOne ?? 0}/15 pt)\n` +
+      `• CEU:       ${(m as Record<string, unknown>).ceu ?? 0} ครั้ง${ceuGoal}  (${pd?.ceu ?? 0}/20 pt)\n` +
+      `• ขาดประชุม: ${m.absent ?? 0} ครั้ง  (${pd?.absence ?? 0}/15 pt)\n` +
+      `────────────────────\n` +
+      `🎯 จุดที่ควรเน้นเดือนนี้:\n${topAction}\n` +
+      `────────────────────\n` +
+      `พิมพ์ "สถานะ" หรือเปิด LIFF ดูรายละเอียดครับ`;
+
+    await linePush(String(rec.line_user_id), msg, {
+      db,
+      idempotencyKey: `cron:monthly-personal:${memberId}:${monthKey}`,
+      memberId,
+      notificationType: 'score',
+      source: 'cron-jobs',
+    });
+  }
+}
+
+// ── Daily 08:00 TH: visitor follow-up reminder (14 days after visit) ──
+async function visitorFollowUpReminder(db: DB): Promise<void> {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 14);
+  const cutoffStr = cutoff.toISOString().split('T')[0];
+
+  const { data: visitors } = await db.from('visitor_log')
+    .select('id, visitor_name, invited_by, visit_date')
+    .eq('status', 'pending')
+    .lte('visit_date', cutoffStr);
+
+  for (const v of (visitors || []) as Record<string, unknown>[]) {
+    const memberId = String(v.invited_by || '');
+    if (!memberId) continue;
+
+    const { data: lineLink } = await db.from('line_members')
+      .select('line_user_id').eq('member_id', memberId).maybeSingle();
+    const userId = String((lineLink as Record<string, unknown> | null)?.line_user_id || '');
+    if (!userId) continue;
+
+    const visitorName = String(v.visitor_name || 'แขก');
+    const visitDate = String(v.visit_date || '');
+
+    await linePush(userId,
+      `👥 ติดตามแขกพิเศษ\n` +
+      `────────────────────\n` +
+      `คุณพา "${visitorName}" มาร่วมประชุมเมื่อ ${visitDate}\n\n` +
+      `ผ่านมา 2 สัปดาห์แล้ว — เขา/เธอสนใจสมัครเป็นสมาชิกไหมครับ?\n\n` +
+      `ถ้าสนใจ แจ้ง MC ได้เลยนะครับ 🙏`,
+      {
+        db,
+        idempotencyKey: `cron:visitor-followup:${String(v.id)}:${cutoffStr}`,
+        memberId,
+        notificationType: 'visitor_followup',
         source: 'cron-jobs',
       },
     );

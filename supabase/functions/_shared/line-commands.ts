@@ -36,7 +36,7 @@ export function parseLineCommand(input: string): ParsedLineCommand {
   if (['myid', 'id'].includes(normalized)) return command('debug-id');
   if (['สถานะ', 'score', 'คะแนน', 'ทำอะไร', 'action'].includes(normalized)) return command('status');
   if (['ประวัติ', 'trend', 'history'].includes(normalized)) return command('history');
-  if (['ทีม', 'team'].includes(normalized)) return command('team');
+  if (['ทีม', 'team', 'ทีมของฉัน'].includes(normalized)) return command('team');
   if (['focus 3', 'focus3', 'โฟกัส 3', 'f3'].includes(normalized)) return command('focus3');
   if (['chapter pulse', 'chapter', 'ภาพรวม'].includes(normalized)) return command('chapter-pulse');
   if (normalized === 'chapter trend') return command('chapter-trend');

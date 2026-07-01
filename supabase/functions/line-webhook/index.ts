@@ -359,7 +359,7 @@ async function resolveLineRole(
   // Mentor accounts do not always have a dedicated LINE_ID_* setting.
   // Resolve them from the linked member and the current mentor-team leaders.
   const { data: linked } = await db.from('line_members')
-    .select('members(name, nickname)')
+    .select('members(name, nickname, email)')
     .eq('line_user_id', userId)
     .maybeSingle();
   const member = (linked as any)?.members;
@@ -376,6 +376,19 @@ async function resolveLineRole(
       );
     });
     if (leadsTeam) return 'mentor';
+  }
+
+  // Email-based fallback: match member email against role_assignments
+  const email = String(member?.email || '').trim().toLowerCase();
+  if (email) {
+    const { data: ra } = await db.from('role_assignments')
+      .select('role, is_mentor')
+      .ilike('email', email)
+      .maybeSingle();
+    if (ra) {
+      if (String((ra as any).role) === 'mc') return 'mc';
+      if ((ra as any).is_mentor) return 'mentor';
+    }
   }
 
   return 'member';
@@ -1039,7 +1052,7 @@ function monthLabel(month: number): string {
 
 async function replyTeam(db: ReturnType<typeof getServiceClient>, memberName: string): Promise<string> {
   // Step 1: Check if this member belongs to a team (regular member path)
-  const { data: me } = await db.from('members').select('mentor_team, nickname').eq('name', memberName).single();
+  const { data: me } = await db.from('members').select('mentor_team, nickname, email').eq('name', memberName).maybeSingle();
   let team: string | null = (me as any)?.mentor_team ?? null;
 
   // Step 2: If no team found, check if memberName IS a team leader (mentor path)
@@ -1049,8 +1062,21 @@ async function replyTeam(db: ReturnType<typeof getServiceClient>, memberName: st
       .select('name')
       .or(`leader_name.ilike.%${memberName}%${nick ? `,leader_name.ilike.%${nick}%` : ''}`)
       .limit(1)
-      .single();
+      .maybeSingle();
     team = (ledTeam as any)?.name ?? null;
+
+    // Fallback: email-based role_assignments lookup
+    if (!team) {
+      const email = String((me as any)?.email || '').trim().toLowerCase();
+      if (email) {
+        const { data: ra } = await db.from('role_assignments')
+          .select('team_name')
+          .ilike('email', email)
+          .eq('is_mentor', true)
+          .maybeSingle();
+        team = String((ra as any)?.team_name || '') || null;
+      }
+    }
   }
 
   // Step 3: Still no team → unassigned member or incomplete team setup.
