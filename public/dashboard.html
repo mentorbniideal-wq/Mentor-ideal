@@ -71,6 +71,8 @@ header{background:var(--sf);border-bottom:1px solid var(--bd);padding:0 28px;dis
 .bac{color:var(--ac);font-weight:600}
 .blo{color:var(--sub)}.blo:hover{border-color:var(--re);color:var(--re)}
 
+.tabs-wrap{position:relative}
+.tabs-wrap::after{content:'';position:absolute;right:0;top:0;bottom:0;width:40px;background:linear-gradient(to left,var(--sf,#0f172a),transparent);pointer-events:none;z-index:1}
 .tabs{background:var(--sf);border-bottom:none;padding:8px 20px;display:flex;gap:5px;overflow-x:auto;position:relative;scrollbar-width:none;box-shadow:0 1px 0 var(--bd)}
 .tabs::-webkit-scrollbar{display:none}
 .tabs::after{content:'';position:absolute;right:0;top:0;bottom:0;width:40px;background:linear-gradient(to right,transparent,var(--sf));pointer-events:none}
@@ -369,7 +371,7 @@ tbody tr:hover{background:rgba(28,26,18,.04)}
 /* ── NEW FEATURES ── */
 /* Tab badges */
 .tb{position:relative}
-.nb{position:absolute;top:5px;right:3px;background:var(--re);color:#fff;font-size:9px;font-weight:700;border-radius:8px;padding:0 4px;min-width:14px;height:14px;display:none;align-items:center;justify-content:center;pointer-events:none;line-height:1}
+.nb{position:absolute;top:5px;right:3px;background:#ef4444;color:#fff;border-radius:999px;font-size:10px;font-weight:700;padding:1px 6px;min-width:16px;text-align:center;display:none;align-items:center;justify-content:center;pointer-events:none;line-height:1}
 
 /* Auto-refresh */
 .ar-wrap{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--gy)}
@@ -1328,50 +1330,50 @@ main{
   </header>
 
   <!-- MC Tabs -->
-  <div class="tabs" id="mc-tabs" style="display:none">
+  <div class="tabs-wrap"><div class="tabs" id="mc-tabs" style="display:none">
     <button class="tb-fold" id="mc-fold-btn" onclick="toggleTabFold('mc')" title="พับ/ขยาย Tab Bar">☰</button>
     <span class="tb-fold-label" id="mc-fold-label" style="display:none"></span>
     <button class="tb on" onclick="sw('mc-ov',this,'mc')">📊 Overview</button>
-    <button class="tb" onclick="sw('mc-mem',this,'mc')">สมาชิก</button>
-    <button class="tb" onclick="sw('mc-team',this,'mc');loadDesktopScorecard()">Mentor Teams</button>
-    <button class="tb" onclick="sw('mc-ren',this,'mc')">Renewal<span class="nb" id="badge-ren"></span></button>
-    <button class="tb" onclick="sw('mc-risk',this,'mc')">Risk<span class="nb" id="badge-risk"></span></button>
-    <button class="tb" onclick="sw('mc-msg',this,'mc')">Messages<span class="nb" id="badge-msg"></span></button>
-    <button class="tb" onclick="sw('mc-rep',this,'mc')">Reports<span class="nb" id="badge-rep"></span></button>
-    <button class="tb" id="mc-ac-tab" onclick="openActionCenter('pq')">Action Center<span class="nb" id="badge-pq"></span><span class="nb" id="badge-coach" style="margin-left:2px"></span></button>
-    <button class="tb" onclick="sw('mc-gw',this,'mc');renderGrowthWatch()">Growth Watch<span class="nb" id="badge-gw"></span></button>
-    <button class="tb" onclick="sw('mc-8w',this,'mc');load8WProgress()">8W Progress<span class="nb" id="badge-8w"></span></button>
-    <button class="tb" onclick="sw('mc-passport',this,'mc');loadPassportBoard()">Passport<span class="nb" id="badge-passport"></span></button>
-    <button class="tb" onclick="sw('mc-vis',this,'mc');loadVisitorLog()">Visitors</button>
-    <button class="tb" onclick="sw('mc-checkin',this,'mc');deskCiLoadHistory()">Check-In</button>
-    <button class="tb" onclick="sw('mc-onboard-edit',this,'mc');loadOnboardEditor()">Onboard Msgs</button>
-    <button class="tb" onclick="sw('mc-usage',this,'mc');loadUsageLog()">Activity</button>
-    <button class="tb" onclick="sw('mc-access',this,'mc');loadAccessMgmt()">Access</button>
+    <button class="tb" onclick="sw('mc-mem',this,'mc')">👥 สมาชิก</button>
+    <button class="tb" onclick="sw('mc-team',this,'mc');loadDesktopScorecard()">🏆 Mentor Teams</button>
+    <button class="tb" onclick="sw('mc-ren',this,'mc')">🔄 Renewal<span class="nb" id="badge-ren"></span></button>
+    <button class="tb" onclick="sw('mc-risk',this,'mc')">⚠️ Risk<span class="nb" id="badge-risk"></span></button>
+    <button class="tb" onclick="sw('mc-msg',this,'mc')">💬 Messages<span class="nb" id="badge-msg"></span></button>
+    <button class="tb" onclick="sw('mc-rep',this,'mc')">📋 Reports<span class="nb" id="badge-rep"></span></button>
+    <button class="tb" id="mc-ac-tab" onclick="openActionCenter('pq')">⚡ Action Center<span class="nb" id="badge-pq"></span><span class="nb" id="badge-coach" style="margin-left:2px"></span></button>
+    <button class="tb" onclick="sw('mc-gw',this,'mc');renderGrowthWatch()">🌱 Growth Watch<span class="nb" id="badge-gw"></span></button>
+    <button class="tb" onclick="sw('mc-8w',this,'mc');load8WProgress()">🗓 8W Progress<span class="nb" id="badge-8w"></span></button>
+    <button class="tb" onclick="sw('mc-passport',this,'mc');loadPassportBoard()">🛂 Passport<span class="nb" id="badge-passport"></span></button>
+    <button class="tb" onclick="sw('mc-vis',this,'mc');loadVisitorLog()">🤝 Visitors</button>
+    <button class="tb" onclick="sw('mc-checkin',this,'mc');deskCiLoadHistory()">✅ Check-In</button>
+    <button class="tb" onclick="sw('mc-onboard-edit',this,'mc');loadOnboardEditor()">📨 Onboard Msgs</button>
+    <button class="tb" onclick="sw('mc-usage',this,'mc');loadUsageLog()">📈 Activity</button>
+    <button class="tb" onclick="sw('mc-access',this,'mc');loadAccessMgmt()">🔑 Access</button>
     <button class="tb" onclick="sw('mc-import',this,'mc')">📥 Import</button>
     <button class="tb" onclick="sw('mc-copilot',this,'mc')">🤖 AI Copilot</button>
     <button class="tb" onclick="sw('mc-cal',this,'mc');loadCalendar()">📅 Calendar</button>
-  </div>
+  </div></div>
 
   <!-- Growth Tabs -->
-  <div class="tabs" id="gr-tabs" style="display:none">
+  <div class="tabs-wrap"><div class="tabs" id="gr-tabs" style="display:none">
     <button class="tb-fold" id="gr-fold-btn" onclick="toggleTabFold('gr')" title="พับ/ขยาย Tab Bar">☰</button>
     <span class="tb-fold-label" id="gr-fold-label" style="display:none"></span>
-    <button class="tb on" onclick="sw('gr-ov',this,'gr')">📊 Chapter Overview</button>
-    <button class="tb" onclick="sw('gr-bal',this,'gr')">Referral Balance</button>
-    <button class="tb" onclick="sw('gr-task',this,'gr')">Growth Tasks<span class="nb" id="badge-task"></span></button>
-    <button class="tb" onclick="sw('gr-nm',this,'gr')">New Members<span class="nb" id="badge-nm"></span></button>
-    <button class="tb" onclick="sw('gr-ren',this,'gr');loadGrowthRenewals()">Renewals<span class="nb" id="badge-gr-ren"></span></button>
-    <button class="tb" onclick="sw('gr-dec',this,'gr')">Score Trend<span class="nb" id="badge-dec"></span></button>
-    <button class="tb" onclick="sw('gr-top',this,'gr')">Top Performance</button>
-    <button class="tb" onclick="sw('gr-heat',this,'gr')">Heatmap</button>
-    <button class="tb" onclick="sw('gr-rev',this,'gr');rvLoad()">Revenue</button>
-    <button class="tb" onclick="sw('gr-cmd',this,'gr');cmdLoad()">Command</button>
-    <button class="tb" onclick="sw('gr-cross',this,'gr');crossLoad()">Cross-Team</button>
-    <button class="tb" onclick="sw('gr-sprint',this,'gr');sprintLoad()">Sprint</button>
-    <button class="tb" onclick="sw('gr-flow',this,'gr');flowLoad()">Referral Flow</button>
-    <button class="tb" onclick="sw('gr-pt',this,'gr');ptLoad()">Power Teams</button>
-    <button class="tb" onclick="sw('gr-sheet',this,'gr');gshLoad()">Sheet</button>
-  </div>
+    <button class="tb on" onclick="sw('gr-ov',this,'gr')">🏛 Chapter Overview</button>
+    <button class="tb" onclick="sw('gr-bal',this,'gr')">⚖️ Referral Balance</button>
+    <button class="tb" onclick="sw('gr-task',this,'gr')">📌 Growth Tasks<span class="nb" id="badge-task"></span></button>
+    <button class="tb" onclick="sw('gr-nm',this,'gr')">🆕 New Members<span class="nb" id="badge-nm"></span></button>
+    <button class="tb" onclick="sw('gr-ren',this,'gr');loadGrowthRenewals()">🔄 Renewals<span class="nb" id="badge-gr-ren"></span></button>
+    <button class="tb" onclick="sw('gr-dec',this,'gr')">📉 Score Trend<span class="nb" id="badge-dec"></span></button>
+    <button class="tb" onclick="sw('gr-top',this,'gr')">🥇 Top Performance</button>
+    <button class="tb" onclick="sw('gr-heat',this,'gr')">🔥 Heatmap</button>
+    <button class="tb" onclick="sw('gr-rev',this,'gr');rvLoad()">💰 Revenue</button>
+    <button class="tb" onclick="sw('gr-cmd',this,'gr');cmdLoad()">🎮 Command</button>
+    <button class="tb" onclick="sw('gr-cross',this,'gr');crossLoad()">🔀 Cross-Team</button>
+    <button class="tb" onclick="sw('gr-sprint',this,'gr');sprintLoad()">🏃 Sprint</button>
+    <button class="tb" onclick="sw('gr-flow',this,'gr');flowLoad()">🌊 Referral Flow</button>
+    <button class="tb" onclick="sw('gr-pt',this,'gr');ptLoad()">⚡ Power Teams</button>
+    <button class="tb" onclick="sw('gr-sheet',this,'gr');gshLoad()">📄 Sheet</button>
+  </div></div>
 
   <main>
     <!-- ════════ MC SECTIONS ════════ -->
@@ -3561,7 +3563,7 @@ function renderVisitorFunnel(){
 function renderVisitorTable(){
   var el=document.getElementById('vis-table');if(!el)return;
   var stClr={เยี่ยมชม:'var(--ac)',สมัครแล้ว:'#f59e0b',เป็นสมาชิก:'var(--gr)',ไม่สนใจ:'var(--sub)'};
-  if(!_visData.length){el.innerHTML='<div style="text-align:center;padding:30px;color:var(--sub);font-size:13px">ยังไม่มีข้อมูล Visitor — กด ➕ เพิ่ม Visitor</div>';return;}
+  if(!_visData.length){el.innerHTML='<div style="text-align:center;padding:30px;color:var(--sub);font-size:13px">🗂️ ยังไม่มีข้อมูล Visitor — กด ➕ เพิ่ม Visitor</div>';return;}
   el.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:12px">'
     +'<thead><tr style="background:var(--sf2)">'
     +'<th style="padding:8px 10px;text-align:left;color:var(--sub)">วันที่</th>'
@@ -4050,7 +4052,7 @@ function renderMTTeams(){
   var RANK_C=['','#ffc14d','#9ca3af','#b08d57'];
   var container=document.getElementById('mt-cards-container');
   if(!container)return;
-  if(!sorted.length){container.innerHTML='<div class="es">ไม่มีข้อมูลทีม</div>';return;}
+  if(!sorted.length){container.innerHTML='<div class="es">🗂️ ไม่มีข้อมูลทีม</div>';return;}
   function fmtM3(v){return v>=1000000?(v/1000000).toFixed(1)+'M':v>=1000?Math.round(v/1000)+'K':String(Math.round(v||0));}
 
   container.innerHTML=sorted.map(function(t,i){
@@ -4707,7 +4709,7 @@ function renderUsageLog(){
   // Log table
   document.getElementById('usage-count').textContent=logs.length+' รายการ';
   if(!logs.length){
-    document.getElementById('usage-log-wrap').innerHTML='<div style="color:var(--sub);font-size:13px;text-align:center;padding:24px">ไม่มีข้อมูลในช่วงที่เลือก</div>';
+    document.getElementById('usage-log-wrap').innerHTML='<div style="color:var(--sub);font-size:13px;text-align:center;padding:24px">🗂️ ไม่มีข้อมูลในช่วงที่เลือก</div>';
     return;
   }
   var PLAT_ICON={desktop:'🖥️',mobile:'📱'};
@@ -8428,10 +8430,13 @@ function buildIMDHistory(m){
 }
 // ── Training event cache for Fast-Track suggestions ──────────────
 var _deskTrainCache = null;
+var _deskTrainCacheAt = 0;
 function ensureDeskTrainCache(cb){
-  if(_deskTrainCache){cb(_deskTrainCache);return;}
+  // Invalidate after 15 minutes so admin event edits are visible within a session
+  if(_deskTrainCache && (Date.now()-_deskTrainCacheAt < 900000)){cb(_deskTrainCache);return;}
   gsr('getTrainingEvents',{daysAhead:90},function(r){
     _deskTrainCache=r.ok?r.events:[];
+    _deskTrainCacheAt=Date.now();
     cb(_deskTrainCache);
   });
 }
@@ -9295,7 +9300,7 @@ function _simRefresh(){
 }
 function buildIMDSimulate(m){
   var a=m.actual;
-  if(!a)return'<div class="sh"><h2>🎯 Score Simulator</h2></div><div class="es">ไม่มีข้อมูล — โหลดข้อมูลใหม่</div>';
+  if(!a)return'<div class="sh"><h2>🎯 Score Simulator</h2></div><div class="es">🗂️ ไม่มีข้อมูล — โหลดข้อมูลใหม่</div>';
   _simBase={rg:a.rg,visitor:a.visitor,oToOne:a.oToOne,ceu:a.ceu,tyfcb:a.tyfcb,bniDays:a.bniDays,absent:a.absent};
   _simCur={rg:a.rg,visitor:a.visitor,oToOne:a.oToOne,ceu:a.ceu,tyfcb:a.tyfcb,bniDays:a.bniDays,absent:a.absent};
   var cs=_simBuildScore(_simBase);
