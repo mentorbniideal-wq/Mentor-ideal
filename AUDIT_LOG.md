@@ -133,6 +133,44 @@ All checks from Round 5 remain green. No new PALMS-related code in this round.
 
 ---
 
+---
+
+## Round 6.1 — Additional Fixes (2026-07-01)
+
+Following user request to fix all remaining known issues:
+
+| # | Severity | Fix |
+|---|----------|-----|
+| F-72/F-86 | MEDIUM→**FIXED** | `line121AutoReminder` — removed broken `line_members!inner` join; now does separate lookup per record |
+| F-66/F-85 | MEDIUM→**FIXED** | `line.ts` sim mode `lineReplyMessages()` — return `{ sent, skipped, status }` matching `LineSendResult` interface |
+| F-73 | LOW→**FIXED** | `palms.ts` `trafficLight()` cast — replaced unsafe `as PalmsResult['color']` with explicit guard that maps `'none'/'black'` → `'black'` |
+| F-74 | LOW→**FIXED** (partial) | `line-absence-notify.ts` mentorTeam filter — replaced string-interpolated `.or()` with `.eq('team_name', mentorTeam)` (safe, single-field); leaderName `.or()` retained (DB-controlled value, no injection risk) |
+| F-76 | INFO | LIFF renewal card `<div>` — **not a bug**; renewal card is read-only display, `<div>` is correct |
+| F-79 | INFO | `applyRoleTabs()` fallback — **not a bug**; dashboard.html only sees 'mc'/'growth' roles; default to 'gr-tabs' is correct |
+| F-71 | MEDIUM | Centralized admin-api auth guard — deferred (would require touching all 6 handlers; existing per-handler auth is correct) |
+
+### FIX-72/86: `line121AutoReminder` — separate line_members lookup
+**File:** `supabase/functions/cron-jobs/index.ts`
+**Before:** `.select('...line_members!inner(line_user_id)')` on `one_to_one_logs` — no FK path exists, PostgREST error on every run
+**After:** Query `one_to_one_logs` for `id, initiator_id, partner_id` only; for each record, separate `line_members` lookup by `member_id`
+
+### FIX-66/85: `lineReplyMessages` sim mode return shape
+**File:** `supabase/functions/_shared/line.ts`:242
+**Before:** `return { ok: true, sentCount: messages.length }` — doesn't match `LineSendResult` interface
+**After:** `return { sent: true, skipped: false, status: 200 }`
+
+### FIX-73: `palms.ts` — safe color assignment
+**File:** `supabase/functions/_shared/palms.ts`:73
+**Before:** `trafficLight(total) as PalmsResult['color']` — unsafe cast; `trafficLight()` can return `'none'` which isn't in `PalmsResult['color']`
+**After:** `const tl = trafficLight(total); const color = (tl === 'none' || tl === 'black') ? 'black' : tl`
+
+### FIX-74: `line-absence-notify.ts` — safe mentor team filter
+**File:** `supabase/functions/_shared/line-absence-notify.ts`:67
+**Before:** `.or(`team_name.eq.${mentorTeam},role.eq.${mentorTeam.toLowerCase()}`)` — string interpolation in PostgREST filter
+**After:** `.eq('team_name', notice.mentorTeam)` — safe parameterized filter; role fallback unnecessary since `team_name` is canonical
+
+---
+
 ## Prior Round Summary
 
 **Round 5 (2026-06-26):** Fixed F-67 (partner_name missing), F-68/F-69 (requireAuth roles x7), F-70 (v4 asset URL), F-78 (isMC in approveReq).

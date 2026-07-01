@@ -239,7 +239,7 @@ export async function lineReplyMessages(
   if (replyToken.startsWith('sim-')) {
     const bucket = SIM_CAPTURES.get(replyToken);
     if (bucket !== undefined) bucket.push(messages.slice(0, 5));
-    return { ok: true, sentCount: messages.length };
+    return { sent: true, skipped: false, status: 200 };
   }
   return sendLineRequest(
     'reply',

@@ -69,8 +69,8 @@ export function calcPalmsScore(d: PalmsInput): PalmsResult {
   const tyfb = d.tyfb >= 500000 ? 15 : d.tyfb >= 200000 ? 10 : d.tyfb >= 100000 ? 5 : 0;
 
   const total = absence + referral + visitor + oneToOne + ceu + tyfb;
-  // fn_palms_score() uses black for a scored period whose total is below 30.
-  const color = total <= 0 ? 'black' : trafficLight(total) as PalmsResult['color'];
+  const tl = trafficLight(total);
+  const color: PalmsResult['color'] = (tl === 'none' || tl === 'black') ? 'black' : tl;
   return { weeks, absence, referral, visitor, oneToOne, ceu, tyfb, total, color };
 }
 

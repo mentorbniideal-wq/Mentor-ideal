@@ -409,11 +409,17 @@ async function line121AutoReminder(db: DB): Promise<void> {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 7);
   const { data: pending } = await db.from('one_to_one_logs')
-    .select('id, initiator_id, partner_id, members!initiator_id(name), line_members!inner(line_user_id)')
+    .select('id, initiator_id, partner_id')
     .lt('scheduled_date', cutoff.toISOString().split('T')[0])
     .is('met_at', null);
   for (const rec of (pending || []) as Record<string, unknown>[]) {
-    const userId = (rec.line_members as Record<string, string>)?.line_user_id;
+    const initiatorId = String(rec.initiator_id || '');
+    if (!initiatorId) continue;
+    const { data: lineLink } = await db.from('line_members')
+      .select('line_user_id')
+      .eq('member_id', initiatorId)
+      .maybeSingle();
+    const userId = (lineLink as Record<string, string> | null)?.line_user_id;
     if (!userId) continue;
     await linePush(userId,
       `🤝 มีนัด 1-2-1 ที่ยังค้างอยู่ครับ\n` +

@@ -64,7 +64,7 @@ export async function notifyAbsenceStakeholders(
 
     const { data: assignment } = await db.from('role_assignments')
       .select('email')
-      .or(`team_name.eq.${notice.mentorTeam},role.eq.${notice.mentorTeam.toLowerCase()}`)
+      .eq('team_name', notice.mentorTeam)
       .eq('is_mentor', true)
       .limit(1)
       .maybeSingle();
