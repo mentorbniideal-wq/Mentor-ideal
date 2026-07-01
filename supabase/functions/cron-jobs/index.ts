@@ -95,6 +95,8 @@ interface MemberRow {
   rg:          number;  // referrals given
   visitors:    number;  // visitor count
   one_to_one:  number;  // 1-2-1 count
+  ceu:         number;  // CEU sessions
+  tyfcb_thb:   number;  // TYFB in baht
   absent:      number;  // absence count
 }
 
@@ -127,7 +129,7 @@ async function getMcLineId(db: DB): Promise<string | null> {
 // ── Helper: get member data with PALMS breakdown ──────────────
 async function getMemberData(db: DB, memberName: string): Promise<MemberRow | null> {
   const { data } = await db.from('v_member_dashboard')
-    .select('name,nickname,display_score,traffic_light,palms_detail,rg,visitors,one_to_one,absent')
+    .select('name,nickname,display_score,traffic_light,palms_detail,rg,visitors,one_to_one,ceu,tyfcb_thb,absent')
     .eq('name', memberName).single();
   if (!data) return null;
   return data as unknown as MemberRow;
@@ -145,6 +147,7 @@ function getTopAction(m: MemberRow): string {
     { name: '1-2-1',         pts: pd?.oneToOne  || 0, max: 15, hint: `+${Math.max(0, wks - (m.one_to_one || 0))} ครั้ง 1-2-1` },
     { name: 'CEU',           pts: pd?.ceu       || 0, max: 20, hint: 'เข้า CEU เพิ่ม' },
     { name: 'การเข้าร่วม',  pts: pd?.absence   || 0, max: 15, hint: 'เข้าประชุมสม่ำเสมอ' },
+    { name: 'TYFCB',         pts: pd?.tyfb      || 0, max: 15, hint: 'ส่ง TYFCB เพิ่ม (฿100k+)' },
   ];
 
   // Sort ascending by gap size; last element has largest gap
@@ -595,7 +598,8 @@ async function monthlyPersonalReport(db: DB): Promise<void> {
       `• Referral:  ${m.rg ?? 0} ใบ${refGoal}  (${pd?.referral ?? 0}/15 pt)\n` +
       `• Visitor:   ${m.visitors ?? 0} คน${visGoal}  (${pd?.visitor ?? 0}/20 pt)\n` +
       `• 1-2-1:     ${m.one_to_one ?? 0} ครั้ง${otoGoal}  (${pd?.oneToOne ?? 0}/15 pt)\n` +
-      `• CEU:       ${(m as Record<string, unknown>).ceu ?? 0} ครั้ง${ceuGoal}  (${pd?.ceu ?? 0}/20 pt)\n` +
+      `• CEU:       ${m.ceu ?? 0} ครั้ง${ceuGoal}  (${pd?.ceu ?? 0}/20 pt)\n` +
+      `• TYFCB:     ฿${((m.tyfcb_thb ?? 0)/1000).toFixed(0)}k  (${pd?.tyfb ?? 0}/15 pt)\n` +
       `• ขาดประชุม: ${m.absent ?? 0} ครั้ง  (${pd?.absence ?? 0}/15 pt)\n` +
       `────────────────────\n` +
       `🎯 จุดที่ควรเน้นเดือนนี้:\n${topAction}\n` +

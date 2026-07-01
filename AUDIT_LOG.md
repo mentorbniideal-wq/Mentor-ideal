@@ -120,16 +120,11 @@ All checks from Round 5 remain green. No new PALMS-related code in this round.
 | # | Severity | Issue |
 |---|----------|-------|
 | F-06 | MEDIUM | Growth/mentor read endpoints open — known design decision |
-| F-64 | LOW | `_deskTrainCache` never invalidated during session |
 | F-65 | LOW | Hardcoded `TRAINING_EVENTS` will become redundant when bni_events early-bird data complete |
-| F-66/F-85 | MEDIUM | `line.ts` sim mode returns wrong shape (`sentCount` vs `sent/skipped`) |
-| F-71 | MEDIUM | No centralized auth guard in admin-api (each handler guards individually) |
-| F-72/F-86 | MEDIUM | `line121AutoReminder` `!inner` join — no FK path; reminders may not fire |
-| F-73 | LOW | `palms.ts` `trafficLight()` cast hides `'none'` return |
-| F-74 | LOW | `line-absence-notify.ts` PostgREST `.or()` uses string interpolation |
-| F-76 | LOW | LIFF renewal card is `<div>` not `<form>` |
-| F-79 | LOW | `applyRoleTabs()` no fallback for unexpected role values |
-| F-88 | INFO | `request-access.html` still uses Google OAuth — intentional |
+| F-71 | MEDIUM | No centralized auth guard in admin-api (each handler guards individually — each handler IS guarded correctly; code quality only) |
+| F-88 | INFO | `request-access.html` still uses Google OAuth — intentional (proves identity before requesting PIN access) |
+
+*Previously deferred F-64, F-66/F-85, F-72/F-86, F-73, F-74, F-76, F-79 — all fixed in Round 6.1 or 2026-07-01 session.*
 
 ---
 
