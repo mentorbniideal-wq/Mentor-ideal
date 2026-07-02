@@ -30,33 +30,6 @@ async function resolveLineMember(db: Db, accessToken: string) {
   return { userId, profile, member, memberId: String((data as Record<string, unknown>).member_id) };
 }
 
-async function resolveLeaderTeam(db: Db, member: Record<string, unknown>): Promise<string | null> {
-  if (!member) return null;
-  const nameLower = String(member.name || '').toLowerCase();
-  const nickLower = String(member.nickname || '').toLowerCase();
-  // Fetch all teams (only 5) and do bidirectional substring matching.
-  // This handles cases where member.name is longer than leader_name (e.g. 'Samrit Kaocharoen' vs 'Samrit').
-  const { data: teams } = await db.from('mentor_teams').select('name, leader_name');
-  for (const t of (teams || []) as Record<string, unknown>[]) {
-    const ln = String(t.leader_name || '').toLowerCase();
-    if (!ln) continue;
-    if ((nameLower && (nameLower.includes(ln) || ln.includes(nameLower))) ||
-        (nickLower && (nickLower.includes(ln) || ln.includes(nickLower)))) {
-      return String(t.name);
-    }
-  }
-  const email = String(member.email || '').trim().toLowerCase();
-  if (email) {
-    const { data: ra } = await db.from('role_assignments')
-      .select('team_name')
-      .ilike('email', email)
-      .eq('is_mentor', true)
-      .maybeSingle();
-    const teamName = String((ra as Record<string, unknown> | null)?.team_name || '');
-    if (teamName) return teamName;
-  }
-  return null;
-}
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -89,7 +62,6 @@ Deno.serve(async (req: Request) => {
       memberId,
       source: 'liff',
     });
-    const leaderTeamName = await resolveLeaderTeam(db, member);
     return response({
       ok: true,
       profile: identity.profile,
@@ -97,8 +69,6 @@ Deno.serve(async (req: Request) => {
       dashboard,
       goals: goals || [],
       notifications: notif || [],
-      role: leaderTeamName ? 'mentor' : 'member',
-      mentorTeamName: leaderTeamName,
     });
   }
 
@@ -182,82 +152,6 @@ Deno.serve(async (req: Request) => {
       lineUserId: identity.userId, memberId, source: 'liff', properties: { goalType },
     });
     return response({ ok: true, message: 'บันทึกเป้าหมายแล้ว' });
-  }
-
-  if (action === 'mentor-log') {
-    const menteeName = String(body.menteeName || '').trim();
-    const sessionDate = String(body.sessionDate || '').trim();
-    const notes = String(body.notes || '').trim();
-    const nextActions = body.nextActions ? String(body.nextActions).trim() : null;
-    if (!menteeName) return response({ ok: false, error: 'กรุณาระบุชื่อสมาชิก' }, 400);
-    if (!sessionDate) return response({ ok: false, error: 'sessionDate required' }, 400);
-    if (notes.length < 3) return response({ ok: false, error: 'กรุณาระบุ notes เพิ่มเติม' }, 400);
-    const teamName = await resolveLeaderTeam(db, member);
-    if (!teamName) return response({ ok: false, error: 'ต้องเป็น Mentor เท่านั้น' }, 403);
-    const { data: mentee } = await db.from('members')
-      .select('id')
-      .or(`name.ilike.%${menteeName}%,nickname.ilike.%${menteeName}%`)
-      .eq('is_archived', false)
-      .eq('mentor_team', teamName)
-      .limit(1).maybeSingle();
-    if (!mentee) return response({ ok: false, error: `ไม่พบ "${menteeName}" ในทีม ${teamName}` }, 404);
-    const { error } = await db.from('mentor_logs').insert({
-      mentor_team: teamName,
-      member_id: String((mentee as Record<string, unknown>).id),
-      session_date: sessionDate,
-      notes,
-      next_actions: nextActions,
-    });
-    if (error) return response({ ok: false, error: error.message }, 400);
-    await trackLineEvent(db, 'liff_mentor_log_saved', {
-      lineUserId: identity.userId, memberId, source: 'liff',
-    });
-    return response({ ok: true, message: 'บันทึก Mentor Log แล้วครับ' });
-  }
-
-  if (action === 'follow-up') {
-    const memberName = String(body.memberName || '').trim();
-    const note = String(body.note || '').trim();
-    if (!memberName) return response({ ok: false, error: 'กรุณาระบุชื่อสมาชิก' }, 400);
-    if (note.length < 3) return response({ ok: false, error: 'กรุณาระบุบันทึก follow-up' }, 400);
-    const teamName = await resolveLeaderTeam(db, member);
-    if (!teamName) return response({ ok: false, error: 'ต้องเป็น Mentor เท่านั้น' }, 403);
-    const { data: targetMember } = await db.from('members')
-      .select('id')
-      .or(`name.ilike.%${memberName}%,nickname.ilike.%${memberName}%`)
-      .eq('is_archived', false)
-      .eq('mentor_team', teamName)
-      .limit(1).maybeSingle();
-    if (!targetMember) return response({ ok: false, error: `ไม่พบ "${memberName}" ในทีม ${teamName}` }, 404);
-    const targetId = String((targetMember as Record<string, unknown>).id);
-    // Find latest open issue or create one
-    const { data: openIssue } = await db.from('core_issues')
-      .select('id')
-      .eq('member_id', targetId)
-      .eq('status', 'open')
-      .order('opened_at', { ascending: false })
-      .limit(1).maybeSingle();
-    let error;
-    if (openIssue) {
-      ({ error } = await db.from('core_issues')
-        .update({ action_taken: note, follow_up_at: new Date().toISOString() })
-        .eq('id', String((openIssue as Record<string, unknown>).id)));
-    } else {
-      ({ error } = await db.from('core_issues').insert({
-        member_id: targetId,
-        mentor_team: teamName,
-        issue_text: note,
-        action_taken: note,
-        follow_up_at: new Date().toISOString(),
-        opened_at: new Date().toISOString(),
-      }));
-    }
-    const err = error;
-    if (err) return response({ ok: false, error: err.message }, 400);
-    await trackLineEvent(db, 'liff_followup_saved', {
-      lineUserId: identity.userId, memberId, source: 'liff',
-    });
-    return response({ ok: true, message: 'บันทึก Follow-up แล้วครับ' });
   }
 
   if (action === 'renewal') {

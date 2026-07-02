@@ -53,9 +53,7 @@
       <button class="tab member-tab" data-view="121">1-2-1</button>
       <button class="tab member-tab" data-view="goal">เป้าหมาย</button>
       <button class="tab member-tab" data-view="visitor">แขกพิเศษ</button>
-      <button class="tab mentor-tab hidden" data-view="mentor-log">📋 บันทึก</button>
-      <button class="tab mentor-tab hidden" data-view="follow-up">📌 ติดตาม</button>
-      <button class="tab mentor-tab hidden" data-view="renewal">🔄 Renewal</button>
+      <button class="tab member-tab" data-view="renewal">🔄 Renewal</button>
       <button class="tab member-tab" data-view="progress">📊 ความก้าวหน้า</button>
       <button class="tab member-tab" data-view="issue">ช่วยเหลือ</button>
       <button class="tab assign-tab hidden" data-view="assignments">📎 งาน</button>
@@ -115,26 +113,7 @@
       <button class="submit">ส่งให้ทีม Mentor</button>
     </form>
 
-    <!-- บันทึก Mentor (Mentor only) -->
-    <form class="card" data-card="mentor-log">
-      <h2>บันทึก Mentor</h2><p class="hint">บันทึกการ coaching เพื่อติดตามพัฒนาการ</p>
-      <label>ชื่อสมาชิก</label><input name="menteeName" required placeholder="ชื่อหรือชื่อเล่น">
-      <label>วันที่พบ</label><input type="date" name="sessionDate" required>
-      <label>สิ่งที่คุยกัน</label><textarea name="notes" required placeholder="สรุปสั้นๆ ว่าคุยเรื่องอะไร"></textarea>
-      <label>ขั้นตอนถัดไป</label><textarea name="nextActions" placeholder="สิ่งที่ตกลงจะทำต่อ (ถ้ามี)"></textarea>
-      <button class="submit">บันทึกการ coaching</button>
-    </form>
-
-    <!-- Follow-up (Mentor only) -->
-    <form class="card" data-card="follow-up">
-      <h2>บันทึก Follow-up</h2><p class="hint">อัพเดทสถานะ Core Issue ของสมาชิก</p>
-      <label>ชื่อสมาชิก</label><input name="memberName" required placeholder="ชื่อหรือชื่อเล่น">
-      <label>บันทึก follow-up</label>
-      <textarea name="note" required placeholder="อัพเดทล่าสุด หรือสิ่งที่ทำไปแล้ว"></textarea>
-      <button class="submit">บันทึก Follow-up</button>
-    </form>
-
-    <!-- Renewal (Mentor only) -->
+    <!-- Renewal -->
     <div class="card" data-card="renewal">
       <h2>🔄 Renewal</h2><p class="hint">ข้อมูลการต่ออายุสมาชิกภาพของคุณ</p>
       <div id="renewalContent" class="loading" style="padding:16px 0">กำลังโหลด…</div>
@@ -174,16 +153,9 @@ function getRequestedAction() {
   return new URLSearchParams(stateQuery).get('action') || '';
 }
 
-function applyRoleTabs(role) {
-  if (role === 'mentor') {
-    // Mentor: hide most member tabs, show mentor-only
-    ['121','goal','visitor'].forEach(v => {
-      const t = $(`[data-view="${v}"]`);
-      if (t) t.classList.add('hidden');
-    });
-    $$('.mentor-tab').forEach(t => t.classList.remove('hidden'));
-  }
-  // assign-tab shown later if there are pending assignments
+function applyRoleTabs(_role) {
+  // All roles (member and mentor) see the same member view.
+  // assign-tab shown later if there are pending assignments.
 }
 
 function show(view) {
@@ -428,7 +400,7 @@ async function init() {
     }
     $('#loading').hidden = true;
     $('#app').hidden = false;
-    const defaultView = getRequestedAction() || (_role === 'mentor' ? 'mentor-log' : 'absence');
+    const defaultView = getRequestedAction() || 'absence';
     show(defaultView);
   } catch (e) {
     $('#loading').innerHTML = `<div style="text-align:center;padding:24px 8px;color:var(--red)">${e.message}</div>`;
