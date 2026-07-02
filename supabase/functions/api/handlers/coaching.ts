@@ -32,7 +32,7 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
 
       // Check existing open issue
       const { data: existing } = await db.from('core_issues')
-        .select('id').eq('member_id', memberId).eq('status', 'open').single();
+        .select('id').eq('member_id', memberId).eq('status', 'open').maybeSingle();
 
       const actionPlan = String(p.plan || p.actionPlan || p.action_plan || '').trim() || null;
 

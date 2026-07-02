@@ -227,7 +227,7 @@ Deno.serve(async (req: Request) => {
     const { data: openIssue } = await db.from('core_issues')
       .select('id')
       .eq('member_id', targetId)
-      .is('resolved_at', null)
+      .eq('status', 'open')
       .order('opened_at', { ascending: false })
       .limit(1).maybeSingle();
     let error;
