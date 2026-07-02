@@ -31,13 +31,20 @@ async function resolveLineMember(db: Db, accessToken: string) {
 }
 
 async function resolveLeaderTeam(db: Db, member: Record<string, unknown>): Promise<string | null> {
-  const name = String(member.name || '');
-  const nick = String(member.nickname || '');
-  const { data: ledTeam } = await db.from('mentor_teams')
-    .select('name')
-    .or(`leader_name.ilike.%${name}%${nick ? `,leader_name.ilike.%${nick}%` : ''}`)
-    .maybeSingle();
-  if (ledTeam) return String((ledTeam as Record<string, unknown>).name);
+  if (!member) return null;
+  const nameLower = String(member.name || '').toLowerCase();
+  const nickLower = String(member.nickname || '').toLowerCase();
+  // Fetch all teams (only 5) and do bidirectional substring matching.
+  // This handles cases where member.name is longer than leader_name (e.g. 'Samrit Kaocharoen' vs 'Samrit').
+  const { data: teams } = await db.from('mentor_teams').select('name, leader_name');
+  for (const t of (teams || []) as Record<string, unknown>[]) {
+    const ln = String(t.leader_name || '').toLowerCase();
+    if (!ln) continue;
+    if ((nameLower && (nameLower.includes(ln) || ln.includes(nameLower))) ||
+        (nickLower && (nickLower.includes(ln) || ln.includes(nickLower)))) {
+      return String(t.name);
+    }
+  }
   const email = String(member.email || '').trim().toLowerCase();
   if (email) {
     const { data: ra } = await db.from('role_assignments')
