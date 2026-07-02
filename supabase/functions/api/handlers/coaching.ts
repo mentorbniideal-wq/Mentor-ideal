@@ -210,7 +210,7 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
 
       const { data: m } = await db.from('v_member_dashboard')
         .select('name, nickname, mentor_team, display_score, traffic_light, rg, visitors, one_to_one, ceu, tyfcb_thb, bni_days, absent, palms_detail, open_core_issue')
-        .eq('name', memberName).single();
+        .eq('name', memberName).maybeSingle();
       if (!m) return errResponse(`ไม่พบ "${memberName}"`);
       const mv = m as Record<string, unknown>;
 
@@ -309,7 +309,7 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
       // Filter by mentee name if provided
       const menteeFilter = String(p.menteeName || '').trim();
       if (menteeFilter) {
-        const { data: mRow } = await db.from('members').select('id').ilike('name', `%${menteeFilter}%`).limit(1).single();
+        const { data: mRow } = await db.from('members').select('id').ilike('name', `%${menteeFilter}%`).limit(1).maybeSingle();
         if (mRow) query = query.eq('member_id', String((mRow as Record<string, unknown>).id));
       }
 

@@ -32,7 +32,7 @@ export async function handleAlerts(p: Record<string, unknown>): Promise<Response
         const age = Math.floor((now - new Date(String(ci.opened_at)).getTime()) / 86400000);
         if (age < 14) continue;
         const { data: m } = await db.from('v_member_dashboard')
-          .select('name, nickname, display_score, traffic_light').eq('id', String(ci.member_id)).single();
+          .select('name, nickname, display_score, traffic_light').eq('id', String(ci.member_id)).maybeSingle();
         if (!m) continue;
         const mv = m as Record<string, unknown>;
         alerts.push({
@@ -97,7 +97,7 @@ export async function handleAlerts(p: Record<string, unknown>): Promise<Response
 
       for (const r of (renewals || []) as Record<string, unknown>[]) {
         const diff = Math.floor((new Date(String(r.expiry_date)).getTime() - now) / 86400000);
-        const { data: m } = await db.from('members').select('name, mentor_team').eq('id', String(r.member_id)).single();
+        const { data: m } = await db.from('members').select('name, mentor_team').eq('id', String(r.member_id)).maybeSingle();
         if (!m) continue;
         const mv = m as Record<string, unknown>;
         if (callerTeam && String(mv.mentor_team || '') !== callerTeam) continue;

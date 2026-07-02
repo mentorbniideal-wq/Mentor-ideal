@@ -164,7 +164,7 @@ async function handleEvent(
     .from('line_members')
     .select('member_id, members(name, nickname, mentor_team)')
     .eq('line_user_id', userId)
-    .single();
+    .maybeSingle();
 
   const memberName: string | null = (lineRec as any)?.members?.name ?? null;
   const normalized = text.toLowerCase();

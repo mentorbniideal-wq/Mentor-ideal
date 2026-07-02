@@ -238,7 +238,7 @@ export async function handleRenewal(p: Record<string, unknown>): Promise<Respons
       const memberName = String(p.memberName || p.name || '').trim();
       if (!memberName) return errResponse('memberName required');
 
-      const { data: member } = await db.from('members').select('id').eq('name', memberName).single();
+      const { data: member } = await db.from('members').select('id').eq('name', memberName).maybeSingle();
       if (!member) return errResponse(`ไม่พบสมาชิก: ${memberName}`);
       const memberId = String((member as Record<string, unknown>).id);
 
