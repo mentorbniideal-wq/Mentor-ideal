@@ -79,7 +79,7 @@ Deno.serve(async (req: Request) => {
   if (action === 'bootstrap') {
     const [{ data: dashboard }, { data: goals }, { data: notif }] = await Promise.all([
       db.from('v_member_dashboard')
-        .select('display_score, traffic_light, palms_detail, days_to_expiry')
+        .select('display_score, traffic_light, palms_detail, days_to_expiry, absent')
         .eq('id', memberId).maybeSingle(),
       db.from('line_goals').select('goal_type, target').eq('member_id', memberId),
       db.from('line_notif_settings').select('notif_type, is_muted').eq('member_id', memberId),
@@ -343,7 +343,63 @@ Deno.serve(async (req: Request) => {
     for (const g of (goals || []) as Record<string, unknown>[]) {
       goalMap[String(g.goal_type)] = Number(g.target);
     }
-    return response({ ok: true, palmsDetail: d?.palms_detail ?? {}, actuals, goals: goalMap });
+    const pd = (d?.palms_detail ?? {}) as Record<string, unknown>;
+    const actionComponents = [
+      { pts: Number(pd.referral ?? 0),  max: 15, hint: 'ส่ง Referral เพิ่ม 1 ใบ' },
+      { pts: Number(pd.visitor  ?? 0),  max: 20, hint: 'พา Visitor มาอีก 1 คน' },
+      { pts: Number(pd.oneToOne ?? 0),  max: 15, hint: 'นัด 1-2-1 อีก 1 ครั้ง' },
+      { pts: Number(pd.ceu      ?? 0),  max: 20, hint: 'เข้า CEU เพิ่มอีก 1 ครั้ง' },
+      { pts: Number(pd.tyfb     ?? 0),  max: 15, hint: 'ส่ง TYFCB ให้มากขึ้น' },
+      { pts: Number(pd.absence  ?? 0),  max: 15, hint: 'รักษาการเข้าร่วมประชุม' },
+    ];
+    const top = actionComponents.reduce(
+      (best, c) => (c.max - c.pts > best.max - best.pts ? c : best),
+      actionComponents[0],
+    );
+    const topAction = top.max > top.pts ? { hint: top.hint, gain: top.max - top.pts } : null;
+    return response({ ok: true, palmsDetail: d?.palms_detail ?? {}, actuals, goals: goalMap, topAction });
+  }
+
+  if (action === 'get-121-pending') {
+    const cutoff = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+    const { data: pending } = await db.from('one_to_one_logs')
+      .select('id, partner_name, scheduled_date, met_at')
+      .eq('initiator_id', memberId)
+      .is('met_at', null)
+      .gte('scheduled_date', cutoff)
+      .order('scheduled_date', { ascending: true })
+      .limit(5);
+    return response({ ok: true, pending: pending || [] });
+  }
+
+  if (action === 'confirm-121') {
+    const logId = String(body.logId || '').trim();
+    if (!logId) return response({ ok: false, error: 'logId required' }, 400);
+    const { error } = await db.from('one_to_one_logs')
+      .update({ met_at: new Date().toISOString() })
+      .eq('id', logId)
+      .eq('initiator_id', memberId);
+    if (error) return response({ ok: false, error: error.message }, 400);
+    await trackLineEvent(db, 'liff_121_confirmed', { lineUserId: identity.userId, memberId, source: 'liff' });
+    return response({ ok: true, message: 'ยืนยัน 1-2-1 สำเร็จแล้ว ✓' });
+  }
+
+  if (action === 'get-issues') {
+    const { data: issues } = await db.from('line_issues')
+      .select('id, issue_text, reported_at, mentor_response, resolved_at')
+      .eq('member_id', memberId)
+      .order('reported_at', { ascending: false })
+      .limit(5);
+    return response({ ok: true, issues: issues || [] });
+  }
+
+  if (action === 'get-visitors') {
+    const { data: visitors } = await db.from('visitor_log')
+      .select('id, visitor_name, visit_date, status, notes')
+      .eq('invited_by', memberId)
+      .order('visit_date', { ascending: false })
+      .limit(5);
+    return response({ ok: true, visitors: visitors || [] });
   }
 
   return response({ ok: false, error: `Unknown action: ${action}` }, 400);

@@ -64,6 +64,7 @@
     <!-- ลา -->
     <form class="card" data-card="absence">
       <h2>แจ้งลา / ส่งแทน</h2><p class="hint">แจ้งทีมล่วงหน้าอย่างเป็นระบบ</p>
+      <div id="absenceInfo" style="display:none;padding:8px 12px;border-radius:8px;font-size:13px;margin-bottom:12px"></div>
       <label>ประเภท</label><select name="absenceType"><option>ลา</option><option>ส่ง sub</option></select>
       <label>วันที่ประชุม</label><input type="date" name="meetingDate" required>
       <label>ชื่อผู้มาแทน (ถ้ามี)</label><input name="subName" placeholder="ชื่อผู้มาแทน">
@@ -74,6 +75,7 @@
     <!-- 1-2-1 -->
     <form class="card" data-card="121">
       <h2>นัดหมาย 1-2-1</h2><p class="hint">บันทึกนัดเพื่อไม่ให้การติดตามหลุด</p>
+      <div id="pending121" style="margin-bottom:12px"></div>
       <label>ชื่อสมาชิก</label><input name="partnerName" required placeholder="ชื่อหรือชื่อเล่น">
       <label>วันที่นัด</label><input type="date" name="meetingDate" required>
       <button class="submit">บันทึกนัดหมาย</button>
@@ -101,11 +103,13 @@
       <label>วันที่ประชุม</label><input type="date" name="visitDate" required>
       <label>หมายเหตุ (ธุรกิจ ความต้องการ)</label><textarea name="notes" placeholder="ข้อมูลเพิ่มเติม"></textarea>
       <button class="submit">บันทึกแขกพิเศษ</button>
+      <div id="pendingVisitors" style="margin-top:16px"></div>
     </form>
 
     <!-- ขอความช่วยเหลือ -->
     <form class="card" data-card="issue">
       <h2>ขอความช่วยเหลือ</h2><p class="hint">ข้อมูลนี้ใช้เพื่อให้ Mentor ช่วยติดตามอย่างเหมาะสม</p>
+      <div id="issueHistory" style="margin-bottom:12px"></div>
       <label>เรื่องที่อยากให้ช่วย</label>
       <textarea name="issueText" required placeholder="เล่าได้เต็มที่ ทีมจะรับเรื่องอย่างระมัดระวัง"></textarea>
       <button class="submit">ส่งให้ทีม Mentor</button>
@@ -187,9 +191,12 @@ function show(view) {
   $(`[data-view="${view}"]`)?.classList.add('active');
   $(`[data-card="${view}"]`)?.classList.add('active');
   history.replaceState(null, '', `?action=${view}`);
-  if (view === 'renewal') loadRenewal();
+  if (view === 'renewal')     loadRenewal();
   if (view === 'assignments') loadAssignments();
-  if (view === 'progress') loadProgress();
+  if (view === 'progress')    loadProgress();
+  if (view === '121')         loadPending121();
+  if (view === 'issue')       loadIssueHistory();
+  if (view === 'visitor')     loadPendingVisitors();
 }
 
 async function api(payload) {
@@ -270,6 +277,11 @@ async function loadProgress() {
     </div>`;
   }
   html += `<div style="margin-top:8px;font-size:12px;color:var(--muted)">ขาด ${ac.absent ?? 0} ครั้ง · คะแนนขาด ${pd.absence ?? 0}/15</div>`;
+  if (r.topAction?.hint) {
+    html += `<div style="margin-top:14px;padding:10px 14px;background:rgba(0,0,0,.06);border-radius:10px;font-size:13px">
+      💡 <b>ทำก่อนเลย:</b> ${r.topAction.hint} <span style="color:var(--muted)">(+${r.topAction.gain} pt)</span>
+    </div>`;
+  }
   box.innerHTML = html;
   box._loaded = true;
 }
@@ -283,6 +295,80 @@ async function ackAssignment(id, btn) {
   } else {
     btn.textContent = 'ลองใหม่'; btn.disabled = false;
   }
+}
+
+async function loadPending121() {
+  const box = $('#pending121');
+  if (!box || box._loaded) return;
+  const r = await api({ action: 'get-121-pending' });
+  if (!r.ok || !r.pending?.length) { box._loaded = true; return; }
+  box.innerHTML = `<div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px">นัดที่รอยืนยัน</div>` +
+    r.pending.map(p => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(0,0,0,.07)" id="p121-${p.id}">
+        <div>
+          <div style="font-size:13px;font-weight:600">${p.partner_name || '—'}</div>
+          <div style="font-size:11px;color:var(--muted)">${p.scheduled_date}</div>
+        </div>
+        <button onclick="confirm121('${p.id}',this)" style="font-size:12px;padding:5px 12px;border-radius:20px;border:1px solid var(--ink);background:transparent;cursor:pointer">เจอแล้ว ✓</button>
+      </div>`).join('');
+  box._loaded = true;
+}
+
+async function confirm121(id, btn) {
+  btn.disabled = true; btn.textContent = '…';
+  const r = await api({ action: 'confirm-121', logId: id });
+  const row = $(`#p121-${id}`);
+  if (r.ok) {
+    if (row) { row.style.opacity = '.4'; row.querySelector('button').textContent = 'ยืนยันแล้ว ✓'; }
+  } else {
+    btn.disabled = false; btn.textContent = 'เจอแล้ว ✓';
+    alert(r.error || 'เกิดข้อผิดพลาด');
+  }
+}
+
+async function loadIssueHistory() {
+  const box = $('#issueHistory');
+  if (!box || box._loaded) return;
+  const r = await api({ action: 'get-issues' });
+  if (!r.ok || !r.issues?.length) { box._loaded = true; return; }
+  box.innerHTML = `<div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px">เรื่องที่ส่งไว้</div>` +
+    r.issues.map(i => {
+      const date = i.reported_at ? new Date(i.reported_at).toLocaleDateString('th-TH', { day:'numeric', month:'short' }) : '';
+      const resolved = i.resolved_at;
+      const reply = i.mentor_response;
+      const statusBadge = resolved
+        ? `<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(0,180,0,.15);color:green">แก้ไขแล้ว</span>`
+        : reply
+          ? `<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(0,120,255,.12);color:#0066cc">Mentor ตอบแล้ว</span>`
+          : `<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(0,0,0,.08);color:var(--muted)">รอ Mentor</span>`;
+      return `<div style="padding:8px 0;border-bottom:1px solid rgba(0,0,0,.07)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+          <span style="font-size:11px;color:var(--muted)">${date}</span>${statusBadge}
+        </div>
+        <div style="font-size:13px;line-height:1.5">${i.issue_text}</div>
+        ${reply ? `<div style="font-size:12px;color:#0066cc;margin-top:4px;padding:6px 8px;background:rgba(0,120,255,.07);border-radius:6px">💬 ${reply}</div>` : ''}
+      </div>`;
+    }).join('');
+  box._loaded = true;
+}
+
+async function loadPendingVisitors() {
+  const box = $('#pendingVisitors');
+  if (!box || box._loaded) return;
+  const r = await api({ action: 'get-visitors' });
+  if (!r.ok || !r.visitors?.length) { box._loaded = true; return; }
+  const statusLabel = { pending: 'รอยืนยัน', attended: 'เข้าร่วมแล้ว', no_show: 'ไม่มา', joined: 'เป็นสมาชิกแล้ว' };
+  const statusColor = { pending: 'rgba(0,0,0,.08)', attended: 'rgba(0,180,0,.12)', no_show: 'rgba(220,50,50,.12)', joined: 'rgba(0,120,255,.12)' };
+  box.innerHTML = `<div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px">แขกที่เคยลงทะเบียน</div>` +
+    r.visitors.map(v => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-top:1px solid rgba(0,0,0,.07)">
+        <div>
+          <div style="font-size:13px;font-weight:600">${v.visitor_name}</div>
+          <div style="font-size:11px;color:var(--muted)">${v.visit_date}</div>
+        </div>
+        <span style="font-size:11px;padding:3px 9px;border-radius:10px;background:${statusColor[v.status]||'rgba(0,0,0,.08)'}">${statusLabel[v.status]||v.status}</span>
+      </div>`).join('');
+  box._loaded = true;
 }
 
 async function init() {
@@ -320,6 +406,20 @@ async function init() {
     $('#score').textContent = Math.round(r.dashboard?.display_score || 0);
     $('#traffic').textContent = String(r.dashboard?.traffic_light || 'none').toUpperCase();
     applyRoleTabs(_role);
+    const absentCount = Number(r.dashboard?.absent ?? 0);
+    const absInfo = $('#absenceInfo');
+    if (absInfo && absentCount > 0) {
+      absInfo.style.display = 'block';
+      if (absentCount >= 2) {
+        absInfo.textContent = `⚠️ ขาดไปแล้ว ${absentCount} ครั้ง — ขาดอีกครั้งได้ 0 pt`;
+        absInfo.style.background = 'rgba(220,50,50,.12)';
+        absInfo.style.color = 'var(--red, #c0392b)';
+      } else {
+        absInfo.textContent = `ขาดไปแล้ว ${absentCount} ครั้งในรอบนี้`;
+        absInfo.style.background = 'rgba(0,0,0,.06)';
+        absInfo.style.color = 'var(--muted)';
+      }
+    }
     // Pre-load assignments to decide tab visibility, cache for loadAssignments()
     const asgn = await api({ action: 'get-assignments' });
     window._cachedAssignments = asgn.ok ? asgn.assignments || [] : null;
@@ -345,7 +445,12 @@ $$('form').forEach(f => f.addEventListener('submit', async e => {
   const r = await api({ action, ...payload });
   st.textContent = r.message || r.error || 'เรียบร้อย';
   st.className = `status ${r.ok ? 'ok' : 'err'}`;
-  if (r.ok) f.reset();
+  if (r.ok) {
+    f.reset();
+    if (action === '121')     { const b = $('#pending121');       if (b) { b._loaded = false; loadPending121(); } }
+    if (action === 'issue')   { const b = $('#issueHistory');     if (b) { b._loaded = false; loadIssueHistory(); } }
+    if (action === 'visitor') { const b = $('#pendingVisitors');  if (b) { b._loaded = false; loadPendingVisitors(); } }
+  }
 }));
 
 init();
