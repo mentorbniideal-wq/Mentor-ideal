@@ -37,7 +37,7 @@ export async function provisionLineExperience(db: Db) {
   });
 
   const roles: RichMenuRole[] = ['member', 'mentor', 'mc', 'growth'];
-  const desiredMenuVersion = 'v5';
+  const desiredMenuVersion = 'v9';
   const menuAssetVersion = 'v4';
   const desiredMenuSource = `${desiredMenuVersion}|${liffUrl}|${appUrl}`;
   const { data: menuSettings } = await db.from('settings')
@@ -67,7 +67,8 @@ export async function provisionLineExperience(db: Db) {
       });
       richMenuId = String((await create.json() as Record<string, unknown>).richMenuId || '');
       if (!richMenuId) throw new Error(`LINE did not return richMenuId for ${role}`);
-      const image = await fetch(`${appUrl}/assets/line/rich-menu-${role}-${menuAssetVersion}.jpg`);
+      const assetRole = 'member';
+      const image = await fetch(`${appUrl}/assets/line/rich-menu-${assetRole}-${menuAssetVersion}.jpg`);
       if (!image.ok) throw new Error(`Cannot download ${role} rich menu asset: ${image.status}`);
       await lineRequest(token, `https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`, {
         method: 'POST',
@@ -86,26 +87,10 @@ export async function provisionLineExperience(db: Db) {
   const { data: settings } = await db.from('settings')
     .select('key, value')
     .like('key', 'LINE_ID_%');
-  const elevatedLineIds = new Set(
-    (settings || [])
-      .filter((row: Record<string, unknown>) =>
-        ['LINE_ID_MC', 'LINE_ID_GROWTH'].includes(String(row.key || '')))
-      .map((row: Record<string, unknown>) => String(row.value || ''))
-      .filter(Boolean),
-  );
   for (const row of settings || []) {
     const lineUserId = String(row.value || '');
     if (!lineUserId) continue;
-    const key = String(row.key || '');
-    const role: RichMenuRole = key === 'LINE_ID_MC'
-      ? 'mc'
-      : key === 'LINE_ID_GROWTH'
-      ? 'growth'
-      : 'mentor';
-    // Same guard as the mentor_teams loop below: never downgrade MC/Growth to mentor
-    // when the same LINE user ID appears in both LINE_ID_MC and LINE_ID_<TEAM> settings.
-    if (role === 'mentor' && elevatedLineIds.has(lineUserId)) continue;
-    await lineRequest(token, `https://api.line.me/v2/bot/user/${lineUserId}/richmenu/${menus[role]}`, {
+    await lineRequest(token, `https://api.line.me/v2/bot/user/${lineUserId}/richmenu/${menus.member}`, {
       method: 'POST',
     });
   }
@@ -129,10 +114,9 @@ export async function provisionLineExperience(db: Db) {
       .maybeSingle();
     const lineUserId = String(link?.line_user_id || '');
     if (!lineUserId) continue;
-    // Never downgrade an MC/Growth account when the same person is also the
-    // named leader of a Mentor team. Explicit elevated roles take precedence.
-    if (elevatedLineIds.has(lineUserId)) continue;
-    await lineRequest(token, `https://api.line.me/v2/bot/user/${lineUserId}/richmenu/${menus.mentor}`, {
+    // Mentor, MC, and Growth work lives in the web app, so LINE stays as
+    // member-support only for everyone.
+    await lineRequest(token, `https://api.line.me/v2/bot/user/${lineUserId}/richmenu/${menus.member}`, {
       method: 'POST',
     });
   }

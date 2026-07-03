@@ -30,7 +30,8 @@ const ROUTES: Record<string, string> = {
   'getLineTeamMappings': 'settings', 'setLineTeamMapping': 'settings',
   'provisionLineMenus': 'settings', 'getLineHealth': 'settings',
   'reassignLineMenu': 'settings', 'simulateLineMessage': 'settings',
-  'getAdminSessionInfo': 'settings',
+  'getAdminSessionInfo': 'settings', 'getLineQuota': 'settings', 'getLineDeliveryLog': 'settings',
+  'retryLineDelivery': 'settings',
 };
 
 const HANDLERS: Record<string, (p: Record<string, unknown>) => Promise<Response>> = {

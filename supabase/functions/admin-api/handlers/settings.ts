@@ -2,14 +2,15 @@ import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { provisionLineExperience } from '../../_shared/line-provision.ts';
+import { linePushMessages } from '../../_shared/line.ts';
 
 const ADMIN_SECTIONS = ['dashboard','members','issues','checkin','revenue','broadcast'] as const;
 type LineMenuRole = 'member' | 'mentor' | 'mc' | 'growth';
 
 function expectedMenuRole(settingKey: string): LineMenuRole {
-  if (settingKey === 'LINE_ID_MC') return 'mc';
-  if (settingKey === 'LINE_ID_GROWTH') return 'growth';
-  return 'mentor';
+  if (settingKey === 'LINE_ID_MC') return 'member';
+  if (settingKey === 'LINE_ID_GROWTH') return 'member';
+  return 'member';
 }
 
 async function getLineMenuForUser(token: string, lineUserId: string): Promise<{
@@ -361,12 +362,12 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     }
 
     const assignmentSeed: Record<string, unknown>[] = [
-      { key: 'LINE_ID_MC', label: 'MC', expectedRole: 'mc' },
-      { key: 'LINE_ID_GROWTH', label: 'Growth', expectedRole: 'growth' },
+      { key: 'LINE_ID_MC', label: 'MC', expectedRole: 'member' },
+      { key: 'LINE_ID_GROWTH', label: 'Growth', expectedRole: 'member' },
       ...(teams || []).map((team: Record<string, unknown>) => ({
         key: `LINE_ID_${String(team.name || '').toUpperCase()}`,
         label: `Mentor · ${String(team.name || '')}`,
-        expectedRole: 'mentor',
+        expectedRole: 'member',
         leaderName: String(team.leader_name || ''),
       })),
     ];
@@ -430,11 +431,11 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
       }),
     );
 
-    const actions = ['mentor-log', 'follow-up', 'issue', 'renewal', 'assignments'];
+    const actions = ['121', 'absence', 'goal', 'issue', 'renewal', 'assignments'];
     const urlChecks = await Promise.all([
       checkUrl(`${appUrl}/liff/`),
       ...actions.map(item => checkUrl(`${appUrl}/liff/${item}?preview=1`)),
-      checkUrl(`${liffUrl}?action=mentor-log`),
+      checkUrl(`${liffUrl}?action=121`),
     ]);
     const menuRoles: LineMenuRole[] = ['member', 'mentor', 'mc', 'growth'];
     const menus = Object.fromEntries(menuRoles.map(role => [
@@ -506,6 +507,94 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
       appVersion: settings['APP_VERSION'] || '—',
       mcLineId:   settings['MC_LINE_USER_ID'] || '—',
     });
+  }
+
+  if (action === 'getLineQuota') {
+    const lineToken = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || '';
+    if (!lineToken) return errResponse('LINE_CHANNEL_ACCESS_TOKEN ยังไม่ได้ตั้งค่า');
+    const [quotaRes, usageRes] = await Promise.all([
+      fetch('https://api.line.me/v2/bot/message/quota', { headers: { Authorization: `Bearer ${lineToken}` } }),
+      fetch('https://api.line.me/v2/bot/message/quota/consumption', { headers: { Authorization: `Bearer ${lineToken}` } }),
+    ]);
+    if (!quotaRes.ok || !usageRes.ok) return errResponse(`LINE quota API error: ${quotaRes.status}/${usageRes.status}`);
+    const quota = await quotaRes.json() as Record<string, unknown>;
+    const usage = await usageRes.json() as Record<string, unknown>;
+    const type = String(quota.type || 'unknown');
+    const isUnlimited = type === 'unlimited';
+    const limit = isUnlimited ? null : Number(quota.value) || 0;
+    const used  = Number(usage.totalUsage) || 0;
+    return jsonResponse({
+      ok: true,
+      type,
+      unlimited: isUnlimited,
+      limit,
+      used,
+      remaining: isUnlimited ? null : Math.max(0, Number(limit) - used),
+      pct: !isUnlimited && Number(limit) > 0 ? Math.round(used / Number(limit) * 100) : 0,
+    });
+  }
+
+  if (action === 'getLineDeliveryLog') {
+    const pageSize = Math.min(100, Number(p.limit) || 50);
+    const offset   = Number(p.offset) || 0;
+    let q = db.from('line_message_deliveries')
+      .select(`id, channel, recipient_id, member_id, notification_type, source,
+               status, created_at, sent_at, message_preview, message_payload, last_error,
+               members ( nickname, name, mentor_team )`, { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + pageSize - 1);
+    if (p.status)    q = q.eq('status',            String(p.status));
+    if (p.notifType) q = q.eq('notification_type', String(p.notifType));
+    if (p.source)    q = q.eq('source',            String(p.source));
+    const { data, error, count } = await q;
+    if (error) return errResponse(error.message);
+    const rows = ((data || []) as Record<string, unknown>[]).map(r => {
+      const m = (r.members || {}) as Record<string, unknown>;
+      return {
+        id: String(r.id || ''), channel: String(r.channel || ''),
+        notifType: String(r.notification_type || ''), source: String(r.source || ''),
+        status: String(r.status || ''), createdAt: String(r.created_at || ''),
+        sentAt: r.sent_at ? String(r.sent_at) : null,
+        preview: r.message_preview ? String(r.message_preview) : null,
+        lastError: r.last_error ? String(r.last_error).slice(0, 200) : null,
+        canRetry: r.status === 'failed' && r.channel === 'push' && Array.isArray(r.message_payload),
+        memberNick: String(m.nickname || m.name || ''), memberName: String(m.name || ''),
+        memberTeam: String(m.mentor_team || ''),
+      };
+    });
+    return jsonResponse({ ok: true, rows, total: count || 0, offset, pageSize });
+  }
+
+  if (action === 'retryLineDelivery') {
+    const deliveryId = String(p.deliveryId || '');
+    if (!deliveryId) return errResponse('deliveryId required');
+
+    const { data: row, error } = await db
+      .from('line_message_deliveries')
+      .select('id, channel, recipient_id, member_id, notification_type, message_payload, status')
+      .eq('id', deliveryId)
+      .maybeSingle();
+    if (error) return errResponse(error.message);
+    if (!row) return errResponse('ไม่พบรายการส่งข้อความนี้');
+
+    const channel = String(row.channel || '');
+    if (channel !== 'push') return errResponse('Retry รองรับเฉพาะข้อความแบบ push รายบุคคลตอนนี้');
+    const recipientId = String(row.recipient_id || '');
+    const payload = row.message_payload;
+    if (!recipientId || !Array.isArray(payload) || payload.length === 0) {
+      return errResponse('รายการนี้ไม่มีข้อมูลข้อความสำหรับ Retry');
+    }
+
+    const retrySeed = `retry:${deliveryId}:${Date.now()}`;
+    const result = await linePushMessages(recipientId, payload as Record<string, unknown>[], {
+      db,
+      memberId: row.member_id ? String(row.member_id) : null,
+      notificationType: `${String(row.notification_type || 'manual')}:retry`,
+      source: 'admin-api/retryLineDelivery',
+      idempotencyKey: retrySeed,
+      lineRetryKey: retrySeed,
+    });
+    return jsonResponse({ ok: true, result });
   }
 
   return errResponse(`Unknown settings action: ${action}`);

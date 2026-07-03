@@ -352,12 +352,14 @@ async function resolveLineRole(
   const data = [...(lineIds || []), ...(aliases || [])];
   const match = (data || []).find((row: Record<string, unknown>) => String(row.value || '') === userId);
   const key = String((match as Record<string, unknown> | undefined)?.key || '');
-  if (['LINE_ID_MC', 'MC_LINE_ID', 'MC_LINE_USER_ID'].includes(key)) return 'mc';
-  if (['LINE_ID_GROWTH', 'GROWTH_LINE_ID', 'GROWTH_LINE_USER_ID'].includes(key)) return 'growth';
-  if (key.startsWith('LINE_ID_')) return 'mentor';
+  // LINE is intentionally a member-support layer only. MC, Growth, and Mentor work
+  // lives in the web app where context, permissions, and audit trails are clearer.
+  if (['LINE_ID_MC', 'MC_LINE_ID', 'MC_LINE_USER_ID'].includes(key)) return 'member';
+  if (['LINE_ID_GROWTH', 'GROWTH_LINE_ID', 'GROWTH_LINE_USER_ID'].includes(key)) return 'member';
+  if (key.startsWith('LINE_ID_')) return 'member';
 
-  // Mentor accounts do not always have a dedicated LINE_ID_* setting.
-  // Resolve them from the linked member and the current mentor-team leaders.
+  // Mentor accounts do not get elevated LINE behavior; normal mentors remain
+  // member experience in LINE.
   const { data: linked } = await db.from('line_members')
     .select('members(name, nickname, email)')
     .eq('line_user_id', userId)
@@ -375,7 +377,7 @@ async function resolveLineRole(
         leader === identity || leader.includes(identity) || identity.includes(leader)
       );
     });
-    if (leadsTeam) return 'mentor';
+    if (leadsTeam) return 'member';
   }
 
   // Email-based fallback: match member email against role_assignments
@@ -386,8 +388,8 @@ async function resolveLineRole(
       .ilike('email', email)
       .maybeSingle();
     if (ra) {
-      if (String((ra as any).role) === 'mc') return 'mc';
-      if ((ra as any).is_mentor) return 'mentor';
+      if (String((ra as any).role) === 'mc') return 'member';
+      if ((ra as any).is_mentor) return 'member';
     }
   }
 

@@ -201,11 +201,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       );
       if (error) return errResponse(error.message);
 
-      const menuRole = target.toLowerCase() === 'mc'
-        ? 'MC'
-        : target.toLowerCase() === 'growth'
-        ? 'GROWTH'
-        : 'MENTOR';
+      const menuRole = 'MEMBER';
       const { data: menuSetting } = await db.from('settings')
         .select('value').eq('key', `LINE_RICH_MENU_${menuRole}`).maybeSingle();
       const richMenuId = String((menuSetting as Record<string, unknown> | null)?.value || '');
@@ -822,7 +818,8 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
           continue;
         }
         const richMenuId = String((JSON.parse(createBody) as Record<string, unknown>).richMenuId || '');
-        const imageUrl = `${appUrl}/assets/line/rich-menu-${role}-v4.jpg`;
+        const assetRole = 'member';
+        const imageUrl = `${appUrl}/assets/line/rich-menu-${assetRole}-v4.jpg`;
         const imageRes = await fetch(imageUrl);
         if (!imageRes.ok) {
           results.push({ role, ok: false, richMenuId, error: `image ${imageRes.status}: ${imageUrl}` });
@@ -1337,6 +1334,86 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         sentCount++;
       }
       return jsonResponse({ ok: true, message: '1-2-1 reminder sent', sentCount });
+    }
+
+    // ── LINE DELIVERY LOG ─────────────────────────────────────
+    case 'getLineDeliveryLog': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const pageSize = Math.min(100, Number(p.limit) || 50);
+      const offset   = Number(p.offset) || 0;
+      const filterStatus = p.status ? String(p.status) : null;
+      const filterType   = p.notifType ? String(p.notifType) : null;
+      const filterSource = p.source ? String(p.source) : null;
+
+      let q = db
+        .from('line_message_deliveries')
+        .select(`
+          id, channel, recipient_id, member_id, notification_type, source,
+          status, created_at, sent_at, message_preview, last_error,
+          members ( nickname, name, mentor_team )
+        `, { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(offset, offset + pageSize - 1);
+
+      if (filterStatus) q = q.eq('status', filterStatus);
+      if (filterType)   q = q.eq('notification_type', filterType);
+      if (filterSource) q = q.eq('source', filterSource);
+
+      const { data, error, count } = await q;
+      if (error) return errResponse(error.message);
+
+      const rows = ((data || []) as Record<string, unknown>[]).map(r => {
+        const m = (r.members || {}) as Record<string, unknown>;
+        return {
+          id:               String(r.id || ''),
+          channel:          String(r.channel || ''),
+          notifType:        String(r.notification_type || ''),
+          source:           String(r.source || ''),
+          status:           String(r.status || ''),
+          createdAt:        String(r.created_at || ''),
+          sentAt:           r.sent_at ? String(r.sent_at) : null,
+          preview:          r.message_preview ? String(r.message_preview) : null,
+          lastError:        r.last_error ? String(r.last_error).slice(0, 200) : null,
+          memberNick:       String(m.nickname || m.name || ''),
+          memberName:       String(m.name || ''),
+          memberTeam:       String(m.mentor_team || ''),
+        };
+      });
+      return jsonResponse({ ok: true, rows, total: count || 0, offset, pageSize });
+    }
+
+    // ── LINE OA MESSAGE QUOTA ─────────────────────────────────
+    case 'getLineQuota': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      if (!LINE_TOKEN) return errResponse('LINE_CHANNEL_ACCESS_TOKEN ยังไม่ได้ตั้งค่า');
+      const [quotaRes, usageRes] = await Promise.all([
+        fetch('https://api.line.me/v2/bot/message/quota', {
+          headers: { Authorization: `Bearer ${LINE_TOKEN}` },
+        }),
+        fetch('https://api.line.me/v2/bot/message/quota/consumption', {
+          headers: { Authorization: `Bearer ${LINE_TOKEN}` },
+        }),
+      ]);
+      if (!quotaRes.ok || !usageRes.ok) {
+        return errResponse(`LINE quota API error: ${quotaRes.status} / ${usageRes.status}`);
+      }
+      const quota = await quotaRes.json() as Record<string, unknown>;
+      const usage = await usageRes.json() as Record<string, unknown>;
+      const type = String(quota.type || 'unknown');
+      const isUnlimited = type === 'unlimited';
+      const limit = isUnlimited ? null : Number(quota.value) || 0;
+      const used  = Number(usage.totalUsage) || 0;
+      return jsonResponse({
+        ok: true,
+        type,
+        unlimited: isUnlimited,
+        limit,
+        used,
+        remaining: isUnlimited ? null : Math.max(0, Number(limit) - used),
+        pct: !isUnlimited && Number(limit) > 0 ? Math.round(used / Number(limit) * 100) : 0,
+      });
     }
 
     // ── Default stub ──────────────────────────────────────────

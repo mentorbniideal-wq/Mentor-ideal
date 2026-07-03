@@ -1,0 +1,14 @@
+-- Drop the legacy 7-arg fn_claim_line_delivery that was left in place by
+-- migration 20260702000044_line_message_preview.sql.
+--
+-- Background: 20260702000044 used CREATE OR REPLACE with a different signature
+-- (adding p_message_preview TEXT DEFAULT NULL), which in PostgreSQL creates a
+-- NEW overload rather than replacing the existing one. This left both functions
+-- in the DB and caused PostgreSQL function-overload ambiguity when the old
+-- edge-function bundles (still calling with 7 positional args) were in service.
+-- The outage was resolved by redeploying all functions with the 8-arg call, but
+-- the 7-arg function remained as a dead landmine.
+--
+-- After this migration only the 8-arg function exists; the isLinePreviewMigrationMissing
+-- fallback in _shared/line.ts is correspondingly dead code and has been removed.
+DROP FUNCTION IF EXISTS public.fn_claim_line_delivery(TEXT, TEXT, TEXT, UUID, TEXT, TEXT, TEXT);

@@ -3,7 +3,12 @@ import {
   bangkokWeekKey,
   eventIdFor,
   generateLinkToken,
+  LINE_QR_MEMBER,
+  LINE_QR_MENTOR,
+  LINE_QR_MC,
+  LINE_QR_GROWTH,
   linePush,
+  lineRetryKeyFor,
   normalizeLinkToken,
   renewalMilestone,
   sha256Hex,
@@ -104,15 +109,93 @@ Deno.test('unified sender skips provider call when delivery key is already claim
   }
 });
 
+Deno.test('unified sender claims delivery with message_preview using the 8-arg RPC contract', async () => {
+  let fetchCalls = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (() => {
+    fetchCalls++;
+    return Promise.resolve(new Response('{}', {
+      status: 200,
+      headers: { 'x-line-request-id': 'req-1' },
+    }));
+  }) as typeof fetch;
+
+  let rpcArgs: Record<string, unknown> | null = null;
+  const db = {
+    rpc: (_fn: string, args: Record<string, unknown>) => {
+      rpcArgs = args;
+      return Promise.resolve({
+        data: [{ delivery_id: 'delivery-8arg', should_send: false }],
+        error: null,
+      });
+    },
+    from: () => ({
+      update: () => ({ eq: () => Promise.resolve({ error: null }) }),
+    }),
+  };
+
+  try {
+    const result = await linePush('U1', 'hello legacy', {
+      db,
+      idempotencyKey: 'legacy-key',
+      notificationType: 'test',
+    });
+    assert(result.skipped);
+    assertEquals(result.deliveryId, 'delivery-8arg');
+    assertEquals(fetchCalls, 0);
+    assert(rpcArgs);
+    const capturedArgs = rpcArgs as Record<string, unknown>;
+    assertEquals(capturedArgs.p_message_preview, 'hello legacy');
+    assertEquals(Object.keys(capturedArgs).sort(), [
+      'p_channel',
+      'p_idempotency_key',
+      'p_member_id',
+      'p_message_preview',
+      'p_notification_type',
+      'p_payload_hash',
+      'p_recipient_id',
+      'p_source',
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test('LINE retry keys are deterministic and only attached to provider send endpoints', async () => {
+  const retryKey = await lineRetryKeyFor({ idempotencyKey: 'same-key' }, 'push');
+  assert(retryKey);
+  assert(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-a[0-9a-f]{3}-[0-9a-f]{12}$/.test(retryKey));
+  assertEquals(await lineRetryKeyFor({ idempotencyKey: 'same-key' }, 'push'), retryKey);
+  assertEquals(await lineRetryKeyFor({ idempotencyKey: 'same-key' }, 'reply'), undefined);
+});
+
 Deno.test('rich menu definitions cover the full 2500x1686 canvas', () => {
   const menu = buildRichMenu('member', 'https://liff.line.me/test', 'https://example.com');
-  assertEquals(menu.areas.length, 6);
+  assertEquals(menu.areas.length, 7);
   const totalArea = menu.areas.reduce(
     (sum, area) => sum + area.bounds.width * area.bounds.height,
     0,
   );
   assertEquals(totalArea, 2500 * 1686);
   assertEquals(menu.areas[2].bounds.width, 834);
+  assertEquals(menu.areas[3].bounds.width, 625);
+});
+
+Deno.test('all operational roles use the same personal LINE menu contract as member', () => {
+  const member = buildRichMenu('member', 'https://liff.line.me/test', 'https://example.com');
+  for (const role of ['mentor', 'mc', 'growth'] as const) {
+    const menu = buildRichMenu(role, 'https://liff.line.me/test', 'https://example.com');
+    assertEquals(menu.chatBarText, member.chatBarText);
+    assertEquals(menu.areas.length, member.areas.length);
+    assertEquals(menu.areas.map(area => area.bounds), member.areas.map(area => area.bounds));
+    assertEquals(menu.areas.map(area => area.action), member.areas.map(area => area.action));
+  }
+});
+
+Deno.test('all operational role quick replies stay aligned with member support actions', () => {
+  assertEquals(LINE_QR_MENTOR, LINE_QR_MEMBER);
+  assertEquals(LINE_QR_MC, LINE_QR_MEMBER);
+  assertEquals(LINE_QR_GROWTH, LINE_QR_MEMBER);
 });
 
 Deno.test('rich menu LIFF actions preserve an existing LIFF query string', () => {
@@ -121,26 +204,18 @@ Deno.test('rich menu LIFF actions preserve an existing LIFF query string', () =>
     'https://liff.line.me/test?source=rich-menu',
     'https://example.com',
   );
-  const mentorLog = menu.areas[2].action as { type: string; uri: string };
-  if (mentorLog.uri !== 'https://liff.line.me/test?source=rich-menu&action=mentor-log') {
-    throw new Error(`unexpected LIFF URI: ${mentorLog.uri}`);
+  const oneToOne = menu.areas[2].action as { type: string; uri: string };
+  if (oneToOne.uri !== 'https://liff.line.me/test?source=rich-menu&action=121') {
+    throw new Error(`unexpected LIFF URI: ${oneToOne.uri}`);
   }
 });
 
-Deno.test('rich menu role precedence keeps elevated LINE mappings explicit', () => {
-  const settings = [
-    { key: 'LINE_ID_MC', value: 'U-MC' },
-    { key: 'LINE_ID_TOOMTAM', value: 'U-MC' },
-    { key: 'LINE_ID_DRAFT', value: 'U-DRAFT' },
-  ];
-  const elevated = new Set(
-    settings
-      .filter(row => ['LINE_ID_MC', 'LINE_ID_GROWTH'].includes(row.key))
-      .map(row => row.value),
-  );
-  if (!elevated.has('U-MC') || elevated.has('U-DRAFT')) {
-    throw new Error('elevated LINE role precedence is incorrect');
-  }
+Deno.test('LINE role-specific menus remain available only as member-equivalent aliases', () => {
+  const member = buildRichMenu('member', 'https://liff.line.me/test', 'https://example.com');
+  const mc = buildRichMenu('mc', 'https://liff.line.me/test', 'https://example.com');
+  const growth = buildRichMenu('growth', 'https://liff.line.me/test', 'https://example.com');
+  assertEquals(mc.areas.map(area => area.action), member.areas.map(area => area.action));
+  assertEquals(growth.areas.map(area => area.action), member.areas.map(area => area.action));
 });
 
 Deno.test('score flex card exposes safe alt text and action button', () => {

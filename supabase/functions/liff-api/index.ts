@@ -296,5 +296,5 @@ Deno.serve(async (req: Request) => {
     return response({ ok: true, visitors: visitors || [] });
   }
 
-  return response({ ok: false, error: `Unknown action: ${action}` }, 400);
+  return response({ ok: false, error: `ฟีเจอร์นี้ไม่มีแล้วครับ (${action})` });
 });

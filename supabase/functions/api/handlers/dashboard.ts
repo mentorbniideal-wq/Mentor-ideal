@@ -942,6 +942,31 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         if (sc.length >= 2 && curr < prev - 2) ta.diving++;
       }
 
+      // Build per-team member list with score history for detailed reports
+      const teamMembersMap: Record<string, Record<string, unknown>[]> = {};
+      for (const t of TEAMS) teamMembersMap[t] = [];
+      for (const m of allMem) {
+        const team = String(m.mentor_team || '');
+        if (!(team in teamMembersMap)) continue;
+        const mid = String(m.id);
+        const sc = scoreMap[mid] || [];
+        const curr = sc[0]?.score ?? Number(m.display_score) ?? 0;
+        const prev = sc.length >= 2 ? sc[1].score : null;
+        teamMembersMap[team].push({
+          nick: String(m.nickname || m.name || ''),
+          name: String(m.name || ''),
+          team,
+          thisScore: curr,
+          prevScore: prev,
+          diff: prev !== null ? curr - prev : null,
+          thisZone: tlZone(curr),
+          prevZone: prev !== null ? tlZone(prev) : 'none',
+        });
+      }
+      for (const t of TEAMS) {
+        teamMembersMap[t].sort((a, b) => (Number(b.thisScore)||0) - (Number(a.thisScore)||0));
+      }
+
       const teams = TEAMS.map(t => {
         const ta = teamAgg[t];
         const thisAvg = ta.scored   ? Math.round(ta.scoreSum / ta.scored)   : 0;
@@ -951,6 +976,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
           thisAvg, prevAvg, diff: thisAvg - prevAvg,
           grade: teamGrade(thisAvg),
           redBlk: ta.redBlk, diving: ta.diving,
+          members: teamMembersMap[t],
         };
       });
 

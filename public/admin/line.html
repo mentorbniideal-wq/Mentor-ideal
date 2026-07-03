@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LINE Management — BNI IDEAL</title>
+<script src="_auth.js"></script>
+<style>
+:root{--bg:#0a1628;--card:#0e2040;--card2:#0c1c38;--mint:#d7fefa;--ac:#3dd6f5;--tx:#e8f4f8;--sub:#7a9bb5;--re:#ff6b6b;--ye:#ffd166;--gr:#06d6a0;--line:#06C755;--bd:#1a3a5c;--bd2:#2a4a6c}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font-family:'Sarabun','Noto Sans Thai',sans-serif;min-height:100vh;font-size:13px}
+nav{background:var(--card);border-bottom:1px solid var(--bd);padding:10px 20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+nav h1{font-size:15px;color:var(--mint);font-weight:700;flex:1;display:flex;align-items:center;gap:8px}
+nav a{color:var(--sub);text-decoration:none;font-size:12px;padding:5px 10px;border-radius:6px;transition:background .15s}
+nav a:hover,nav a.active{background:var(--bd);color:var(--mint)}
+.nav-badge{background:var(--line);color:#000;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:4px}
+main{padding:20px;max-width:1200px}
+.quota-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.qcard{background:var(--card);border-radius:10px;padding:16px;border:1px solid var(--bd)}
+.qcard .ql{font-size:11px;color:var(--sub);margin-bottom:4px}
+.qcard .qv{font-size:26px;font-weight:800;line-height:1.1}
+.progress{height:6px;background:var(--bd2);border-radius:4px;margin-top:10px;overflow:hidden}
+.progress-fill{height:100%;border-radius:4px;transition:width .5s;background:var(--gr)}
+.sec{background:var(--card);border-radius:12px;margin-bottom:16px;overflow:hidden;border:1px solid var(--bd)}
+.sec-hdr{padding:12px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px}
+.sec-hdr h2{font-size:13px;font-weight:700;flex:1;color:var(--mint)}
+.sec-body{padding:14px 16px}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+.filters select,.filters input{background:var(--card2);border:1px solid var(--bd2);color:var(--tx);padding:5px 8px;border-radius:7px;font-size:12px;outline:none;font-family:inherit}
+.btn{padding:5px 14px;border-radius:7px;border:none;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit}
+.btn-line{background:rgba(6,199,85,.15);border:1px solid rgba(6,199,85,.4);color:var(--line)}
+.btn-sub{background:rgba(58,150,200,.1);border:1px solid var(--bd2);color:var(--sub)}
+.btn-retry{margin-top:5px;padding:3px 8px;border-radius:999px;border:1px solid rgba(255,209,102,.5);background:rgba(255,209,102,.12);color:var(--ye);font-size:10px;font-weight:800;cursor:pointer;font-family:inherit}
+.btn-retry:hover{background:rgba(255,209,102,.2)}
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{padding:7px 10px;text-align:left;color:var(--sub);font-weight:600;border-bottom:1px solid var(--bd);white-space:nowrap;font-size:11px}
+.tbl td{padding:7px 10px;border-bottom:1px solid rgba(26,58,92,.5);vertical-align:top}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:rgba(61,214,245,.03)}
+.badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap}
+.b-sent{background:rgba(6,214,160,.12);color:var(--gr)}.b-failed{background:rgba(255,107,107,.12);color:var(--re)}
+.b-skipped{background:rgba(122,155,181,.12);color:var(--sub)}.b-pending{background:rgba(255,209,102,.12);color:var(--ye)}
+.type-chip{display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;background:rgba(61,214,245,.1);color:var(--ac)}
+.preview-text{color:var(--tx);opacity:.8;max-width:320px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.4;font-size:11px}
+.no-preview{color:var(--sub);font-style:italic;font-size:11px}
+.pag{display:flex;align-items:center;gap:8px;margin-top:12px;justify-content:flex-end}
+.pag span{font-size:12px;color:var(--sub)}
+.stat-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.stat-chip{background:var(--card2);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;font-size:12px;display:flex;flex-direction:column;gap:2px}
+.stat-chip .sv{font-size:18px;font-weight:800}
+.stat-chip .sl{font-size:10px;color:var(--sub)}
+.loading{color:var(--sub);text-align:center;padding:30px;font-size:12px}
+.empty{color:var(--sub);text-align:center;padding:30px;font-size:12px}
+#toast{position:fixed;bottom:20px;right:20px;background:#1e3a5c;color:var(--tx);padding:10px 16px;border-radius:8px;font-size:12px;display:none;z-index:999;border:1px solid var(--bd2)}
+</style>
+</head>
+<body>
+<nav>
+  <h1>📲 LINE Management <span class="nav-badge">IDEAL</span></h1>
+  <a href="index.html">🏠 Home</a>
+  <a href="settings.html">⚙️ Settings</a>
+  <a href="broadcast.html">📢 Broadcast</a>
+  <a href="line.html" class="active">📨 LINE Log</a>
+  <a href="../dashboard.html">← Dashboard</a>
+  <span id="adminName" style="color:var(--sub);font-size:11px;margin-left:auto"></span>
+  <button onclick="adminLogout()" style="background:transparent;border:1px solid var(--bd2);color:var(--sub);padding:5px 10px;border-radius:6px;cursor:pointer;font-size:11px">ออกจากระบบ</button>
+</nav>
+
+<main>
+  <div class="sec">
+    <div class="sec-hdr">
+      <h2>📊 LINE OA Quota เดือนนี้</h2>
+      <button class="btn btn-sub" onclick="loadQuota()" style="font-size:11px">↺ รีเฟรช</button>
+    </div>
+    <div class="sec-body">
+      <div class="quota-row" id="quota-cards"><div class="loading">⏳ กำลังโหลด...</div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hdr">
+      <h2>📨 ประวัติข้อความที่ส่ง</h2>
+      <span id="log-total" style="font-size:11px;color:var(--sub)">—</span>
+      <button class="btn btn-line" onclick="loadLog(true)" style="margin-left:8px">↺ โหลดใหม่</button>
+    </div>
+    <div class="sec-body">
+      <div class="stat-row" id="log-stats"></div>
+      <div class="filters">
+        <select id="f-status" onchange="loadLog(true)">
+          <option value="">ทุก Status</option>
+          <option value="sent">✅ ส่งแล้ว</option>
+          <option value="failed">❌ ล้มเหลว</option>
+          <option value="skipped">⏭️ ข้ามไป</option>
+          <option value="pending">⏳ รอส่ง</option>
+        </select>
+        <select id="f-type" onchange="loadLog(true)">
+          <option value="">ทุกประเภท</option>
+          <option value="score">📊 Score</option>
+          <option value="score_card">📊 Score Card</option>
+          <option value="monday_brief">📅 Monday Brief</option>
+          <option value="post_meeting">📋 Post Meeting</option>
+          <option value="nudge">💡 Nudge</option>
+          <option value="chapter_pulse">🏆 Chapter Pulse</option>
+          <option value="monthly_recap">📆 Monthly Recap</option>
+          <option value="mentor_alert">🚨 Mentor Alert</option>
+          <option value="121_reminder">🤝 1-2-1 Reminder</option>
+          <option value="renewal">📅 Renewal</option>
+          <option value="passport_lt_reminder">🛂 Passport</option>
+          <option value="visitor_followup">👥 Visitor Follow-up</option>
+          <option value="welcome">👋 Welcome</option>
+          <option value="copilot">🤖 Copilot</option>
+          <option value="command_reply">💬 Command Reply</option>
+          <option value="score_alert">⚠️ Score Alert</option>
+          <option value="anniversary">🎉 Anniversary</option>
+          <option value="onboarding">📋 Onboarding</option>
+          <option value="absence">🙋 Absence</option>
+        </select>
+        <select id="f-source" onchange="loadLog(true)">
+          <option value="">ทุก Source</option>
+          <option value="cron">⏰ Cron (Auto)</option>
+          <option value="line-webhook">🤖 LINE Bot</option>
+          <option value="api/line-admin">👤 MC/Admin</option>
+          <option value="liff-api">📱 LIFF App</option>
+          <option value="line-absence-notify">🙋 Absence System</option>
+        </select>
+        <input type="text" id="f-search" placeholder="ค้นหาชื่อ..." oninput="debounceSearch()" style="min-width:150px">
+        <button class="btn btn-sub" onclick="clearFilters()">✕ ล้าง</button>
+      </div>
+      <div id="log-wrap"><div class="loading">กด "↺ โหลดใหม่" เพื่อดูประวัติ</div></div>
+      <div class="pag" id="log-pag" style="display:none">
+        <button class="btn btn-sub" id="pag-prev" onclick="pagPrev()" disabled>← ก่อน</button>
+        <span id="pag-info">—</span>
+        <button class="btn btn-sub" id="pag-next" onclick="pagNext()">ถัดไป →</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+var _offset=0,_pageSize=50,_total=0,_debounceTimer=null;
+
+window.addEventListener('DOMContentLoaded',function(){
+  checkAdminAuth().then(function(){
+    loadQuota();
+    loadLog(true);
+  });
+});
+
+function toast(msg){var el=document.getElementById('toast');el.textContent=msg;el.style.display='block';setTimeout(function(){el.style.display='none';},3000);}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function loadQuota(){
+  var el=document.getElementById('quota-cards');
+  el.innerHTML='<div class="loading">⏳ กำลังโหลด...</div>';
+  adminCall({action:'getLineQuota'}).then(function(r){
+    if(!r||!r.ok){el.innerHTML='<div class="empty">❌ '+(r&&r.error||'โหลด quota ไม่ได้')+'</div>';return;}
+    var unlimited=!!r.unlimited||r.type==='unlimited';
+    var pct=r.pct||0;
+    var fillColor=unlimited?'#06d6a0':(pct>=80?'#ff6b6b':pct>=60?'#ffd166':'#06d6a0');
+    var remColor=unlimited?'#06d6a0':(r.remaining<50?'#ff6b6b':r.remaining<100?'#ffd166':'#06d6a0');
+    el.innerHTML=
+      '<div class="qcard"><div class="ql">ส่งแล้ว (ใช้ไป)</div>'
+        +'<div class="qv" style="color:var(--ac)">'+r.used+'</div>'
+        +'<div style="font-size:11px;color:var(--sub);margin-top:4px">จาก '+(unlimited?'ไม่จำกัด':r.limit)+' ข้อความ/เดือน</div>'
+        +'<div class="progress"><div class="progress-fill" style="width:'+(unlimited?'100%':Math.min(100,pct)+'%')+';background:'+fillColor+'"></div></div>'
+        +'<div style="font-size:10px;color:var(--sub);margin-top:4px">'+(unlimited?'Unlimited plan':pct+'% ของโควตา')+'</div>'
+      +'</div>'
+      +'<div class="qcard"><div class="ql">เหลือส่งได้อีก</div>'
+        +'<div class="qv" style="color:'+remColor+'">'+(unlimited?'∞':r.remaining)+'</div>'
+        +'<div style="font-size:11px;color:var(--sub);margin-top:4px">'+(unlimited?'ไม่จำกัดตามแผนปัจจุบัน':'ข้อความ (push)')+'</div>'
+      +'</div>'
+      +'<div class="qcard"><div class="ql">ประเภทแผน</div>'
+        +'<div class="qv" style="font-size:18px;color:var(--line)">'+(r.type==='limited'?'🔒 Free':r.type==='unlimited'?'♾️ Unlimited':esc(r.type))+'</div>'
+        +'<div style="font-size:11px;color:var(--sub);margin-top:4px">LINE OA Plan</div>'
+      +'</div>'
+      +'<div class="qcard"><div class="ql">สถานะ</div>'
+        +'<div style="font-size:13px;margin-top:8px;line-height:1.8">'
+          +(unlimited?'<span style="color:var(--gr)">✅ Unlimited</span><br><span style="color:var(--sub);font-size:11px">ส่งได้ตามปกติ</span>'
+           :r.remaining>=100?'<span style="color:var(--gr)">✅ ปลอดภัย</span><br><span style="color:var(--sub);font-size:11px">ส่งได้ตามปกติ</span>'
+           :r.remaining>=50?'<span style="color:var(--ye)">⚠️ ระวัง</span><br><span style="color:var(--sub);font-size:11px">เลือกส่งเฉพาะที่จำเป็น</span>'
+           :'<span style="color:var(--re)">🚨 ใกล้เต็ม!</span><br><span style="color:var(--sub);font-size:11px">หยุด Broadcast ก่อน</span>')
+        +'</div>'
+      +'</div>';
+  });
+}
+
+function typeLabel(t){
+  var m={score:'📊 Score',score_card:'📊 Score Card',monday_brief:'📅 Monday Brief',post_meeting:'📋 Post Meeting',
+    nudge:'💡 Nudge',chapter_pulse:'🏆 Chapter Pulse',monthly_recap:'📆 Monthly Recap',
+    mentor_alert:'🚨 Mentor Alert','121_reminder':'🤝 1-2-1',renewal:'📅 Renewal',
+    passport_lt_reminder:'🛂 Passport',visitor_followup:'👥 Visitor',welcome:'👋 Welcome',
+    copilot:'🤖 Copilot',command_reply:'💬 Command',score_alert:'⚠️ Score Alert',
+    anniversary:'🎉 Anniversary',onboarding:'📋 Onboarding',intro:'👋 Intro',absence:'🙋 Absence'};
+  return m[t]||(t||'—');
+}
+function sourceLabel(s){
+  if(!s)return'—';
+  if(s==='cron'||s.indexOf('cron')>=0)return'⏰ Auto';
+  if(s==='line-webhook')return'🤖 Bot';
+  if(s==='api/line-admin')return'👤 MC';
+  if(s==='liff-api')return'📱 LIFF';
+  if(s==='line-absence-notify')return'🙋 Absence';
+  return s;
+}
+function channelLabel(c){return{push:'📤 Push',reply:'↩️ Reply',multicast:'📢 Multi'}[c]||c;}
+function statusBadge(s){
+  var cl={sent:'b-sent',failed:'b-failed',skipped:'b-skipped',pending:'b-pending'}[s]||'b-skipped';
+  var lbl={sent:'✅ ส่งแล้ว',failed:'❌ ล้มเหลว',skipped:'⏭️ ข้าม',pending:'⏳ รอ'}[s]||s;
+  return'<span class="badge '+cl+'">'+lbl+'</span>';
+}
+function fmtTime(ts){
+  if(!ts)return'—';
+  try{
+    var d=new Date(ts),now=new Date(),diff=(now-d)/1000;
+    if(diff<60)return'เมื่อกี้';
+    if(diff<3600)return Math.floor(diff/60)+' นาทีที่แล้ว';
+    if(diff<86400)return Math.floor(diff/3600)+' ชม.ที่แล้ว';
+    if(diff<604800)return Math.floor(diff/86400)+' วันที่แล้ว';
+    return d.toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+  }catch(e){return ts;}
+}
+
+function buildStats(rows){
+  var byType={},sent=0,failed=0,skipped=0;
+  rows.forEach(function(r){
+    if(r.status==='sent')sent++;
+    else if(r.status==='failed')failed++;
+    else if(r.status==='skipped')skipped++;
+    var t=r.notifType||'other';
+    byType[t]=(byType[t]||0)+1;
+  });
+  var html='<div class="stat-chip"><div class="sv" style="color:var(--gr)">'+sent+'</div><div class="sl">ส่งสำเร็จ</div></div>'
+    +'<div class="stat-chip"><div class="sv" style="color:var(--re)">'+failed+'</div><div class="sl">ล้มเหลว</div></div>'
+    +'<div class="stat-chip"><div class="sv" style="color:var(--sub)">'+skipped+'</div><div class="sl">ข้ามไป (ซ้ำ)</div></div>';
+  Object.entries(byType).sort(function(a,b){return b[1]-a[1];}).slice(0,3).forEach(function(kv){
+    html+='<div class="stat-chip"><div class="sv" style="color:var(--ac);font-size:14px">'+kv[1]+'</div><div class="sl">'+esc(typeLabel(kv[0]))+'</div></div>';
+  });
+  document.getElementById('log-stats').innerHTML=html;
+}
+
+function renderTable(rows){
+  if(!rows.length){document.getElementById('log-wrap').innerHTML='<div class="empty">ไม่มีข้อมูลในช่วงที่เลือก</div>';return;}
+  var html='<div style="overflow-x:auto"><table class="tbl">'
+    +'<thead><tr><th>เวลา</th><th>ผู้รับ</th><th>ทีม</th><th>ประเภท</th><th>Channel</th><th>Source</th><th>Status</th><th style="min-width:240px">ข้อความ</th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    var retryBtn=r.canRetry?'<br><button class="btn-retry" onclick="retryDelivery(\''+esc(r.id)+'\')">↻ ส่งซ้ำ</button>':'';
+    html+='<tr>'
+      +'<td style="white-space:nowrap;color:var(--sub)">'+esc(fmtTime(r.createdAt))+'</td>'
+      +'<td><span style="font-weight:700">'+esc(r.memberNick||'—')+'</span>'+(r.memberName&&r.memberName!==r.memberNick?'<br><span style="color:var(--sub);font-size:10px">'+esc(r.memberName)+'</span>':'')+'</td>'
+      +'<td style="color:var(--sub)">'+esc(r.memberTeam||'—')+'</td>'
+      +'<td><span class="type-chip">'+esc(typeLabel(r.notifType))+'</span></td>'
+      +'<td style="color:var(--sub)">'+esc(channelLabel(r.channel))+'</td>'
+      +'<td style="color:var(--sub)">'+esc(sourceLabel(r.source))+'</td>'
+      +'<td>'+statusBadge(r.status)+(r.lastError?'<br><span style="color:var(--re);font-size:10px">'+esc(r.lastError.slice(0,80))+'</span>':'')+retryBtn+'</td>'
+      +'<td>'+(r.preview?'<div class="preview-text">'+esc(r.preview)+'</div>':'<span class="no-preview">ข้อความเก่า (ไม่มี preview)</span>')+'</td>'
+      +'</tr>';
+  });
+  html+='</tbody></table></div>';
+  document.getElementById('log-wrap').innerHTML=html;
+}
+
+function loadLog(reset){
+  if(reset)_offset=0;
+  var statusFilter=document.getElementById('f-status').value;
+  var typeFilter=document.getElementById('f-type').value;
+  var sourceFilter=document.getElementById('f-source').value;
+  var searchVal=(document.getElementById('f-search').value||'').trim();
+  document.getElementById('log-wrap').innerHTML='<div class="loading">⏳ กำลังโหลด...</div>';
+  var params={action:'getLineDeliveryLog',limit:_pageSize,offset:_offset};
+  if(statusFilter)params.status=statusFilter;
+  if(typeFilter)params.notifType=typeFilter;
+  if(sourceFilter)params.source=sourceFilter;
+  adminCall(params).then(function(r){
+    if(!r||!r.ok){document.getElementById('log-wrap').innerHTML='<div class="empty">❌ '+esc(r&&r.error||'โหลดไม่สำเร็จ')+'</div>';return;}
+    var rows=r.rows||[];
+    if(searchVal){
+      var q=searchVal.toLowerCase();
+      rows=rows.filter(function(row){return(row.memberNick||'').toLowerCase().indexOf(q)>=0||(row.memberName||'').toLowerCase().indexOf(q)>=0;});
+    }
+    _total=r.total||rows.length;
+    document.getElementById('log-total').textContent='ทั้งหมด '+_total.toLocaleString()+' รายการ';
+    buildStats(rows);
+    renderTable(rows);
+    var pagEl=document.getElementById('log-pag');
+    pagEl.style.display=_total>_pageSize?'':'none';
+    var page=Math.floor(_offset/_pageSize)+1,totalPages=Math.ceil(_total/_pageSize);
+    document.getElementById('pag-info').textContent='หน้า '+page+'/'+totalPages;
+    document.getElementById('pag-prev').disabled=_offset===0;
+    document.getElementById('pag-next').disabled=_offset+_pageSize>=_total;
+  });
+}
+
+function pagPrev(){if(_offset>0){_offset=Math.max(0,_offset-_pageSize);loadLog(false);}}
+function pagNext(){if(_offset+_pageSize<_total){_offset+=_pageSize;loadLog(false);}}
+function clearFilters(){['f-status','f-type','f-source'].forEach(function(id){document.getElementById(id).value='';});document.getElementById('f-search').value='';loadLog(true);}
+function debounceSearch(){clearTimeout(_debounceTimer);_debounceTimer=setTimeout(function(){loadLog(true);},400);}
+function retryDelivery(id){
+  if(!id)return;
+  if(!confirm('ส่งข้อความนี้ซ้ำอีกครั้งใช่ไหม? ระบบจะบันทึกเป็นรายการ retry แยกต่างหาก'))return;
+  adminCall({action:'retryLineDelivery',deliveryId:id}).then(function(r){
+    if(!r||!r.ok){toast('❌ '+(r&&r.error||'Retry ไม่สำเร็จ'));return;}
+    toast('✅ ส่งซ้ำแล้ว');
+    loadLog(false);
+  }).catch(function(e){toast('❌ '+(e&&e.message||'Retry ไม่สำเร็จ'));});
+}
+</script>
+</body>
+</html>

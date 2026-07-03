@@ -19,6 +19,7 @@ interface LineDatabase {
 export interface LineSendOptions {
   db?: LineDatabase;
   idempotencyKey?: string;
+  lineRetryKey?: string;
   memberId?: string | null;
   notificationType?: string;
   source?: string;
@@ -48,25 +49,30 @@ export const LINE_QR_MEMBER = [
 ];
 
 export const LINE_QR_MENTOR = [
-  { type: 'action', action: { type: 'message', label: '🎯 Focus 3', text: 'focus 3' } },
-  { type: 'action', action: { type: 'message', label: '👥 ทีม', text: 'ทีม' } },
   { type: 'action', action: { type: 'message', label: '📊 สถานะ', text: 'สถานะ' } },
   { type: 'action', action: { type: 'message', label: '📈 ประวัติ', text: 'ประวัติ' } },
+  { type: 'action', action: { type: 'message', label: '🤝 แนะนำ', text: 'แนะนำ' } },
+  { type: 'action', action: { type: 'message', label: '👥 ทีม', text: 'ทีม' } },
   { type: 'action', action: { type: 'message', label: '🙋 ลา', text: 'ลา' } },
+  { type: 'action', action: { type: 'message', label: '👥 ส่ง sub', text: 'ส่ง sub' } },
 ];
 
 export const LINE_QR_MC = [
-  { type: 'action', action: { type: 'message', label: '📊 Chapter Pulse', text: 'chapter pulse' } },
-  { type: 'action', action: { type: 'message', label: '👥 ทุกทีม', text: 'ทีม' } },
   { type: 'action', action: { type: 'message', label: '📊 สถานะ', text: 'สถานะ' } },
   { type: 'action', action: { type: 'message', label: '📈 ประวัติ', text: 'ประวัติ' } },
+  { type: 'action', action: { type: 'message', label: '🤝 แนะนำ', text: 'แนะนำ' } },
+  { type: 'action', action: { type: 'message', label: '👥 ทีม', text: 'ทีม' } },
+  { type: 'action', action: { type: 'message', label: '🙋 ลา', text: 'ลา' } },
+  { type: 'action', action: { type: 'message', label: '👥 ส่ง sub', text: 'ส่ง sub' } },
 ];
 
 export const LINE_QR_GROWTH = [
-  { type: 'action', action: { type: 'message', label: '📊 Chapter Pulse', text: 'chapter pulse' } },
-  { type: 'action', action: { type: 'message', label: '👥 ทุกทีม', text: 'ทีม' } },
-  { type: 'action', action: { type: 'message', label: '🤝 แนะนำ', text: 'แนะนำ' } },
+  { type: 'action', action: { type: 'message', label: '📊 สถานะ', text: 'สถานะ' } },
   { type: 'action', action: { type: 'message', label: '📈 ประวัติ', text: 'ประวัติ' } },
+  { type: 'action', action: { type: 'message', label: '🤝 แนะนำ', text: 'แนะนำ' } },
+  { type: 'action', action: { type: 'message', label: '👥 ทีม', text: 'ทีม' } },
+  { type: 'action', action: { type: 'message', label: '🙋 ลา', text: 'ลา' } },
+  { type: 'action', action: { type: 'message', label: '👥 ส่ง sub', text: 'ส่ง sub' } },
 ];
 
 // Backward-compat alias
@@ -141,7 +147,10 @@ async function claimDelivery(
   if (!options.db || !options.idempotencyKey) return { shouldSend: true };
 
   const payloadHash = await sha256Hex(JSON.stringify(messages));
-  const { data, error } = await options.db.rpc('fn_claim_line_delivery', {
+  // Extract first 300 chars of the primary text message for the activity log
+  const firstText = messages.find(m => m.type === 'text' && typeof m.text === 'string');
+  const messagePreview = firstText ? String(firstText.text).slice(0, 300) : null;
+  const baseArgs = {
     p_idempotency_key: options.idempotencyKey,
     p_channel: channel,
     p_recipient_id: recipientId,
@@ -149,6 +158,10 @@ async function claimDelivery(
     p_notification_type: options.notificationType || null,
     p_source: options.source || null,
     p_payload_hash: payloadHash,
+  };
+  const { data, error } = await options.db.rpc('fn_claim_line_delivery', {
+    ...baseArgs,
+    p_message_preview: messagePreview,
   });
   if (error) throw new Error(`Cannot claim LINE delivery: ${error.message || 'unknown error'}`);
 
@@ -171,6 +184,17 @@ async function updateDelivery(
   if (error) console.error('[line] Cannot update delivery log:', error.message);
 }
 
+export async function lineRetryKeyFor(
+  options: LineSendOptions,
+  channel: 'reply' | 'push' | 'multicast',
+): Promise<string | undefined> {
+  if (channel === 'reply') return undefined;
+  const seed = options.lineRetryKey || options.idempotencyKey;
+  if (!seed) return undefined;
+  const hex = await sha256Hex(seed);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
 async function sendLineRequest(
   channel: 'reply' | 'push' | 'multicast',
   recipientId: string,
@@ -184,11 +208,16 @@ async function sendLineRequest(
   }
 
   try {
+    await updateDelivery(options.db, claim.deliveryId, {
+      message_payload: messages.slice(0, 5),
+    });
+    const retryKey = await lineRetryKeyFor(options, channel);
     const response = await fetch(`${LINE_API}/${channel}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${getToken()}`,
+        ...(retryKey ? { 'X-Line-Retry-Key': retryKey } : {}),
       },
       body: JSON.stringify(body),
     });

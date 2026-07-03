@@ -12,6 +12,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -1292,6 +1293,15 @@ main{
         onkeydown="if(event.key==='Enter')dPinSubmit()">
       <button onclick="dPinSubmit()" id="d-pin-btn" style="width:100%;padding:11px;border-radius:8px;border:none;background:#3dd6f5;color:#0a1628;font-size:14px;font-weight:700;cursor:pointer">เข้าสู่ระบบ</button>
       <div id="lerr" style="color:#EF4444;font-size:13px;text-align:center;min-height:1.2em;margin-top:.5rem"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin:12px 0 10px">
+        <div style="flex:1;height:1px;background:#1a3a5c"></div>
+        <span style="font-size:11px;color:#7a9bb5">หรือ</span>
+        <div style="flex:1;height:1px;background:#1a3a5c"></div>
+      </div>
+      <button onclick="signInWithGoogle()" style="width:100%;padding:11px;border-radius:8px;border:1px solid #dadce0;background:#fff;color:#1f2937;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
+        เข้าสู่ระบบด้วย Google
+      </button>
     </div>
   </div>
 </div>
@@ -1404,6 +1414,15 @@ main{
           <div class="rail-signal"><span>Search</span><span class="rail-num">Global</span></div>
           <div class="rail-signal"><span>Role</span><span class="rail-num" id="cc-role-mini">—</span></div>
         </div>
+        <div class="rail-card">
+          <div class="rail-title">LINE OA Quota</div>
+          <div class="rail-signal"><span>ส่งแล้ว</span><span class="rail-num" id="lq-used">—</span></div>
+          <div class="rail-signal"><span style="color:var(--gr)">เหลือ</span><span class="rail-num" id="lq-rem" style="color:var(--gr)">—</span></div>
+          <div style="margin-top:6px;background:var(--bd);border-radius:4px;height:5px;overflow:hidden">
+            <div id="lq-fill" style="height:100%;border-radius:4px;background:var(--gr);width:0%;transition:width .5s"></div>
+          </div>
+          <button onclick="loadLineQuota(true)" style="margin-top:6px;font-size:10px;background:transparent;border:none;color:var(--sub);cursor:pointer;font-family:inherit;padding:0">↺ รีเฟรช</button>
+        </div>
       </aside>
 
       <!-- ─ Zone A : Chapter Pulse ─ -->
@@ -1501,6 +1520,7 @@ main{
           <div style="display:flex;gap:7px;">
             <button class="bsm" onclick="_scLoaded=false;loadDesktopScorecard()" style="font-size:11px">🔄 โหลดใหม่</button>
             <button id="btn-lt-summary" onclick="openLTSummary()" style="font-size:11px;background:var(--ac-dim);border:1px solid var(--bd-hover);color:var(--ac);border-radius:6px;padding:4px 12px;cursor:pointer;font-weight:700;display:none">📄 SUMMARY</button>
+            <button id="btn-sc-export" onclick="exportScorecardImage()" style="font-size:11px;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.3);color:#8b5cf6;border-radius:6px;padding:4px 12px;cursor:pointer;font-weight:700;display:none">📸 Export รูป</button>
           </div>
         </div>
         <div id="mc-sc-body"><div style="color:var(--sub);font-size:13px;text-align:center;padding:20px">กด "📈 Mentor Teams" แล้วเลื่อนลงมาดู Scorecard ได้เลย — <button class="bsm" onclick="loadDesktopScorecard()" style="font-size:11px">โหลด Scorecard</button></div></div>
@@ -1687,9 +1707,10 @@ main{
     <div id="mc-usage" class="sec">
 
       <!-- Sub-tab bar -->
-      <div style="display:flex;gap:4px;background:var(--sf2);border-radius:10px;padding:4px;margin-bottom:18px;width:fit-content">
+      <div style="display:flex;gap:4px;background:var(--sf2);border-radius:10px;padding:4px;margin-bottom:18px;width:fit-content;flex-wrap:wrap;align-items:center">
         <button id="act-tab-line" onclick="actSw('line',this)" style="padding:7px 18px;border-radius:8px;border:none;background:rgba(6,199,85,.2);color:#06C755;font-size:12px;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif">📲 LINE Activity</button>
         <button id="act-tab-mentor" onclick="actSw('mentor',this)" style="padding:7px 18px;border-radius:8px;border:none;background:transparent;color:var(--sub);font-size:12px;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif">🧭 Mentor Activity</button>
+        <a href="/admin/line.html" target="_blank" style="padding:7px 14px;border-radius:8px;background:rgba(6,199,85,.1);border:1px solid rgba(6,199,85,.3);color:#06C755;font-size:11px;font-weight:700;text-decoration:none;margin-left:8px">📨 Message Log →</a>
       </div>
 
       <!-- LINE Activity sub-page -->
@@ -3193,6 +3214,10 @@ function switchDesktopRole(target){
     })
     .catch(function(){ld(false);alert('สลับ Role ไม่สำเร็จ');});
 }
+function signInWithGoogle(){
+  var sb=getSbAuth();if(!sb)return;
+  sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.href}});
+}
 function logout(){
   clearDashSession();
   var sb=getSbAuth();if(sb)sb.auth.signOut();
@@ -3409,6 +3434,34 @@ function renderMCAll(){
   renderKPI();renderSmartAlerts();renderAlertDigest();
   renderGWBadge();
   loadNotifications();
+  loadLineQuota();
+}
+
+var _lqLoaded=false;
+function loadLineQuota(force){
+  if(_lqLoaded&&!force)return;
+  var usedEl=document.getElementById('lq-used');
+  var remEl=document.getElementById('lq-rem');
+  var fill=document.getElementById('lq-fill');
+  if(usedEl)usedEl.textContent='...';
+  gsr('getLineQuota',{role:'mc'},function(r){
+    _lqLoaded=true;
+    if(!r||!r.ok){
+      if(usedEl)usedEl.textContent='err';
+      if(remEl)remEl.textContent='—';
+      return;
+    }
+    var unlimited=!!r.unlimited||r.type==='unlimited';
+    if(usedEl)usedEl.textContent=unlimited?(r.used+'/∞'):(r.used+'/'+r.limit);
+    if(remEl){
+      remEl.textContent=unlimited?'ไม่จำกัด':(r.remaining+' ข้อ');
+      remEl.style.color=unlimited?'var(--gr)':(r.remaining<50?'var(--re)':r.remaining<100?'var(--ye)':'var(--gr)');
+    }
+    if(fill){
+      fill.style.width=unlimited?'100%':(Math.min(100,r.pct)+'%');
+      fill.style.background=unlimited?'var(--gr)':(r.pct>=80?'var(--re)':r.pct>=60?'var(--ye)':'var(--gr)');
+    }
+  });
 }
 
 // ══ CHAPTER HEALTH PANEL ══════════════════════════════════════
@@ -5077,6 +5130,8 @@ function loadDesktopScorecard(){
     _scData=r;
     var sumBtn=document.getElementById('btn-lt-summary');
     if(sumBtn)sumBtn.style.display='';
+    var exportBtn=document.getElementById('btn-sc-export');
+    if(exportBtn)exportBtn.style.display='';
     var mv=r.movement,html='';
     function gcol2(g){
       if(g==='A+'||g==='A')return{bg:'rgba(86,200,130,.12)',c:'var(--gr)'};
@@ -5160,6 +5215,35 @@ function loadDesktopScorecard(){
         +'</div>';
     });
     html+='</div>';
+    // [5] Per-team narrative detail
+    var zOrd={'black':0,'red':1,'yellow':2,'green':3,'none':-1};
+    html+='<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;color:var(--sub);margin-bottom:8px">📋 รายละเอียดแต่ละทีม · '+r.thisMonth+'</div>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap">';
+    r.teams.forEach(function(t){
+      var mems=t.members||[];
+      var improved=mems.filter(function(m){return m.diff!=null&&m.diff>0;}).sort(function(a,b){return b.diff-a.diff;});
+      var declined=mems.filter(function(m){return m.diff!=null&&m.diff<0;}).sort(function(a,b){return a.diff-b.diff;});
+      var zUp=mems.filter(function(m){return m.prevZone&&m.prevZone!=='none'&&(zOrd[m.thisZone]||0)>(zOrd[m.prevZone]||0);});
+      var zDn=mems.filter(function(m){return m.prevZone&&m.prevZone!=='none'&&(zOrd[m.thisZone]||0)<(zOrd[m.prevZone]||0);});
+      var redBlk=mems.filter(function(m){return m.thisZone==='red'||m.thisZone==='black';});
+      var gc=gcol2(t.grade);
+      var dc=t.diff>0?'var(--gr)':t.diff<0?'var(--re)':'var(--sub)';
+      html+='<div class="mc3" style="flex:1;min-width:160px">'
+        +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
+        +'<span style="background:'+gc.bg+';color:'+gc.c+';border-radius:5px;padding:2px 7px;font-weight:800;font-size:11px">'+esc(t.grade)+'</span>'
+        +'<span style="font-weight:700;font-size:12px">'+esc(t.name)+'</span>'
+        +'<span style="color:'+dc+';font-size:11px;font-weight:600;margin-left:2px">'+(t.diff>0?'▲+':t.diff<0?'▼':'')+Math.abs(t.diff)+'</span>'
+        +'</div>';
+      if(zUp.length)html+='<div style="font-size:11px;margin-bottom:3px"><span style="color:var(--gr);font-weight:600">🏆 </span>'+zUp.map(function(m){return'<b style="color:var(--gr)">'+esc(m.nick)+'</b>';}).join(' ')+'</div>';
+      if(zDn.length)html+='<div style="font-size:11px;margin-bottom:3px"><span style="color:var(--re);font-weight:600">⚠️ </span>'+zDn.map(function(m){return'<b style="color:var(--re)">'+esc(m.nick)+'</b>';}).join(' ')+'</div>';
+      if(improved.length)html+='<div style="font-size:11px;margin-bottom:3px;color:var(--sub)">📈 '+improved.slice(0,2).map(function(m){return esc(m.nick)+' <span style="color:var(--gr)">+'+m.diff+'</span>';}).join(' · ')+'</div>';
+      if(declined.length)html+='<div style="font-size:11px;margin-bottom:3px;color:var(--sub)">📉 '+declined.slice(0,2).map(function(m){return esc(m.nick)+' <span style="color:var(--re)">'+m.diff+'</span>';}).join(' · ')+'</div>';
+      html+=(redBlk.length
+        ?'<div style="font-size:11px"><span style="color:var(--re);font-weight:600">🚨 ต้องดูแล ('+redBlk.length+'): </span>'+redBlk.map(function(m){return'<span style="color:var(--re)">'+esc(m.nick)+' ('+m.thisScore+')</span>';}).join(', ')+'</div>'
+        :'<div style="font-size:11px;color:var(--gr)">✅ ไม่มี Red/Black</div>');
+      html+='</div>';
+    });
+    html+='</div></div>';
     el.innerHTML=html;
   });
 }
@@ -6871,7 +6955,20 @@ function openLTSummary(){
 
   // ── SECTION 4: Per Team Detail ── (page break)
   h+='<div class="page-break"><h2>4. รายละเอียดสมาชิกแต่ละทีม ('+sc.prevMonth+' → '+sc.thisMonth+')</h2>';
+  var ltZOrd={black:0,red:1,yellow:2,green:3,none:-1};
   sc.teams.forEach(function(t){
+    var mems3=t.members||[];
+    var t3Impr=mems3.filter(function(m){return m.diff!=null&&m.diff>0;}).sort(function(a,b){return b.diff-a.diff;});
+    var t3Decl=mems3.filter(function(m){return m.diff!=null&&m.diff<0;}).sort(function(a,b){return a.diff-b.diff;});
+    var t3ZUp=mems3.filter(function(m){return m.prevZone&&m.prevZone!=='none'&&(ltZOrd[m.thisZone]||0)>(ltZOrd[m.prevZone]||0);});
+    var t3ZDn=mems3.filter(function(m){return m.prevZone&&m.prevZone!=='none'&&(ltZOrd[m.thisZone]||0)<(ltZOrd[m.prevZone]||0);});
+    var t3RB=mems3.filter(function(m){return m.thisZone==='red'||m.thisZone==='black';});
+    var nParts3=[];
+    if(t3Impr.length){nParts3.push('<span style="color:#15803d">↑ ขึ้น '+t3Impr.length+' คน'+(t3Impr[0]?' (ดีสุด: '+t3Impr[0].nick+' +'+t3Impr[0].diff+')':'')+'</span>');}
+    if(t3Decl.length){nParts3.push('<span style="color:#9f1239">↓ ลด '+t3Decl.length+' คน</span>');}
+    if(t3ZUp.length){nParts3.push('<span style="color:#15803d">🏆 Zone↑: '+t3ZUp.map(function(m){return m.nick;}).join(', ')+'</span>');}
+    if(t3ZDn.length){nParts3.push('<span style="color:#9f1239">⚠️ Zone↓: '+t3ZDn.map(function(m){return m.nick;}).join(', ')+'</span>');}
+    nParts3.push(t3RB.length?'<span style="color:#9f1239">🚨 ต้องดูแล '+t3RB.length+' คน</span>':'<span style="color:#15803d">✅ ไม่มี Red/Black</span>');
     var dc2=t.diff>0?'#15803d':t.diff<0?'#9f1239':'#6b7280';
     h+='<div class="team-box" style="margin-bottom:14px;">'
       +'<div class="team-hdr">'
@@ -6879,6 +6976,7 @@ function openLTSummary(){
       +'<span>Avg: '+t.thisAvg+' pts &nbsp; '
         +'<span style="color:'+(t.diff>0?'#86efac':t.diff<0?'#fca5a5':'#d1d5db')+'">('+(t.diff>0?'+':'')+t.diff+' vs '+sc.prevMonth+')</span></span>'
       +'</div>'
+      +'<div style="padding:6px 12px;background:#f1f5f9;border-bottom:1px solid #e2e8f0;font-size:11px;line-height:1.8">'+nParts3.join(' &nbsp;·&nbsp; ')+'</div>'
       +'<table><thead><tr>'
       +'<th>ชื่อเล่น</th><th>ชื่อเต็ม</th>'
       +'<th style="text-align:center">'+sc.thisMonth+'</th>'
@@ -6982,6 +7080,73 @@ function openLTSummary(){
   var w=window.open('','_blank','width=900,height=700');
   if(w){w.document.write(h);w.document.close();}
   else{alert('กรุณาอนุญาต Popup ใน Browser แล้วลองใหม่');}
+}
+
+// ════ EXPORT IMAGE ════════════════════════════════
+function exportScorecardImage(){
+  if(!_scData){alert('กรุณาโหลด Scorecard ก่อน');return;}
+  if(typeof html2canvas==='undefined'){toast('⏳ html2canvas กำลังโหลด ลองใหม่สักครู่','warn');return;}
+  var sc=_scData,mv=sc.movement||{};
+  var today=new Date();
+  function gradeClr(g){if(g==='A+'||g==='A')return'#10b981';if(g==='B+')return'#60a5fa';if(g==='B')return'#f59e0b';return'#ef4444';}
+  var teamsHtml='';
+  sc.teams.forEach(function(t){
+    var gc=gradeClr(t.grade);
+    var dc=t.diff>0?'#10b981':t.diff<0?'#ef4444':'#94a3b8';
+    var da=(t.diff>0?'▲+':t.diff<0?'▼':'')+Math.abs(t.diff||0);
+    teamsHtml+='<div style="background:#1e293b;border-radius:10px;padding:14px 10px;border:1px solid #334155;text-align:center">'
+      +'<div style="font-size:10px;color:#94a3b8;margin-bottom:3px">'+esc(t.name)+'</div>'
+      +'<div style="font-size:26px;font-weight:900;color:'+gc+'">'+esc(t.grade)+'</div>'
+      +'<div style="font-size:19px;font-weight:800;color:#f1f5f9;line-height:1.1">'+t.thisAvg+'</div>'
+      +'<div style="font-size:11px;font-weight:600;color:'+dc+'">'+da+'</div>'
+      +'<div style="font-size:9px;color:#475569;margin-top:3px">'+t.count+' คน · 🚨'+t.redBlk+'</div>'
+      +'</div>';
+  });
+  var zUpHtml='',zDnHtml='';
+  (mv.zoneUp||[]).forEach(function(m){zUpHtml+='<div style="padding:4px 0;border-bottom:1px solid #1e293b;font-size:11px"><b style="color:#f1f5f9">'+esc(m.nick)+'</b> <span style="color:#64748b;font-size:10px">'+esc(m.team)+'</span> <span style="color:#10b981;font-weight:700">+'+m.diff+'</span></div>';});
+  (mv.zoneDn||[]).forEach(function(m){zDnHtml+='<div style="padding:4px 0;border-bottom:1px solid #1e293b;font-size:11px"><b style="color:#f1f5f9">'+esc(m.nick)+'</b> <span style="color:#64748b;font-size:10px">'+esc(m.team)+'</span> <span style="color:#ef4444;font-weight:700">'+m.diff+'</span></div>';});
+  var hasZone=(mv.zoneUp&&mv.zoneUp.length)||(mv.zoneDn&&mv.zoneDn.length);
+  var cardHtml='<div style="background:#0f172a;color:#f1f5f9;padding:28px;font-family:Sarabun,\'Noto Sans Thai\',sans-serif">'
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #1e40af">'
+    +'<div>'
+    +'<div style="font-size:10px;color:#93c5fd;font-weight:600;letter-spacing:2px;margin-bottom:2px">BNI IDEAL CHAPTER</div>'
+    +'<div style="font-size:20px;font-weight:900">📊 Monthly Report</div>'
+    +'<div style="font-size:12px;color:#94a3b8;margin-top:3px">'+esc(sc.prevMonth)+' → '+esc(sc.thisMonth)+' &nbsp;·&nbsp; '+today.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'})+'</div>'
+    +'</div>'
+    +'<div style="text-align:right"><div style="font-size:30px;font-weight:900;color:#3b82f6">BNI</div><div style="font-size:10px;color:#64748b">IDEAL</div></div>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:18px">'
+    +'<div style="background:#1e293b;border-radius:8px;padding:10px;text-align:center"><div style="font-size:26px;font-weight:900;color:#10b981">'+mv.up+'</div><div style="font-size:10px;color:#64748b">↑ ขึ้น</div></div>'
+    +'<div style="background:#1e293b;border-radius:8px;padding:10px;text-align:center"><div style="font-size:26px;font-weight:900;color:#94a3b8">'+mv.same+'</div><div style="font-size:10px;color:#64748b">→ คงที่</div></div>'
+    +'<div style="background:#1e293b;border-radius:8px;padding:10px;text-align:center"><div style="font-size:26px;font-weight:900;color:#ef4444">'+mv.down+'</div><div style="font-size:10px;color:#64748b">↓ ลด</div></div>'
+    +'<div style="background:#1e293b;border-radius:8px;padding:10px;text-align:center"><div style="font-size:26px;font-weight:900;color:#f59e0b">'+((mv.zoneUp||[]).length+(mv.zoneDn||[]).length)+'</div><div style="font-size:10px;color:#64748b">⚡ เปลี่ยน Zone</div></div>'
+    +'</div>'
+    +'<div style="font-size:10px;color:#64748b;margin-bottom:6px;font-weight:600;letter-spacing:1px">TEAM GRADES</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:18px">'+teamsHtml+'</div>'
+    +(hasZone?'<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px">'
+      +((mv.zoneUp&&mv.zoneUp.length)?'<div><div style="font-size:10px;font-weight:700;color:#10b981;margin-bottom:5px">🏆 เลื่อนขึ้น Zone</div>'+zUpHtml+'</div>':'')
+      +((mv.zoneDn&&mv.zoneDn.length)?'<div><div style="font-size:10px;font-weight:700;color:#ef4444;margin-bottom:5px">⚠️ ลดลง Zone</div>'+zDnHtml+'</div>':'')
+      +'</div>':'')
+    +'<div style="border-top:1px solid #1e293b;padding-top:10px;text-align:center;font-size:9px;color:#475569">'
+    +'จัดทำโดย BNI IDEAL Mentor System · '+today.toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'})
+    +'</div></div>';
+  var wrap=document.getElementById('sc-export-wrap');
+  wrap.innerHTML=cardHtml;
+  var btn=document.getElementById('btn-sc-export');
+  if(btn){btn.textContent='⏳ กำลัง Export...';btn.disabled=true;}
+  setTimeout(function(){
+    html2canvas(wrap.firstElementChild||wrap,{scale:2,backgroundColor:'#0f172a',useCORS:true,logging:false}).then(function(canvas){
+      var link=document.createElement('a');
+      link.download='BNI_IDEAL_'+sc.thisMonth+'_Report.png';
+      link.href=canvas.toDataURL('image/png');
+      link.click();
+      if(btn){btn.textContent='📸 Export รูป';btn.disabled=false;}
+      toast('✅ บันทึกรูปแล้ว — นำไปแชร์ใน LINE LT ได้เลย');
+    }).catch(function(err){
+      if(btn){btn.textContent='📸 Export รูป';btn.disabled=false;}
+      toast('❌ Export ไม่สำเร็จ: '+(err&&err.message||err),'err');
+    });
+  },150);
 }
 
 // ════ GROWTH ══════════════════════════════════════
@@ -11402,5 +11567,6 @@ function loadCalendar(force) {
     </div>
   </div>
 </div>
+<div id="sc-export-wrap" style="position:fixed;left:-9999px;top:0;width:840px;pointer-events:none;z-index:-999;overflow:hidden"></div>
 </body>
 </html>

@@ -18,28 +18,31 @@ export const RICH_MENU_ITEMS: Record<RichMenuRole, RichMenuItem[]> = {
     { icon: '⊕', label: 'จำลองคะแนน', sublabel: 'PALMS Simulator', action: { type: 'uri', uri: 'APP_URL/index.html?action=simulate' } },
   ],
   mentor: [
-    { icon: '◉', label: 'Focus 3', sublabel: 'Priority Members', action: { type: 'message', text: 'focus 3' } },
-    { icon: '◇', label: 'ทีมของฉัน', sublabel: 'Team Pulse', action: { type: 'message', text: 'ทีม' } },
-    { icon: '+', label: 'บันทึก Mentor', sublabel: 'Mentor Log', action: { type: 'uri', uri: 'LIFF_URL?action=mentor-log' } },
-    { icon: '↗', label: 'งานติดตาม', sublabel: 'Follow-up', action: { type: 'uri', uri: 'LIFF_URL?action=follow-up' } },
-    { icon: '!', label: 'รายงานปัญหา', sublabel: 'Core Issue', action: { type: 'uri', uri: 'LIFF_URL?action=issue' } },
-    { icon: '○', label: 'Renewal', sublabel: 'Member Journey', action: { type: 'uri', uri: 'LIFF_URL?action=renewal' } },
+    { icon: '◉', label: 'คะแนนของฉัน', sublabel: 'Score & Action', action: { type: 'message', text: 'สถานะ' } },
+    { icon: '↗', label: 'ประวัติ', sublabel: 'My Progress', action: { type: 'message', text: 'ประวัติ' } },
+    { icon: '◇', label: 'นัด 1-2-1', sublabel: 'Connect', action: { type: 'uri', uri: 'LIFF_URL?action=121' } },
+    { icon: '○', label: 'ลา / ส่งแทน', sublabel: 'Attendance', action: { type: 'uri', uri: 'LIFF_URL?action=absence' } },
+    { icon: '△', label: 'เป้าหมาย', sublabel: 'My Goal', action: { type: 'uri', uri: 'LIFF_URL?action=goal' } },
+    { icon: '?', label: 'ขอความช่วยเหลือ', sublabel: 'Private Support', action: { type: 'uri', uri: 'LIFF_URL?action=issue' } },
+    { icon: '⊕', label: 'จำลองคะแนน', sublabel: 'PALMS Simulator', action: { type: 'uri', uri: 'APP_URL/index.html?action=simulate' } },
   ],
   mc: [
-    { icon: '◉', label: 'Chapter Pulse', sublabel: 'Live Overview', action: { type: 'message', text: 'chapter pulse' } },
-    { icon: '◇', label: 'Mentor Team', sublabel: 'Team Health', action: { type: 'uri', uri: 'APP_URL/dashboard?view=mentor' } },
-    { icon: '!', label: 'Alerts', sublabel: 'Needs Attention', action: { type: 'uri', uri: 'APP_URL/dashboard?view=alerts' } },
-    { icon: '+', label: 'มอบหมายงาน', sublabel: 'Assignment', action: { type: 'uri', uri: 'LIFF_URL?action=assignments' } },
-    { icon: '↗', label: 'Reports', sublabel: 'Insights', action: { type: 'uri', uri: 'APP_URL/dashboard?view=reports' } },
-    { icon: '○', label: 'ตั้งค่าระบบ', sublabel: 'Admin', action: { type: 'uri', uri: 'APP_URL/admin/settings.html' } },
+    { icon: '◉', label: 'คะแนนของฉัน', sublabel: 'Score & Action', action: { type: 'message', text: 'สถานะ' } },
+    { icon: '↗', label: 'ประวัติ', sublabel: 'My Progress', action: { type: 'message', text: 'ประวัติ' } },
+    { icon: '◇', label: 'นัด 1-2-1', sublabel: 'Connect', action: { type: 'uri', uri: 'LIFF_URL?action=121' } },
+    { icon: '○', label: 'ลา / ส่งแทน', sublabel: 'Attendance', action: { type: 'uri', uri: 'LIFF_URL?action=absence' } },
+    { icon: '△', label: 'เป้าหมาย', sublabel: 'My Goal', action: { type: 'uri', uri: 'LIFF_URL?action=goal' } },
+    { icon: '?', label: 'ขอความช่วยเหลือ', sublabel: 'Private Support', action: { type: 'uri', uri: 'LIFF_URL?action=issue' } },
+    { icon: '⊕', label: 'จำลองคะแนน', sublabel: 'PALMS Simulator', action: { type: 'uri', uri: 'APP_URL/index.html?action=simulate' } },
   ],
   growth: [
-    { icon: '◉', label: 'Growth Pulse', sublabel: 'Opportunity', action: { type: 'uri', uri: 'APP_URL/dashboard?view=growth' } },
-    { icon: '◇', label: 'Referral Match', sublabel: 'Smart Connect', action: { type: 'message', text: 'แนะนำ' } },
-    { icon: '+', label: 'Visitor', sublabel: 'Guest Journey', action: { type: 'uri', uri: 'LIFF_URL?action=visitor' } },
-    { icon: '↗', label: 'Growth Tasks', sublabel: 'Next Actions', action: { type: 'uri', uri: 'APP_URL/dashboard?view=growth-tasks' } },
-    { icon: '△', label: 'Power Team', sublabel: 'Synergy', action: { type: 'uri', uri: 'APP_URL/dashboard?view=power-team' } },
-    { icon: '○', label: 'Chapter Trend', sublabel: 'Momentum', action: { type: 'message', text: 'chapter trend' } },
+    { icon: '◉', label: 'คะแนนของฉัน', sublabel: 'Score & Action', action: { type: 'message', text: 'สถานะ' } },
+    { icon: '↗', label: 'ประวัติ', sublabel: 'My Progress', action: { type: 'message', text: 'ประวัติ' } },
+    { icon: '◇', label: 'นัด 1-2-1', sublabel: 'Connect', action: { type: 'uri', uri: 'LIFF_URL?action=121' } },
+    { icon: '○', label: 'ลา / ส่งแทน', sublabel: 'Attendance', action: { type: 'uri', uri: 'LIFF_URL?action=absence' } },
+    { icon: '△', label: 'เป้าหมาย', sublabel: 'My Goal', action: { type: 'uri', uri: 'LIFF_URL?action=goal' } },
+    { icon: '?', label: 'ขอความช่วยเหลือ', sublabel: 'Private Support', action: { type: 'uri', uri: 'LIFF_URL?action=issue' } },
+    { icon: '⊕', label: 'จำลองคะแนน', sublabel: 'PALMS Simulator', action: { type: 'uri', uri: 'APP_URL/index.html?action=simulate' } },
   ],
 };
 
@@ -60,8 +63,8 @@ export function buildRichMenu(role: RichMenuRole, liffUrl: string, appUrl: strin
       ? { type: 'uri', uri: resolveRichMenuUri(item.action.uri, liffUrl, appUrl) }
       : item.action;
 
-  // Member has 7 items: top row 3 (833px each), bottom row 4 (625px each)
-  const areas = role === 'member' && items.length === 7
+  // 7-item personal menus: top row 3 (833px each), bottom row 4 (625px each)
+  const areas = items.length === 7
     ? [
         // Top row — 3 items × 833px wide
         { bounds: { x: 0,    y: 0,   width: 833, height: 843 }, action: resolveAction(items[0]) },
@@ -86,7 +89,7 @@ export function buildRichMenu(role: RichMenuRole, liffUrl: string, appUrl: strin
     size: { width: 2500, height: 1686 },
     selected: true,
     name: `BNI IDEAL ${role.toUpperCase()} v1`,
-    chatBarText: role === 'member' ? 'MY IDEAL' : role.toUpperCase(),
+    chatBarText: 'MY IDEAL',
     areas,
   };
 }

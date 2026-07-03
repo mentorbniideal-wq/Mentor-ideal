@@ -1195,6 +1195,9 @@ body.dark #mentor-myteam .mentor-growth-watch .tld{background:#7E9499;}
 /* Landing / Login — Quiet Luxury (independent from app theme) */
 body #loginScreen{
   color:#F1EDE4;
+  align-items:center;
+  justify-content:center;
+  padding:2rem 1.5rem;
   background:
     radial-gradient(circle at 88% 18%,rgba(189,166,122,.13),transparent 27%),
     radial-gradient(circle at 12% 88%,rgba(109,132,115,.10),transparent 30%),
@@ -1270,6 +1273,26 @@ body #loginScreen::before{
   background:rgba(145,133,155,.11);
   border-color:rgba(177,163,184,.22);
 }
+/* ── Minimal gateway redesign ── */
+.gw-card{width:100%;max-width:360px;display:flex;flex-direction:column;}
+.gw-head{margin-bottom:1.75rem;}
+.gw-badge{font-size:.62rem;font-weight:700;letter-spacing:.15em;color:#CFBB92;background:rgba(189,166,122,.08);border:1px solid rgba(210,190,150,.20);border-radius:999px;display:inline-block;padding:3px 10px;margin-bottom:.75rem;}
+.gw-title{font-size:2rem;font-weight:700;line-height:1.1;color:#F3EEE4;}
+.gw-title span{color:#CDB88E;}
+.gw-sub{font-size:.8rem;color:#BDB6A9;margin-top:.35rem;line-height:1.5;}
+.gw-divider{display:flex;align-items:center;gap:8px;margin:1rem 0 .75rem;}
+.gw-divider::before,.gw-divider::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.08);}
+.gw-divider span{font-size:.7rem;color:#7A7469;white-space:nowrap;}
+.role-chips{display:flex;flex-wrap:wrap;gap:.375rem;}
+.rchip{background:rgba(29,34,29,.96);border:1px solid rgba(210,190,150,.16);border-radius:999px;color:#D8D0C4;font-size:.76rem;font-family:'Sarabun',sans-serif;padding:5px 13px;cursor:pointer;transition:all .15s;user-select:none;}
+.rchip:active,.rchip:hover{border-color:rgba(210,190,150,.42);background:rgba(42,47,41,.98);color:#F1EDE4;}
+.gw-pin-entry-head{display:flex;align-items:center;gap:8px;margin-bottom:.875rem;}
+.gw-back{background:none;border:none;color:#AAA396;font-size:1.2rem;cursor:pointer;padding:0 6px 0 0;line-height:1;}
+.gw-pub-strip{margin-top:1.75rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding-top:.875rem;border-top:1px solid rgba(255,255,255,.06);}
+.gw-pub-lbl{font-size:.65rem;color:#6B6459;font-weight:600;letter-spacing:.05em;text-transform:uppercase;}
+.gw-pub-btn{background:none;border:none;color:#A89880;font-size:.73rem;cursor:pointer;padding:2px 4px;font-family:'Sarabun',sans-serif;transition:color .15s;}
+.gw-pub-btn:hover{color:#CDB88E;}
+.gw-pub-sep{color:#3A3530;font-size:.8rem;}
 #loginScreen .training-tile.gateway-tile{
   background:linear-gradient(145deg,rgba(39,54,43,.62),rgba(27,32,28,.96));
   border-color:rgba(118,142,123,.28)!important;
@@ -1570,90 +1593,68 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 
 <!-- Login -->
 <div id="loginScreen">
-  <div class="gateway-shell">
-    <div class="gateway-grid">
-      <div class="gateway-top">
-        <div class="gateway-kicker">BNI IDEAL · 2026</div>
-        <div class="gateway-title">Mentor <span>Operations</span></div>
-        <div class="gateway-sub">ศูนย์ทำงานสำหรับ Mentor, MC และ Growth พร้อมพื้นที่ public สำหรับสมาชิกดูข้อมูลและทดลองคะแนนได้โดยไม่ต้องเข้าสู่ระบบ</div>
-      </div>
+  <div class="gw-card">
 
-      <!-- PIN Login Panel (works in LINE browser & all browsers) -->
-      <div class="login-panel" id="pin-role-panel">
-        <div class="login-panel-h">
-          <div class="login-panel-mark">🔐</div>
-          <div>
-            <div class="login-panel-title">Secure Workspace</div>
-            <div class="login-panel-sub">เลือก Role แล้วใส่ PIN เพื่อเข้าสู่ระบบ</div>
-          </div>
-        </div>
-        <div class="role-grid" style="margin-bottom:.75rem">
-          <button class="role-card" onclick="pinSelectRole('mc')"><span class="icon">👑</span><span class="rn">MC</span><span class="rd">พีท</span></button>
-          <button class="role-card" onclick="pinSelectRole('toomtam')"><span class="icon">🟢</span><span class="rn">TOOMTAM</span><span class="rd">Mentor</span></button>
-          <button class="role-card" onclick="pinSelectRole('aof')"><span class="icon">🟡</span><span class="rn">Aof</span><span class="rd">Mentor</span></button>
-          <button class="role-card" onclick="pinSelectRole('draft')"><span class="icon">🔵</span><span class="rn">Draft</span><span class="rd">Mentor</span></button>
-          <button class="role-card" onclick="pinSelectRole('phai')"><span class="icon">🟣</span><span class="rn">PHAI</span><span class="rd">Mentor</span></button>
-          <button class="role-card" onclick="pinSelectRole('amp')"><span class="icon">🟠</span><span class="rn">AMP</span><span class="rd">Mentor</span></button>
-          <button class="role-card" onclick="pinSelectRole('growth')" style="grid-column:1/-1"><span class="icon">📈</span><span class="rn">Growth</span><span class="rd">Growth Committee</span></button>
-        </div>
-        <div id="login-err" style="color:var(--red);font-size:.78rem;text-align:center;min-height:1.2em;"></div>
-      </div>
-      <!-- PIN entry (shown after role selected) -->
-      <div class="login-panel" id="pin-entry-panel" style="display:none">
-        <div class="login-panel-h" style="margin-bottom:.75rem">
-          <button onclick="pinBackToRoles()" style="background:none;border:none;color:var(--gray2);font-size:1.2rem;cursor:pointer;padding:0 8px 0 0">‹</button>
-          <div>
-            <div class="login-panel-title" id="pin-role-label">MC</div>
-            <div class="login-panel-sub">ใส่ PIN</div>
-          </div>
-        </div>
-        <div class="pin-dots" id="pin-dots">
-          <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
-          <div class="pin-dot" id="pd2"></div><div class="pin-dot" id="pd3"></div>
-          <div class="pin-dot" id="pd4"></div><div class="pin-dot" id="pd5"></div>
-        </div>
-        <div class="role-grid" style="grid-template-columns:1fr 1fr 1fr">
-          <button class="pb" onclick="pinDigit('1')">1</button><button class="pb" onclick="pinDigit('2')">2</button><button class="pb" onclick="pinDigit('3')">3</button>
-          <button class="pb" onclick="pinDigit('4')">4</button><button class="pb" onclick="pinDigit('5')">5</button><button class="pb" onclick="pinDigit('6')">6</button>
-          <button class="pb" onclick="pinDigit('7')">7</button><button class="pb" onclick="pinDigit('8')">8</button><button class="pb" onclick="pinDigit('9')">9</button>
-          <button class="pb" onclick="pinClear()" style="font-size:.7rem">ลบ</button><button class="pb" onclick="pinDigit('0')">0</button><button class="pb" onclick="pinBack()">⌫</button>
-        </div>
-        <div id="pin-err" class="pin-err" style="margin-top:.5rem"></div>
-      </div>
-
-      <div class="public-panel">
-        <div class="public-panel-head">
-          <div class="public-panel-title">Public Tools</div>
-          <div class="public-panel-note">ไม่ต้อง Login</div>
-        </div>
-        <div class="gateway-actions">
-          <button class="gateway-tile" onclick="openDirectory()">
-            <span class="gateway-ico">👥</span>
-            <span class="gateway-info">
-              <span class="gateway-name">BNI Member</span>
-              <span class="gateway-desc">รายชื่อสมาชิกและสถานะคะแนนแบบ read-only</span>
-            </span>
-            <span class="gateway-arrow">›</span>
-          </button>
-          <button class="gateway-tile sim-tile" onclick="openSimulate()">
-            <span class="gateway-ico">◎</span>
-            <span class="gateway-info">
-              <span class="gateway-name">PALMS Simulator</span>
-              <span class="gateway-desc">ทดลองคะแนนและดูผลกระทบก่อนทำ action</span>
-            </span>
-            <span class="gateway-arrow">›</span>
-          </button>
-          <button class="gateway-tile training-tile" onclick="openTrainingCheck()">
-            <span class="gateway-ico">🎓</span>
-            <span class="gateway-info">
-              <span class="gateway-name">Training Check</span>
-              <span class="gateway-desc">หาคอร์ส MSP / CEU และ copy คำแนะนำให้สมาชิก</span>
-            </span>
-            <span class="gateway-arrow">›</span>
-          </button>
-        </div>
-      </div>
+    <!-- Header -->
+    <div class="gw-head">
+      <div class="gw-badge">BNI IDEAL · 2026</div>
+      <div class="gw-title">Mentor <span>Operations</span></div>
     </div>
+
+    <!-- Primary: Google login -->
+    <button class="google-login-pro" onclick="signInWithGoogle()">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
+      เข้าสู่ระบบด้วย Google
+    </button>
+
+    <!-- Divider -->
+    <div class="gw-divider"><span>หรือเข้าด้วย PIN (ใช้ได้ใน LINE)</span></div>
+
+    <!-- Step 1: pick role (compact chips) -->
+    <div id="pin-role-panel">
+      <div class="role-chips">
+        <button class="rchip" onclick="pinSelectRole('mc')">👑 MC</button>
+        <button class="rchip" onclick="pinSelectRole('toomtam')">🟢 TOOMTAM</button>
+        <button class="rchip" onclick="pinSelectRole('aof')">🟡 Aof</button>
+        <button class="rchip" onclick="pinSelectRole('draft')">🔵 Draft</button>
+        <button class="rchip" onclick="pinSelectRole('phai')">🟣 PHAI</button>
+        <button class="rchip" onclick="pinSelectRole('amp')">🟠 AMP</button>
+        <button class="rchip" onclick="pinSelectRole('growth')">📈 Growth</button>
+      </div>
+      <div id="login-err" style="color:var(--red);font-size:.75rem;text-align:center;min-height:1.1em;margin-top:.5rem"></div>
+    </div>
+
+    <!-- Step 2: PIN entry (shown after role selected) -->
+    <div id="pin-entry-panel" style="display:none">
+      <div class="gw-pin-entry-head">
+        <button class="gw-back" onclick="pinBackToRoles()">‹</button>
+        <span id="pin-role-label" style="font-weight:600;font-size:.92rem;color:#F1EDE4">MC</span>
+        <span style="font-size:.75rem;color:#7A7469">— ใส่ PIN</span>
+      </div>
+      <div class="pin-dots" id="pin-dots">
+        <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
+        <div class="pin-dot" id="pd2"></div><div class="pin-dot" id="pd3"></div>
+        <div class="pin-dot" id="pd4"></div><div class="pin-dot" id="pd5"></div>
+      </div>
+      <div class="role-grid" style="grid-template-columns:1fr 1fr 1fr;max-width:280px;margin:0 auto">
+        <button class="pb" onclick="pinDigit('1')">1</button><button class="pb" onclick="pinDigit('2')">2</button><button class="pb" onclick="pinDigit('3')">3</button>
+        <button class="pb" onclick="pinDigit('4')">4</button><button class="pb" onclick="pinDigit('5')">5</button><button class="pb" onclick="pinDigit('6')">6</button>
+        <button class="pb" onclick="pinDigit('7')">7</button><button class="pb" onclick="pinDigit('8')">8</button><button class="pb" onclick="pinDigit('9')">9</button>
+        <button class="pb" onclick="pinClear()" style="font-size:.7rem">ลบ</button><button class="pb" onclick="pinDigit('0')">0</button><button class="pb" onclick="pinBack()">⌫</button>
+      </div>
+      <div id="pin-err" class="pin-err" style="margin-top:.5rem"></div>
+    </div>
+
+    <!-- Public tools: minimal link strip -->
+    <div class="gw-pub-strip">
+      <span class="gw-pub-lbl">Public</span>
+      <button class="gw-pub-btn" onclick="openDirectory()">👥 Member List</button>
+      <span class="gw-pub-sep">·</span>
+      <button class="gw-pub-btn" onclick="openSimulate()">◎ PALMS Sim</button>
+      <span class="gw-pub-sep">·</span>
+      <button class="gw-pub-btn" onclick="openTrainingCheck()">🎓 Training</button>
+    </div>
+
   </div>
 </div>
 
@@ -2714,6 +2715,12 @@ function getSbAuth(){if(!_sbAuth&&window.supabase){_sbAuth=window.supabase.creat
 function getStoredSession(){try{return JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null');}catch{return null;}}
 function storeSession(s){try{sessionStorage.setItem(SESSION_KEY,JSON.stringify(s));}catch{}}
 function clearStoredSession(){try{sessionStorage.removeItem(SESSION_KEY);}catch{}}
+
+// ── Google OAuth Login ─────────────────────────────────────────
+function signInWithGoogle(){
+  var sb=getSbAuth();if(!sb)return;
+  sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.href}});
+}
 
 // ── PIN Login UI ──────────────────────────────────────────────
 function pinSelectRole(role){
@@ -7342,7 +7349,7 @@ function trDoCopy(e){
   }else trFallbackCopy(text);
 }
 function trFallbackCopy(text){
-  var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();
+  var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();
   try{document.execCommand('copy');toast('✅ Copy คำแนะนำแล้ว');}catch(e){toast('❌ Copy ไม่ได้ กรุณาลองใหม่');}
   document.body.removeChild(ta);
 }
@@ -8976,6 +8983,7 @@ function loadLineMembers() {
 
 // ── Mentor Training Calendar ──────────────────────────────────
 var _mtrFilter='all';
+var _mtrEventCache=[];
 function mtrSet(val,btn){
   _mtrFilter=val;
   document.querySelectorAll('#mtr-pills .tr-pill').forEach(function(b){b.classList.remove('on');});
@@ -9012,14 +9020,14 @@ function mtrRender(){
   if(badge)badge.textContent=list.length+' คอร์สถัดไป';
   var host=document.getElementById('mtr-list');if(!host)return;
   if(!list.length){host.innerHTML='<div class="empty">ไม่มีคอร์สในช่วงนี้</div>';return;}
+  _mtrEventCache=list.slice();
   var html='';
-  list.forEach(function(e){
+  list.forEach(function(e,i){
     var d=trDateObj(e);
     var mon=d.toLocaleDateString('en-US',{month:'short'}).toUpperCase();
     var isCeu=e.audience.indexOf('ceu')>=0;
     var isMentor=e.audience.indexOf('mentor')>=0;
     var isNew=e.audience.indexOf('new')>=0;
-    var ev=JSON.stringify(JSON.stringify(e));
     var priceStr=e.early?'Early Bird: '+escHtml(e.early)+' | ปกติ: '+escHtml(e.price||''):escHtml(e.price||'');
     html+='<div style="display:flex;gap:.7rem;padding:.75rem;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:.5rem;">'
       +'<div style="text-align:center;min-width:38px;flex-shrink:0;"><div style="font-size:1.3rem;font-weight:800;line-height:1;color:var(--white);">'+d.getDate()+'</div><div style="font-size:.6rem;color:var(--gray2);text-transform:uppercase;">'+mon+'</div></div>'
@@ -9034,8 +9042,8 @@ function mtrRender(){
         +'</div>'
         +'<div style="font-size:.68rem;color:var(--gray2);margin-top:4px;">🎯 '+escHtml(e.note||'')+'</div>'
         +'<div style="display:flex;gap:.4rem;margin-top:.5rem;flex-wrap:wrap;">'
-          +'<button onclick="mtrCopy('+ev+')" style="background:var(--bg2);border:1px solid var(--border);color:var(--gray2);border-radius:7px;padding:4px 10px;font-size:.72rem;cursor:pointer;font-family:inherit;">📋 Copy ข้อความ</button>'
-          +(S.teamName?'<button onclick="mtrSendLine('+ev+')" style="background:rgba(6,199,85,.12);border:1px solid rgba(6,199,85,.3);color:#06C755;border-radius:7px;padding:4px 10px;font-size:.72rem;cursor:pointer;font-family:inherit;">📲 ส่ง LINE ให้ Mentee</button>':'')
+          +'<button onclick="mtrCopy('+i+')" style="background:var(--bg2);border:1px solid var(--border);color:var(--gray2);border-radius:7px;padding:4px 10px;font-size:.72rem;cursor:pointer;font-family:inherit;">📋 Copy ข้อความ</button>'
+          +(S.teamName?'<button onclick="mtrSendLine('+i+')" style="background:rgba(6,199,85,.12);border:1px solid rgba(6,199,85,.3);color:#06C755;border-radius:7px;padding:4px 10px;font-size:.72rem;cursor:pointer;font-family:inherit;">📲 ส่ง LINE ให้ Mentee</button>':'')
           +(e._id&&S.role==='mc'?'<button onclick="trDeleteCustom(\''+escHtml(e._id||'')+'\');" style="background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);color:#ef4444;border-radius:7px;padding:4px 10px;font-size:.72rem;cursor:pointer;font-family:inherit;">ลบ</button>':'')
         +'</div>'
       +'</div>'
@@ -9043,8 +9051,8 @@ function mtrRender(){
   });
   host.innerHTML=html;
 }
-function mtrCopy(jsonStr){
-  var e=typeof jsonStr==='string'?JSON.parse(jsonStr):jsonStr;if(!e)return;
+function mtrCopy(idx){
+  var e=typeof idx==='number'?_mtrEventCache[idx]:(typeof idx==='string'&&!/^\d+$/.test(idx)?JSON.parse(idx):_mtrEventCache[parseInt(idx,10)]);if(!e)return;
   var d=trDateObj(e);
   var low=(S.teamMembers||[]).filter(function(m){
     var c=m.cats||null;
@@ -9056,11 +9064,11 @@ function mtrCopy(jsonStr){
     +(e.early?'💳 Early Bird: '+e.early+' | ปกติ: '+(e.price||'')+'\n':'💳 ราคา: '+(e.price||'')+'\n')
     +'🎯 '+(e.note||'')
     +(low?'\n\n(Mentee CEU ยังไม่เต็ม: '+low+')':'');
-  if(navigator.clipboard){navigator.clipboard.writeText(text).then(function(){toast('✅ Copy แล้ว');}).catch(function(){trFallbackCopy(text);});}
-  else trFallbackCopy(text);
+  if(navigator.clipboard){navigator.clipboard.writeText(text).then(function(){toast('✅ Copy แล้ว');}).catch(function(){_fallbackCopy(text);});}
+  else _fallbackCopy(text);
 }
-function mtrSendLine(jsonStr){
-  var e=typeof jsonStr==='string'?JSON.parse(jsonStr):jsonStr;if(!e)return;
+function mtrSendLine(idx){
+  var e=typeof idx==='number'?_mtrEventCache[idx]:(typeof idx==='string'&&!/^\d+$/.test(idx)?JSON.parse(idx):_mtrEventCache[parseInt(idx,10)]);if(!e)return;
   var d=trDateObj(e);
   var msg='📅 แนะนำ Training เพิ่ม CEU\n\n'
     +(e.title||'')+'\n'
