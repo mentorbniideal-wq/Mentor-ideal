@@ -3305,8 +3305,11 @@ function startMonthlySync(){
           var enrolled=r.autoEnrolled>0?' · เพิ่ม New Member อัตโนมัติ '+r.autoEnrolled+' คน':'';
           var errTxt=(r.errors&&r.errors.length)?(' · '+r.errors.join(' | ')):'';
           var unmatchedTxt='';
+          if(r.trafficLightUnmatched&&r.trafficLightUnmatched.length){
+            unmatchedTxt+=' · ⚠️ ชื่อใน Traffic Light Evolution ไม่ match ในระบบ ('+r.trafficLightUnmatched.length+' คน): '+r.trafficLightUnmatched.join(', ');
+          }
           if(r.r2yUnmatched&&r.r2yUnmatched.length){
-            unmatchedTxt=' · ⚠️ ชื่อใน R2Y ไม่ match ในระบบ ('+r.r2yUnmatched.length+' คน): '+r.r2yUnmatched.join(', ');
+            unmatchedTxt+=' · ⚠️ ชื่อใน R2Y ไม่ match ในระบบ ('+r.r2yUnmatched.length+' คน): '+r.r2yUnmatched.join(', ');
           }
           btn.textContent=coreOk?'✅ Sync สำเร็จ!'+period+enrolled+unmatchedTxt+' (คลิกปิดแล้วรีเฟรช)':'⚠️ บางขั้นตอนมีข้อผิดพลาด'+errTxt+unmatchedTxt;
           btn.disabled=false;

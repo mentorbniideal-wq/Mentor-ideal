@@ -175,6 +175,7 @@ function findMonthlyColumns(headers: string[]): Array<{ idx: number; year: numbe
 function parseMonthlyScores(
   rows: string[][],
   memberMap: Record<string, string>,
+  unmatched?: string[],
 ): {
   scores: Array<{ member_id: string; year: number; month: number; score: number; source: string }>;
   averages: Array<{ member_id: string; average_score: number; source_column: string; synced_at: string }>;
@@ -201,7 +202,10 @@ function parseMonthlyScores(
     const rawName = normalizeName(row[nameIdx]);
     if (!rawName) continue;
     const memberId = memberMap[rawName];
-    if (!memberId) continue;
+    if (!memberId) {
+      if (unmatched && rawName.length > 1) unmatched.push(String(row[nameIdx] || '').trim() || rawName);
+      continue;
+    }
 
     for (const col of monthCols) {
       if (row.length <= col.idx) continue;
@@ -1198,11 +1202,12 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       let importedScores = 0, importedEvolutionAverages = 0, importedR2Y = 0;
       let importedKeySnapshots = 0, updatedGR = 0;
       const stepErrors: string[] = [];
+      const trafficLightUnmatched: string[] = [];
 
       // Steps 3+4: upsert monthly scores. Traffic Light Evolution keeps history;
       // Member Traffic Light is the current score source for the active sync.
       const tlParsed = tlRows.length
-        ? parseMonthlyScores(tlRows, memberMap)
+        ? parseMonthlyScores(tlRows, memberMap, trafficLightUnmatched)
         : { scores: [], averages: [] };
       const tlScoreRows = tlParsed.scores;
       const existingScorePeriod = await getExistingLatestScorePeriod(db);
@@ -1375,6 +1380,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         autoEnrolled,
         scoreYear: scoreRows.length ? scorePeriod.year : null,
         scoreMonth: scoreRows.length ? scorePeriod.month : null,
+        ...(trafficLightUnmatched.length ? { trafficLightUnmatched: [...new Set(trafficLightUnmatched)].slice(0, 30) } : {}),
         ...(r2yUnmatched.length ? { r2yUnmatched } : {}),
         ...(stepErrors.length ? { errors: stepErrors } : {}),
       });
