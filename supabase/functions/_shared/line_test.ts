@@ -242,7 +242,8 @@ Deno.test('team command routes chapter roles to all-team overview', () => {
 Deno.test('all documented LINE command aliases resolve to stable command contracts', () => {
   const cases: [string, string, string?][] = [
     ['สถานะ', 'status'],
-    ['ทำอะไร', 'status'],
+    ['ทำอะไร', 'action-plan'],
+    ['action', 'action-plan'],
     ['ประวัติ', 'history'],
     ['ทีม', 'team'],
     ['focus 3', 'focus3'],

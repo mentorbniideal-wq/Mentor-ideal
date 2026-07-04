@@ -17,7 +17,7 @@ import {
   SIM_CAPTURES,
   type LineEvent,
 } from '../_shared/line.ts';
-import { commandCardFlex, memberScoreFlex, type CardAction } from '../_shared/line-flex.ts';
+import { commandCardFlex, memberScoreFlex, nextColorAdvice, type CardAction } from '../_shared/line-flex.ts';
 import { trackLineEvent } from '../_shared/analytics.ts';
 import { runCopilot } from '../_shared/copilot.ts';
 import { teamCommandMode, type LineRole } from '../_shared/line-roles.ts';
@@ -219,7 +219,7 @@ async function handleEvent(
     });
     return;
   }
-  if (memberName && ['สถานะ', 'score', 'คะแนน', 'ทำอะไร', 'action'].includes(normalized) && ev.replyToken) {
+  if (memberName && ['สถานะ', 'score', 'คะแนน'].includes(normalized) && ev.replyToken) {
     const data = await getMemberData(db, memberName);
     if (data) {
       await lineReplyMessages(
@@ -291,6 +291,13 @@ function commandPresentation(
   const definitions: Partial<Record<LineCommand, { title: string; actions?: CardAction[] }>> = {
     'debug-id': { title: 'LINE ACCOUNT' },
     status: { title: 'WEEKLY PULSE', actions: [{ label: 'ดูประวัติ', type: 'message', text: 'ประวัติ' }] },
+    'action-plan': {
+      title: 'TODAY’S MOVE',
+      actions: [
+        { label: 'ดูสถานะ', type: 'message', text: 'สถานะ' },
+        { label: 'ดูประวัติ', type: 'message', text: 'ประวัติ' },
+      ],
+    },
     history: { title: 'SCORE TREND', actions: [{ label: 'ดูสถานะล่าสุด', type: 'message', text: 'สถานะ' }] },
     team: {
       title: chapterRole ? 'MENTOR TEAMS' : 'MY MENTOR TEAM',
@@ -473,6 +480,8 @@ async function processCommand(
     case 'status':
       // fast-path in handleEvent sends Flex for registered members; this fallback handles unregistered
       return memberName ? await replyStatus(db, memberName) : 'กรุณาเชื่อมบัญชี LINE กับระบบก่อนครับ 📱';
+    case 'action-plan':
+      return await replyActionPlan(db, memberName);
     case 'history':
       return await replyHistory(db, memberName);
     case 'team':
@@ -721,6 +730,78 @@ async function replyStatus(db: ReturnType<typeof getServiceClient>, memberName: 
   if (closing) parts.push('', closing);
   parts.push('พิมพ์ "ประวัติ" ดู Trend ↑↓');
   return parts.join('\n');
+}
+
+function memberActionTemplate(action: string): { why: string; today: string; script: string } {
+  if (/Visitor|ชวน Visitor/i.test(action)) {
+    return {
+      why: 'Visitor มักขยับคะแนนเร็ว และช่วยเพิ่มโอกาส referral ในห้อง',
+      today: 'เลือก 1 คนที่น่าจะได้ connection จาก BNI แล้วชวนมาศุกร์นี้',
+      script: '“ศุกร์นี้ผมมีประชุมกลุ่มธุรกิจที่ส่ง referral กันจริงจัง อยากชวนมาลองรู้จักเพื่อน ๆ ครับ”',
+    };
+  }
+  if (/Referral|ส่ง Referral/i.test(action)) {
+    return {
+      why: 'Referral เป็น action ที่ทำได้ทันที และช่วยให้ทีมเห็นโอกาสของคุณ',
+      today: 'เปิดรายชื่อลูกค้า/เพื่อน 10 คน แล้วจับคู่ให้สมาชิก 1 คน',
+      script: '“ผมนึกถึงคนนี้ว่าอาจเหมาะกับบริการของคุณ เดี๋ยวผมแนะนำให้รู้จักนะครับ”',
+    };
+  }
+  if (/1-2-1|121/i.test(action)) {
+    return {
+      why: '1-2-1 ช่วยให้คนจำธุรกิจคุณได้ชัดขึ้น และมักต่อยอดเป็น referral',
+      today: 'นัด 1 คนใน chapter แบบ 20 นาที ภายในสัปดาห์นี้',
+      script: '“สัปดาห์นี้สะดวก 1-2-1 กัน 20 นาทีไหมครับ อยากรู้จักธุรกิจคุณให้ส่งต่อได้ดีขึ้น”',
+    };
+  }
+  if (/CEU|เรียน/i.test(action)) {
+    return {
+      why: 'CEU เป็นวิธีปิด gap ที่จบเป็นชิ้นงานเดียวและคุมเวลาได้ง่าย',
+      today: 'เลือก training 1 รายการ แล้วจองเวลาทำให้จบก่อนประชุมครั้งถัดไป',
+      script: 'พิมพ์ “Training Check” ในระบบเพื่อดูหัวข้อที่ใช้ส่งต่อสมาชิกได้',
+    };
+  }
+  if (/TYFCB|TYFB|บาท/i.test(action)) {
+    return {
+      why: 'TYFCB สะท้อนผลลัพธ์ธุรกิจจริง และช่วยให้ chapter เห็นพลังของ referral',
+      today: 'รวบรวมยอดปิดดีลจาก referral ล่าสุด แล้วบันทึก/แจ้งยอดให้ครบ',
+      script: '“ดีลนี้เกิดจาก referral ของ BNI ครับ ขอส่ง TYFCB ให้ระบบครบถ้วน”',
+    };
+  }
+  return {
+    why: 'จุดนี้เป็น action ที่ทำให้คะแนนขยับได้เร็วที่สุดจากข้อมูลล่าสุด',
+    today: 'ทำ action นี้ 1 ครั้งก่อนประชุมครั้งถัดไป',
+    script: 'เริ่มจาก 1 action เล็ก ๆ วันนี้ แล้วค่อยต่อยอดในสัปดาห์นี้ครับ',
+  };
+}
+
+async function replyActionPlan(db: ReturnType<typeof getServiceClient>, memberName: string): Promise<string> {
+  const d = await getMemberData(db, memberName);
+  if (!d) return '⚠️ ยังไม่มีข้อมูลคะแนนเดือนนี้\nรอ Coordinator import CSV ก่อนนะครับ';
+
+  const nick = String(d.nickname || memberName.split(' ')[0]);
+  const score = Math.round(Number(d.display_score || 0));
+  const advice = nextColorAdvice(d);
+  const template = memberActionTemplate(advice.action);
+  const targetLine = advice.pointsNeeded > 0
+    ? `${advice.currentLabel} → ${advice.nextLabel} · ขาด ${advice.pointsNeeded}pt`
+    : `${advice.currentLabel} · รักษาความสม่ำเสมอ`;
+
+  return [
+    `🎯 ${nick} · ทำวันนี้`,
+    targetLine,
+    '',
+    `1️⃣ ${advice.action}`,
+    `ทำไม: ${template.why}`,
+    '',
+    `2️⃣ วันนี้ให้ทำ`,
+    template.today,
+    '',
+    `3️⃣ ข้อความพร้อมใช้`,
+    template.script,
+    '',
+    'พิมพ์ “สถานะ” เพื่อดูคะแนนเต็ม',
+  ].join('\n');
 }
 
 async function replyFocus3(db: ReturnType<typeof getServiceClient>, memberName: string, userId?: string): Promise<string> {

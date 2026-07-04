@@ -1,6 +1,7 @@
 export type LineCommand =
   | 'debug-id'
   | 'status'
+  | 'action-plan'
   | 'history'
   | 'team'
   | 'focus3'
@@ -34,7 +35,8 @@ export function parseLineCommand(input: string): ParsedLineCommand {
   const normalized = text.toLocaleLowerCase('th-TH');
 
   if (['myid', 'id'].includes(normalized)) return command('debug-id');
-  if (['สถานะ', 'score', 'คะแนน', 'ทำอะไร', 'action'].includes(normalized)) return command('status');
+  if (['สถานะ', 'score', 'คะแนน'].includes(normalized)) return command('status');
+  if (['ทำอะไร', 'action', 'next action', 'ทำอะไรดี'].includes(normalized)) return command('action-plan');
   if (['ประวัติ', 'trend', 'history'].includes(normalized)) return command('history');
   if (['ทีม', 'team', 'ทีมของฉัน'].includes(normalized)) return command('team');
   if (['focus 3', 'focus3', 'โฟกัส 3', 'f3'].includes(normalized)) return command('focus3');
