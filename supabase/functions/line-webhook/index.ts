@@ -316,8 +316,9 @@ function quickRepliesFor(
   const secondary = [
     qr('👥 ทีม', 'ทีม'),
     qr('🤝 แนะนำ', 'แนะนำ'),
+    qr('🎯 เป้า', 'เป้า'),
     qr('🙋 ลา', 'ลา'),
-    qr('👥 ส่ง sub', 'ส่ง sub'),
+    qr('🆘 ช่วย', 'ขอความช่วยเหลือ'),
     qr('🧭 ช่วยเหลือ', 'ช่วยเหลือ'),
   ];
   // Elevated LINE roles now use the same member-support command set.
@@ -379,7 +380,13 @@ function commandPresentation(
     'set-goal': { title: 'GOAL UPDATED', actions: [{ label: 'ดูเป้าหมาย', type: 'message', text: 'เป้า' }] },
     'mute-notification': { title: 'NOTIFICATIONS UPDATED' },
     'unmute-notification': { title: 'NOTIFICATIONS UPDATED' },
-    help: { title: 'COMMAND GUIDE', actions: [{ label: 'ดูสถานะของฉัน', type: 'message', text: 'สถานะ' }] },
+    help: {
+      title: 'COMMAND GUIDE',
+      actions: [
+        { label: 'ดูสถานะของฉัน', type: 'message', text: 'สถานะ' },
+        { label: 'ขอความช่วยเหลือ', type: 'message', text: 'ขอความช่วยเหลือ' },
+      ],
+    },
   };
   const definition = definitions[command] || definitions.help!;
   return {
@@ -1659,13 +1666,20 @@ function buildHelpMessage(memberName: string): string {
   const nick = memberName.split(' ')[0];
   return (
     `🧭 คุณ${nick} ใช้คำสั่งเหล่านี้ได้ครับ\n\n` +
+    `คำสั่งหลัก\n` +
     `📊 สถานะ — ดูคะแนนล่าสุด\n` +
     `📈 ประวัติ — ดูสี/คะแนนย้อนหลัง\n` +
     `🎯 ทำอะไร — สิ่งที่ควรทำวันนี้\n` +
-    `👥 ทีม — ดู Mentor Team\n` +
+    `🎯 เป้า — ดูเป้าหมายของตัวเอง\n` +
+    `🆘 ขอความช่วยเหลือ — แจ้งเรื่องให้ทีมดูแล\n\n` +
+    `งานที่ทำได้ทันที\n` +
     `🤝 แนะนำ — หาเพื่อน 1-2-1\n` +
+    `นัด [ชื่อ] — บันทึกนัด 1-2-1\n` +
+    `เจอแล้ว — ปิดนัด 1-2-1 ล่าสุด\n` +
     `🙋 ลา [เหตุผล] — แจ้งลา\n` +
-    `👥 ส่ง sub [ชื่อ] — แจ้งคนแทน\n` +
+    `👥 ส่ง sub [ชื่อ] — แจ้งคนแทน\n\n` +
+    `ข้อมูลเพิ่มเติม\n` +
+    `👥 ทีม — ดู Mentor Team\n` +
     `💬 ถาม [คำถาม] — ให้ AI ช่วยคิด\n\n` +
     `พิมพ์คำสั่งได้เลย หรือกดปุ่ม Quick Reply ด้านล่างครับ`
   );
