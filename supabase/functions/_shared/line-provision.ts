@@ -23,10 +23,10 @@ async function lineRequest(
 export async function provisionLineExperience(db: Db) {
   const token = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || '';
   const appUrl = (Deno.env.get('PUBLIC_APP_URL') || '').replace(/\/$/, '');
-  const liffUrl = (Deno.env.get('LINE_LIFF_URL') || '').replace(/\/$/, '');
+  const liffUrl = (Deno.env.get('LINE_LIFF_URL') || `${appUrl}/liff/`).replace(/\/$/, '');
   const supabaseUrl = (Deno.env.get('SUPABASE_URL') || '').replace(/\/$/, '');
-  if (!token || !appUrl || !liffUrl || !supabaseUrl) {
-    throw new Error('LINE token, PUBLIC_APP_URL, LINE_LIFF_URL, or SUPABASE_URL is missing');
+  if (!token || !appUrl || !supabaseUrl) {
+    throw new Error('LINE token, PUBLIC_APP_URL, or SUPABASE_URL is missing');
   }
 
   const webhookEndpoint = `${supabaseUrl}/functions/v1/line-webhook`;
@@ -37,9 +37,9 @@ export async function provisionLineExperience(db: Db) {
   });
 
   const roles: RichMenuRole[] = ['member', 'mentor', 'mc', 'growth'];
-  const desiredMenuVersion = 'v10';
+  const desiredMenuVersion = 'v11';
   const menuAssetVersion = 'v4';
-  const desiredMenuSource = `${desiredMenuVersion}|${liffUrl}|${appUrl}`;
+  const desiredMenuSource = `${desiredMenuVersion}|message-actions|${appUrl}`;
   const { data: menuSettings } = await db.from('settings')
     .select('key, value')
     .in('key', ['LINE_RICH_MENU_VERSION', 'LINE_RICH_MENU_SOURCE']);

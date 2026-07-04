@@ -343,8 +343,6 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
 
     const appUrl = String(Deno.env.get('PUBLIC_APP_URL') || 'https://bni-mentor-system.vercel.app')
       .replace(/\/$/, '');
-    const liffUrl = String(Deno.env.get('LINE_LIFF_URL') || `${appUrl}/liff/`)
-      .replace(/\/$/, '');
     const [{ data: settings }, { data: lineMembers }, { data: teams }] = await Promise.all([
       db.from('settings').select('key, value')
         .or('key.like.LINE_ID_%,key.like.LINE_RICH_MENU_%,key.eq.LINE_PROVISIONED_AT'),
@@ -448,11 +446,9 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
       }),
     );
 
-    const actions = ['121', 'absence', 'goal', 'issue', 'renewal', 'assignments'];
+    const actions = ['renewal', 'assignments'];
     const urlChecks = await Promise.all([
-      checkUrl(`${appUrl}/liff/`),
       ...actions.map(item => checkUrl(`${appUrl}/liff/${item}?preview=1`)),
-      checkUrl(`${liffUrl}?action=121`),
     ]);
     const menuRoles: LineMenuRole[] = ['member', 'mentor', 'mc', 'growth'];
     const menus = Object.fromEntries(menuRoles.map(role => [
@@ -477,7 +473,6 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
       menuSource: settingMap.LINE_RICH_MENU_SOURCE || null,
       provisionedAt: settingMap.LINE_PROVISIONED_AT || null,
       appUrl,
-      liffUrl,
       urlChecks,
     });
   }
