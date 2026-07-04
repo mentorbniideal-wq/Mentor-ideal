@@ -1000,24 +1000,19 @@ async function replyHistory(db: ReturnType<typeof getServiceClient>, memberName:
   if (!hist?.length) return '⚠️ ยังไม่มีประวัติคะแนนในระบบครับ';
   const nick = String((member as any).nickname || memberName.split(' ')[0]);
   const tlIcon: Record<string, string> = { green: '🟢', yellow: '🟡', red: '🔴', black: '⚫', none: '⚪' };
-  const tlLabel: Record<string, string> = {
-    green: 'สีเขียว',
-    yellow: 'สีเหลือง',
-    red: 'สีแดง',
-    black: 'สีดำ',
-    none: 'ยังไม่มีสี',
-  };
   const monthNames: Record<string, string> = {
     Jan: 'ม.ค.', Feb: 'ก.พ.', Mar: 'มี.ค.', Apr: 'เม.ย.',
     May: 'พ.ค.', Jun: 'มิ.ย.', Jul: 'ก.ค.', Aug: 'ส.ค.',
     Sep: 'ก.ย.', Oct: 'ต.ค.', Nov: 'พ.ย.', Dec: 'ธ.ค.',
   };
+  const shortMonth = (month: number, year: number): string => {
+    const label = monthNames[monthLabel(month)] || String(month);
+    return `${label}${String(year).slice(-2)}`;
+  };
   const scoreRows = hist.map((h) => {
     const traffic = String(h.traffic_light || 'none');
     const icon = tlIcon[traffic] || '⚪';
-    const color = tlLabel[traffic] || 'ยังไม่มีสี';
-    const month = monthNames[String(h.month_label || '')] || String(h.month_label || '');
-    return `${month} ${h.year} · ${icon} ${color} · ${Math.round(Number(h.score))} คะแนน`;
+    return `${icon} ${shortMonth(Number(h.month), Number(h.year))} ${Math.round(Number(h.score))}`;
   });
 
   const storedAverage = Number((evolutionSummary as any)?.average_score);
@@ -1031,20 +1026,20 @@ async function replyHistory(db: ReturnType<typeof getServiceClient>, memberName:
   const latestKeys = keySnapshotRows[0];
   const previousKeys = keySnapshotRows[1];
   const keyDefinitions = [
-    ['Referral', 'referral_pts', 15],
-    ['Visitor', 'visitor_pts', 20],
-    ['1-2-1', 'one_to_one_pts', 15],
-    ['CEU', 'ceu_pts', 20],
-    ['TYFCB', 'tyfcb_pts', 15],
-  ] as [string, string, number][];
+    ['📨 Ref', 'referral_pts', 15, 'ใบ'],
+    ['👥 Vis', 'visitor_pts', 20, 'คน'],
+    ['🤝 121', 'one_to_one_pts', 15, 'ครั้ง'],
+    ['🎓 CEU', 'ceu_pts', 20, 'หน่วย'],
+    ['💰 ฿', 'tyfcb_pts', 15, 'บาท'],
+  ] as [string, string, number, string][];
   const keyPeriodLabel = latestKeys
-    ? `${monthNames[monthLabel(Number(latestKeys.month))]} ${latestKeys.year}`
+    ? shortMonth(Number(latestKeys.month), Number(latestKeys.year))
     : '';
   const previousKeyPeriodLabel = previousKeys
-    ? `${monthNames[monthLabel(Number(previousKeys.month))]} ${previousKeys.year}`
+    ? shortMonth(Number(previousKeys.month), Number(previousKeys.year))
     : '';
   const keyMovements = latestKeys
-    ? keyDefinitions.map(([label, field, max]) => {
+    ? keyDefinitions.map(([label, field, max, unit]) => {
       const valueField = field.replace('_pts', '_value');
       const current = Number(latestKeys[field] || 0);
       const previous = previousKeys ? Number(previousKeys[field] || 0) : null;
@@ -1052,60 +1047,41 @@ async function replyHistory(db: ReturnType<typeof getServiceClient>, memberName:
       const currentValue = Number(latestKeys[valueField] || 0);
       const previousValue = previousKeys ? Number(previousKeys[valueField] || 0) : null;
       const valueDelta = previousValue === null ? null : currentValue - previousValue;
-      return { label, max, current, previous, delta, currentValue, previousValue, valueDelta };
+      return { label, max, unit, current, previous, delta, currentValue, previousValue, valueDelta };
     })
     : [];
-  const increasedKeys = keyMovements.filter(k => (k.delta ?? 0) > 0).map(k => `${k.label} +${k.delta}`);
-  const decreasedKeys = keyMovements.filter(k => (k.delta ?? 0) < 0).map(k => `${k.label} ${k.delta}`);
-  const unchangedKeys = keyMovements.filter(k => k.delta === 0).map(k => k.label);
   const keyRows = latestKeys
     ? [
       previousKeys
-        ? `เทียบ ${keyPeriodLabel} กับ ${previousKeyPeriodLabel}`
-        : `${keyPeriodLabel} · ยังไม่มีข้อมูลเดือนก่อนให้เทียบ`,
-      `เพิ่มขึ้น: ${increasedKeys.length ? increasedKeys.join(', ') : 'ไม่มี'}`,
-      `ลดลง: ${decreasedKeys.length ? decreasedKeys.join(', ') : 'ไม่มี'}`,
-      `คงเดิม: ${unchangedKeys.length ? unchangedKeys.join(', ') : 'ไม่มี'}`,
-      '',
+        ? `${keyPeriodLabel} vs ${previousKeyPeriodLabel}`
+        : `${keyPeriodLabel} · ยังไม่มีเดือนก่อน`,
       ...keyMovements.map(k => {
-        const unit = k.label === 'TYFCB'
-          ? 'บาท'
-          : k.label === 'CEU'
-          ? 'หน่วย'
-          : k.label === 'Visitor'
-          ? 'คน'
-          : k.label === '1-2-1'
-          ? 'ครั้ง'
-          : 'ใบ';
-        const valueText = k.label === 'TYFCB'
-          ? `${Math.round(k.currentValue).toLocaleString('en-US')} ${unit}`
-          : `${Math.round(k.currentValue)} ${unit}`;
-        if (k.previous === null) return `${k.label} · ${k.current}/${k.max} คะแนน · กิจกรรม ${valueText}`;
+        const valueText = k.unit === 'บาท'
+          ? `${Math.round(k.currentValue).toLocaleString('en-US')} ${k.unit}`
+          : `${Math.round(k.currentValue)} ${k.unit}`;
+        if (k.previous === null) return `${k.label} ${k.current}/${k.max} · ${valueText}`;
         const movement = (k.delta ?? 0) > 0
-          ? `↑ +${k.delta}`
+          ? `⬆️+${k.delta}`
           : (k.delta ?? 0) < 0
-          ? `↓ ${k.delta}`
-          : '→ 0';
+          ? `⬇️${Math.abs(k.delta || 0)}`
+          : '→';
         const rawMove = (k.valueDelta ?? 0) > 0
-          ? `↑ +${k.label === 'TYFCB' ? Math.round(k.valueDelta || 0).toLocaleString('en-US') : Math.round(k.valueDelta || 0)}`
+          ? `⬆️${k.unit === 'บาท' ? Math.round(k.valueDelta || 0).toLocaleString('en-US') : Math.round(k.valueDelta || 0)}`
           : (k.valueDelta ?? 0) < 0
-          ? `↓ ${k.label === 'TYFCB' ? Math.round(Math.abs(k.valueDelta || 0)).toLocaleString('en-US') : Math.round(Math.abs(k.valueDelta || 0))}`
-          : '→ 0';
-        const previousValueText = k.label === 'TYFCB'
+          ? `⬇️${k.unit === 'บาท' ? Math.round(Math.abs(k.valueDelta || 0)).toLocaleString('en-US') : Math.round(Math.abs(k.valueDelta || 0))}`
+          : '→';
+        const previousValueText = k.unit === 'บาท'
           ? Math.round(k.previousValue || 0).toLocaleString('en-US')
           : String(Math.round(k.previousValue || 0));
-        const currentValueText = k.label === 'TYFCB'
+        const currentValueText = k.unit === 'บาท'
           ? Math.round(k.currentValue).toLocaleString('en-US')
           : String(Math.round(k.currentValue));
-        return [
-          `${k.label} · คะแนน ${k.previous}→${k.current}/${k.max} · ${movement}`,
-          `กิจกรรม ${previousValueText}→${currentValueText} ${unit} · ${rawMove}`,
-        ].join('\n');
+        return `${k.label} ${k.previous}→${k.current}/${k.max} ${movement} · ${previousValueText}→${currentValueText}${k.unit === 'บาท' ? '฿' : ''} ${rawMove}`;
       }),
     ]
     : [
-      'ยังไม่มีข้อมูล 5 Key รายเดือน',
-      'หมายเหตุ: 5 Key ต้องมาจาก R2Y sync รายเดือน',
+      'ยังไม่มีข้อมูล 5 Key',
+      'ต้อง sync R2Y รายเดือน',
     ];
 
   // History is newest first, so compare the two latest months.
@@ -1121,14 +1097,11 @@ async function replyHistory(db: ReturnType<typeof getServiceClient>, memberName:
   else trendMsg = 'คะแนนนิ่ง — ลอง Visitor หรือ Referral เพิ่มครับ';
 
   return [
-    `📈 ${nick} — Traffic Lights Evolution`,
-    '',
-    `ประวัติย้อนหลังทั้งหมด · ${hist.length} เดือน`,
+    `📈 ${nick} · Score Trend`,
+    `ย้อนหลัง ${hist.length} เดือน · Avg ${average.toFixed(1)}`,
     ...scoreRows,
     '',
-    `⭐ คะแนนเฉลี่ย ${average.toFixed(1)} คะแนน`,
-    '',
-    '🔎 5 Key เดือนนี้เทียบเดือนก่อน',
+    '🔎 5 Key',
     ...keyRows,
     '',
     trendMsg,
