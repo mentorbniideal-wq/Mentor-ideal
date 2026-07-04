@@ -947,29 +947,53 @@ function bar(got: number | undefined, max: number): string {
   return '⚠️';
 }
 
+function trafficLightFromScore(score: number): 'green' | 'yellow' | 'red' | 'black' | 'none' {
+  if (!Number.isFinite(score) || score <= 0) return 'none';
+  if (score >= 70) return 'green';
+  if (score >= 50) return 'yellow';
+  if (score >= 30) return 'red';
+  return 'black';
+}
+
 async function replyHistory(db: ReturnType<typeof getServiceClient>, memberName: string): Promise<string> {
   const { data: member } = await db.from('members')
     .select('id, nickname')
     .eq('name', memberName)
     .single();
   if (!member) return '⚠️ ไม่พบข้อมูลสมาชิกครับ';
+  const memberId = String((member as any).id || '');
 
-  const [{ data: hist }, { data: evolutionSummary }, { data: keySnapshots }] = await Promise.all([
-    db.from('v_score_history')
-      .select('month_label, year, score, traffic_light, sort_key')
-      .eq('name', memberName)
-      .order('sort_key', { ascending: false }),
+  const [{ data: monthlyScores }, { data: evolutionSummary }, { data: keySnapshots }] = await Promise.all([
+    db.from('monthly_scores')
+      .select('year, month, score, source')
+      .eq('member_id', memberId)
+      .gt('score', 0)
+      .order('year', { ascending: false })
+      .order('month', { ascending: false }),
     db.from('traffic_light_evolution_summary')
       .select('average_score, source_column')
-      .eq('member_id', (member as any).id)
+      .eq('member_id', memberId)
       .maybeSingle(),
     db.from('palms_key_snapshots')
       .select('year, month, referral_pts, visitor_pts, one_to_one_pts, ceu_pts, tyfcb_pts')
-      .eq('member_id', (member as any).id)
+      .eq('member_id', memberId)
       .order('year', { ascending: false })
       .order('month', { ascending: false })
       .limit(2),
   ]);
+  const hist = ((monthlyScores || []) as Record<string, unknown>[]).map((row) => {
+    const year = Number(row.year || 0);
+    const month = Number(row.month || 0);
+    const score = Number(row.score || 0);
+    return {
+      year,
+      month,
+      score,
+      traffic_light: trafficLightFromScore(score),
+      sort_key: year * 100 + month,
+      month_label: monthLabel(month),
+    };
+  });
   if (!hist?.length) return '⚠️ ยังไม่มีประวัติคะแนนในระบบครับ';
   const nick = String((member as any).nickname || memberName.split(' ')[0]);
   const tlIcon: Record<string, string> = { green: '🟢', yellow: '🟡', red: '🔴', black: '⚫', none: '⚪' };
@@ -985,7 +1009,7 @@ async function replyHistory(db: ReturnType<typeof getServiceClient>, memberName:
     May: 'พ.ค.', Jun: 'มิ.ย.', Jul: 'ก.ค.', Aug: 'ส.ค.',
     Sep: 'ก.ย.', Oct: 'ต.ค.', Nov: 'พ.ย.', Dec: 'ธ.ค.',
   };
-  const scoreRows = (hist as Record<string, unknown>[]).map((h) => {
+  const scoreRows = hist.map((h) => {
     const traffic = String(h.traffic_light || 'none');
     const icon = tlIcon[traffic] || '⚪';
     const color = tlLabel[traffic] || 'ยังไม่มีสี';
@@ -995,7 +1019,7 @@ async function replyHistory(db: ReturnType<typeof getServiceClient>, memberName:
 
   const storedAverage = Number((evolutionSummary as any)?.average_score);
   const calculatedAverage = hist.length
-    ? hist.reduce((sum: number, row: Record<string, unknown>) => sum + Number(row.score || 0), 0) / hist.length
+    ? hist.reduce((sum: number, row) => sum + Number(row.score || 0), 0) / hist.length
     : 0;
   const average = Number.isFinite(storedAverage) && storedAverage > 0
     ? storedAverage

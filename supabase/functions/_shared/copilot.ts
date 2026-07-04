@@ -1,4 +1,7 @@
-import { sha256Hex } from './line.ts';
+async function sha256Hex(value: string): Promise<string> {
+  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
 
 const SYSTEM = `คุณคือ AI Mentor ของ BNI IDEAL Chapter — ตอบแบบพี่ที่รู้จักสมาชิกดี ไม่ใช่ระบบ help desk
 สไตล์:
