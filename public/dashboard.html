@@ -1568,6 +1568,105 @@ main{
         </div>
         <div id="msgRes" style="font-size:12px;margin-top:7px"></div>
       </div>
+      <div class="mco" style="margin-top:16px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+          <div>
+            <h3 style="margin-bottom:4px">🤖 LINE Auto Schedule & Message Library</h3>
+            <div style="font-size:11px;color:var(--sub);line-height:1.6">ตารางนี้คือ source of truth สำหรับข้อความ LINE ที่ระบบส่งเองอัตโนมัติ และปุ่ม manual ที่ MC กดส่งเองได้</div>
+          </div>
+          <button class="bsm" onclick="deskSetupAllTriggers()" style="font-size:11px;white-space:nowrap">⚙️ Rebuild Auto Schedule</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:920px">
+            <thead>
+              <tr style="border-bottom:1px solid var(--bd);color:var(--sub);text-align:left">
+                <th style="padding:8px">สถานะ</th><th style="padding:8px">ชื่อข้อความ</th><th style="padding:8px">วัน/เวลา</th><th style="padding:8px">ส่งถึง</th><th style="padding:8px">เนื้อหาที่ส่ง</th><th style="padding:8px">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom:1px solid var(--bd)">
+                <td style="padding:9px"><span style="color:#06C755;font-weight:800">AUTO</span></td>
+                <td style="padding:9px;font-weight:800">🌅 Monday Brief</td>
+                <td style="padding:9px">จันทร์ 08:00</td>
+                <td style="padding:9px">MC + สมาชิกที่รับ Monday Brief</td>
+                <td style="padding:9px"><details><summary style="cursor:pointer;color:var(--ac)">Preview</summary><pre style="white-space:pre-wrap;font-family:Sarabun,sans-serif;color:var(--tx);font-size:11px;line-height:1.6;background:var(--sf);border-radius:8px;padding:10px;margin:8px 0 0">สมาชิก: สัปดาห์ใหม่ BNI IDEAL! / 3 เป้าหมาย: Referral 1 ใบ, 1-2-1 1 ครั้ง, Visitor วันศุกร์
+MC: Chapter traffic light summary</pre></details></td>
+                <td style="padding:9px"><button class="bsm" onclick="deskTriggerMondayBrief()" style="font-size:10px">ส่งตอนนี้</button></td>
+              </tr>
+              <tr style="border-bottom:1px solid var(--bd)">
+                <td style="padding:9px"><span style="color:#06C755;font-weight:800">AUTO</span></td>
+                <td style="padding:9px;font-weight:800">📊 Thursday Score + Friday Prep</td>
+                <td style="padding:9px">พฤหัส 07:00</td>
+                <td style="padding:9px">สมาชิกที่ผูก LINE และไม่ mute score</td>
+                <td style="padding:9px"><details><summary style="cursor:pointer;color:var(--ac)">Preview</summary><pre style="white-space:pre-wrap;font-family:Sarabun,sans-serif;color:var(--tx);font-size:11px;line-height:1.6;background:var(--sf);border-radius:8px;padding:10px;margin:8px 0 0">BNI Good Morning, คุณ{nick}
+คะแนนล่าสุด: {score}/100 pt
+วันนี้เน้น เพื่อพร้อมประชุมวันศุกร์: {top action}
+Checklist ก่อนประชุมพรุ่งนี้: Referral / Visitor / 1-2-1</pre></details></td>
+                <td style="padding:9px"><button class="bsm" onclick="deskTriggerWeeklyScore()" style="font-size:10px">ส่ง Score Card</button></td>
+              </tr>
+              <tr style="border-bottom:1px solid var(--bd)">
+                <td style="padding:9px"><span style="color:#06C755;font-weight:800">AUTO</span></td>
+                <td style="padding:9px;font-weight:800">⏰ Friday Meeting Reminder</td>
+                <td style="padding:9px">พฤหัส 18:00</td>
+                <td style="padding:9px">สมาชิกที่รับ nudge</td>
+                <td style="padding:9px"><details><summary style="cursor:pointer;color:var(--ac)">Preview</summary><pre style="white-space:pre-wrap;font-family:Sarabun,sans-serif;color:var(--tx);font-size:11px;line-height:1.6;background:var(--sf);border-radius:8px;padding:10px;margin:8px 0 0">พรุ่งนี้วันศุกร์มีประชุม BNI IDEAL ครับ!
+เตรียมอะไรไว้บ้างแล้ว?
+• Referral
+• Visitor
+• 1-2-1
+ดูคะแนน → พิมพ์ "สถานะ"</pre></details></td>
+                <td style="padding:9px"><button class="bsm" onclick="deskTriggerWednesdayNudge()" style="font-size:10px">ส่งตอนนี้</button></td>
+              </tr>
+              <tr style="border-bottom:1px solid var(--bd)">
+                <td style="padding:9px"><span style="color:#06C755;font-weight:800">AUTO</span></td>
+                <td style="padding:9px;font-weight:800">🏆 Friday Recap</td>
+                <td style="padding:9px">ศุกร์ 13:00</td>
+                <td style="padding:9px">สมาชิก + MC leaderboard</td>
+                <td style="padding:9px"><details><summary style="cursor:pointer;color:var(--ac)">Preview</summary><pre style="white-space:pre-wrap;font-family:Sarabun,sans-serif;color:var(--tx);font-size:11px;line-height:1.6;background:var(--sf);border-radius:8px;padding:10px;margin:8px 0 0">BNI ประชุมเสร็จแล้ว!
+อย่าลืม Follow-up Referral, จัดเวลา 1-2-1, ส่ง Thank You Note
+MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></details></td>
+                <td style="padding:9px"><button class="bsm" onclick="deskTriggerLeaderboard()" style="font-size:10px">ส่ง Leaderboard</button></td>
+              </tr>
+              <tr style="border-bottom:1px solid var(--bd)">
+                <td style="padding:9px"><span style="color:#06C755;font-weight:800">AUTO</span></td>
+                <td style="padding:9px;font-weight:800">📊 Monthly Recap</td>
+                <td style="padding:9px">วันที่ 1 เวลา 08:00</td>
+                <td style="padding:9px">MC</td>
+                <td style="padding:9px"><details><summary style="cursor:pointer;color:var(--ac)">Preview</summary><pre style="white-space:pre-wrap;font-family:Sarabun,sans-serif;color:var(--tx);font-size:11px;line-height:1.6;background:var(--sf);border-radius:8px;padding:10px;margin:8px 0 0">Monthly Recap
+เข้า Dashboard เพื่อดูสรุปประจำเดือน และวางแผน Coaching เดือนหน้า</pre></details></td>
+                <td style="padding:9px"><button class="bsm" onclick="deskTriggerMonthlyRecap()" style="font-size:10px">ส่งตอนนี้</button></td>
+              </tr>
+              <tr style="border-bottom:1px solid var(--bd)">
+                <td style="padding:9px"><span style="color:#06C755;font-weight:800">AUTO</span></td>
+                <td style="padding:9px;font-weight:800">🤝 1-2-1 Pending Reminder</td>
+                <td style="padding:9px">พุธ 18:00</td>
+                <td style="padding:9px">สมาชิกที่มีนัด 1-2-1 ค้างเกิน 7 วัน</td>
+                <td style="padding:9px"><details><summary style="cursor:pointer;color:var(--ac)">Preview</summary><pre style="white-space:pre-wrap;font-family:Sarabun,sans-serif;color:var(--tx);font-size:11px;line-height:1.6;background:var(--sf);border-radius:8px;padding:10px;margin:8px 0 0">มีนัด 1-2-1 ที่ยังค้างอยู่ครับ
+พิมพ์ "เจอแล้ว" หลังจากพบกันแล้วนะครับ</pre></details></td>
+                <td style="padding:9px"><button class="bsm" onclick="deskTrigger121Reminder()" style="font-size:10px">ส่งตอนนี้</button></td>
+              </tr>
+              <tr style="border-bottom:1px solid var(--bd)">
+                <td style="padding:9px"><span style="color:#f59e0b;font-weight:800">EVENT</span></td>
+                <td style="padding:9px;font-weight:800">🔁 Renewal Reminder</td>
+                <td style="padding:9px">ทุกวัน 10:00</td>
+                <td style="padding:9px">สมาชิกที่ใกล้ต่ออายุ milestone</td>
+                <td style="padding:9px"><details><summary style="cursor:pointer;color:var(--ac)">Preview</summary><pre style="white-space:pre-wrap;font-family:Sarabun,sans-serif;color:var(--tx);font-size:11px;line-height:1.6;background:var(--sf);border-radius:8px;padding:10px;margin:8px 0 0">เตือนตาม milestone การต่ออายุ เช่น 45/30/14/7 วันก่อนหมดอายุ</pre></details></td>
+                <td style="padding:9px;color:var(--sub)">อัตโนมัติ</td>
+              </tr>
+              <tr>
+                <td style="padding:9px"><span style="color:#f59e0b;font-weight:800">MANUAL</span></td>
+                <td style="padding:9px;font-weight:800">📋 Friday Prep Prompt</td>
+                <td style="padding:9px">กดส่งเอง</td>
+                <td style="padding:9px">สมาชิกทุกคน</td>
+                <td style="padding:9px"><details><summary style="cursor:pointer;color:var(--ac)">Preview</summary><pre style="white-space:pre-wrap;font-family:Sarabun,sans-serif;color:var(--tx);font-size:11px;line-height:1.6;background:var(--sf);border-radius:8px;padding:10px;margin:8px 0 0">เตรียมประชุมวันศุกร์
+ก่อนเจอกันพรุ่งนี้ อย่าลืม Referral / 1-2-1 / Visitor / Sub</pre></details></td>
+                <td style="padding:9px"><button class="bsm" onclick="deskTriggerPostMeeting()" style="font-size:10px">ส่งตอนนี้</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="font-size:10px;color:var(--sub);line-height:1.6;margin-top:10px">หมายเหตุ: เวลาทั้งหมดเป็นเวลาไทย · ข้อความที่ใช้ quota คือรายการที่ส่งผ่าน LINE push/multicast · Auto schedule ถูกควบคุมโดย Supabase pg_cron</div>
+      </div>
       <div class="sh"><h2>📩 ข้อความที่มีอยู่</h2><span class="ctag" id="msgn">0</span></div>
       <div class="ml" id="msgl"></div>
     </div>
