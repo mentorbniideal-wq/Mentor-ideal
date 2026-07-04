@@ -337,7 +337,7 @@ BEGIN
 
   PERFORM cron.schedule('line-monday-brief', '0 1 * * 1',
     $job$SELECT public.call_cron_job('mondayMorningBrief');$job$);
-  PERFORM cron.schedule('line-wednesday-nudge', '0 16 * * 3',
+  PERFORM cron.schedule('line-wednesday-nudge', '0 11 * * 4',
     $job$SELECT public.call_cron_job('wednesdayNudge');$job$);
   PERFORM cron.schedule('line-thursday-score', '0 0 * * 4',
     $job$SELECT public.call_cron_job('thursdayBotPush');$job$);

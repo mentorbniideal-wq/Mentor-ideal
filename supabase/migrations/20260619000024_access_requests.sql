@@ -108,14 +108,14 @@ BEGIN
 
   PERFORM cron.schedule('thursday-line-score-alert', '0 0 * * 4', $q$SELECT call_edge_function('triggerScoreAlert');$q$);
   v_results := array_append(v_results, '✅ Score Alert — ทุกพฤหัส 07:00 TH');
-  PERFORM cron.schedule('wednesday-mentor-nudge', '0 9 * * 3', $q$SELECT call_edge_function('triggerWednesdayNudge');$q$);
-  v_results := array_append(v_results, '✅ Wednesday Nudge — ทุกพุธ 16:00 TH');
+  PERFORM cron.schedule('wednesday-mentor-nudge', '0 11 * * 4', $q$SELECT call_edge_function('triggerWednesdayNudge');$q$);
+  v_results := array_append(v_results, '✅ Friday Meeting Reminder — ทุกพฤหัส 18:00 TH');
   PERFORM cron.schedule('thursday-checkin-reminder', '0 23 * * 3', $q$SELECT call_edge_function('triggerCheckinReminder');$q$);
-  v_results := array_append(v_results, '✅ Check-In Reminder — ทุกพฤหัส 06:00 TH');
+  v_results := array_append(v_results, '✅ Friday Prep Reminder — ทุกพฤหัส 06:00 TH');
   PERFORM cron.schedule('daily-anniversary-check', '0 2 * * *', $q$SELECT call_edge_function('triggerAnniversary');$q$);
   v_results := array_append(v_results, '✅ Anniversary Alert — ทุกวัน 09:00 TH');
   PERFORM cron.schedule('thursday-post-meeting-prompt', '0 7 * * 4', $q$SELECT call_edge_function('triggerPostMeetingPrompt');$q$);
-  v_results := array_append(v_results, '✅ Post-Meeting Prompt — ทุกพฤหัส 14:00 TH');
+  v_results := array_append(v_results, '✅ Friday Prep Prompt — ทุกพฤหัส 14:00 TH');
   PERFORM cron.schedule('friday-weekly-score-push', '0 1 * * 5', $q$SELECT call_edge_function('triggerWeeklyScorePush');$q$);
   v_results := array_append(v_results, '✅ Weekly Score Push — ทุกศุกร์ 08:00 TH');
   PERFORM cron.schedule('friday-team-leaderboard', '0 2 * * 5', $q$SELECT call_edge_function('triggerTeamLeaderboard');$q$);

@@ -1339,7 +1339,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       for (const row of ((lineRows || []) as Record<string, unknown>[])) {
         const uid = String(row.line_user_id || '');
         if (uid) {
-          const nudge = `📋 BNI IDEAL — สรุปสัปดาห์\n\nพรุ่งนี้เจอกันที่ประชุม! 🎯\nอย่าลืมเตรียม:\n• Referral ให้ทีม\n• ตรวจสอบ 1-2-1 ของลูกทีม\n• CEU และ Visitor ครบหรือยัง?\n\nพิมพ์ "สถานะ" เพื่อดูคะแนนล่าสุด`;
+          const nudge = `📋 BNI IDEAL — เตรียมประชุมวันศุกร์\n\nพรุ่งนี้วันศุกร์เจอกันที่ประชุมครับ 🎯\nอย่าลืมเตรียม:\n• Referral ให้ทีม\n• ตรวจสอบ 1-2-1 ของลูกทีม\n• CEU และ Visitor ครบหรือยัง?\n\nพิมพ์ "สถานะ" เพื่อดูคะแนนล่าสุด`;
           await sendLineMsg(uid, nudge);
           sentCount++;
         }
@@ -1359,7 +1359,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       }
 
       const { data: lineRows } = await db.from('line_members').select('line_user_id');
-      const msg = `📋 BNI IDEAL — ประชุมวันนี้!\n\nอย่าลืมเตรียมตัว:\n✅ Referral ที่จะส่งวันนี้\n✅ Visitor ที่พาเข้ามา\n✅ 1-2-1 ที่นัดไว้\n\nพบกันเช้านี้ 💪`;
+      const msg = `📋 BNI IDEAL — พรุ่งนี้วันศุกร์มีประชุม!\n\nเช็คลิสต์เตรียมตัววันนี้:\n✅ Referral ที่จะส่งพรุ่งนี้\n✅ Visitor ที่จะพามายืนยันแล้วหรือยัง\n✅ 1-2-1 ที่อยากนัดหลังประชุม\n\nเจอกันพรุ่งนี้เช้าครับ 💪`;
       let sentCount = 0;
       for (const row of ((lineRows || []) as Record<string, unknown>[])) {
         const uid = String(row.line_user_id || '');
@@ -1489,7 +1489,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       return jsonResponse({ ok: true, message: 'chapter pulse sent', sentCount: 1 });
     }
 
-    // ── TRIGGER: Post-Meeting Prompt — Thursday 2PM Bangkok ──
+    // ── TRIGGER: Friday Prep Prompt — Thursday 2PM Bangkok ──
     case 'triggerPostMeetingPrompt': {
       const cronSecret = String(p.cron_secret || '');
       if (cronSecret) {
@@ -1501,7 +1501,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       }
 
       const { data: lineRows } = await db.from('line_members').select('line_user_id');
-      const msg = `✅ BNI IDEAL — หลังประชุมวันนี้\n\nอย่าลืมบันทึก:\n📝 1-2-1 ที่นัดแล้ว\n🤝 Referral ที่รับ/ส่งวันนี้\n🎓 CEU ที่ทำในที่ประชุม\n\nพิมพ์ "สถานะ" เพื่อดูคะแนนอัพเดต`;
+      const msg = `✅ BNI IDEAL — เตรียมประชุมวันศุกร์\n\nก่อนเจอกันพรุ่งนี้ อย่าลืม:\n📝 เตรียม Referral ที่จะส่งให้ชัด\n🤝 เลือกคนที่อยากนัด 1-2-1 หลังประชุม\n👥 ยืนยัน Visitor / Sub ถ้ามี\n\nพิมพ์ "สถานะ" เพื่อดูคะแนนล่าสุด`;
       let sentCount = 0;
       for (const row of ((lineRows || []) as Record<string, unknown>[])) {
         const uid = String(row.line_user_id || '');

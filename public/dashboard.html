@@ -1905,8 +1905,8 @@ main{
               <button onclick="deskTriggerAnniversary()" style="background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);color:#fbbf24;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:Sarabun,sans-serif">🎂 BNI Anniversary</button>
               <button onclick="deskTriggerWeeklyScore()" style="background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);color:#818cf8;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:Sarabun,sans-serif">📊 Weekly Score Card</button>
               <button onclick="deskTriggerChapterPulse()" style="background:rgba(6,182,212,.1);border:1px solid rgba(6,182,212,.3);color:#22d3ee;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:Sarabun,sans-serif">🏆 Chapter Pulse → MC</button>
-              <button onclick="deskTriggerPostMeeting()" style="background:rgba(251,146,60,.12);border:1px solid rgba(251,146,60,.3);color:#fb923c;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:Sarabun,sans-serif">📋 Post-Meeting Prompt</button>
-              <button onclick="deskTriggerWednesdayNudge()" style="background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.3);color:#a78bfa;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:Sarabun,sans-serif">⏰ Wednesday Nudge</button>
+              <button onclick="deskTriggerPostMeeting()" style="background:rgba(251,146,60,.12);border:1px solid rgba(251,146,60,.3);color:#fb923c;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:Sarabun,sans-serif">📋 Friday Prep Prompt</button>
+              <button onclick="deskTriggerWednesdayNudge()" style="background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.3);color:#a78bfa;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:Sarabun,sans-serif">⏰ Friday Meeting Reminder</button>
               <button onclick="deskTriggerLeaderboard()" style="background:rgba(250,204,21,.1);border:1px solid rgba(250,204,21,.3);color:#fbbf24;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:Sarabun,sans-serif">🏆 Team Leaderboard</button>
               <button onclick="deskTriggerMondayBrief()" style="background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.3);color:#38bdf8;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:Sarabun,sans-serif">🌅 Monday Brief</button>
               <button onclick="deskTriggerMonthlyRecap()" style="background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.3);color:#34d399;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:Sarabun,sans-serif">📊 Monthly Recap</button>
@@ -11371,17 +11371,17 @@ function lineIssueReopen(issueId){
 }
 
 function deskTriggerPostMeeting() {
-  if (!confirm('ส่ง Post-Meeting Prompt หลังประชุมให้สมาชิกทุกคนตอนนี้เลยไหมครับ?')) return;
+  if (!confirm('ส่ง Friday Prep Prompt เตรียมประชุมวันศุกร์ให้สมาชิกทุกคนตอนนี้เลยไหมครับ?')) return;
   gsr('triggerPostMeetingPrompt',{role:S.role},function(r){
-    if (r&&r.ok) toast('📋 Post-Meeting Prompt ส่งแล้ว ✅','ok');
+    if (r&&r.ok) toast('📋 Friday Prep Prompt ส่งแล้ว ✅','ok');
     else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');
   });
 }
 
 function deskTriggerWednesdayNudge() {
-  if (!confirm('ส่ง Wednesday Nudge ให้สมาชิกที่ขาด metric ตอนนี้เลยไหมครับ?')) return;
+  if (!confirm('ส่ง Friday Meeting Reminder เตือนประชุมวันศุกร์ตอนนี้เลยไหมครับ?')) return;
   gsr('triggerWednesdayNudge',{role:S.role},function(r){
-    if (r&&r.ok) toast('⏰ Wednesday Nudge ส่งแล้ว ✅','ok');
+    if (r&&r.ok) toast('⏰ Friday Meeting Reminder ส่งแล้ว ✅','ok');
     else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');
   });
 }

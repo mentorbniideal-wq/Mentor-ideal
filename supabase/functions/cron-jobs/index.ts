@@ -7,8 +7,8 @@
 //
 // pg_cron schedule reference (all times UTC, TH = UTC+7):
 //   Mon 01:00 UTC = Mon 08:00 TH   → mondayMorningBrief  (MC + all members)
-//   Wed 16:00 UTC = Wed 23:00 TH   → wednesdayNudge       (short pre-meeting ping)
-//   Thu 00:00 UTC = Thu 07:00 TH   → thursdayBotPush      (personalized score + action)
+//   Thu 11:00 UTC = Thu 18:00 TH   → wednesdayNudge       (Friday meeting reminder)
+//   Thu 00:00 UTC = Thu 07:00 TH   → thursdayBotPush      (personalized score + Friday action)
 //   Fri 06:00 UTC = Fri 13:00 TH   → fridayEveningReminder (post-meeting + leaderboard)
 //   Fri 09:00 UTC = Fri 16:00 TH   → fridayTeamLeaderboard (no-op: merged into above)
 //   1st of month 01:00 UTC          → monthlyRecap
@@ -208,7 +208,7 @@ async function mondayMorningBrief(db: DB): Promise<void> {
       `3 เป้าหมายสัปดาห์นี้:\n` +
       `✅ ส่ง Referral อย่างน้อย 1 ใบ\n` +
       `🤝 นัด 1-2-1 อย่างน้อย 1 ครั้ง\n` +
-      `👥 ชวน Visitor มาประชุมวันพฤหัส\n` +
+      `👥 ชวน Visitor มาประชุมวันศุกร์\n` +
       `────────────────────\n` +
       `พิมพ์ "สถานะ" ดูคะแนนของคุณ`,
       {
@@ -221,12 +221,12 @@ async function mondayMorningBrief(db: DB): Promise<void> {
   }
 }
 
-// ── Wednesday night TH: short pre-meeting ping ───────────────
+// ── Thursday evening TH: Friday meeting reminder ─────────────
 async function wednesdayNudge(db: DB): Promise<void> {
   const ids = await getLineRecipients(db, 'nudge');
   if (ids.length) {
     await lineMulticast(ids,
-      `⏰ พรุ่งนี้ประชุม BNI ครับ!\n` +
+      `⏰ พรุ่งนี้วันศุกร์มีประชุม BNI IDEAL ครับ!\n` +
       `────────────────────\n` +
       `เตรียมอะไรไว้บ้างแล้ว?\n` +
       `• Referral ✍️\n• Visitor 👥\n• 1-2-1 🤝\n` +
@@ -242,7 +242,7 @@ async function wednesdayNudge(db: DB): Promise<void> {
   }
 }
 
-// ── Thursday 07:00 TH: personalized score + meeting-day action ──
+// ── Thursday 07:00 TH: personalized score + Friday meeting action ──
 async function thursdayBotPush(db: DB): Promise<void> {
   const { data: lineMembers } = await db.from('line_members')
     .select('line_user_id, member_id, members(name, nickname)');
@@ -264,12 +264,12 @@ async function thursdayBotPush(db: DB): Promise<void> {
       `────────────────────\n` +
       `${tlIcon} คะแนนล่าสุด: ${m.display_score}/100 pt\n` +
       `────────────────────\n` +
-      `🎯 วันนี้เน้น:\n${action}\n` +
+      `🎯 วันนี้เน้น เพื่อพร้อมประชุมวันศุกร์:\n${action}\n` +
       `────────────────────\n` +
-      `✅ เช็คลิสต์ก่อนประชุม:\n` +
-      `• Referral เตรียมไว้แล้ว?\n` +
-      `• Visitor พามาด้วยไหม?\n` +
-      `• 1-2-1 นัดไว้กับใคร?\n` +
+      `✅ เช็คลิสต์ก่อนประชุมพรุ่งนี้:\n` +
+      `• Referral ที่จะส่งวันศุกร์เตรียมไว้แล้ว?\n` +
+      `• Visitor ที่จะพามาด้วยยืนยันแล้วไหม?\n` +
+      `• 1-2-1 นัดไว้กับใครหลังประชุม?\n` +
       `────────────────────\n` +
       `พิมพ์ "สถานะ" ดูรายละเอียดครับ`;
 
