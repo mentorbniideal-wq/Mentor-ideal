@@ -984,18 +984,27 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const weekNum = Number(p.weekNum || 1);
-      const { data: msgRow } = await db
+      const nick = String(p.nick || p.nickname || 'สมาชิก').trim() || 'สมาชิก';
+      const requestedWeek = Number(p.weekNum || p.week || 0);
+      const { data: rows, error } = await db
         .from('onboarding_messages')
-        .select('message_text')
-        .eq('week_number', weekNum)
-        .maybeSingle();
+        .select('week_number, message_text')
+        .order('week_number', { ascending: true });
+      if (error) return errResponse(error.message);
 
-      const preview = msgRow
-        ? String((msgRow as Record<string, unknown>).message_text || '')
-        : `[Week ${weekNum} — ยังไม่มีข้อความ]`;
+      const weeks: Record<number, string> = {};
+      for (const row of (rows || []) as Record<string, unknown>[]) {
+        const wk = Number(row.week_number) || 0;
+        if (wk > 0) weeks[wk] = String(row.message_text || '').replace(/\{nick\}/g, nick);
+      }
+      for (let w = 1; w <= 8; w++) {
+        if (!weeks[w]) weeks[w] = `[Week ${w} — ยังไม่มีข้อความ]`.replace(/\{nick\}/g, nick);
+      }
 
-      return jsonResponse({ ok: true, weekNum, preview });
+      if (requestedWeek > 0) {
+        return jsonResponse({ ok: true, weekNum: requestedWeek, preview: weeks[requestedWeek] || `[Week ${requestedWeek} — ยังไม่มีข้อความ]`, weeks });
+      }
+      return jsonResponse({ ok: true, weeks });
     }
 
     // ── SAVE: upsert an onboarding message template (MC only) ─
@@ -1003,8 +1012,8 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const weekNum     = Number(p.weekNum);
-      const messageText = String(p.messageText || '').trim();
+      const weekNum     = Number(p.weekNum || p.week);
+      const messageText = String(p.messageText || p.message || '').trim();
       if (!weekNum || !messageText) return errResponse('weekNum and messageText required');
 
       const { error } = await db.from('onboarding_messages').upsert(
@@ -1022,7 +1031,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       if (!auth.ok) return errResponse(auth.error!);
 
       const memberName = String(p.memberName || '').trim();
-      const weekNum    = Number(p.weekNum);
+      const weekNum    = Number(p.weekNum || p.week);
       if (!memberName || !weekNum) return errResponse('memberName and weekNum required');
 
       const memberId = await findMemberId(db, memberName);
@@ -1067,7 +1076,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         { onConflict: 'member_id,week_number' },
       );
 
-      return jsonResponse({ ok: true, sent });
+      return jsonResponse({ ok: true, sent, message: sent ? `ส่ง Week ${weekNum} แล้ว` : `บันทึก Week ${weekNum} แล้ว แต่สมาชิกยังไม่ได้ผูก LINE` });
     }
 
     // ── MENTOR BROADCAST: mentor sends to own team members ────
