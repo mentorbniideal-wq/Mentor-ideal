@@ -72,8 +72,8 @@ header{background:var(--sf);border-bottom:1px solid var(--bd);padding:0 28px;dis
 .bac{color:var(--ac);font-weight:600}
 .blo{color:var(--sub)}.blo:hover{border-color:var(--re);color:var(--re)}
 
-.tabs-wrap{position:relative}
-.tabs-wrap::after{content:'';position:absolute;right:0;top:0;bottom:0;width:40px;background:linear-gradient(to left,var(--sf,#0f172a),transparent);pointer-events:none;z-index:1}
+.tabs-wrap{position:relative;grid-column:1;grid-row:2;min-height:0}
+.tabs-wrap::after{display:none}
 .tabs{background:var(--sf);border-bottom:none;padding:8px 20px;display:flex;gap:5px;overflow-x:auto;position:relative;scrollbar-width:none;box-shadow:0 1px 0 var(--bd)}
 .tabs::-webkit-scrollbar{display:none}
 .tabs::after{content:'';position:absolute;right:0;top:0;bottom:0;width:40px;background:linear-gradient(to right,transparent,var(--sf));pointer-events:none}
