@@ -65,6 +65,7 @@ const ROUTES: Record<string, string> = {
   'getMemberDetail': 'dashboard', 'getScorecard': 'dashboard',
   'getMyTeam': 'dashboard', 'getLeaderboard': 'dashboard',
   'getChapterTrend': 'dashboard', 'getChapterPulse': 'dashboard',
+  'getTrafficLightMonthlySummary': 'dashboard',
   'getCurrentMonth': 'dashboard', 'setCurrentMonth': 'dashboard',
   'verifyScoring': 'dashboard', 'getMCCoaching': 'dashboard',
   'getMCData': 'dashboard',
