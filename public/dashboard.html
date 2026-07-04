@@ -1406,6 +1406,7 @@ main{
           <button class="rail-action" onclick="openMeetingPrep()">Meeting Prep</button>
           <button class="rail-action" onclick="openActionCenter('pq')">Action Center</button>
           <button class="rail-action" onclick="openSyncModal()">Monthly Sync</button>
+          <button class="rail-action" onclick="openTrafficLightMonthlySummary()">Traffic Light Summary</button>
           <button class="rail-action" onclick="generateSnapshot()">Weekly Snapshot</button>
         </div>
         <div class="rail-card">
@@ -1431,6 +1432,7 @@ main{
       <!-- ─ Meeting Prep + Refresh ─ -->
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
         <button class="btn-prep-main" onclick="openMeetingPrep()">📋 Meeting Prep <span style="font-size:11px;font-weight:400;color:var(--sub)">สร้างแผนประชุมอัตโนมัติ</span></button>
+        <button class="bsm" onclick="openTrafficLightMonthlySummary()" style="font-size:11px;background:rgba(192,168,117,.14);border-color:rgba(192,168,117,.34);color:var(--ac)">📊 สรุปสีรายเดือน</button>
         <button class="bsm" onclick="renderMCAll()" style="font-size:11px;margin-left:auto">↺ รีเฟรชทั้งหมด</button>
       </div>
 
@@ -3865,6 +3867,113 @@ function renderChapterPulse(){
       +'<span style="font-weight:700;color:'+bc2C+'">'+greenPct+'%</span>'
       +'<span style="color:var(--sub)">(Benchmark: 50%)</span>'
       +'</div>';
+  }
+}
+
+function tlThai(z){
+  return z==='green'?'เขียว':z==='yellow'?'เหลือง':z==='red'?'แดง':z==='black'?'ดำ':'ไม่มีข้อมูล';
+}
+function tlEmoji(z){
+  return z==='green'?'🟢':z==='yellow'?'🟡':z==='red'?'🔴':z==='black'?'⚫':'○';
+}
+function tlAccent(z){
+  return z==='green'?'var(--gr)':z==='yellow'?'var(--ye)':z==='red'?'var(--re)':'var(--bl)';
+}
+function fmtDelta(n){
+  n=Number(n)||0;
+  return (n>0?'+':'')+n;
+}
+function closeTrafficMonthlySummary(){
+  var el=document.getElementById('tl-monthly-modal');
+  if(el)el.remove();
+}
+function openTrafficLightMonthlySummary(){
+  ld(true);
+  gsr('getTrafficLightMonthlySummary',{role:S.role},function(r){
+    ld(false);
+    if(!r||!r.ok){toast('❌ '+((r&&r.error)||'โหลดสรุปสีไม่ได้'),'err');return;}
+    renderTrafficLightMonthlySummary(r);
+  });
+}
+function renderTrafficLightMonthlySummary(r){
+  closeTrafficMonthlySummary();
+  var cur=r.current,prev=r.previous,mv=r.movement||{};
+  if(!cur){
+    toast('ยังไม่มีข้อมูล Traffic Light Evolution ให้สรุปครับ','warn');
+    return;
+  }
+  var zones=['green','yellow','red','black'];
+  var cards=zones.map(function(z){
+    var count=(cur.counts&&cur.counts[z])||0;
+    var last=(prev&&prev.counts&&prev.counts[z])||0;
+    var d=(r.deltas&&r.deltas[z])||0;
+    var dColor=d>0?(z==='green'?'var(--gr)':'var(--ye)'):d<0?(z==='green'?'var(--re)':'var(--gr)'):'var(--sub)';
+    return '<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:18px;padding:16px;box-shadow:var(--sh-card);position:relative;overflow:hidden">'
+      +'<div style="position:absolute;inset:auto 0 0 0;height:3px;background:'+tlAccent(z)+'"></div>'
+      +'<div style="font-size:28px;line-height:1">'+tlEmoji(z)+'</div>'
+      +'<div style="font-size:28px;font-weight:900;color:var(--tx);margin-top:8px">'+count+'</div>'
+      +'<div style="font-size:12px;color:var(--sub);font-weight:700">สี'+tlThai(z)+'</div>'
+      +'<div style="font-size:11px;margin-top:8px;color:'+dColor+'">เดือนก่อน '+last+' · '+fmtDelta(d)+' คน</div>'
+      +'</div>';
+  }).join('');
+  function memberLine(m){
+    var diff=m.diff===null||m.diff===undefined?'':(' <span style="color:'+(m.diff>=0?'var(--gr)':'var(--re)')+'">'+(m.diff>0?'+':'')+m.diff+'</span>');
+    var team=m.team?'<span style="color:var(--sub)"> · '+esc(m.team)+'</span>':'';
+    var from=m.fromZone?tlEmoji(m.fromZone)+' '+tlThai(m.fromZone):'ไม่มี';
+    var to=m.toZone?tlEmoji(m.toZone)+' '+tlThai(m.toZone):'ไม่มี';
+    return '<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--bd)">'
+      +'<div style="min-width:70px;color:var(--sub);font-size:12px">'+from+' → '+to+'</div>'
+      +'<div style="flex:1;min-width:0"><div style="font-weight:800;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(m.nick||m.name||'-')+team+'</div>'
+      +'<div style="font-size:12px;color:var(--sub)">คะแนน '+(m.fromScore===null?'—':m.fromScore)+' → '+(m.toScore===null?'—':m.toScore)+diff+'</div></div>'
+      +'</div>';
+  }
+  function section(title,items,empty,limit){
+    items=items||[];
+    var shown=limit?items.slice(0,limit):items;
+    return '<div style="background:var(--sf);border:1px solid var(--bd);border-radius:18px;padding:16px;min-height:120px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px">'
+      +'<div style="font-weight:900;color:var(--tx)">'+title+'</div>'
+      +'<span style="font-size:11px;color:var(--sub);border:1px solid var(--bd);border-radius:999px;padding:3px 8px">'+items.length+' คน</span></div>'
+      +(shown.length?shown.map(memberLine).join(''):'<div style="color:var(--sub);font-size:13px;padding:14px 0">'+empty+'</div>')
+      +(limit&&items.length>limit?'<div style="font-size:11px;color:var(--sub);padding-top:8px">และอีก '+(items.length-limit)+' คน</div>':'')
+      +'</div>';
+  }
+  var summaryText='สรุป '+cur.label+(prev?' เทียบ '+prev.label:'')+' · '
+    +'เขียว '+(cur.counts.green||0)+' ('+fmtDelta((r.deltas||{}).green)+'), '
+    +'เหลือง '+(cur.counts.yellow||0)+' ('+fmtDelta((r.deltas||{}).yellow)+'), '
+    +'แดง '+(cur.counts.red||0)+' ('+fmtDelta((r.deltas||{}).red)+'), '
+    +'ดำ '+(cur.counts.black||0)+' ('+fmtDelta((r.deltas||{}).black)+')'
+    +' · ขึ้นสี '+((mv.up||[]).length)+' · ลงสี '+((mv.down||[]).length);
+  var html='<div id="tl-monthly-modal" onclick="if(event.target===this)closeTrafficMonthlySummary()" style="position:fixed;inset:0;background:rgba(0,0,0,.54);backdrop-filter:blur(8px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px">'
+    +'<div style="width:min(1120px,96vw);max-height:90vh;overflow:auto;background:var(--bg);border:1px solid var(--bd);border-radius:26px;box-shadow:0 30px 90px rgba(0,0,0,.45)">'
+    +'<div style="position:sticky;top:0;background:linear-gradient(135deg,var(--sf),var(--bg));border-bottom:1px solid var(--bd);padding:22px 24px;z-index:1;display:flex;align-items:flex-start;gap:16px">'
+    +'<div style="width:44px;height:44px;border-radius:16px;background:rgba(192,168,117,.18);display:flex;align-items:center;justify-content:center;font-size:22px">📊</div>'
+    +'<div style="flex:1"><div style="font-size:20px;font-weight:950;color:var(--tx)">Traffic Light Monthly Summary</div>'
+    +'<div style="font-size:13px;color:var(--sub);margin-top:4px">เดือนล่าสุด '+esc(cur.label)+(prev?' · เทียบกับ '+esc(prev.label):' · ยังไม่มีเดือนก่อนให้เทียบ')+'</div>'
+    +'<div id="tl-summary-copy" style="display:none">'+esc(summaryText)+'</div></div>'
+    +'<button class="bsm" onclick="copyTrafficMonthlySummary()" style="white-space:nowrap">Copy Summary</button>'
+    +'<button class="mcls" onclick="closeTrafficMonthlySummary()">✕ ปิด</button>'
+    +'</div>'
+    +'<div style="padding:24px">'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px">'+cards+'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px">'
+    +section('⬆️ สมาชิกที่ขึ้นสี',mv.up,'เดือนนี้ยังไม่มีคนขยับขึ้นสี',80)
+    +section('⬇️ สมาชิกที่ลงสี',mv.down,'เดือนนี้ยังไม่มีคนขยับลงสี',80)
+    +section('➖ สีเดิม แต่คะแนนเปลี่ยน',mv.same,'ยังไม่มีข้อมูลเทียบเดือนก่อน',40)
+    +section('🆕 มีข้อมูลเดือนนี้ แต่ไม่มีเดือนก่อน',mv.new,'ไม่มีสมาชิกใหม่ในชุดข้อมูลนี้',40)
+    +(mv.missing&&mv.missing.length?section('⚠️ เดือนนี้ไม่มีข้อมูล แต่เดือนก่อนมี',mv.missing,'',40):'')
+    +'</div>'
+    +'</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+function copyTrafficMonthlySummary(){
+  var el=document.getElementById('tl-summary-copy');
+  var txt=el?el.textContent:'';
+  if(!txt)return;
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(txt).then(function(){toast('Copy Summary แล้วครับ','ok');});
+  }else{
+    var t=document.createElement('textarea');t.value=txt;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);toast('Copy Summary แล้วครับ','ok');
   }
 }
 

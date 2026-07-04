@@ -1174,6 +1174,179 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       return jsonResponse({ ok: true, trend });
     }
 
+    case 'getTrafficLightMonthlySummary': {
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const { data: memRows, error: memErr } = await db
+        .from('v_member_dashboard')
+        .select('id, name, nickname, mentor_team, is_archived')
+        .eq('is_archived', false)
+        .order('mentor_team', { ascending: true })
+        .order('name', { ascending: true });
+      if (memErr) return errResponse(memErr.message);
+
+      const activeMembers = (memRows || []) as Record<string, unknown>[];
+      const memberIds = activeMembers.map((m) => String(m.id));
+      if (memberIds.length === 0) {
+        return jsonResponse({
+          ok: true,
+          current: null,
+          previous: null,
+          deltas: { green: 0, yellow: 0, red: 0, black: 0 },
+          movement: { up: [], down: [], same: [], new: [], missing: [] },
+        });
+      }
+
+      const { data: scoreRows, error: scoreErr } = await db
+        .from('monthly_scores')
+        .select('member_id, year, month, score')
+        .in('member_id', memberIds)
+        .order('year', { ascending: false })
+        .order('month', { ascending: false });
+      if (scoreErr) return errResponse(scoreErr.message);
+
+      const periodKeys: string[] = [];
+      const seenPeriods = new Set<string>();
+      for (const row of (scoreRows || []) as Record<string, unknown>[]) {
+        const year = Number(row.year) || 0;
+        const month = Number(row.month) || 0;
+        if (!year || !month) continue;
+        const key = `${year}-${String(month).padStart(2, '0')}`;
+        if (!seenPeriods.has(key)) {
+          seenPeriods.add(key);
+          periodKeys.push(key);
+        }
+        if (periodKeys.length >= 2) break;
+      }
+
+      const [currentKey, previousKey] = periodKeys;
+      function parsePeriod(key?: string | null) {
+        if (!key) return null;
+        const [year, month] = key.split('-').map(Number);
+        return {
+          key,
+          year,
+          month,
+          label: `${MONTH_LABELS[month] || String(month)} ${year}`,
+        };
+      }
+      const currentPeriod = parsePeriod(currentKey);
+      const previousPeriod = parsePeriod(previousKey);
+
+      if (!currentPeriod) {
+        return jsonResponse({
+          ok: true,
+          current: null,
+          previous: null,
+          deltas: { green: 0, yellow: 0, red: 0, black: 0 },
+          movement: { up: [], down: [], same: [], new: [], missing: [] },
+        });
+      }
+
+      function zoneOf(score: number): string {
+        if (score >= 70) return 'green';
+        if (score >= 50) return 'yellow';
+        if (score >= 30) return 'red';
+        return 'black';
+      }
+      const zoneRank: Record<string, number> = { black: 0, red: 1, yellow: 2, green: 3 };
+      const countsFor = () => ({ green: 0, yellow: 0, red: 0, black: 0, total: 0 });
+      const currentCounts = countsFor();
+      const previousCounts = countsFor();
+
+      const scoreByMemberPeriod: Record<string, Record<string, { score: number; zone: string }>> = {};
+      for (const row of (scoreRows || []) as Record<string, unknown>[]) {
+        const mid = String(row.member_id);
+        const year = Number(row.year) || 0;
+        const month = Number(row.month) || 0;
+        const key = `${year}-${String(month).padStart(2, '0')}`;
+        if (key !== currentKey && key !== previousKey) continue;
+        const score = Number(row.score) || 0;
+        const zone = zoneOf(score);
+        if (!scoreByMemberPeriod[mid]) scoreByMemberPeriod[mid] = {};
+        scoreByMemberPeriod[mid][key] = { score, zone };
+      }
+
+      type MovementEntry = {
+        id: string;
+        name: string;
+        nick: string;
+        team: string;
+        fromZone: string | null;
+        toZone: string | null;
+        fromScore: number | null;
+        toScore: number | null;
+        diff: number | null;
+      };
+      const movement: Record<'up' | 'down' | 'same' | 'new' | 'missing', MovementEntry[]> = {
+        up: [], down: [], same: [], new: [], missing: [],
+      };
+
+      for (const member of activeMembers) {
+        const id = String(member.id);
+        const nick = String(member.nickname || member.name || '');
+        const base = {
+          id,
+          name: String(member.name || ''),
+          nick,
+          team: String(member.mentor_team || ''),
+        };
+        const curr = scoreByMemberPeriod[id]?.[currentKey];
+        const prev = previousKey ? scoreByMemberPeriod[id]?.[previousKey] : undefined;
+
+        if (curr) {
+          currentCounts[curr.zone as keyof Omit<typeof currentCounts, 'total'>]++;
+          currentCounts.total++;
+        }
+        if (prev) {
+          previousCounts[prev.zone as keyof Omit<typeof previousCounts, 'total'>]++;
+          previousCounts.total++;
+        }
+
+        const entry: MovementEntry = {
+          ...base,
+          fromZone: prev?.zone || null,
+          toZone: curr?.zone || null,
+          fromScore: prev ? prev.score : null,
+          toScore: curr ? curr.score : null,
+          diff: curr && prev ? Number((curr.score - prev.score).toFixed(1)) : null,
+        };
+
+        if (curr && prev) {
+          const rankDiff = (zoneRank[curr.zone] ?? 0) - (zoneRank[prev.zone] ?? 0);
+          if (rankDiff > 0) movement.up.push(entry);
+          else if (rankDiff < 0) movement.down.push(entry);
+          else movement.same.push(entry);
+        } else if (curr && !prev) {
+          movement.new.push(entry);
+        } else if (!curr && prev) {
+          movement.missing.push(entry);
+        }
+      }
+
+      movement.up.sort((a, b) => (b.diff ?? 0) - (a.diff ?? 0));
+      movement.down.sort((a, b) => (a.diff ?? 0) - (b.diff ?? 0));
+      movement.same.sort((a, b) => (b.diff ?? 0) - (a.diff ?? 0));
+      movement.new.sort((a, b) => (b.toScore ?? 0) - (a.toScore ?? 0));
+      movement.missing.sort((a, b) => (b.fromScore ?? 0) - (a.fromScore ?? 0));
+
+      const deltas = {
+        green: currentCounts.green - previousCounts.green,
+        yellow: currentCounts.yellow - previousCounts.yellow,
+        red: currentCounts.red - previousCounts.red,
+        black: currentCounts.black - previousCounts.black,
+      };
+
+      return jsonResponse({
+        ok: true,
+        current: { ...currentPeriod, counts: currentCounts },
+        previous: previousPeriod ? { ...previousPeriod, counts: previousCounts } : null,
+        deltas,
+        movement,
+      });
+    }
+
     default:
       return errResponse(`Unknown dashboard action: ${action}`);
   }
