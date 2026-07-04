@@ -3480,19 +3480,19 @@ function loadGrowth(){
   ld(true);
   var done=0;
   function chk(){done++;if(done===3){ld(false);updateBadges();}}
-  gsr('getGrowthData',{role:'growth'},function(r){
+  gsr('getGrowthData',{},function(r){
     if(r.ok){G.mem=(r.members||[]).map(normalizeGrowthMember);G.sm=r.summary||{};
       document.getElementById('hup').textContent='อัพเดท: '+new Date().toLocaleTimeString('th');
       buildGrowthFilters();renderGrowthAll();}
     chk();
   });
-  gsr('getGrowthTasks',{role:'growth',statusFilter:'all'},function(r){
+  gsr('getGrowthTasks',{statusFilter:'all'},function(r){
     if(r.ok){G.tasks=r.tasks||[];renderTasks();}
     chk();
   });
-  gsr('getNewMembers',{role:'mc'},function(r){
+  gsr('getNewMembers',{},function(r){
     if(r.ok){G.nm=r.members||[];renderNM();renderChapterPulse();}
-    gsr('getRiskMembers',{role:'growth'},function(r2){
+    gsr('getRiskMembers',{},function(r2){
       if(r2.ok){G.dec=r2.risks||[];renderDec();}
     });
     chk();
@@ -5274,7 +5274,7 @@ function openRenewalFlow(encodedName,status,source){
 function loadGrowthRenewals(){
   var el=document.getElementById('gr-ren-list');if(!el)return;
   el.innerHTML='<div class="es">กำลังโหลด...</div>';
-  gsr('getRenewal',{role:'growth'},function(r){
+  gsr('getRenewal',{},function(r){
     var items=r&&r.ok?(r.items||[]):[];
     var declined=items.filter(function(x){return x.workflowStatus==='declined';});
     var active=items.filter(function(x){return x.workflowStatus!=='declined';});
@@ -7648,10 +7648,10 @@ function createTask(){
   var res=document.getElementById('tf-res');
   if(!tm||!mn){res.style.color='var(--re)';res.textContent='กรุณาเลือกทีมและใส่ชื่อสมาชิก';return;}
   res.style.color='var(--sub)';res.textContent='กำลังส่ง...';
-  gsr('createGrowthTask',{role:'growth',teamName:tm,memberName:mn,taskType:tp,priority:pr,note:nt},function(r){
+  gsr('createGrowthTask',{teamName:tm,memberName:mn,taskType:tp,priority:pr,note:nt},function(r){
     if(r.ok){res.style.color='var(--gr)';res.textContent='✓ สร้าง Task แล้ว';
       document.getElementById('tf-member').value='';document.getElementById('tf-note').value='';
-      gsr('getGrowthTasks',{role:'growth',statusFilter:'all'},function(r2){if(r2.ok){G.tasks=r2.tasks||[];renderTasks();}});
+      gsr('getGrowthTasks',{statusFilter:'all'},function(r2){if(r2.ok){G.tasks=r2.tasks||[];renderTasks();}});
     }else{res.style.color='var(--re)';res.textContent='ผิดพลาด: '+(r.error||'');}
   });
 }
@@ -8134,7 +8134,7 @@ function m360SendTask(){
     if(r.ok){
       res.style.color='var(--gr)';res.textContent='✓ สร้าง Task แล้ว';
       document.getElementById('m360-task-note').value='';
-      gsr('getGrowthTasks',{role:'growth',statusFilter:'all'},function(r2){if(r2.ok){G.tasks=r2.tasks||[];renderTasks();updateBadges();}});
+      gsr('getGrowthTasks',{statusFilter:'all'},function(r2){if(r2.ok){G.tasks=r2.tasks||[];renderTasks();updateBadges();}});
     }else{res.style.color='var(--re)';res.textContent='ผิดพลาด: '+(r.error||'');}
   });
 }

@@ -141,7 +141,7 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
 
     // ── Delete PT Member (remove power_teams pair or no-op) ──────
     case 'deletePTMember': {
-      const auth = await requireAuth(db, p, ['mc']);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const memberId = String(p.memberId || '');
@@ -162,7 +162,7 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
     // Frontend sends { nick, status } where status is 'active' or 'departed'.
     // 'departed' maps to is_archived=true; 'active' maps to is_archived=false.
     case 'setPTMemberStatus': {
-      const auth = await requireAuth(db, p, ['mc']);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const nick   = String(p.nick || p.name || p.memberName || '').trim();
@@ -201,7 +201,7 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
     // moveSynMember: frontend sends { name, nick, newTeamId }
     case 'movePTMember':
     case 'moveSynMember': {
-      const auth = await requireAuth(db, p, ['mc']);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const memberIdent = String(p.memberName || p.name || p.nick || '').trim();
@@ -343,7 +343,7 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
 
     // ── Save / Update / Delete Cross-Team Pair ───────────────────
     case 'saveCrossTeamPair': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const rowId = p.row ? String(p.row).trim() : null;

@@ -152,3 +152,6 @@ Tokens in `L.js` (`LINE_TOKENS` object) are placeholders. Replace `YOUR_*_TOKEN_
 - NM Checklist denominator is always 41 (`CHECKLIST_TOTAL` constant) — never dynamic (`items.length`).
 - GAS files (`WEBAPP.js`, `B.js`, `L.js`, etc.) must NOT be modified during Supabase migration work — they are the live production system.
 - After each `/audit` run, update `AUDIT_LOG.md` with new findings and re-check prior "Known issues".
+- **PostgreSQL function overloading:** `CREATE OR REPLACE FUNCTION` with a different argument list creates a NEW overload — it does NOT replace the old one. Always `DROP FUNCTION IF EXISTS <name>(<old_arg_types>)` before changing a function signature. Leaving the old overload causes both versions to coexist and the DB may call the wrong one (root cause of the bot outage in Round 7).
+- **Growth role in `gsr()` calls:** Never hardcode `{role:'mc'}` or `{role:'growth'}` in `gsr()` / `call()` payloads — `gsr()` automatically injects `S.role`. Hardcoded roles break PIN auth when the actual logged-in role differs.
+- **`public/` vs root HTML files:** `public/dashboard.html` and `public/index.html` are the Supabase/Vercel frontend. Root `dashboard.html` and `index.html` are the legacy GAS frontend. They are separate files — changes to one do NOT affect the other.

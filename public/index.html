@@ -9170,7 +9170,7 @@ function gRenewalLoad(force){
 // ── Growth Team Comparison ───────────────────────────────────
 function gWatchLoad(){
   var el=document.getElementById('g-gw-content');if(!el)return;
-  var members=S.allMembers||[];
+  var members=(GS.members&&GS.members.length)?GS.members:(S.allMembers||[]);
   var gw=members.filter(function(m){return m.mentoringMode==='growth_watch';});
   if(!gw.length){
     el.innerHTML='<div style="text-align:center;padding:2rem 1rem;">'
@@ -9216,7 +9216,7 @@ function gWatchLoad(){
 
 function gTeamsLoad(){
   var el=document.getElementById('g-teams-content');
-  var members=S.allMembers||[];
+  var members=(GS.members&&GS.members.length)?GS.members:(S.allMembers||[]);
   if(!members.length){
     if(el)el.innerHTML='<div class="lt">⏳ กำลังโหลดข้อมูล...</div>';
     return;

@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="theme-color" content="#0f1117">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
 <title>BNI IDEAL — Desktop</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -54,17 +56,20 @@ header{background:var(--sf);border-bottom:1px solid var(--bd);padding:0 28px;dis
 .bac{color:var(--ac);font-weight:600}
 .blo{color:var(--sub)}.blo:hover{border-color:var(--re);color:var(--re)}
 
-.tabs{background:var(--sf);border-bottom:1px solid var(--bd);padding:0 28px;display:flex;gap:2px;overflow-x:auto}
+.tabs{background:var(--sf);border-bottom:1px solid var(--bd);padding:0 28px;display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;position:relative}
+.tabs::-webkit-scrollbar{display:none}
+.tabs::after{content:'';position:sticky;right:0;min-width:48px;background:linear-gradient(to right,transparent,var(--sf));pointer-events:none;flex-shrink:0}
 .tb{padding:10px 16px;border:none;background:transparent;color:var(--sub);font-size:13px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap}
 .tb.on{color:var(--ac);border-bottom-color:var(--ac);font-weight:600}
 .tb:hover:not(.on){color:var(--tx)}
+.tb:focus-visible,.btn:focus-visible,button:focus-visible{outline:2px solid var(--ac);outline-offset:2px;border-radius:4px}
 
 main{flex:1;padding:22px 28px;max-width:1680px;width:100%;margin:0 auto}
 .sec{display:none}.sec.on{display:block}
 
 /* Cards */
 .kgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:13px;margin-bottom:22px}
-.kc{background:var(--sf);border:1px solid var(--bd);border-radius:11px;padding:16px 18px;position:relative;overflow:hidden}
+.kc{background:var(--sf);border:1px solid var(--bd);border-radius:11px;padding:16px 18px;position:relative;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.35)}
 .kc::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
 .kc.gr::before{background:var(--gr)}.kc.ye::before{background:var(--ye)}
 .kc.re::before{background:var(--re)}.kc.bl::before{background:var(--bl)}
@@ -74,7 +79,7 @@ main{flex:1;padding:22px 28px;max-width:1680px;width:100%;margin:0 auto}
 /* ════════ OVERVIEW REDESIGN ════════ */
 /* Zone A — Chapter Pulse */
 .pulse-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
-.pulse-card{background:var(--sf2);border:1px solid var(--bd);border-radius:14px;padding:18px 16px 14px;position:relative;overflow:hidden;transition:border-color .2s,transform .15s}
+.pulse-card{background:var(--sf2);border:1px solid var(--bd);border-radius:14px;padding:18px 16px 14px;position:relative;overflow:hidden;transition:border-color .2s,transform .15s;box-shadow:0 1px 4px rgba(0,0,0,.4)}
 .pulse-card[onclick]{cursor:pointer}
 .pulse-card[onclick]:hover{border-color:rgba(108,99,255,.5);transform:translateY(-2px)}
 .pulse-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;background:var(--pulse-c,var(--ac))}
@@ -99,7 +104,7 @@ main{flex:1;padding:22px 28px;max-width:1680px;width:100%;margin:0 auto}
 
 /* Zone D — Intelligence Grid */
 .intel-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}
-.intel-card{background:var(--sf2);border:1px solid var(--bd);border-radius:14px;padding:16px 18px}
+.intel-card{background:var(--sf2);border:1px solid var(--bd);border-radius:14px;padding:16px 18px;box-shadow:0 1px 4px rgba(0,0,0,.4)}
 .intel-hdr{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--bd)}
 .intel-title{font-size:13px;font-weight:700;flex:1}.intel-ct{background:var(--sf);border:1px solid var(--bd);border-radius:99px;font-size:10px;padding:2px 9px;color:var(--sub)}
 .dr-row{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--sf);border:1px solid var(--bd);border-radius:9px;margin-bottom:7px;cursor:pointer;transition:border-color .15s}
@@ -188,7 +193,7 @@ main{flex:1;padding:22px 28px;max-width:1680px;width:100%;margin:0 auto}
 
 /* Chart row */
 .crow{display:grid;grid-template-columns:250px 1fr;gap:16px;margin-bottom:22px}
-.cc{background:var(--sf);border:1px solid var(--bd);border-radius:11px;padding:18px}
+.cc{background:var(--sf);border:1px solid var(--bd);border-radius:11px;padding:18px;box-shadow:0 1px 3px rgba(0,0,0,.35)}
 .cct{font-size:10px;font-weight:600;color:var(--sub);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px}
 .dwrap{position:relative;width:150px;height:150px;margin:0 auto 12px}
 .dcen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
@@ -231,7 +236,7 @@ tbody tr:hover{background:rgba(108,99,255,.05)}
 
 /* Fast Track */
 .fg{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:13px}
-.fc{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:14px}
+.fc{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.3)}
 .fc:hover{border-color:var(--ac)}
 .fa{display:flex;align-items:center;gap:7px;background:var(--sf2);border-radius:6px;padding:7px 9px;margin-top:6px}
 .fac{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--sub);width:52px;flex-shrink:0}
@@ -300,7 +305,7 @@ tbody tr:hover{background:rgba(108,99,255,.05)}
 
 /* Growth-specific */
 .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:13px;margin-bottom:22px}
-.stat-c{background:var(--sf);border:1px solid var(--bd);border-radius:11px;padding:14px 16px;text-align:center}
+.stat-c{background:var(--sf);border:1px solid var(--bd);border-radius:11px;padding:14px 16px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.3)}
 .stat-v{font-size:26px;font-weight:700;margin-bottom:2px}
 .stat-l{font-size:11px;color:var(--sub)}
 .ji-bar{display:flex;height:8px;border-radius:4px;overflow:hidden;width:100%;background:var(--sf2)}
@@ -939,8 +944,8 @@ body.light .gs-drop,body.light .mbox,body.light .bk-box,body.light #meeting{back
     <button class="tb" onclick="sw('mc-rep',this,'mc')">📋 Reports<span class="nb" id="badge-rep"></span></button>
     <button class="tb" id="mc-ac-tab" onclick="openActionCenter('pq')">🎯 Action Center<span class="nb" id="badge-pq"></span><span class="nb" id="badge-coach" style="margin-left:2px"></span></button>
     <button class="tb" onclick="sw('mc-8w',this,'mc');load8WProgress()">🌱 8W Progress<span class="nb" id="badge-8w"></span></button>
-    <button class="tb" onclick="sw('mc-vis',this,'mc');loadVisitorLog()">🎯 Visitors</button>
-    <button class="tb" onclick="sw('mc-checkin',this,'mc');deskCiLoadHistory()">📋 Check-In</button>
+    <button class="tb" onclick="sw('mc-vis',this,'mc');loadVisitorLog()">👥 Visitors</button>
+    <button class="tb" onclick="sw('mc-checkin',this,'mc');deskCiLoadHistory()">✅ Check-In</button>
     <button class="tb" onclick="sw('mc-onboard-edit',this,'mc');loadOnboardEditor()">📝 Onboard Msgs</button>
     <button class="tb" onclick="sw('mc-usage',this,'mc');loadUsageLog()">📱 Activity</button>
   </div>
@@ -954,7 +959,7 @@ body.light .gs-drop,body.light .mbox,body.light .bk-box,body.light #meeting{back
     <button class="tb" onclick="sw('gr-dec',this,'gr')">📉 Score Trend<span class="nb" id="badge-dec"></span></button>
     <button class="tb" onclick="sw('gr-top',this,'gr')">🏆 Top Performance</button>
     <button class="tb" onclick="sw('gr-heat',this,'gr')">🌡️ Heatmap</button>
-    <button class="tb" onclick="sw('gr-rev',this,'gr');rvLoad()">📊 Revenue</button>
+    <button class="tb" onclick="sw('gr-rev',this,'gr');rvLoad()">💰 Revenue</button>
     <button class="tb" onclick="sw('gr-cmd',this,'gr');cmdLoad()">🎯 Command</button>
     <button class="tb" onclick="sw('gr-cross',this,'gr');crossLoad()">🔗 Cross-Team</button>
     <button class="tb" onclick="sw('gr-sprint',this,'gr');sprintLoad()">🗓️ Sprint</button>
