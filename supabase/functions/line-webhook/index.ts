@@ -12,7 +12,7 @@
 import { corsHeaders } from '../_shared/cors.ts';
 import { getServiceClient } from '../_shared/db.ts';
 import {
-  lineReplyMessages, LINE_QR_MAIN, LINE_QR_MENTOR, LINE_QR_MC, LINE_QR_GROWTH,
+  lineReplyMessages,
   eventIdFor, normalizeLinkToken, parseWebhookBody, sha256Hex, verifySignature,
   SIM_CAPTURES,
   type LineEvent,
@@ -226,7 +226,7 @@ async function handleEvent(
         ev.replyToken,
         [withQuickReplies(
           memberScoreFlex(data, Deno.env.get('LINE_LIFF_URL') || ''),
-          quickRepliesFor(role, true),
+          quickRepliesFor(role, true, data),
         )],
         {
           db,
@@ -244,7 +244,8 @@ async function handleEvent(
 
   if (replyText && ev.replyToken) {
     const isRegistered = !!memberName;
-    const qrButtons = quickRepliesFor(role, isRegistered);
+    const qrData = memberName ? await getMemberData(db, memberName) : null;
+    const qrButtons = quickRepliesFor(role, isRegistered, qrData || undefined, parsedCommand.name);
     const presentation = commandPresentation(parsedCommand.name, role, replyText);
     await lineReplyMessages(
       ev.replyToken,
@@ -265,11 +266,40 @@ async function handleEvent(
   }
 }
 
-function quickRepliesFor(role: LineRole | undefined, isRegistered: boolean): unknown[] | undefined {
-  if (role === 'mentor') return LINE_QR_MENTOR;
-  if (role === 'mc') return LINE_QR_MC;
-  if (role === 'growth') return LINE_QR_GROWTH;
-  return isRegistered ? LINE_QR_MAIN : undefined;
+function qr(label: string, text: string): unknown {
+  return { type: 'action', action: { type: 'message', label, text } };
+}
+
+function quickRepliesFor(
+  role: LineRole | undefined,
+  isRegistered: boolean,
+  data?: Record<string, unknown>,
+  currentCommand?: LineCommand,
+): unknown[] | undefined {
+  if (!isRegistered) return undefined;
+  const advice = data ? nextColorAdvice(data) : null;
+  const actionFirst = Boolean(advice && advice.pointsNeeded > 0 && currentCommand !== 'action-plan');
+  const primary = actionFirst
+    ? [
+      qr('🎯 ทำอะไร', 'ทำอะไร'),
+      qr('📊 สถานะ', 'สถานะ'),
+      qr('📈 ประวัติ', 'ประวัติ'),
+    ]
+    : [
+      qr('📊 สถานะ', 'สถานะ'),
+      qr('📈 ประวัติ', 'ประวัติ'),
+      qr('🎯 ทำอะไร', 'ทำอะไร'),
+    ];
+  const secondary = [
+    qr('👥 ทีม', 'ทีม'),
+    qr('🤝 แนะนำ', 'แนะนำ'),
+    qr('🙋 ลา', 'ลา'),
+    qr('👥 ส่ง sub', 'ส่ง sub'),
+    qr('🧭 ช่วยเหลือ', 'ช่วยเหลือ'),
+  ];
+  // Elevated LINE roles now use the same member-support command set.
+  if (role === 'mentor' || role === 'mc' || role === 'growth') return [...primary, ...secondary];
+  return [...primary, ...secondary];
 }
 
 function withQuickReplies(message: Record<string, unknown>, items?: unknown[]): Record<string, unknown> {
@@ -1559,12 +1589,15 @@ function buildRegistrationPrompt(): string {
 function buildHelpMessage(memberName: string): string {
   const nick = memberName.split(' ')[0];
   return (
-    `ไม่แน่ใจว่าคุณ${nick}พิมพ์อะไรครับ 😅\n\n` +
-    `ลองพิมพ์:\n` +
-    `· สถานะ → คะแนนวันนี้\n` +
-    `· ลา [เหตุผล] → แจ้งลา\n` +
-    `· นัด [ชื่อ] → บันทึก 1-2-1\n` +
-    `· ถาม [คำถาม] → AI ช่วยตอบ\n\n` +
-    `(เพิ่มเติม: ประวัติ · ทีม · เป้า · ปัญหา)`
+    `🧭 คุณ${nick} ใช้คำสั่งเหล่านี้ได้ครับ\n\n` +
+    `📊 สถานะ — ดูคะแนนล่าสุด\n` +
+    `📈 ประวัติ — ดูสี/คะแนนย้อนหลัง\n` +
+    `🎯 ทำอะไร — สิ่งที่ควรทำวันนี้\n` +
+    `👥 ทีม — ดู Mentor Team\n` +
+    `🤝 แนะนำ — หาเพื่อน 1-2-1\n` +
+    `🙋 ลา [เหตุผล] — แจ้งลา\n` +
+    `👥 ส่ง sub [ชื่อ] — แจ้งคนแทน\n` +
+    `💬 ถาม [คำถาม] — ให้ AI ช่วยคิด\n\n` +
+    `พิมพ์คำสั่งได้เลย หรือกดปุ่ม Quick Reply ด้านล่างครับ`
   );
 }

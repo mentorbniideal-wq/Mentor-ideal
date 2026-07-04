@@ -35,6 +35,7 @@ export function parseLineCommand(input: string): ParsedLineCommand {
   const normalized = text.toLocaleLowerCase('th-TH');
 
   if (['myid', 'id'].includes(normalized)) return command('debug-id');
+  if (['ช่วยเหลือ', 'help', 'คำสั่ง', 'command', 'commands', 'เมนู'].includes(normalized)) return command('help');
   if (['สถานะ', 'score', 'คะแนน'].includes(normalized)) return command('status');
   if (['ทำอะไร', 'action', 'next action', 'ทำอะไรดี'].includes(normalized)) return command('action-plan');
   if (['ประวัติ', 'trend', 'history'].includes(normalized)) return command('history');

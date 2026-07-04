@@ -244,6 +244,8 @@ Deno.test('all documented LINE command aliases resolve to stable command contrac
     ['สถานะ', 'status'],
     ['ทำอะไร', 'action-plan'],
     ['action', 'action-plan'],
+    ['ช่วยเหลือ', 'help'],
+    ['help', 'help'],
     ['ประวัติ', 'history'],
     ['ทีม', 'team'],
     ['focus 3', 'focus3'],
