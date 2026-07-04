@@ -169,11 +169,18 @@ async function handleEvent(
   const memberName: string | null = (lineRec as any)?.members?.name ?? null;
   const normalized = text.toLowerCase();
   const role = memberName ? await resolveLineRole(db, userId) : undefined;
+  const parsedCommand = parseLineCommand(text);
   await trackLineEvent(db, 'line_command_received', {
     lineUserId: userId,
     memberId: lineRec?.member_id ? String(lineRec.member_id) : null,
     source: 'line-webhook',
-    properties: { command: normalized.split(/\s+/)[0].slice(0, 30) },
+    properties: {
+      command: normalized.split(/\s+/)[0].slice(0, 30),
+      commandName: parsedCommand.name,
+      textPreview: safeLineTextPreview(text),
+      argumentPreview: safeLineTextPreview(parsedCommand.argument),
+      isRegistered: Boolean(memberName),
+    },
   });
 
   if (memberName && (normalized.startsWith('ถาม ') || normalized.startsWith('copilot ')) && ev.replyToken) {
@@ -239,7 +246,6 @@ async function handleEvent(
       return;
     }
   }
-  const parsedCommand = parseLineCommand(text);
   const replyText = await processCommand(db, userId, text, memberName, eventId, role);
 
   if (replyText && ev.replyToken) {
@@ -263,7 +269,23 @@ async function handleEvent(
         source: 'line-webhook',
       },
     );
+    await trackLineEvent(db, 'line_command_replied', {
+      lineUserId: userId,
+      memberId: lineRec?.member_id ? String(lineRec.member_id) : null,
+      role,
+      source: 'line-webhook',
+      properties: {
+        commandName: parsedCommand.name,
+        replyPreview: replyText.slice(0, 300),
+      },
+    });
   }
+}
+
+function safeLineTextPreview(text: string): string {
+  const trimmed = text.trim().slice(0, 300);
+  if (/^(?:เชื่อม|link)\s+/i.test(trimmed)) return trimmed.replace(/^(\S+)\s+.+$/i, '$1 ********');
+  return trimmed;
 }
 
 function qr(label: string, text: string): unknown {

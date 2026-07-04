@@ -13,6 +13,7 @@ import {
   buildRichMenu,
   type RichMenuRole,
 } from '../../_shared/line-rich-menu.ts';
+import { trackLineEvent } from '../../_shared/analytics.ts';
 
 // ── Unified LINE Push helper — no-op when token is absent (dev mode) ──
 const LINE_TOKEN = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || '';
@@ -68,6 +69,39 @@ async function findLineUserId(
     .maybeSingle();
   if (!data) return null;
   return String((data as Record<string, unknown>).line_user_id);
+}
+
+function lineActivityTypeMeta(type: string): { icon: string; label: string; tone: string } {
+  return ({
+    command_received: { icon: '💬', label: 'Member พิมพ์', tone: '#38bdf8' },
+    command_replied: { icon: '🤖', label: 'Bot ตอบ', tone: '#06C755' },
+    absence: { icon: '🙋', label: 'แจ้งลา', tone: '#f59e0b' },
+    substitute: { icon: '👥', label: 'ส่ง Sub', tone: '#f59e0b' },
+    issue: { icon: '⚠️', label: 'ขอความช่วยเหลือ', tone: '#f87171' },
+    goal: { icon: '🎯', label: 'ตั้งเป้าหมาย', tone: '#a78bfa' },
+    one_to_one: { icon: '🤝', label: '1-2-1', tone: '#34d399' },
+    liff: { icon: '📱', label: 'LIFF', tone: '#06C755' },
+    delivery: { icon: '📤', label: 'ข้อความที่ส่ง', tone: '#94a3b8' },
+  } as Record<string, { icon: string; label: string; tone: string }>)[type]
+    || { icon: '•', label: type || 'Activity', tone: '#94a3b8' };
+}
+
+function memberFromJoined(row: Record<string, unknown>, key = 'members'): {
+  memberName: string;
+  memberNick: string;
+  memberTeam: string;
+} {
+  const m = (row[key] || {}) as Record<string, unknown>;
+  return {
+    memberName: String(m.name || ''),
+    memberNick: String(m.nickname || m.name || ''),
+    memberTeam: String(m.mentor_team || ''),
+  };
+}
+
+function canManageTeamIssue(auth: Awaited<ReturnType<typeof requireAuth>>, team: string): boolean {
+  if (auth.isMC || auth.role === 'growth') return true;
+  return Boolean(auth.teamName && team && auth.teamName === team);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -452,6 +486,188 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       return jsonResponse({ ok: true, sent: true, sentTo });
     }
 
+    // ── GET: unified LINE member activity timeline ────────────
+    case 'getLineActivityTimeline': {
+      const auth = await requireAuth(db, p, ['mc', 'growth', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const limit = Math.min(160, Math.max(20, Number(p.limit) || 80));
+      const filterType = String(p.type || '').trim();
+      const filterTeam = String(p.team || '').trim();
+      const allowedTeam = auth.isMC || auth.role === 'growth'
+        ? filterTeam
+        : String(auth.teamName || '');
+      const since = new Date(Date.now() - 45 * 86400000).toISOString();
+      const items: Record<string, unknown>[] = [];
+
+      const pushItem = (item: Record<string, unknown>) => {
+        const team = String(item.memberTeam || '');
+        const type = String(item.type || '');
+        if (allowedTeam && team && team !== allowedTeam) return;
+        if (filterType && type !== filterType) return;
+        const meta = lineActivityTypeMeta(type);
+        items.push({ ...meta, ...item });
+      };
+
+      const [
+        eventsRes,
+        absenceRes,
+        issuesRes,
+        goalsRes,
+        oneRes,
+        deliveriesRes,
+      ] = await Promise.all([
+        db.from('line_product_events')
+          .select('id, event_name, line_user_id, member_id, role, source, properties, occurred_at, members(name, nickname, mentor_team)')
+          .gte('occurred_at', since)
+          .order('occurred_at', { ascending: false })
+          .limit(limit),
+        db.from('line_absence_log')
+          .select('id, created_at, week_date, absence_type, sub_name, reason, cancelled_at, members(name, nickname, mentor_team)')
+          .gte('created_at', since)
+          .order('created_at', { ascending: false })
+          .limit(60),
+        db.from('line_issues')
+          .select('id, reported_at, resolved_at, issue_text, mentor_response, members(name, nickname, mentor_team)')
+          .gte('reported_at', since)
+          .order('reported_at', { ascending: false })
+          .limit(60),
+        db.from('line_goals')
+          .select('id, goal_type, target, set_at, members(name, nickname, mentor_team)')
+          .gte('set_at', since)
+          .order('set_at', { ascending: false })
+          .limit(60),
+        db.from('one_to_one_logs')
+          .select(`
+            id, created_at, scheduled_date, met_at, outcome, partner_name,
+            initiator:members!one_to_one_logs_initiator_id_fkey(name, nickname, mentor_team),
+            partner:members!one_to_one_logs_partner_id_fkey(name, nickname, mentor_team)
+          `)
+          .gte('created_at', since)
+          .order('created_at', { ascending: false })
+          .limit(60),
+        db.from('line_message_deliveries')
+          .select('id, notification_type, source, status, created_at, sent_at, message_preview, last_error, members(name, nickname, mentor_team)')
+          .gte('created_at', since)
+          .order('created_at', { ascending: false })
+          .limit(60),
+      ]);
+
+      const firstError = eventsRes.error || absenceRes.error || issuesRes.error || goalsRes.error
+        || oneRes.error || deliveriesRes.error;
+      if (firstError) return errResponse(firstError.message);
+
+      for (const row of (eventsRes.data || []) as Record<string, unknown>[]) {
+        const props = (row.properties || {}) as Record<string, unknown>;
+        const eventName = String(row.event_name || '');
+        const type = eventName === 'line_command_received'
+          ? 'command_received'
+          : eventName === 'line_command_replied'
+          ? 'command_replied'
+          : eventName.startsWith('liff_')
+          ? 'liff'
+          : eventName.includes('copilot')
+          ? 'command_replied'
+          : 'command_received';
+        const member = memberFromJoined(row);
+        const text = String(props.textPreview || props.replyPreview || props.commandName || eventName || '');
+        pushItem({
+          id: `evt:${row.id}`,
+          type,
+          occurredAt: String(row.occurred_at || ''),
+          source: String(row.source || 'line'),
+          title: eventName === 'line_command_replied'
+            ? `Bot ตอบ: ${props.commandName || 'command'}`
+            : `Member พิมพ์: ${props.commandName || props.command || eventName}`,
+          detail: text,
+          status: eventName === 'line_command_received' && props.isRegistered === false ? 'ยังไม่เชื่อมบัญชี' : 'บันทึกแล้ว',
+          rawText: String(props.textPreview || ''),
+          ...member,
+        });
+      }
+
+      for (const row of (absenceRes.data || []) as Record<string, unknown>[]) {
+        const member = memberFromJoined(row);
+        const isSub = String(row.absence_type || '') === 'ส่ง sub';
+        pushItem({
+          id: `abs:${row.id}`,
+          type: isSub ? 'substitute' : 'absence',
+          occurredAt: String(row.created_at || ''),
+          source: 'line_absence_log',
+          title: isSub ? 'ส่ง Sub' : 'แจ้งลา',
+          detail: isSub ? `ผู้มาแทน: ${row.sub_name || '—'}` : String(row.reason || 'ไม่ระบุเหตุผล'),
+          status: row.cancelled_at ? 'ยกเลิกแล้ว' : `วันประชุม ${row.week_date || '—'}`,
+          ...member,
+        });
+      }
+
+      for (const row of (issuesRes.data || []) as Record<string, unknown>[]) {
+        pushItem({
+          id: `issue:${row.id}`,
+          type: 'issue',
+          occurredAt: String(row.reported_at || ''),
+          source: 'line_issues',
+          title: 'ขอความช่วยเหลือ',
+          detail: String(row.mentor_response || row.issue_text || ''),
+          status: row.resolved_at ? 'เสร็จสิ้น' : 'รอ Mentor/MC',
+          ...memberFromJoined(row),
+        });
+      }
+
+      for (const row of (goalsRes.data || []) as Record<string, unknown>[]) {
+        pushItem({
+          id: `goal:${row.id}`,
+          type: 'goal',
+          occurredAt: String(row.set_at || ''),
+          source: 'line_goals',
+          title: `ตั้งเป้า ${row.goal_type || ''}`,
+          detail: `target ${row.target || '—'}`,
+          status: 'บันทึกแล้ว',
+          ...memberFromJoined(row),
+        });
+      }
+
+      for (const row of (oneRes.data || []) as Record<string, unknown>[]) {
+        const member = memberFromJoined(row, 'initiator');
+        const partner = (row.partner || {}) as Record<string, unknown>;
+        pushItem({
+          id: `121:${row.id}`,
+          type: 'one_to_one',
+          occurredAt: String(row.created_at || ''),
+          source: 'one_to_one_logs',
+          title: `นัด 1-2-1 กับ ${partner.nickname || row.partner_name || partner.name || '—'}`,
+          detail: row.outcome ? String(row.outcome) : `วันที่นัด ${row.scheduled_date || 'วันนี้'}`,
+          status: row.met_at ? 'เจอแล้ว' : 'รอยืนยัน',
+          ...member,
+        });
+      }
+
+      for (const row of (deliveriesRes.data || []) as Record<string, unknown>[]) {
+        pushItem({
+          id: `delivery:${row.id}`,
+          type: 'delivery',
+          occurredAt: String(row.created_at || ''),
+          source: String(row.source || 'line_message_deliveries'),
+          title: `ส่งข้อความ: ${row.notification_type || 'line'}`,
+          detail: String(row.message_preview || row.last_error || ''),
+          status: String(row.status || ''),
+          ...memberFromJoined(row),
+        });
+      }
+
+      items.sort((a, b) =>
+        new Date(String(b.occurredAt || '')).getTime() - new Date(String(a.occurredAt || '')).getTime()
+      );
+
+      const sliced = items.slice(0, limit);
+      const summary = sliced.reduce((acc: Record<string, number>, item) => {
+        const type = String(item.type || 'other');
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+      }, {});
+      return jsonResponse({ ok: true, items: sliced, summary, teamScope: allowedTeam || 'chapter' });
+    }
+
     // ── GET: absence log (last 50) ────────────────────────────
     case 'getAbsenceLog': {
       const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
@@ -512,17 +728,22 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
     // ── GET: LINE issue reports (last 30) ─────────────────────
     case 'getLineIssues': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
+      const auth = await requireAuth(db, p, ['mc', 'growth', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const { data, error } = await db
         .from('line_issues')
-        .select('id, reported_at, resolved_at, issue_text, members(name, nickname, mentor_team)')
+        .select('id, reported_at, resolved_at, issue_text, mentor_response, members(id, name, nickname, mentor_team)')
         .order('reported_at', { ascending: false })
         .limit(30);
       if (error) return errResponse(error.message);
 
-      const list = ((data || []) as Record<string, unknown>[]).map(row => {
+      const visibleRows = ((data || []) as Record<string, unknown>[]).filter(row => {
+        const m = (row.members || {}) as Record<string, unknown>;
+        return canManageTeamIssue(auth, String(m.mentor_team || ''));
+      });
+
+      const list = visibleRows.map(row => {
         const m = (row.members || {}) as Record<string, unknown>;
         const isOpen = row.resolved_at == null;
         return {
@@ -532,11 +753,113 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
           team:   String(m.mentor_team || ''),
           status: isOpen ? 'รอดำเนินการ' : 'เสร็จสิ้น',
           detail: String(row.issue_text || ''),
+          response: String(row.mentor_response || ''),
+          memberId: String(m.id || ''),
           date:   String(row.reported_at || '').slice(0, 10),
+          resolvedAt: row.resolved_at ? String(row.resolved_at) : null,
         };
       });
 
       return jsonResponse({ ok: true, list });
+    }
+
+    case 'replyLineIssue': {
+      const auth = await requireAuth(db, p, ['mc', 'growth', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const issueId = String(p.issueId || '').trim();
+      const responseText = String(p.response || p.message || '').trim();
+      const closeIssue = Boolean(p.closeIssue);
+      if (!issueId) return errResponse('issueId required');
+      if (!responseText) return errResponse('response required');
+
+      const { data: issue, error: issueErr } = await db
+        .from('line_issues')
+        .select('id, member_id, issue_text, members(name, nickname, mentor_team)')
+        .eq('id', issueId)
+        .maybeSingle();
+      if (issueErr) return errResponse(issueErr.message);
+      if (!issue) return errResponse('ไม่พบ issue นี้');
+
+      const member = ((issue as Record<string, unknown>).members || {}) as Record<string, unknown>;
+      const team = String(member.mentor_team || '');
+      if (!canManageTeamIssue(auth, team)) return errResponse('ไม่มีสิทธิ์ตอบ issue ของทีมนี้');
+
+      const memberId = String((issue as Record<string, unknown>).member_id || '');
+      const memberName = String(member.name || '');
+      const nick = String(member.nickname || member.name || 'สมาชิก');
+      const { data: lineRow } = await db
+        .from('line_members')
+        .select('line_user_id')
+        .eq('member_id', memberId)
+        .maybeSingle();
+      const lineUserId = String((lineRow as Record<string, unknown> | null)?.line_user_id || '');
+      if (!lineUserId) return jsonResponse({ ok: false, error: `${memberName || nick} ยังไม่ได้เชื่อม LINE` });
+
+      const actor = auth.displayName || auth.role || 'Mentor Team';
+      const message = `💬 Mentor Team ตอบกลับคุณ${nick}\n\n${responseText}\n\nถ้ายังอยากให้ช่วยต่อ พิมพ์ “ปัญหา” ตามด้วยรายละเอียดเพิ่มเติมได้เลยครับ`;
+      const sent = await sendLineMsg(lineUserId, message, {
+        db,
+        memberId,
+        notificationType: 'issue_response',
+        idempotencyKey: `line-issue:${issueId}:reply:${await sha256Hex(`${responseText}:${closeIssue}`)}`,
+        source: 'api/line-admin',
+      });
+      if (!sent) return errResponse('ส่ง LINE ไม่สำเร็จ');
+
+      const patch: Record<string, unknown> = {
+        mentor_response: responseText,
+      };
+      if (closeIssue) patch.resolved_at = new Date().toISOString();
+      const { error: updateErr } = await db.from('line_issues').update(patch).eq('id', issueId);
+      if (updateErr) return errResponse(updateErr.message);
+
+      await trackLineEvent(db, closeIssue ? 'line_issue_replied_and_closed' : 'line_issue_replied', {
+        memberId,
+        role: auth.role || null,
+        source: 'api/line-admin',
+        properties: {
+          issueId,
+          actor,
+          responsePreview: responseText.slice(0, 240),
+        },
+      });
+
+      return jsonResponse({ ok: true, sent: true, closed: closeIssue });
+    }
+
+    case 'updateLineIssueStatus': {
+      const auth = await requireAuth(db, p, ['mc', 'growth', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const issueId = String(p.issueId || '').trim();
+      const status = String(p.status || '').trim();
+      if (!issueId) return errResponse('issueId required');
+      if (!['open', 'closed'].includes(status)) return errResponse('status must be open or closed');
+
+      const { data: issue, error: issueErr } = await db
+        .from('line_issues')
+        .select('id, member_id, members(mentor_team)')
+        .eq('id', issueId)
+        .maybeSingle();
+      if (issueErr) return errResponse(issueErr.message);
+      if (!issue) return errResponse('ไม่พบ issue นี้');
+      const member = ((issue as Record<string, unknown>).members || {}) as Record<string, unknown>;
+      const team = String(member.mentor_team || '');
+      if (!canManageTeamIssue(auth, team)) return errResponse('ไม่มีสิทธิ์แก้ issue ของทีมนี้');
+
+      const { error } = await db.from('line_issues')
+        .update({ resolved_at: status === 'closed' ? new Date().toISOString() : null })
+        .eq('id', issueId);
+      if (error) return errResponse(error.message);
+
+      await trackLineEvent(db, status === 'closed' ? 'line_issue_closed' : 'line_issue_reopened', {
+        memberId: String((issue as Record<string, unknown>).member_id || ''),
+        role: auth.role || null,
+        source: 'api/line-admin',
+        properties: { issueId },
+      });
+      return jsonResponse({ ok: true, status });
     }
 
     // ── ENROLL: mark member as enrolled in onboarding ─────────

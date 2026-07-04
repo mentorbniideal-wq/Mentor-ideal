@@ -1350,7 +1350,7 @@ main{
     <button class="tb" onclick="sw('mc-risk',this,'mc')">⚠️ Risk<span class="nb" id="badge-risk"></span></button>
     <button class="tb" onclick="sw('mc-msg',this,'mc')">💬 Messages<span class="nb" id="badge-msg"></span></button>
     <button class="tb" onclick="sw('mc-rep',this,'mc')">📋 Reports<span class="nb" id="badge-rep"></span></button>
-    <button class="tb" id="mc-ac-tab" onclick="openActionCenter('pq')">⚡ Action Center<span class="nb" id="badge-pq"></span><span class="nb" id="badge-coach" style="margin-left:2px"></span></button>
+    <button class="tb" id="mc-ac-tab" onclick="openActionCenter('pq')">⚡ Action Center<span class="nb" id="badge-pq"></span><span class="nb" id="badge-line-issue" style="margin-left:2px;background:#f59e0b"></span><span class="nb" id="badge-coach" style="margin-left:2px"></span></button>
     <button class="tb" onclick="sw('mc-gw',this,'mc');renderGrowthWatch()">🌱 Growth Watch<span class="nb" id="badge-gw"></span></button>
     <button class="tb" onclick="sw('mc-8w',this,'mc');load8WProgress()">🗓 8W Progress<span class="nb" id="badge-8w"></span></button>
     <button class="tb" onclick="sw('mc-passport',this,'mc');loadPassportBoard()">🛂 Passport<span class="nb" id="badge-passport"></span></button>
@@ -1715,6 +1715,32 @@ main{
 
       <!-- LINE Activity sub-page -->
       <div id="act-line">
+        <!-- 🧭 Member Command Timeline -->
+        <div style="background:var(--sf2);border-radius:12px;overflow:hidden;margin-bottom:16px;border:1px solid rgba(6,199,85,.14)">
+          <div style="padding:12px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span style="font-size:13px;font-weight:700;flex:1">🧭 LINE Member Activity Timeline</span>
+            <select id="line-activity-type" onchange="loadLineActivityTimeline(true)" style="background:var(--sf);border:1px solid var(--bd);border-radius:7px;color:var(--tx);padding:5px 9px;font-size:11px;outline:none">
+              <option value="">ทุกประเภท</option>
+              <option value="command_received">Member พิมพ์</option>
+              <option value="absence">แจ้งลา</option>
+              <option value="substitute">ส่ง Sub</option>
+              <option value="issue">ขอความช่วยเหลือ</option>
+              <option value="goal">ตั้งเป้า</option>
+              <option value="one_to_one">1-2-1</option>
+              <option value="delivery">ข้อความที่ส่ง</option>
+            </select>
+            <select id="line-activity-team" onchange="loadLineActivityTimeline(true)" style="background:var(--sf);border:1px solid var(--bd);border-radius:7px;color:var(--tx);padding:5px 9px;font-size:11px;outline:none">
+              <option value="">ทุกทีม</option>
+              <option>TOOMTAM</option><option>Aof</option><option>Draft</option><option>PHAI</option><option>AMP</option>
+            </select>
+            <span style="font-size:11px;color:#06C755;font-weight:700" id="line-activity-count">—</span>
+            <button class="bsm" onclick="loadLineActivityTimeline(true)" style="font-size:11px">↺</button>
+          </div>
+          <div id="line-activity-summary" style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--bd);display:none"></div>
+          <div id="line-activity-wrap">
+            <div style="color:var(--sub);font-size:12px;text-align:center;padding:20px">กด "📱 Activity" เพื่อโหลด</div>
+          </div>
+        </div>
         <!-- 🔑 Generate LINE Link Token -->
         <div style="background:var(--sf2);border-radius:12px;overflow:hidden;margin-bottom:16px">
           <div style="padding:12px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px">
@@ -3038,7 +3064,7 @@ main{
 </div>
 
 <script>
-var D={mem:[],ren:[],sm:{},teams:[],msgs:[],reps:[],health:{}};
+var D={mem:[],ren:[],sm:{},teams:[],msgs:[],reps:[],health:{},lineIssues:[],lineIssueOpen:0};
 var G={mem:[],sm:{},tasks:[],nm:[],dec:[]};
 var S={role:'',token:null,sr:''};
 var mzf='all',ftf='all',rff='all',gzf='all',tsf='all';
@@ -3206,7 +3232,7 @@ function switchDesktopRole(target){
       ld(false);
       if(!r||!r.ok){alert('สลับ Role ไม่สำเร็จ: '+((r&&r.error)||'ไม่ทราบสาเหตุ'));return;}
       if(arTimer){clearInterval(arTimer);arTimer=null;}
-      D={mem:[],ren:[],sm:{},teams:[],msgs:[],reps:[]};
+      D={mem:[],ren:[],sm:{},teams:[],msgs:[],reps:[],health:{},lineIssues:[],lineIssueOpen:0};
       G={mem:[],sm:{},tasks:[],nm:[],dec:[]};
       bulkSel={};cmpState=[];
       if(dc){dc.destroy();dc=null;} if(bc){bc.destroy();bc=null;} if(jc){jc.destroy();jc=null;} if(mdc){mdc.destroy();mdc=null;} if(tdc){tdc.destroy();tdc=null;} if(tdc2){tdc2.destroy();tdc2=null;}
@@ -3223,7 +3249,7 @@ function logout(){
   var sb=getSbAuth();if(sb)sb.auth.signOut();
   clearInterval(arTimer);arTimer=null;
   S={role:'',token:null,pin:null,sr:'',canRoleSwitch:false};
-  D={mem:[],ren:[],sm:{},teams:[],msgs:[],reps:[]};
+  D={mem:[],ren:[],sm:{},teams:[],msgs:[],reps:[],health:{},lineIssues:[],lineIssueOpen:0};
   G={mem:[],sm:{},tasks:[],nm:[],dec:[]};
   bulkSel={};updateBulkBar();
   if(dc){dc.destroy();dc=null;} if(bc){bc.destroy();bc=null;} if(jc){jc.destroy();jc=null;} if(mdc){mdc.destroy();mdc=null;} if(tdc){tdc.destroy();tdc=null;} if(tdc2){tdc2.destroy();tdc2=null;}
@@ -3346,6 +3372,7 @@ function loadMC(forceRefresh){
     if(r.ok){D.reps=r.reports||[];renderRep();}
     chk();
   });
+  loadLineIssueBadge(true);
 }
 
 function loadGrowth(){
@@ -3756,8 +3783,10 @@ function renderFocusBar(){
   var dropH=mem.filter(function(m){return _dropRisk(m)==='high';});
   var noContact=mem.filter(function(m){return m.noMentorContact;});
   var nm=mem.filter(function(m){return m.actual&&m.actual.bniDays>0&&m.actual.bniDays<=56;});
+  var lineIssueOpen=D.lineIssueOpen||0;
   function cls(v,hi,lo){return v>=hi?'alert':v>=lo?'warn':'ok';}
   var items=[
+    {ico:'⚠️',val:lineIssueOpen,lbl:'LINE Issues รอตอบ',c:cls(lineIssueOpen,3,1),fn:"openLineIssueCenter()"},
     {ico:'⚠️',val:risk.length,lbl:'Risk Members',c:cls(risk.length,4,1),fn:"sw('mc-risk',document.querySelector('#mc-tabs .tb:nth-child(6)'),\'mc\')"},
     {ico:'📋',val:pend.length,lbl:'Open Reports',c:cls(pend.length,3,1),fn:"sw('mc-rep',document.querySelector('#mc-tabs .tb:nth-child(8)'),\'mc\')"},
     {ico:'📅',val:ren30.length,lbl:'Renewal ≤30 วัน',c:cls(ren30.length,2,1),fn:"sw('mc-ren',document.querySelector('#mc-tabs .tb:nth-child(5)'),\'mc\')"},
@@ -3780,16 +3809,28 @@ function renderFocusBar(){
         +'<div><div class="fi-val">'+it.val+'</div><div class="fi-lbl">'+it.lbl+'</div></div>'
         +'</div>';
     }).join('')+'</div></div>';
-  renderCommandRail(risk.length,pend.length,ren30.length);
+  renderCommandRail(risk.length,pend.length,ren30.length,lineIssueOpen);
 }
 
-function renderCommandRail(riskCount,reportCount,renewalCount){
+function renderCommandRail(riskCount,reportCount,renewalCount,lineIssueCount){
   var el=document.getElementById('cc-priority-signals');if(!el)return;
   function tone(v,hi){return v>=hi?'var(--re)':v>0?'var(--ye)':'var(--gr)';}
+  lineIssueCount=lineIssueCount||0;
   el.innerHTML=''
+    +'<div class="rail-signal" style="cursor:pointer" onclick="openLineIssueCenter()"><span>LINE Issues รอตอบ</span><span class="rail-num" style="color:'+tone(lineIssueCount,3)+'">'+lineIssueCount+'</span></div>'
     +'<div class="rail-signal"><span>Risk Members</span><span class="rail-num" style="color:'+tone(riskCount,4)+'">'+riskCount+'</span></div>'
     +'<div class="rail-signal"><span>Open Reports</span><span class="rail-num" style="color:'+tone(reportCount,3)+'">'+reportCount+'</span></div>'
     +'<div class="rail-signal"><span>Renewal ≤30 วัน</span><span class="rail-num" style="color:'+tone(renewalCount,2)+'">'+renewalCount+'</span></div>';
+}
+
+function openLineIssueCenter(){
+  var tab=null;
+  document.querySelectorAll('#mc-tabs .tb').forEach(function(t){if(t.textContent.indexOf('Activity')>=0)tab=t;});
+  if(tab)sw('mc-usage',tab,'mc');
+  var lineTab=document.getElementById('act-tab-line');
+  if(lineTab)actSw('line',lineTab);
+  loadLineIssues(true);
+  loadLineActivityTimeline(true);
 }
 
 // ══ ZONE D: Intelligence Grid ══════════════════════════════
@@ -4222,6 +4263,7 @@ function loadUsageLog(force){
     renderUsageLog();
   });
   loadLineMembersActivity(force);
+  loadLineActivityTimeline(force);
   loadOnboardingStatus(force);
   loadAbsenceLog(force);
   loadLineIssues(force);
@@ -4385,6 +4427,77 @@ function deskCiLoadWeek(week){
 
 var _lineMembersLoaded=false;
 var _onboardLoaded=false;
+var _lineActivityLoaded=false;
+
+function fmtLineActivityTime(iso){
+  if(!iso)return'—';
+  var d=new Date(iso);
+  if(isNaN(d.getTime()))return String(iso).slice(0,16).replace('T',' ');
+  return d.toLocaleString('th-TH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+}
+function lineActivitySummaryChip(label,value,color){
+  return '<span style="display:inline-flex;align-items:center;gap:5px;background:'+color+'18;border:1px solid '+color+'44;color:'+color+';border-radius:999px;padding:4px 9px;font-size:10px;font-weight:700">'+esc(label)+' '+esc(value)+'</span>';
+}
+function loadLineActivityTimeline(force){
+  if(_lineActivityLoaded&&!force)return;
+  var wrap=document.getElementById('line-activity-wrap');
+  var cnt=document.getElementById('line-activity-count');
+  var sumEl=document.getElementById('line-activity-summary');
+  if(!wrap)return;
+  wrap.innerHTML='<div style="color:var(--sub);font-size:12px;text-align:center;padding:20px">⏳ กำลังโหลด Timeline...</div>';
+  var type=(document.getElementById('line-activity-type')||{}).value||'';
+  var team=(document.getElementById('line-activity-team')||{}).value||'';
+  gsr('getLineActivityTimeline',{role:S.role,type:type,team:team,limit:90},function(r){
+    _lineActivityLoaded=true;
+    if(!r||!r.ok){
+      wrap.innerHTML='<div style="color:var(--re);padding:16px;font-size:12px">❌ '+esc(r&&r.error||'โหลด Timeline ไม่ได้')+'</div>';
+      if(cnt)cnt.textContent='—';
+      return;
+    }
+    var items=r.items||[];
+    if(cnt)cnt.textContent=items.length+' รายการ';
+    var summary=r.summary||{};
+    if(sumEl){
+      var labels=[
+        ['command_received','💬 พิมพ์','#38bdf8'],
+        ['absence','🙋 ลา','#f59e0b'],
+        ['substitute','👥 Sub','#f59e0b'],
+        ['issue','⚠️ Help','#f87171'],
+        ['goal','🎯 Goal','#a78bfa'],
+        ['one_to_one','🤝 1-2-1','#34d399'],
+        ['delivery','📤 Sent','#94a3b8']
+      ];
+      sumEl.innerHTML=labels.filter(function(x){return summary[x[0]];}).map(function(x){return lineActivitySummaryChip(x[1],summary[x[0]],x[2]);}).join('');
+      sumEl.style.display=sumEl.innerHTML?'flex':'none';
+    }
+    if(!items.length){
+      wrap.innerHTML='<div style="color:var(--sub);font-size:12px;text-align:center;padding:22px">ยังไม่มี LINE activity ในช่วงนี้</div>';
+      return;
+    }
+    wrap.innerHTML='<div style="padding:10px 16px 14px">'+items.map(function(it){
+      var color=it.tone||'#94a3b8';
+      var name=it.memberNick||it.memberName||'ไม่ทราบสมาชิก';
+      var team=it.memberTeam?'<span style="font-size:10px;color:var(--sub);font-weight:600;margin-left:5px">'+esc(it.memberTeam)+'</span>':'';
+      var detail=it.detail?'<div style="font-size:12px;color:var(--tx);line-height:1.55;margin-top:4px;white-space:pre-wrap">'+esc(String(it.detail).slice(0,240))+'</div>':'';
+      var status=it.status?'<span style="font-size:10px;background:rgba(255,255,255,.06);border:1px solid var(--bd);border-radius:999px;padding:2px 7px;color:var(--sub);white-space:nowrap">'+esc(it.status)+'</span>':'';
+      var raw=it.rawText&&it.rawText!==it.detail?'<div style="font-size:10px;color:var(--sub);margin-top:3px">typed: '+esc(String(it.rawText).slice(0,120))+'</div>':'';
+      return '<div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)">'
+        +'<div style="width:30px;height:30px;border-radius:10px;background:'+color+'18;border:1px solid '+color+'44;display:flex;align-items:center;justify-content:center;flex:0 0 auto">'+esc(it.icon||'•')+'</div>'
+        +'<div style="flex:1;min-width:0">'
+          +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+            +'<span style="font-size:12px;font-weight:800;color:'+color+'">'+esc(it.label||it.type||'Activity')+'</span>'
+            +'<span style="font-size:12px;font-weight:700">'+esc(name)+'</span>'+team
+            +'<span style="font-size:10px;color:var(--sub);margin-left:auto">'+esc(fmtLineActivityTime(it.occurredAt))+'</span>'
+          +'</div>'
+          +'<div style="font-size:12px;color:var(--sub);margin-top:2px">'+esc(it.title||'')+'</div>'
+          +detail+raw
+        +'</div>'
+        +'<div style="flex:0 0 auto">'+status+'</div>'
+      +'</div>';
+    }).join('')+'</div>';
+  });
+}
+
 function loadOnboardingStatus(force){
   if(_onboardLoaded&&!force)return;
   document.getElementById('onboard-wrap').innerHTML='<div style="color:var(--sub);font-size:12px;text-align:center;padding:20px">⏳ กำลังโหลด...</div>';
@@ -7789,12 +7902,26 @@ function updateBadges(){
     badge('badge-ren',D.ren.filter(function(r){return r.diffDays<=30;}).length);
     badge('badge-coach',D.mem.filter(function(m){return m.bniTl==='red'||m.bniTl==='yellow';}).length);
     badge('badge-8w',D.mem.filter(function(m){return m.actual&&m.actual.bniDays>0&&m.actual.bniDays<=56;}).length);
+    badge('badge-line-issue',D.lineIssueOpen||0);
   }
   if(S.role==='growth'){
     badge('badge-task',G.tasks.filter(function(t){return t.status==='open';}).length);
     badge('badge-dec',G.dec.length);
     badge('badge-nm',G.nm.length);
   }
+}
+
+function loadLineIssueBadge(force){
+  if(S.role!=='mc'&&!S.isMC)return;
+  if(D._lineIssueBadgeLoaded&&!force)return;
+  D._lineIssueBadgeLoaded=true;
+  gsr('getLineIssues',{role:S.role},function(r){
+    if(!r||!r.ok)return;
+    D.lineIssues=r.list||[];
+    D.lineIssueOpen=D.lineIssues.filter(function(i){return i.status==='รอดำเนินการ'||i.status==='กำลังดำเนินการ';}).length;
+    updateBadges();
+    renderFocusBar();
+  });
 }
 
 // ── 4. BULK ACTIONS ───────────────────────────────
@@ -11179,22 +11306,67 @@ function loadLineIssues(force) {
     var cntEl = document.getElementById('line-issues-count');
     if (!r||!r.ok) { wrap.innerHTML='<div style="color:var(--re);padding:16px;font-size:12px">❌ '+(r&&r.error||'error')+'</div>'; return; }
     var list = r.list||[];
+    D.lineIssues = list;
     var open = list.filter(function(i){ return i.status==='รอดำเนินการ'||i.status==='กำลังดำเนินการ'; });
+    D.lineIssueOpen = open.length;
+    updateBadges();
+    renderFocusBar();
     cntEl.textContent = open.length ? open.length+' รอดำเนินการ' : 'ไม่มี';
     cntEl.style.color = open.length ? 'var(--ye)' : 'var(--sub)';
     if (!list.length) { wrap.innerHTML='<div style="color:var(--sub);font-size:12px;text-align:center;padding:20px">ยังไม่มี Core Issues ที่แจ้งผ่าน LINE</div>'; return; }
     var statusColor = {'รอดำเนินการ':'var(--ye)','กำลังดำเนินการ':'#60a5fa','เสร็จสิ้น':'var(--gr)','ยกเลิก':'var(--sub)'};
     var rows = list.slice(0,20).map(function(i){
       var sc = statusColor[i.status]||'var(--sub)';
+      var issueId = JSON.stringify(i.id || '');
+      var memberName = JSON.stringify(i.name || '');
+      var response = i.response
+        ? '<div style="font-size:10px;color:#06C755;margin-top:4px">ตอบแล้ว: '+esc(String(i.response).slice(0,80))+(String(i.response).length>80?'…':'')+'</div>'
+        : '';
+      var actions = i.status==='เสร็จสิ้น'
+        ? '<button onclick="lineIssueReopen('+issueId+')" style="font-size:10px;padding:3px 7px;background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.3);border-radius:5px;color:#60a5fa;cursor:pointer">เปิดใหม่</button>'
+        : '<button onclick="lineIssueReply('+issueId+','+memberName+',false)" style="font-size:10px;padding:3px 7px;background:rgba(6,199,85,.12);border:1px solid rgba(6,199,85,.3);border-radius:5px;color:#06C755;cursor:pointer;margin-right:4px">ตอบ</button>'
+          +'<button onclick="lineIssueReply('+issueId+','+memberName+',true)" style="font-size:10px;padding:3px 7px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);border-radius:5px;color:#f59e0b;cursor:pointer;margin-right:4px">ตอบ+ปิด</button>'
+          +'<button onclick="lineIssueClose('+issueId+')" style="font-size:10px;padding:3px 7px;background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.3);border-radius:5px;color:var(--sub);cursor:pointer">ปิด</button>';
       return '<tr>'
         +'<td style="font-size:11px;color:var(--sub)">'+esc(i.date)+'</td>'
         +'<td style="font-weight:600;font-size:12px">'+esc(i.name)+'<br><span style="font-size:10px;color:var(--sub)">'+(i.nick?'('+esc(i.nick)+')':'')+'</span></td>'
         +'<td style="font-size:10px;font-weight:700;color:#fb923c">'+esc(i.team)+'</td>'
-        +'<td style="font-size:11px;max-width:160px">'+esc(i.detail.slice(0,60))+(i.detail.length>60?'…':'')+'</td>'
+        +'<td style="font-size:11px;max-width:220px">'+esc(i.detail.slice(0,90))+(i.detail.length>90?'…':'')+response+'</td>'
         +'<td><span style="font-size:10px;font-weight:700;color:'+sc+'">'+esc(i.status)+'</span></td>'
+        +'<td style="white-space:nowrap">'+actions+'</td>'
         +'</tr>';
     }).join('');
-    wrap.innerHTML='<table class="usage-log-tbl"><thead><tr><th>วันที่</th><th>สมาชิก</th><th>ทีม</th><th>รายละเอียด</th><th>สถานะ</th></tr></thead><tbody>'+rows+'</tbody></table>';
+    wrap.innerHTML='<table class="usage-log-tbl"><thead><tr><th>วันที่</th><th>สมาชิก</th><th>ทีม</th><th>รายละเอียด</th><th>สถานะ</th><th>Action</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  });
+}
+
+function lineIssueReply(issueId,memberName,closeIssue){
+  var msg=prompt('ตอบกลับ '+memberName+' ทาง LINE:', closeIssue?'รับทราบครับ ทีม Mentor จะช่วยดูแลเรื่องนี้ และขอปิดเคสนี้ไว้ก่อนนะครับ':'');
+  if(msg===null)return;
+  msg=String(msg||'').trim();
+  if(!msg){toast('กรุณาพิมพ์ข้อความตอบกลับ','err');return;}
+  gsr('replyLineIssue',{role:S.role,issueId:issueId,response:msg,closeIssue:!!closeIssue},function(r){
+    if(!r||!r.ok){toast('❌ '+(r&&r.error||'ตอบกลับไม่สำเร็จ'),'err',5000);return;}
+    toast(closeIssue?'💬 ตอบกลับและปิดเคสแล้ว ✅':'💬 ตอบกลับแล้ว ✅','ok');
+    _lineIssuesLoaded=false;_lineActivityLoaded=false;
+    loadLineIssues(true);loadLineActivityTimeline(true);loadLineIssueBadge(true);
+  });
+}
+function lineIssueClose(issueId){
+  if(!confirm('ปิดเคสนี้โดยไม่ส่งข้อความหา member?'))return;
+  gsr('updateLineIssueStatus',{role:S.role,issueId:issueId,status:'closed'},function(r){
+    if(!r||!r.ok){toast('❌ '+(r&&r.error||'ปิดเคสไม่สำเร็จ'),'err');return;}
+    toast('✅ ปิดเคสแล้ว','ok');
+    _lineIssuesLoaded=false;_lineActivityLoaded=false;
+    loadLineIssues(true);loadLineActivityTimeline(true);loadLineIssueBadge(true);
+  });
+}
+function lineIssueReopen(issueId){
+  gsr('updateLineIssueStatus',{role:S.role,issueId:issueId,status:'open'},function(r){
+    if(!r||!r.ok){toast('❌ '+(r&&r.error||'เปิดเคสไม่สำเร็จ'),'err');return;}
+    toast('🔄 เปิดเคสใหม่แล้ว','ok');
+    _lineIssuesLoaded=false;_lineActivityLoaded=false;
+    loadLineIssues(true);loadLineActivityTimeline(true);loadLineIssueBadge(true);
   });
 }
 
