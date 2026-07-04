@@ -37,7 +37,7 @@ export async function provisionLineExperience(db: Db) {
   });
 
   const roles: RichMenuRole[] = ['member', 'mentor', 'mc', 'growth'];
-  const desiredMenuVersion = 'v9';
+  const desiredMenuVersion = 'v10';
   const menuAssetVersion = 'v4';
   const desiredMenuSource = `${desiredMenuVersion}|${liffUrl}|${appUrl}`;
   const { data: menuSettings } = await db.from('settings')
@@ -87,9 +87,26 @@ export async function provisionLineExperience(db: Db) {
   const { data: settings } = await db.from('settings')
     .select('key, value')
     .like('key', 'LINE_ID_%');
+  const assignedLineUserIds = new Set<string>();
   for (const row of settings || []) {
     const lineUserId = String(row.value || '');
     if (!lineUserId) continue;
+    assignedLineUserIds.add(lineUserId);
+    await lineRequest(token, `https://api.line.me/v2/bot/user/${lineUserId}/richmenu/${menus.member}`, {
+      method: 'POST',
+    });
+  }
+
+  // Some members may still have an old individual rich menu assigned from an
+  // earlier LIFF-based version. Default menu changes do not override those
+  // per-user assignments, so explicitly reassign every linked LINE account.
+  const { data: lineMembers } = await db.from('line_members')
+    .select('line_user_id')
+    .limit(1000);
+  for (const row of lineMembers || []) {
+    const lineUserId = String(row.line_user_id || '').trim();
+    if (!lineUserId || assignedLineUserIds.has(lineUserId)) continue;
+    assignedLineUserIds.add(lineUserId);
     await lineRequest(token, `https://api.line.me/v2/bot/user/${lineUserId}/richmenu/${menus.member}`, {
       method: 'POST',
     });
@@ -113,7 +130,8 @@ export async function provisionLineExperience(db: Db) {
       .eq('member_id', String(leader.id))
       .maybeSingle();
     const lineUserId = String(link?.line_user_id || '');
-    if (!lineUserId) continue;
+    if (!lineUserId || assignedLineUserIds.has(lineUserId)) continue;
+    assignedLineUserIds.add(lineUserId);
     // Mentor, MC, and Growth work lives in the web app, so LINE stays as
     // member-support only for everyone.
     await lineRequest(token, `https://api.line.me/v2/bot/user/${lineUserId}/richmenu/${menus.member}`, {
@@ -143,5 +161,5 @@ export async function provisionLineExperience(db: Db) {
     });
   }
 
-  return { webhookEndpoint, menuVersion: desiredMenuVersion, menus, testResult };
+  return { webhookEndpoint, menuVersion: desiredMenuVersion, menus, testResult, assignedUsers: assignedLineUserIds.size };
 }

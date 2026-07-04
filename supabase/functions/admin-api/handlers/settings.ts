@@ -371,6 +371,23 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
         leaderName: String(team.leader_name || ''),
       })),
     ];
+    const seededLineIds = new Set(
+      assignmentSeed
+        .map(seed => settingMap[String(seed.key || '')])
+        .filter(Boolean),
+    );
+    for (const row of (lineMembers || []) as Record<string, unknown>[]) {
+      const lineUserId = String(row.line_user_id || '');
+      if (!lineUserId || seededLineIds.has(lineUserId)) continue;
+      seededLineIds.add(lineUserId);
+      const member = row.members as Record<string, unknown> | undefined;
+      assignmentSeed.push({
+        key: `LINE_MEMBER_${lineUserId}`,
+        label: `Member · ${String(member?.nickname || member?.name || 'LINE')}`,
+        expectedRole: 'member',
+        lineUserId,
+      });
+    }
 
     const rolePriority: Record<LineMenuRole, number> = { member: 0, mentor: 1, growth: 2, mc: 3 };
     const effectiveRoleByLineId = new Map<string, LineMenuRole>();
@@ -378,7 +395,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     const missingAssignments: Record<string, unknown>[] = [];
     for (const seed of assignmentSeed) {
       const key = String(seed.key);
-      const lineUserId = settingMap[key] || '';
+      const lineUserId = String(seed.lineUserId || settingMap[key] || '');
       if (!lineUserId) {
         missingAssignments.push({ ...seed, lineUserId: null, status: 'missing_link' });
         continue;
