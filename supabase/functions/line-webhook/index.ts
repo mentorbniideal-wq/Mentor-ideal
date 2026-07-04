@@ -975,7 +975,10 @@ async function replyHistory(db: ReturnType<typeof getServiceClient>, memberName:
       .eq('member_id', memberId)
       .maybeSingle(),
     db.from('palms_key_snapshots')
-      .select('year, month, referral_pts, visitor_pts, one_to_one_pts, ceu_pts, tyfcb_pts')
+      .select(
+        'year, month, referral_pts, visitor_pts, one_to_one_pts, ceu_pts, tyfcb_pts, ' +
+        'referral_value, visitor_value, one_to_one_value, ceu_value, tyfcb_value',
+      )
       .eq('member_id', memberId)
       .order('year', { ascending: false })
       .order('month', { ascending: false })
@@ -1024,8 +1027,9 @@ async function replyHistory(db: ReturnType<typeof getServiceClient>, memberName:
   const average = Number.isFinite(storedAverage) && storedAverage > 0
     ? storedAverage
     : calculatedAverage;
-  const latestKeys = (keySnapshots || [])[0] as Record<string, unknown> | undefined;
-  const previousKeys = (keySnapshots || [])[1] as Record<string, unknown> | undefined;
+  const keySnapshotRows = (keySnapshots || []) as unknown as Record<string, unknown>[];
+  const latestKeys = keySnapshotRows[0];
+  const previousKeys = keySnapshotRows[1];
   const keyDefinitions = [
     ['Referral', 'referral_pts', 15],
     ['Visitor', 'visitor_pts', 20],
@@ -1041,10 +1045,14 @@ async function replyHistory(db: ReturnType<typeof getServiceClient>, memberName:
     : '';
   const keyMovements = latestKeys
     ? keyDefinitions.map(([label, field, max]) => {
+      const valueField = field.replace('_pts', '_value');
       const current = Number(latestKeys[field] || 0);
       const previous = previousKeys ? Number(previousKeys[field] || 0) : null;
       const delta = previous === null ? null : current - previous;
-      return { label, max, current, previous, delta };
+      const currentValue = Number(latestKeys[valueField] || 0);
+      const previousValue = previousKeys ? Number(previousKeys[valueField] || 0) : null;
+      const valueDelta = previousValue === null ? null : currentValue - previousValue;
+      return { label, max, current, previous, delta, currentValue, previousValue, valueDelta };
     })
     : [];
   const increasedKeys = keyMovements.filter(k => (k.delta ?? 0) > 0).map(k => `${k.label} +${k.delta}`);
@@ -1060,13 +1068,39 @@ async function replyHistory(db: ReturnType<typeof getServiceClient>, memberName:
       `คงเดิม: ${unchangedKeys.length ? unchangedKeys.join(', ') : 'ไม่มี'}`,
       '',
       ...keyMovements.map(k => {
-        if (k.previous === null) return `${k.label} · ${k.current}/${k.max} คะแนน`;
+        const unit = k.label === 'TYFCB'
+          ? 'บาท'
+          : k.label === 'CEU'
+          ? 'หน่วย'
+          : k.label === 'Visitor'
+          ? 'คน'
+          : k.label === '1-2-1'
+          ? 'ครั้ง'
+          : 'ใบ';
+        const valueText = k.label === 'TYFCB'
+          ? `${Math.round(k.currentValue).toLocaleString('en-US')} ${unit}`
+          : `${Math.round(k.currentValue)} ${unit}`;
+        if (k.previous === null) return `${k.label} · ${k.current}/${k.max} คะแนน · กิจกรรม ${valueText}`;
         const movement = (k.delta ?? 0) > 0
           ? `↑ +${k.delta}`
           : (k.delta ?? 0) < 0
           ? `↓ ${k.delta}`
           : '→ 0';
-        return `${k.label} · ${k.previous}→${k.current}/${k.max} · ${movement}`;
+        const rawMove = (k.valueDelta ?? 0) > 0
+          ? `↑ +${k.label === 'TYFCB' ? Math.round(k.valueDelta || 0).toLocaleString('en-US') : Math.round(k.valueDelta || 0)}`
+          : (k.valueDelta ?? 0) < 0
+          ? `↓ ${k.label === 'TYFCB' ? Math.round(Math.abs(k.valueDelta || 0)).toLocaleString('en-US') : Math.round(Math.abs(k.valueDelta || 0))}`
+          : '→ 0';
+        const previousValueText = k.label === 'TYFCB'
+          ? Math.round(k.previousValue || 0).toLocaleString('en-US')
+          : String(Math.round(k.previousValue || 0));
+        const currentValueText = k.label === 'TYFCB'
+          ? Math.round(k.currentValue).toLocaleString('en-US')
+          : String(Math.round(k.currentValue));
+        return [
+          `${k.label} · คะแนน ${k.previous}→${k.current}/${k.max} · ${movement}`,
+          `กิจกรรม ${previousValueText}→${currentValueText} ${unit} · ${rawMove}`,
+        ].join('\n');
       }),
     ]
     : [
