@@ -3460,7 +3460,7 @@ function loadMC(forceRefresh){
   });
   gsr('getMessages',{role:'mc'},function(r){
     if(r.ok){D.msgs=r.messages||[];}
-    gsr('getMemberList',{role:'mc'},function(r2){if(r2.ok)memCache=r2.members||[];});
+    gsr('getMemberList',{role:'mc'},function(r2){if(r2.ok){memCache=r2.members||[];refreshMsgTeams();if(document.getElementById('msgTeam')&&document.getElementById('msgTeam').value)loadMsgMem();}});
     chk();
     gsr('getReadMsgKeys',{role:'mc'},function(rk){
       if(rk&&rk.ok&&rk.keys){rk.keys.forEach(function(k){_readMsgs[k]=1;});try{localStorage.setItem('bni_readmsgs',JSON.stringify(_readMsgs));}catch(e){}}
@@ -5205,13 +5205,43 @@ function renderRisk(){
 }
 
 // ── Messages ──────────────────────────────────────
+function msgTeamKey(v){return String(v||'').trim().toLowerCase();}
+function msgMemberPool(){
+  var byName={};
+  (D.mem||[]).forEach(function(m){
+    var name=String(m.name||'').trim(); if(!name)return;
+    byName[name]={name:name,display:(m.nick||m.nickname?((m.nick||m.nickname)+' — '+name):name),mentor:m.mentor||m.team||m.mentorTeam||m.mentor_team||'',row:m.row||0};
+  });
+  (memCache||[]).forEach(function(m){
+    var name=String(m.name||'').trim(); if(!name)return;
+    var nick=String(m.nickname||m.nick||'').trim();
+    byName[name]=Object.assign(byName[name]||{},{
+      name:name,
+      display:m.display||(nick?(nick+' — '+name):name),
+      mentor:m.mentor||m.team||m.mentorTeam||m.mentor_team||((byName[name]||{}).mentor||''),
+      row:m.row||((byName[name]||{}).row||0)
+    });
+  });
+  return Object.keys(byName).map(function(k){return byName[k];}).sort(function(a,b){return String(a.display||a.name).localeCompare(String(b.display||b.name),'th');});
+}
+function refreshMsgTeams(){
+  var sel=document.getElementById('msgTeam'); if(!sel)return;
+  var current=sel.value;
+  var teams=['TOOMTAM','Aof','Draft','PHAI','AMP'];
+  msgMemberPool().forEach(function(m){var t=String(m.mentor||'').trim();if(t&&!teams.some(function(x){return msgTeamKey(x)===msgTeamKey(t);})){teams.push(t);}});
+  sel.innerHTML='<option value="">เลือกทีม</option>'+teams.map(function(t){return'<option>'+esc(t)+'</option>';}).join('');
+  if(current)sel.value=current;
+}
 function loadMsgMem(){
+  refreshMsgTeams();
   var tm=document.getElementById('msgTeam').value;
   var sel=document.getElementById('msgMem');
   sel.innerHTML='<option value="">เลือกสมาชิก</option>';
-  memCache.filter(function(m){return!tm||m.mentor===tm;}).forEach(function(m){
-    sel.innerHTML+='<option value="'+esc(m.name)+'" data-team="'+esc(m.mentor)+'">'+esc(m.display)+'</option>';
+  var list=msgMemberPool().filter(function(m){return!tm||msgTeamKey(m.mentor)===msgTeamKey(tm);});
+  list.forEach(function(m){
+    sel.innerHTML+='<option value="'+esc(m.name)+'" data-team="'+esc(m.mentor)+'" data-row="'+esc(m.row||'')+'">'+esc(m.display||m.name)+'</option>';
   });
+  if(tm&&!list.length){sel.innerHTML+='<option value="" disabled>ไม่พบสมาชิกในทีมนี้ — ลอง Refresh หรือ Sync ข้อมูล</option>';}
 }
 function sendMsg(){
   var tm=document.getElementById('msgTeam').value;
@@ -5221,6 +5251,17 @@ function sendMsg(){
   if(!tm||!mn||!msg){res.style.color='var(--re)';res.textContent='กรุณาเลือกทีม สมาชิก และใส่ข้อความ';return;}
   document.getElementById('bsnd').disabled=true;
   res.style.color='var(--sub)';res.textContent='กำลังส่ง...';
+  var selected=document.getElementById('msgMem').selectedOptions[0];
+  var cachedRow=selected?parseInt(selected.getAttribute('data-row')||'0',10):0;
+  if(cachedRow){
+    gsr('saveMCMessage',{role:'mc',teamName:tm,row:cachedRow,message:msg},function(r2){
+      document.getElementById('bsnd').disabled=false;
+      if(r2.ok){res.style.color='var(--gr)';res.textContent='✓ ส่งแล้ว';document.getElementById('msgTxt').value='';
+        gsr('getMessages',{role:'mc'},function(r3){if(r3.ok){D.msgs=r3.messages||[];renderMsgs();}});
+      }else{res.style.color='var(--re)';res.textContent='ผิดพลาด: '+(r2.error||'');}
+    });
+    return;
+  }
   gsr('getMyTeam',{role:S.role,teamName:tm},function(r){
     var row=0;
     if(r.ok&&r.members)r.members.forEach(function(m,i){if(m.name===mn)row=i+4;});
