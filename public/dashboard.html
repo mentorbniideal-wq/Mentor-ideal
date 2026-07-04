@@ -1383,6 +1383,7 @@ main{
     <button class="tb" onclick="sw('gr-flow',this,'gr');flowLoad()">🌊 Referral Flow</button>
     <button class="tb" onclick="sw('gr-pt',this,'gr');ptLoad()">⚡ Power Teams</button>
     <button class="tb" onclick="sw('gr-sheet',this,'gr');gshLoad()">📄 Sheet</button>
+    <button class="tb" onclick="sw('gr-gw',this,'gr');renderGrowthWatchGR()">🔵 Growth Watch<span class="nb" id="badge-gw-gr"></span></button>
   </div></div>
 
   <main>
@@ -2808,6 +2809,37 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         <div id="gsh-summary"></div>
         <div id="gsh-groups"></div>
       </div>
+    </div>
+
+    <!-- Growth Watch (Growth role) -->
+    <div id="gr-gw" class="sec">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+        <h2 style="font-size:14px;font-weight:700;">🔵 Growth Watch</h2>
+        <select id="gw-gr-team-filter" onchange="renderGrowthWatchGR()" style="background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:4px 8px;font-size:11px">
+          <option value="">ทุกทีม</option>
+          <option value="TOOMTAM">TOOMTAM</option>
+          <option value="Aof">Aof</option>
+          <option value="Draft">Draft</option>
+          <option value="PHAI">PHAI</option>
+          <option value="AMP">AMP</option>
+        </select>
+        <button class="bsm" onclick="renderGrowthWatchGR(true)" style="font-size:11px;margin-left:auto">🔄 รีเฟรช</button>
+      </div>
+      <div id="gw-gr-summary" class="kgrid" style="margin-bottom:16px"></div>
+      <div id="gw-gr-atrisk-wrap">
+        <div class="sh"><h2 style="color:var(--re)">⚠️ น่าเป็นห่วง (คะแนนต่ำกว่าเกณฑ์)</h2></div>
+        <div id="gw-gr-atrisk"></div>
+      </div>
+      <div id="gw-gr-normal-wrap">
+        <div class="sh"><h2 style="color:var(--gr)">✅ ปกติดี</h2></div>
+        <div id="gw-gr-normal"></div>
+      </div>
+      <div id="gw-gr-empty" style="display:none;text-align:center;padding:3rem 1rem;">
+        <div style="font-size:2rem;margin-bottom:.5rem">🔵</div>
+        <div style="font-weight:700;margin-bottom:.4rem">ยังไม่มีสมาชิกใน Growth Watch</div>
+        <div style="font-size:12px;color:var(--sub);line-height:1.7">Growth Watch คือสมาชิกที่ Growth Coordinator ดูแลแทน Mentor<br>กดปุ่ม "🔵 GW" ที่รายชื่อสมาชิกใน MC Overview เพื่อย้ายเข้า</div>
+      </div>
+      <div id="gw-gr-candidates"></div>
     </div>
 
   </main>
@@ -6454,6 +6486,110 @@ function renderGrowthWatch(){
   }
 }
 
+// ── Growth Watch for Growth role (reads G.mem, not D.mem) ──────────
+function renderGrowthWatchGR(force){
+  var mem=G.mem||[];
+  if(!mem.length){
+    // G.mem not loaded yet — trigger load then re-render
+    if(force||!G._gwLoading){
+      G._gwLoading=true;
+      gsr('getGrowthData',{},function(r){
+        G._gwLoading=false;
+        if(r.ok){G.mem=(r.members||[]).map(normalizeGrowthMember);G.sm=r.summary||{};}
+        renderGrowthWatchGR();
+      });
+    }
+    return;
+  }
+  var tm=(document.getElementById('gw-gr-team-filter')||{}).value||'';
+  var gwMems=mem.filter(function(m){return m.mentoringMode==='growth_watch'&&(!tm||m.mentor===tm);});
+  var atRisk=gwMems.filter(function(m){return(m.score||0)<GROWTH_WATCH_MIN_SCORE;});
+  var normal=gwMems.filter(function(m){return(m.score||0)>=GROWTH_WATCH_MIN_SCORE;});
+
+  // Badge
+  var badge=document.getElementById('badge-gw-gr');
+  if(badge){badge.textContent=gwMems.length||'';badge.style.display=gwMems.length?'':'none';}
+
+  // Summary cards
+  document.getElementById('gw-gr-summary').innerHTML=[
+    {l:'Growth Watch ทั้งหมด',v:gwMems.length,c:'#60a5fa',i:'🔵'},
+    {l:'ปกติดี (≥'+GROWTH_WATCH_MIN_SCORE+')',v:normal.length,c:'var(--gr)',i:'✅'},
+    {l:'น่าเป็นห่วง',v:atRisk.length,c:'var(--re)',i:'⚠️'},
+  ].map(function(c){return'<div class="kc"><div class="kl">'+c.i+' '+c.l+'</div><div class="kv" style="color:'+c.c+'">'+c.v+'</div></div>';}).join('');
+
+  function gwRow(m,isRisk){
+    var sn=m.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    var scoreColor=(m.score||0)>=70?'var(--gr)':(m.score||0)>=50?'#f59e0b':'var(--re)';
+    var actionBtn=S.role==='mc'||S.role==='growth'
+      ?'<button class="bx" onclick="toggleGWModeGR(\''+sn+'\',\'growth_watch\')" style="font-size:11px;color:var(--re);border-color:rgba(239,68,68,.4)">ดึงกลับ Active</button>'
+      :'';
+    return'<div style="display:flex;align-items:center;gap:10px;padding:10px;margin-bottom:8px;border:1px solid '+(isRisk?'rgba(239,68,68,.25)':'var(--bd)')+';border-radius:8px;background:'+(isRisk?'rgba(239,68,68,.04)':'var(--sf2)')+'">'
+      +'<div style="flex:1">'
+      +'<div style="font-weight:600">'+esc(m.name)+(m.nick?'<span style="font-size:11px;color:var(--sub);font-weight:400;margin-left:5px">('+esc(m.nick)+')</span>':'')+'</div>'
+      +'<div style="font-size:11px;color:var(--sub)">ทีม '+esc(m.mentor||'ไม่มีทีม')+'</div>'
+      +'</div>'
+      +'<span class="badge b-'+tlK(m.tl)+'" style="font-size:11px">'+(m.score||0)+' pts</span>'
+      +actionBtn
+      +'<button class="bx" onclick="openIMD(\''+sn+'\')">📊</button>'
+      +'</div>';
+  }
+
+  var arEl=document.getElementById('gw-gr-atrisk');
+  var arWrap=document.getElementById('gw-gr-atrisk-wrap');
+  arWrap.style.display=atRisk.length?'':'none';
+  if(atRisk.length)arEl.innerHTML=atRisk.map(function(m){return gwRow(m,true);}).join('');
+
+  var nEl=document.getElementById('gw-gr-normal');
+  var nWrap=document.getElementById('gw-gr-normal-wrap');
+  nWrap.style.display=normal.length?'':'none';
+  if(normal.length)nEl.innerHTML=normal.map(function(m){return gwRow(m,false);}).join('');
+
+  document.getElementById('gw-gr-empty').style.display=gwMems.length?'none':'block';
+
+  // Candidates
+  var candidates=mem.filter(function(m){
+    return m.mentoringMode!=='growth_watch'&&(m.score||0)>=GROWTH_WATCH_MIN_SCORE&&(!tm||m.mentor===tm);
+  }).sort(function(a,b){return(b.score||0)-(a.score||0);}).slice(0,10);
+  var candEl=document.getElementById('gw-gr-candidates');
+  if(candidates.length){
+    candEl.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--sub);margin:16px 0 8px;padding-top:16px;border-top:1px solid var(--bd)">💡 แนะนำให้เพิ่มเข้า Growth Watch (คะแนน '+GROWTH_WATCH_MIN_SCORE+'+)</div>'
+      +candidates.map(function(m){
+        var sn=m.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var borderColor=m.tl==='red'?'rgba(239,68,68,.2)':m.tl==='yellow'?'rgba(251,191,36,.2)':'var(--bd)';
+        return'<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;margin-bottom:6px;border:1px solid '+borderColor+';border-radius:8px;background:var(--sf2)">'
+          +'<div style="flex:1"><div style="font-weight:600">'+esc(m.name)+'<span style="font-size:10px;color:var(--sub);font-weight:400;margin-left:6px">ทีม '+esc(m.mentor||'')+'</span></div></div>'
+          +'<span class="badge b-'+tlK(m.tl)+'" style="font-size:11px">'+(m.score||0)+' pts</span>'
+          +'<button class="bx" onclick="toggleGWModeGR(\''+sn+'\',\'active\')" style="font-size:11px;color:#60a5fa;border-color:rgba(96,165,250,.4)">🔵 ย้าย GW</button>'
+          +'<button class="bx" onclick="openIMD(\''+sn+'\')">📊</button>'
+          +'</div>';
+      }).join('');
+  } else {candEl.innerHTML='';}
+}
+
+function toggleGWModeGR(name,currentMode){
+  var newMode=currentMode==='growth_watch'?'active':'growth_watch';
+  var label=newMode==='growth_watch'?'ย้ายไป Growth Watch':'ดึงกลับ Active Mentoring';
+  if(newMode==='growth_watch'){
+    var member=(G.mem||[]).find(function(m){return m.name===name;});
+    var score=member?(Number(member.score)||0):0;
+    if(score<GROWTH_WATCH_MIN_SCORE){
+      toast('❌ Growth Watch ต้องมีคะแนน '+GROWTH_WATCH_MIN_SCORE+'+ · '+name+' มี '+score+' คะแนน','err');
+      return;
+    }
+  }
+  if(!confirm(label+': "'+name+'"?'))return;
+  ld(true);
+  gsr('setMentoringMode',{memberName:name,mode:newMode},function(r){
+    if(!r||!r.ok){ld(false);toast('❌ '+(r&&r.error||'เกิดข้อผิดพลาด'),'err');return;}
+    toast('✅ '+label+': '+name,'ok');
+    gsr('getGrowthData',{},function(r2){
+      ld(false);
+      if(r2.ok){G.mem=(r2.members||[]).map(normalizeGrowthMember);G.sm=r2.summary||{};}
+      renderGrowthWatchGR();
+    });
+  });
+}
+
 // ══ IN-APP NOTIFICATIONS ══════════════════════════════════════════
 var _notifData=[];
 var _notifAutoShown=false;
@@ -8185,6 +8321,9 @@ function updateBadges(){
     badge('badge-task',G.tasks.filter(function(t){return t.status==='open';}).length);
     badge('badge-dec',G.dec.length);
     badge('badge-nm',G.nm.length);
+    var gwCount=(G.mem||[]).filter(function(m){return m.mentoringMode==='growth_watch';}).length;
+    badge('badge-gw-gr',gwCount);
+    badge('badge-gr-ren',(G.ren||[]).filter(function(r){return(r.diffDays||999)<=30;}).length);
   }
 }
 

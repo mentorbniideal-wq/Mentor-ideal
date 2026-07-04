@@ -1216,7 +1216,7 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
     // ── SAVE mentor status ────────────────────────────────────
     // ── SET mentoring mode (Active / Growth Watch) ───────────
     case 'setMentoringMode': {
-      const auth = await requireAuth(db, p, ['mc']);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const mode = textValue(p.mode).toLowerCase();
