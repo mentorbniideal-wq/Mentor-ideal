@@ -43,10 +43,10 @@ export function parseLineCommand(input: string): ParsedLineCommand {
   if (['focus 3', 'focus3', 'โฟกัส 3', 'f3'].includes(normalized)) return command('focus3');
   if (['chapter pulse', 'chapter', 'ภาพรวม'].includes(normalized)) return command('chapter-pulse');
   if (normalized === 'chapter trend') return command('chapter-trend');
-  if (['ติดตาม', '1-2-1'].includes(normalized)) return command('tracking');
-  if (['เป้า', 'goal', 'goals'].includes(normalized)) return command('goals');
+  if (['ติดตาม', '1-2-1', 'นัด 1-2-1', 'นัด1-2-1'].includes(normalized)) return command('tracking');
+  if (['เป้า', 'เป้าหมาย', 'goal', 'goals'].includes(normalized)) return command('goals');
   if (['แจ้งเตือน', 'notif'].includes(normalized)) return command('notifications');
-  if (['ปัญหา', 'issue'].includes(normalized)) return command('issues');
+  if (['ปัญหา', 'issue', 'ขอความช่วยเหลือ'].includes(normalized)) return command('issues');
   if (['เจอแล้ว', 'met'].includes(normalized)) return command('met');
   if (normalized === 'ยกเลิกลา' || normalized === 'cancel absence') return command('cancel-absence');
   if (['ลบบัญชี', 'delete account', 'unlink'].includes(normalized)) return command('delete-account');
@@ -56,6 +56,9 @@ export function parseLineCommand(input: string): ParsedLineCommand {
   }
   if (normalized.startsWith('นัด121 ') || normalized.startsWith('นัด ')) {
     return command('schedule', text.replace(/^นัด(?:121)?\s+/i, '').trim());
+  }
+  if (normalized === 'ลา / ส่งแทน' || normalized === 'ลา/ส่งแทน') {
+    return command('absence');
   }
   if (normalized === 'ลา' || normalized.startsWith('ลา ')) {
     return command('absence', text.slice('ลา'.length).trim());

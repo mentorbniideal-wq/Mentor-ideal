@@ -7,43 +7,21 @@ export interface RichMenuItem {
   action: { type: 'message'; text: string } | { type: 'uri'; uri: string };
 }
 
+const PERSONAL_SUPPORT_ITEMS: RichMenuItem[] = [
+  { icon: '◉', label: 'คะแนนของฉัน', sublabel: 'Score & Action', action: { type: 'message', text: 'สถานะ' } },
+  { icon: '↗', label: 'ประวัติ', sublabel: 'My Progress', action: { type: 'message', text: 'ประวัติ' } },
+  { icon: '◇', label: 'นัด 1-2-1', sublabel: 'Connect', action: { type: 'message', text: 'นัด 1-2-1' } },
+  { icon: '○', label: 'ลา / ส่งแทน', sublabel: 'Attendance', action: { type: 'message', text: 'ลา / ส่งแทน' } },
+  { icon: '△', label: 'เป้าหมาย', sublabel: 'My Goal', action: { type: 'message', text: 'เป้าหมาย' } },
+  { icon: '?', label: 'ขอความช่วยเหลือ', sublabel: 'Private Support', action: { type: 'message', text: 'ขอความช่วยเหลือ' } },
+  { icon: '⊕', label: 'จำลองคะแนน', sublabel: 'PALMS Simulator', action: { type: 'uri', uri: 'APP_URL/index.html?action=simulate' } },
+];
+
 export const RICH_MENU_ITEMS: Record<RichMenuRole, RichMenuItem[]> = {
-  member: [
-    { icon: '◉', label: 'คะแนนของฉัน', sublabel: 'Score & Action', action: { type: 'message', text: 'สถานะ' } },
-    { icon: '↗', label: 'ประวัติ', sublabel: 'My Progress', action: { type: 'message', text: 'ประวัติ' } },
-    { icon: '◇', label: 'นัด 1-2-1', sublabel: 'Connect', action: { type: 'uri', uri: 'LIFF_URL?action=121' } },
-    { icon: '○', label: 'ลา / ส่งแทน', sublabel: 'Attendance', action: { type: 'uri', uri: 'LIFF_URL?action=absence' } },
-    { icon: '△', label: 'เป้าหมาย', sublabel: 'My Goal', action: { type: 'uri', uri: 'LIFF_URL?action=goal' } },
-    { icon: '?', label: 'ขอความช่วยเหลือ', sublabel: 'Private Support', action: { type: 'uri', uri: 'LIFF_URL?action=issue' } },
-    { icon: '⊕', label: 'จำลองคะแนน', sublabel: 'PALMS Simulator', action: { type: 'uri', uri: 'APP_URL/index.html?action=simulate' } },
-  ],
-  mentor: [
-    { icon: '◉', label: 'คะแนนของฉัน', sublabel: 'Score & Action', action: { type: 'message', text: 'สถานะ' } },
-    { icon: '↗', label: 'ประวัติ', sublabel: 'My Progress', action: { type: 'message', text: 'ประวัติ' } },
-    { icon: '◇', label: 'นัด 1-2-1', sublabel: 'Connect', action: { type: 'uri', uri: 'LIFF_URL?action=121' } },
-    { icon: '○', label: 'ลา / ส่งแทน', sublabel: 'Attendance', action: { type: 'uri', uri: 'LIFF_URL?action=absence' } },
-    { icon: '△', label: 'เป้าหมาย', sublabel: 'My Goal', action: { type: 'uri', uri: 'LIFF_URL?action=goal' } },
-    { icon: '?', label: 'ขอความช่วยเหลือ', sublabel: 'Private Support', action: { type: 'uri', uri: 'LIFF_URL?action=issue' } },
-    { icon: '⊕', label: 'จำลองคะแนน', sublabel: 'PALMS Simulator', action: { type: 'uri', uri: 'APP_URL/index.html?action=simulate' } },
-  ],
-  mc: [
-    { icon: '◉', label: 'คะแนนของฉัน', sublabel: 'Score & Action', action: { type: 'message', text: 'สถานะ' } },
-    { icon: '↗', label: 'ประวัติ', sublabel: 'My Progress', action: { type: 'message', text: 'ประวัติ' } },
-    { icon: '◇', label: 'นัด 1-2-1', sublabel: 'Connect', action: { type: 'uri', uri: 'LIFF_URL?action=121' } },
-    { icon: '○', label: 'ลา / ส่งแทน', sublabel: 'Attendance', action: { type: 'uri', uri: 'LIFF_URL?action=absence' } },
-    { icon: '△', label: 'เป้าหมาย', sublabel: 'My Goal', action: { type: 'uri', uri: 'LIFF_URL?action=goal' } },
-    { icon: '?', label: 'ขอความช่วยเหลือ', sublabel: 'Private Support', action: { type: 'uri', uri: 'LIFF_URL?action=issue' } },
-    { icon: '⊕', label: 'จำลองคะแนน', sublabel: 'PALMS Simulator', action: { type: 'uri', uri: 'APP_URL/index.html?action=simulate' } },
-  ],
-  growth: [
-    { icon: '◉', label: 'คะแนนของฉัน', sublabel: 'Score & Action', action: { type: 'message', text: 'สถานะ' } },
-    { icon: '↗', label: 'ประวัติ', sublabel: 'My Progress', action: { type: 'message', text: 'ประวัติ' } },
-    { icon: '◇', label: 'นัด 1-2-1', sublabel: 'Connect', action: { type: 'uri', uri: 'LIFF_URL?action=121' } },
-    { icon: '○', label: 'ลา / ส่งแทน', sublabel: 'Attendance', action: { type: 'uri', uri: 'LIFF_URL?action=absence' } },
-    { icon: '△', label: 'เป้าหมาย', sublabel: 'My Goal', action: { type: 'uri', uri: 'LIFF_URL?action=goal' } },
-    { icon: '?', label: 'ขอความช่วยเหลือ', sublabel: 'Private Support', action: { type: 'uri', uri: 'LIFF_URL?action=issue' } },
-    { icon: '⊕', label: 'จำลองคะแนน', sublabel: 'PALMS Simulator', action: { type: 'uri', uri: 'APP_URL/index.html?action=simulate' } },
-  ],
+  member: PERSONAL_SUPPORT_ITEMS,
+  mentor: PERSONAL_SUPPORT_ITEMS,
+  mc: PERSONAL_SUPPORT_ITEMS,
+  growth: PERSONAL_SUPPORT_ITEMS,
 };
 
 function resolveRichMenuUri(uri: string, liffUrl: string, appUrl: string): string {

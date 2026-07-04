@@ -539,6 +539,7 @@ async function processCommand(
     case 'schedule':
       return await schedule121(db, memberName, command.argument);
     case 'absence':
+      if (!command.argument.trim()) return buildAbsenceGuide();
       return await logAbsence(db, memberName, command.argument, 'ลา', eventId);
     case 'substitute':
       if (command.argument) {
@@ -1358,13 +1359,37 @@ async function replyIssues(db: ReturnType<typeof getServiceClient>, memberName: 
     .select('issue_text, reported_at, resolved_at')
     .eq('member_id', (m as any).id)
     .order('reported_at', { ascending: false }).limit(3);
-  if (!issues?.length) return '✅ ไม่มีเรื่องที่แจ้งไว้ครับ';
-  const lines = ['📋 เรื่องที่แจ้งไว้', ''];
+  if (!issues?.length) {
+    return (
+      '💬 ขอความช่วยเหลือ\n\n' +
+      'ถ้ามีเรื่องที่อยากให้ Mentor หรือ MC ช่วยดูแล พิมพ์แบบนี้ได้เลยครับ:\n' +
+      'ปัญหา [รายละเอียด]\n\n' +
+      'เช่น: ปัญหา อยากได้คู่ 1-2-1 เพิ่มในสายธุรกิจอสังหา'
+    );
+  }
+  const lines = [
+    '📋 เรื่องที่แจ้งไว้',
+    '',
+    'ถ้าต้องการแจ้งเรื่องใหม่ พิมพ์ “ปัญหา [รายละเอียด]”',
+    '',
+  ];
   (issues as Record<string, unknown>[]).forEach((iss) => {
     const status = iss.resolved_at ? '✅' : '⏳';
     lines.push(`${status} ${iss.issue_text}`);
   });
   return lines.join('\n');
+}
+
+function buildAbsenceGuide(): string {
+  return (
+    '📅 แจ้งลา / ส่ง Sub\n\n' +
+    'เลือกวิธีที่ตรงกับสถานการณ์ แล้วพิมพ์ตามตัวอย่างนี้ครับ:\n\n' +
+    '🙋 ลา [เหตุผล]\n' +
+    'เช่น: ลา ติดประชุมลูกค้า\n\n' +
+    '👥 ส่ง sub [ชื่อคนแทน]\n' +
+    'เช่น: ส่ง sub คุณสมชาย\n\n' +
+    'ระบบจะบันทึกเป็นวันศุกร์รอบถัดไป และแจ้ง MC กับหัวหน้าทีมให้ครับ'
+  );
 }
 
 async function schedule121(db: ReturnType<typeof getServiceClient>, memberName: string, partnerName: string): Promise<string> {

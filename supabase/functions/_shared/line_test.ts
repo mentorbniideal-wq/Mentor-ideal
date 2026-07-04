@@ -198,16 +198,16 @@ Deno.test('all operational role quick replies stay aligned with member support a
   assertEquals(LINE_QR_GROWTH, LINE_QR_MEMBER);
 });
 
-Deno.test('rich menu LIFF actions preserve an existing LIFF query string', () => {
+Deno.test('rich menu personal support actions do not depend on LIFF', () => {
   const menu = buildRichMenu(
     'mentor',
     'https://liff.line.me/test?source=rich-menu',
     'https://example.com',
   );
-  const oneToOne = menu.areas[2].action as { type: string; uri: string };
-  if (oneToOne.uri !== 'https://liff.line.me/test?source=rich-menu&action=121') {
-    throw new Error(`unexpected LIFF URI: ${oneToOne.uri}`);
-  }
+  assertEquals(menu.areas[2].action, { type: 'message', text: 'นัด 1-2-1' });
+  assertEquals(menu.areas[3].action, { type: 'message', text: 'ลา / ส่งแทน' });
+  assertEquals(menu.areas[4].action, { type: 'message', text: 'เป้าหมาย' });
+  assertEquals(menu.areas[5].action, { type: 'message', text: 'ขอความช่วยเหลือ' });
 });
 
 Deno.test('LINE role-specific menus remain available only as member-equivalent aliases', () => {
@@ -252,13 +252,17 @@ Deno.test('all documented LINE command aliases resolve to stable command contrac
     ['chapter pulse', 'chapter-pulse'],
     ['chapter trend', 'chapter-trend'],
     ['ติดตาม', 'tracking'],
+    ['นัด 1-2-1', 'tracking'],
     ['เป้า', 'goals'],
+    ['เป้าหมาย', 'goals'],
     ['แจ้งเตือน', 'notifications'],
     ['ปัญหา', 'issues'],
+    ['ขอความช่วยเหลือ', 'issues'],
     ['เจอแล้ว', 'met'],
     ['แนะนำ เจ้าของกิจการ', 'match', 'เจ้าของกิจการ'],
     ['นัด Pete', 'schedule', 'Pete'],
     ['ลา ติดประชุม', 'absence', 'ติดประชุม'],
+    ['ลา / ส่งแทน', 'absence'],
     ['ขาด ไปต่างจังหวัด', 'absence', 'ไปต่างจังหวัด'],
     ['ส่ง sub Somchai', 'substitute', 'Somchai'],
     ['ยกเลิกลา', 'cancel-absence'],
