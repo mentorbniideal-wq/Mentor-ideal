@@ -1033,15 +1033,46 @@ async function replyHistory(db: ReturnType<typeof getServiceClient>, memberName:
     ['CEU', 'ceu_pts', 20],
     ['TYFCB', 'tyfcb_pts', 15],
   ] as [string, string, number][];
-  const keyRows = latestKeys
+  const keyPeriodLabel = latestKeys
+    ? `${monthNames[monthLabel(Number(latestKeys.month))]} ${latestKeys.year}`
+    : '';
+  const previousKeyPeriodLabel = previousKeys
+    ? `${monthNames[monthLabel(Number(previousKeys.month))]} ${previousKeys.year}`
+    : '';
+  const keyMovements = latestKeys
     ? keyDefinitions.map(([label, field, max]) => {
       const current = Number(latestKeys[field] || 0);
-      if (!previousKeys) return `${label} · ${current}/${max} คะแนน · ข้อมูลตั้งต้น`;
-      const delta = current - Number(previousKeys[field] || 0);
-      const movement = delta > 0 ? `↑ เพิ่ม ${delta}` : delta < 0 ? `↓ ลด ${Math.abs(delta)}` : '→ คงเดิม';
-      return `${label} · ${current}/${max} คะแนน · ${movement}`;
+      const previous = previousKeys ? Number(previousKeys[field] || 0) : null;
+      const delta = previous === null ? null : current - previous;
+      return { label, max, current, previous, delta };
     })
-    : ['ยังไม่มีข้อมูล 5 Key รายเดือน'];
+    : [];
+  const increasedKeys = keyMovements.filter(k => (k.delta ?? 0) > 0).map(k => `${k.label} +${k.delta}`);
+  const decreasedKeys = keyMovements.filter(k => (k.delta ?? 0) < 0).map(k => `${k.label} ${k.delta}`);
+  const unchangedKeys = keyMovements.filter(k => k.delta === 0).map(k => k.label);
+  const keyRows = latestKeys
+    ? [
+      previousKeys
+        ? `เทียบ ${keyPeriodLabel} กับ ${previousKeyPeriodLabel}`
+        : `${keyPeriodLabel} · ยังไม่มีข้อมูลเดือนก่อนให้เทียบ`,
+      `เพิ่มขึ้น: ${increasedKeys.length ? increasedKeys.join(', ') : 'ไม่มี'}`,
+      `ลดลง: ${decreasedKeys.length ? decreasedKeys.join(', ') : 'ไม่มี'}`,
+      `คงเดิม: ${unchangedKeys.length ? unchangedKeys.join(', ') : 'ไม่มี'}`,
+      '',
+      ...keyMovements.map(k => {
+        if (k.previous === null) return `${k.label} · ${k.current}/${k.max} คะแนน`;
+        const movement = (k.delta ?? 0) > 0
+          ? `↑ +${k.delta}`
+          : (k.delta ?? 0) < 0
+          ? `↓ ${k.delta}`
+          : '→ 0';
+        return `${k.label} · ${k.previous}→${k.current}/${k.max} · ${movement}`;
+      }),
+    ]
+    : [
+      'ยังไม่มีข้อมูล 5 Key รายเดือน',
+      'หมายเหตุ: 5 Key ต้องมาจาก R2Y sync รายเดือน',
+    ];
 
   // History is newest first, so compare the two latest months.
   const last = hist[0];
@@ -1063,9 +1094,7 @@ async function replyHistory(db: ReturnType<typeof getServiceClient>, memberName:
     '',
     `⭐ คะแนนเฉลี่ย ${average.toFixed(1)} คะแนน`,
     '',
-    latestKeys
-      ? `5 Key เดือนล่าสุด · ${monthNames[monthLabel(Number(latestKeys.month))]} ${latestKeys.year}`
-      : '5 Key เดือนล่าสุด',
+    '🔎 5 Key เดือนนี้เทียบเดือนก่อน',
     ...keyRows,
     '',
     trendMsg,
