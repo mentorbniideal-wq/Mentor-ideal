@@ -12,6 +12,7 @@ const TEAM_ROLE: Record<string, string> = {
 function normalizeName(value: unknown): string {
   return String(value || '')
     .replace(/\s*\(bni ideal\)\s*/gi, '')
+    .replace(/\s*export all\s+no data is available\s+to display.*$/gi, '')
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
