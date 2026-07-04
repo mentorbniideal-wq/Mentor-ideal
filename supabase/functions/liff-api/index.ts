@@ -3,6 +3,7 @@ import { getServiceClient } from '../_shared/db.ts';
 import { trackLineEvent } from '../_shared/analytics.ts';
 import { buildIdempotencyKey } from '../_shared/line.ts';
 import { notifyAbsenceStakeholders } from '../_shared/line-absence-notify.ts';
+import { notifyIssueStakeholders } from '../_shared/line-issue-notify.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
 
@@ -109,8 +110,24 @@ Deno.serve(async (req: Request) => {
   if (action === 'issue') {
     const issueText = String(body.issueText || '').trim();
     if (issueText.length < 3) return response({ ok: false, error: 'กรุณาระบุรายละเอียดเพิ่มเติม' }, 400);
-    const { error } = await db.from('line_issues').insert({ member_id: memberId, issue_text: issueText });
+    const { data: issue, error } = await db.from('line_issues')
+      .insert({ member_id: memberId, issue_text: issueText })
+      .select('id')
+      .single();
     if (error) return response({ ok: false, error: error.message }, 400);
+    const issueId = String((issue as Record<string, unknown> | null)?.id || '');
+    if (issueId) {
+      await notifyIssueStakeholders(db, {
+        issueId,
+        memberId,
+        memberName: String(identity.member.name || ''),
+        nickname: String(identity.member.nickname || identity.member.name || ''),
+        mentorTeam: String(identity.member.mentor_team || ''),
+        issueText,
+        idempotencyKey: `liff:issue:${issueId}`,
+        source: 'liff-api',
+      });
+    }
     await trackLineEvent(db, 'liff_issue_submitted', {
       lineUserId: identity.userId, memberId, source: 'liff',
     });

@@ -23,6 +23,7 @@ import { runCopilot } from '../_shared/copilot.ts';
 import { teamCommandMode, type LineRole } from '../_shared/line-roles.ts';
 import { parseLineCommand, type LineCommand } from '../_shared/line-commands.ts';
 import { notifyAbsenceStakeholders } from '../_shared/line-absence-notify.ts';
+import { notifyIssueStakeholders } from '../_shared/line-issue-notify.ts';
 
 Deno.serve(async (req: Request) => {
   // LINE sends POST requests only
@@ -1367,11 +1368,32 @@ async function cancelAbsence(db: ReturnType<typeof getServiceClient>, memberName
 
 async function reportIssue(db: ReturnType<typeof getServiceClient>, memberName: string, issueText: string): Promise<string> {
   if (!issueText.trim()) return '⚠️ กรุณาพิมพ์รายละเอียด เช่น “ปัญหา นัด Mentor ไม่ได้”';
-  const { data: m } = await db.from('members').select('id, nickname').eq('name', memberName).single();
+  const { data: m } = await db.from('members').select('id, nickname, mentor_team').eq('name', memberName).single();
   if (!m) return '⚠️ ไม่พบข้อมูลสมาชิกครับ';
-  await db.from('line_issues').insert({ member_id: (m as any).id, issue_text: issueText });
+  const { data: issue } = await db.from('line_issues')
+    .insert({ member_id: (m as any).id, issue_text: issueText })
+    .select('id')
+    .single();
   const nick = (m as any).nickname || memberName.split(' ')[0];
-  return `รับเรื่องแล้วครับ ${nick} 📨\nMentor จะติดต่อกลับเร็วๆ นี้`;
+  const issueId = String((issue as Record<string, unknown> | null)?.id || '');
+  let notice: Awaited<ReturnType<typeof notifyIssueStakeholders>> | null = null;
+  if (issueId) {
+    notice = await notifyIssueStakeholders(db, {
+      issueId,
+      memberId: String((m as any).id),
+      memberName,
+      nickname: nick,
+      mentorTeam: String((m as any).mentor_team || ''),
+      issueText,
+      idempotencyKey: `webhook:issue:${issueId}`,
+      source: 'line-webhook',
+    });
+  }
+  if (notice?.sent) return `รับเรื่องแล้วครับ ${nick} 📨\nแจ้งหัวหน้าทีมให้แล้ว และทีมจะติดต่อกลับเร็วๆ นี้`;
+  if (notice?.skippedReason === 'quota_low') {
+    return `รับเรื่องแล้วครับ ${nick} 📨\nระบบบันทึกขึ้น Dashboard แล้ว ตอนนี้ LINE quota เหลือน้อยจึงงด push อัตโนมัติครับ`;
+  }
+  return `รับเรื่องแล้วครับ ${nick} 📨\nระบบบันทึกขึ้น Dashboard ให้ Mentor Team แล้วครับ`;
 }
 
 async function replyIssues(db: ReturnType<typeof getServiceClient>, memberName: string): Promise<string> {
