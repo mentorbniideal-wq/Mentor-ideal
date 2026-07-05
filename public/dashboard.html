@@ -1340,7 +1340,7 @@ main{
   </header>
 
   <!-- MC Tabs -->
-  <div class="tabs-wrap"><div class="tabs" id="mc-tabs" style="display:none">
+  <div class="tabs-wrap" id="mc-tabs-wrap" style="display:none"><div class="tabs" id="mc-tabs" style="display:none">
     <button class="tb-fold" id="mc-fold-btn" onclick="toggleTabFold('mc')" title="พับ/ขยาย Tab Bar">☰</button>
     <span class="tb-fold-label" id="mc-fold-label" style="display:none"></span>
     <button class="tb on" onclick="sw('mc-ov',this,'mc')">📊 Overview</button>
@@ -1365,7 +1365,7 @@ main{
   </div></div>
 
   <!-- Growth Tabs -->
-  <div class="tabs-wrap"><div class="tabs" id="gr-tabs" style="display:none">
+  <div class="tabs-wrap" id="gr-tabs-wrap" style="display:none"><div class="tabs" id="gr-tabs" style="display:none">
     <button class="tb-fold" id="gr-fold-btn" onclick="toggleTabFold('gr')" title="พับ/ขยาย Tab Bar">☰</button>
     <span class="tb-fold-label" id="gr-fold-label" style="display:none"></span>
     <button class="tb on" onclick="sw('gr-ov',this,'gr')">🏛 Chapter Overview</button>
@@ -3343,6 +3343,16 @@ function gsr(a,p,cb){
 }
 function call(a,p,cb){gsr(a,p,cb||function(){});}
 function ld(v){document.getElementById('ov').style.display=v?'flex':'none';}
+function setDesktopTabs(role){
+  var activeGroup=role==='growth'?'gr':'mc';
+  ['mc','gr'].forEach(function(group){
+    var wrap=document.getElementById(group+'-tabs-wrap');
+    var tabs=document.getElementById(group+'-tabs');
+    var active=group===activeGroup;
+    if(wrap)wrap.style.display=active?'block':'none';
+    if(tabs)tabs.style.display=active?'flex':'none';
+  });
+}
 
 // ── Login: now handled by Google OAuth ────────────────────────
 function enterApp(r){
@@ -3361,8 +3371,7 @@ function enterApp(r){
   var mini=document.getElementById('cc-role-mini');if(mini)mini.textContent=nm[S.role]||S.role;
   document.getElementById('login').style.display='none';
   document.getElementById('app').style.display='grid';
-  ['mc-tabs','gr-tabs'].forEach(function(id){document.getElementById(id).style.display='none';});
-  document.getElementById(S.role==='mc'?'mc-tabs':'gr-tabs').style.display='flex';
+  setDesktopTabs(S.role);
   restoreTabFold(S.role==='mc'?'mc':'gr');
   document.getElementById('btn-meeting').style.display=S.role==='mc'?'':'none';
   document.getElementById('btn-monthly-sync').style.display=S.role==='mc'?'':'none';
@@ -3415,7 +3424,12 @@ function logout(){
   bulkSel={};updateBulkBar();
   if(dc){dc.destroy();dc=null;} if(bc){bc.destroy();bc=null;} if(jc){jc.destroy();jc=null;} if(mdc){mdc.destroy();mdc=null;} if(tdc){tdc.destroy();tdc=null;} if(tdc2){tdc2.destroy();tdc2=null;}
   cmpState=[];updateCmpBar();
-  ['mc-tabs','gr-tabs'].forEach(function(id){document.getElementById(id).style.display='none';});
+  ['mc','gr'].forEach(function(group){
+    var wrap=document.getElementById(group+'-tabs-wrap');
+    var tabs=document.getElementById(group+'-tabs');
+    if(wrap)wrap.style.display='none';
+    if(tabs)tabs.style.display='none';
+  });
   document.getElementById('login').style.display='flex';
   document.getElementById('app').style.display='none';
   document.getElementById('lerr').textContent='';
@@ -3511,27 +3525,47 @@ function loadMC(forceRefresh){
   ld(true);
   loadDeskLineMembers();
   var done=0;
-  function chk(){done++;if(done===3){ld(false);updateBadges();}}
+  var guard=setTimeout(function(){
+    if(done<3){
+      console.warn('[dashboard] loadMC timeout guard released overlay',done);
+      ld(false);
+      toast('โหลดข้อมูลช้ากว่าปกติ แต่เมนูยังใช้งานได้ครับ','err');
+    }
+  },12000);
+  function chk(){done++;if(done===3){clearTimeout(guard);ld(false);updateBadges();}}
   gsr('getDesktopDashboard',{role:S.role,forceRefresh:!!forceRefresh},function(r){
-    if(r.ok){D.mem=r.members||[];D.ren=r.renewal||[];D.sm=r.summary||{};D.teams=r.teams||[];D.health=r.health||{};
-      if(r.nmList&&r.nmList.length){G.nm=r.nmList;}
-      var upLabel='อัพเดท: '+(r.updatedAt||'—')+(r.fromCache?' ⚡ cached':'');
-      document.getElementById('hup').textContent=upLabel;
-      buildMCFilters();renderMCAll();_populateLinkMemberSelect();}
-    chk();
+    try{
+      if(r.ok){D.mem=r.members||[];D.ren=r.renewal||[];D.sm=r.summary||{};D.teams=r.teams||[];D.health=r.health||{};
+        if(r.nmList&&r.nmList.length){G.nm=r.nmList;}
+        var upLabel='อัพเดท: '+(r.updatedAt||'—')+(r.fromCache?' ⚡ cached':'');
+        document.getElementById('hup').textContent=upLabel;
+        buildMCFilters();renderMCAll();_populateLinkMemberSelect();}
+      else{toast('โหลด MC Dashboard ไม่สำเร็จ: '+(r&&r.error||'unknown'),'err');}
+    }catch(e){
+      console.error('[dashboard] loadMC render failed',e);
+      toast('โหลดบางส่วนไม่สำเร็จ แต่ยังใช้งานเมนูได้: '+(e&&e.message||e),'err');
+    }finally{chk();}
   });
   gsr('getMessages',{role:'mc'},function(r){
-    if(r.ok){D.msgs=r.messages||[];}
-    gsr('getMemberList',{role:'mc'},function(r2){if(r2.ok){memCache=r2.members||[];refreshMsgTeams();if(document.getElementById('msgTeam')&&document.getElementById('msgTeam').value)loadMsgMem();}});
-    chk();
-    gsr('getReadMsgKeys',{role:'mc'},function(rk){
-      if(rk&&rk.ok&&rk.keys){rk.keys.forEach(function(k){_readMsgs[k]=1;});try{localStorage.setItem('bni_readmsgs',JSON.stringify(_readMsgs));}catch(e){}}
-      renderMsgs();updateBadges();
-    });
+    try{
+      if(r.ok){D.msgs=r.messages||[];}
+      gsr('getMemberList',{role:'mc'},function(r2){try{if(r2.ok){memCache=r2.members||[];refreshMsgTeams();if(document.getElementById('msgTeam')&&document.getElementById('msgTeam').value)loadMsgMem();}}catch(e){console.error('[dashboard] member list render failed',e);}});
+      gsr('getReadMsgKeys',{role:'mc'},function(rk){
+        try{
+          if(rk&&rk.ok&&rk.keys){rk.keys.forEach(function(k){_readMsgs[k]=1;});try{localStorage.setItem('bni_readmsgs',JSON.stringify(_readMsgs));}catch(e){}}
+          renderMsgs();updateBadges();
+        }catch(e){console.error('[dashboard] messages render failed',e);}
+      });
+    }catch(e){
+      console.error('[dashboard] loadMC messages failed',e);
+    }finally{chk();}
   });
   gsr('getReports',{role:'mc'},function(r){
-    if(r.ok){D.reps=r.reports||[];renderRep();}
-    chk();
+    try{
+      if(r.ok){D.reps=r.reports||[];renderRep();}
+    }catch(e){
+      console.error('[dashboard] reports render failed',e);
+    }finally{chk();}
   });
   loadLineIssueBadge(true);
 }
@@ -3539,23 +3573,39 @@ function loadMC(forceRefresh){
 function loadGrowth(){
   ld(true);
   var done=0;
-  function chk(){done++;if(done===3){ld(false);updateBadges();}}
+  var guard=setTimeout(function(){
+    if(done<3){
+      console.warn('[dashboard] loadGrowth timeout guard released overlay',done);
+      ld(false);
+      toast('โหลดข้อมูลช้ากว่าปกติ แต่เมนูยังใช้งานได้ครับ','err');
+    }
+  },12000);
+  function chk(){done++;if(done===3){clearTimeout(guard);ld(false);updateBadges();}}
   gsr('getGrowthData',{},function(r){
-    if(r.ok){G.mem=(r.members||[]).map(normalizeGrowthMember);G.sm=r.summary||{};
-      document.getElementById('hup').textContent='อัพเดท: '+new Date().toLocaleTimeString('th');
-      buildGrowthFilters();renderGrowthAll();}
-    chk();
+    try{
+      if(r.ok){G.mem=(r.members||[]).map(normalizeGrowthMember);G.sm=r.summary||{};
+        document.getElementById('hup').textContent='อัพเดท: '+new Date().toLocaleTimeString('th');
+        buildGrowthFilters();renderGrowthAll();}
+    }catch(e){
+      console.error('[dashboard] loadGrowth render failed',e);
+      toast('โหลด Growth บางส่วนไม่สำเร็จ แต่ยังใช้งานเมนูได้: '+(e&&e.message||e),'err');
+    }finally{chk();}
   });
   gsr('getGrowthTasks',{statusFilter:'all'},function(r){
-    if(r.ok){G.tasks=r.tasks||[];renderTasks();}
-    chk();
+    try{if(r.ok){G.tasks=r.tasks||[];renderTasks();}}
+    catch(e){console.error('[dashboard] growth tasks render failed',e);}
+    finally{chk();}
   });
   gsr('getNewMembers',{},function(r){
-    if(r.ok){G.nm=r.members||[];renderNM();renderChapterPulse();}
-    gsr('getRiskMembers',{},function(r2){
-      if(r2.ok){G.dec=r2.risks||[];renderDec();}
-    });
-    chk();
+    try{
+      if(r.ok){G.nm=r.members||[];renderNM();renderChapterPulse();}
+      gsr('getRiskMembers',{},function(r2){
+        try{if(r2.ok){G.dec=r2.risks||[];renderDec();}}
+        catch(e){console.error('[dashboard] growth risk render failed',e);}
+      });
+    }catch(e){
+      console.error('[dashboard] new member render failed',e);
+    }finally{chk();}
   });
   loadGrowthRenewals();
 }
@@ -10506,6 +10556,7 @@ function sw(id,btn,group){
   document.querySelectorAll('#'+group+'-tabs .tb').forEach(function(b){b.classList.remove('on');});
   sec.classList.add('on');
   if(btn&&btn.classList)btn.classList.add('on');
+  ld(false);
   if(id==='gr-dec'&&typeof renderTrendSection==='function')renderTrendSection();
 }
 
