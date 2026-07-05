@@ -104,6 +104,180 @@ function canManageTeamIssue(auth: Awaited<ReturnType<typeof requireAuth>>, team:
   return Boolean(auth.teamName && team && auth.teamName === team);
 }
 
+async function getLineQuotaSnapshot(): Promise<Record<string, unknown>> {
+  if (!LINE_TOKEN) {
+    return { ok: false, configured: false, error: 'LINE_CHANNEL_ACCESS_TOKEN ยังไม่ได้ตั้งค่า' };
+  }
+  try {
+    const [quotaRes, usageRes] = await Promise.all([
+      fetch('https://api.line.me/v2/bot/message/quota', {
+        headers: { Authorization: `Bearer ${LINE_TOKEN}` },
+      }),
+      fetch('https://api.line.me/v2/bot/message/quota/consumption', {
+        headers: { Authorization: `Bearer ${LINE_TOKEN}` },
+      }),
+    ]);
+    if (!quotaRes.ok || !usageRes.ok) {
+      return {
+        ok: false,
+        configured: true,
+        error: `LINE quota API error: ${quotaRes.status} / ${usageRes.status}`,
+      };
+    }
+    const quota = await quotaRes.json() as Record<string, unknown>;
+    const usage = await usageRes.json() as Record<string, unknown>;
+    const type = String(quota.type || 'unknown');
+    const unlimited = type === 'unlimited';
+    const limit = unlimited ? null : Number(quota.value) || 0;
+    const used = Number(usage.totalUsage) || 0;
+    const remaining = unlimited ? null : Math.max(0, Number(limit) - used);
+    const pct = !unlimited && Number(limit) > 0 ? Math.round(used / Number(limit) * 100) : 0;
+    return { ok: true, configured: true, type, unlimited, limit, used, remaining, pct };
+  } catch (error) {
+    return {
+      ok: false,
+      configured: true,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function lineQuotaMode(quota: Record<string, unknown>): {
+  mode: 'normal' | 'save' | 'critical' | 'unlimited' | 'unknown';
+  label: string;
+  advice: string;
+} {
+  if (!quota.ok) return {
+    mode: 'unknown',
+    label: 'ตรวจ quota ไม่ได้',
+    advice: 'ใช้ reply/manual ก่อน และตรวจ LINE token',
+  };
+  if (quota.unlimited) return {
+    mode: 'unlimited',
+    label: 'Unlimited',
+    advice: 'ส่งข้อความสำคัญได้ตามปกติ',
+  };
+  const remaining = Number(quota.remaining || 0);
+  const pct = Number(quota.pct || 0);
+  if (remaining <= 50 || pct >= 90) return {
+    mode: 'critical',
+    label: 'Critical',
+    advice: 'งด broadcast และใช้ reply/quick reply เป็นหลัก',
+  };
+  if (remaining <= 150 || pct >= 75) return {
+    mode: 'save',
+    label: 'Save Mode',
+    advice: 'ส่งเฉพาะ renewal, help case, onboarding ที่จำเป็น',
+  };
+  return {
+    mode: 'normal',
+    label: 'Normal',
+    advice: 'ส่ง auto message ได้ตามปกติ แต่ควรหลีกเลี่ยงข้อความที่ไม่จำเป็น',
+  };
+}
+
+function lineAutomationLibrary(): Record<string, unknown>[] {
+  return [
+    {
+      key: 'monday_brief',
+      name: '🌅 Monday Brief',
+      status: 'auto',
+      schedule: 'จันทร์ 08:00',
+      audience: 'MC + สมาชิกที่รับ brief',
+      quotaImpact: 'medium',
+      purpose: 'เริ่มสัปดาห์ด้วยภาพรวม/สิ่งที่ควรโฟกัส',
+      guard: 'ปิดได้เมื่อ quota เข้า Save Mode',
+    },
+    {
+      key: 'thursday_score',
+      name: '📊 Thursday Score + Friday Prep',
+      status: 'auto',
+      schedule: 'พฤหัส 07:00',
+      audience: 'สมาชิกที่ผูก LINE และไม่ mute score',
+      quotaImpact: 'high',
+      purpose: 'ส่ง score card และ action ก่อนประชุมวันศุกร์',
+      guard: 'ถ้า quota ต่ำ ส่งเฉพาะ red/black/renewal risk',
+    },
+    {
+      key: 'friday_meeting_reminder',
+      name: '⏰ Friday Meeting Reminder',
+      status: 'auto',
+      schedule: 'พฤหัส 18:00',
+      audience: 'สมาชิกที่รับ nudge',
+      quotaImpact: 'high',
+      purpose: 'เตือนว่ามีประชุมวันศุกร์',
+      guard: 'สำคัญ แต่ควร short copy เพื่อประหยัด quota',
+    },
+    {
+      key: 'friday_recap',
+      name: '🏆 Friday Recap',
+      status: 'auto',
+      schedule: 'ศุกร์ 13:00',
+      audience: 'สมาชิก + MC leaderboard',
+      quotaImpact: 'medium',
+      purpose: 'สรุปหลังประชุม/leaderboard',
+      guard: 'งดส่งสมาชิกทั้งหมดเมื่อ quota ต่ำ',
+    },
+    {
+      key: 'monthly_recap',
+      name: '📆 Monthly Recap',
+      status: 'auto',
+      schedule: 'วันที่ 1 เวลา 08:00',
+      audience: 'MC',
+      quotaImpact: 'low',
+      purpose: 'สรุปเดือนและสัญญาณสำคัญ',
+      guard: 'ส่ง MC เท่านั้นจึงปลอดภัยต่อ quota',
+    },
+    {
+      key: '121_pending',
+      name: '🤝 1-2-1 Pending Reminder',
+      status: 'auto',
+      schedule: 'พุธ 18:00',
+      audience: 'สมาชิกที่มีนัด 1-2-1 ค้างเกิน 7 วัน',
+      quotaImpact: 'targeted',
+      purpose: 'ช่วยปิด loop นัด 1-2-1',
+      guard: 'ส่งเฉพาะรายการค้างจริง',
+    },
+    {
+      key: 'renewal',
+      name: '🔁 Renewal Reminder',
+      status: 'event',
+      schedule: 'ทุกวัน 10:00',
+      audience: 'สมาชิกที่ใกล้ต่ออายุ milestone',
+      quotaImpact: 'targeted',
+      purpose: 'กัน renewal หลุด',
+      guard: 'ควรส่งแม้ Save Mode เพราะเป็น high-value',
+    },
+    {
+      key: 'onboarding',
+      name: '📋 Onboarding / Passport',
+      status: 'manual/event',
+      schedule: 'ตาม week / กดส่งเอง',
+      audience: 'สมาชิกใหม่',
+      quotaImpact: 'targeted',
+      purpose: 'พา member ใหม่เรียนรู้ตาม Passport',
+      guard: 'ส่งเฉพาะคนที่ enroll แล้ว',
+    },
+  ];
+}
+
+function memberCommandGuide(): Record<string, unknown>[] {
+  return [
+    { group: 'Core', command: 'สถานะ', label: '📊 สถานะ', result: 'ดูคะแนนล่าสุด + คำแนะนำขึ้นสี', priority: 1 },
+    { group: 'Core', command: 'ประวัติ', label: '📈 ประวัติ', result: 'ดู Traffic Light ย้อนหลัง + 5 Key เทียบเดือนก่อน', priority: 2 },
+    { group: 'Core', command: 'ทำอะไร', label: '🎯 ทำอะไร', result: 'action ที่ควรทำเร็วที่สุด', priority: 3 },
+    { group: 'Support', command: 'ขอความช่วยเหลือ', label: '🆘 ขอความช่วยเหลือ', result: 'เปิด Help Case ให้ทีมดูแล', priority: 4 },
+    { group: 'Support', command: 'ปัญหา [รายละเอียด]', label: '⚠️ แจ้งปัญหา', result: 'บันทึกปัญหาแบบมีรายละเอียด', priority: 5 },
+    { group: '1-2-1', command: 'แนะนำ', label: '🤝 แนะนำ', result: 'หา match 1-2-1', priority: 6 },
+    { group: '1-2-1', command: 'นัด [ชื่อ]', label: '📅 นัด 1-2-1', result: 'บันทึกนัด 1-2-1', priority: 7 },
+    { group: '1-2-1', command: 'เจอแล้ว', label: '✅ เจอแล้ว', result: 'ปิดรายการ 1-2-1 ล่าสุด', priority: 8 },
+    { group: 'Meeting', command: 'ลา [เหตุผล]', label: '🙋 ลา', result: 'แจ้งลาและเข้าระบบ', priority: 9 },
+    { group: 'Meeting', command: 'ส่ง sub [ชื่อ]', label: '👥 ส่ง sub', result: 'แจ้งคนมาแทน', priority: 10 },
+    { group: 'Goal', command: 'เป้า', label: '🎯 เป้า', result: 'ดูเป้าหมายปัจจุบัน', priority: 11 },
+    { group: 'AI', command: 'ถาม [คำถาม]', label: '🤖 ถาม AI', result: 'ให้ Copilot ช่วยคิดจากบริบทสมาชิก', priority: 12 },
+  ];
+}
+
 // ─────────────────────────────────────────────────────────────
 export async function handleLineAdmin(p: Record<string, unknown>): Promise<Response> {
   const db     = getServiceClient();
@@ -1666,6 +1840,325 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         sentCount++;
       }
       return jsonResponse({ ok: true, message: '1-2-1 reminder sent', sentCount });
+    }
+
+    // ── LINE HEALTH CENTER ─────────────────────────────────────
+    case 'getLineHealth': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const since24h = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
+      const stalePendingCutoff = new Date(Date.now() - 5 * 60_000).toISOString();
+      const quota = await getLineQuotaSnapshot();
+      const quotaGuard = lineQuotaMode(quota);
+
+      const [
+        botInfoRes,
+        activeMembersRes,
+        linkedRes,
+        failedDeliveriesRes,
+        pendingDeliveriesRes,
+        lastDeliveryRes,
+        openIssuesRes,
+        staleIssuesRes,
+        latestWebhookRes,
+        failedWebhookRes,
+        richMenuRes,
+      ] = await Promise.all([
+        LINE_TOKEN
+          ? fetch('https://api.line.me/v2/bot/info', {
+            headers: { Authorization: `Bearer ${LINE_TOKEN}` },
+          }).catch((error) => ({ ok: false, status: 0, text: async () => String(error) } as Response))
+          : Promise.resolve(null),
+        db.from('members').select('*', { count: 'exact', head: true }).eq('is_archived', false),
+        db.from('line_members').select('*', { count: 'exact', head: true }),
+        db.from('line_message_deliveries').select('*', { count: 'exact', head: true })
+          .eq('status', 'failed').gte('created_at', since24h),
+        db.from('line_message_deliveries').select('*', { count: 'exact', head: true })
+          .eq('status', 'pending').lt('updated_at', stalePendingCutoff),
+        db.from('line_message_deliveries').select('created_at, status, notification_type, source')
+          .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        db.from('line_issues').select('*', { count: 'exact', head: true }).is('resolved_at', null),
+        db.from('line_issues').select('*', { count: 'exact', head: true })
+          .is('resolved_at', null).lt('reported_at', since24h),
+        db.from('line_webhook_events').select('created_at, status, event_type, source_user_id')
+          .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        db.from('line_webhook_events').select('*', { count: 'exact', head: true })
+          .eq('status', 'failed').gte('created_at', since24h),
+        db.from('settings').select('key, value').like('key', 'LINE_RICH_MENU_%'),
+      ]);
+
+      const botOk = Boolean(LINE_TOKEN && botInfoRes && 'ok' in botInfoRes && botInfoRes.ok);
+      const activeMembers = activeMembersRes.count || 0;
+      const linkedMembers = linkedRes.count || 0;
+      const richMenus = ((richMenuRes.data || []) as Record<string, unknown>[])
+        .filter(row => String(row.value || '').trim()).length;
+      const healthItems = [
+        {
+          key: 'token',
+          label: 'LINE Token',
+          ok: Boolean(LINE_TOKEN),
+          severity: LINE_TOKEN ? 'ok' : 'danger',
+          detail: LINE_TOKEN ? 'ตั้งค่าแล้ว' : 'ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN',
+        },
+        {
+          key: 'bot',
+          label: 'Bot Info',
+          ok: botOk,
+          severity: botOk ? 'ok' : 'warning',
+          detail: botOk ? 'LINE API ตอบกลับปกติ' : 'ยังตรวจ Bot Info ไม่ผ่าน',
+        },
+        {
+          key: 'webhook',
+          label: 'Webhook',
+          ok: !latestWebhookRes.error && Boolean(latestWebhookRes.data),
+          severity: failedWebhookRes.count ? 'danger' : latestWebhookRes.data ? 'ok' : 'warning',
+          detail: latestWebhookRes.error
+            ? `ยังอ่าน webhook log ไม่ได้: ${latestWebhookRes.error.message}`
+            : latestWebhookRes.data
+            ? `ล่าสุด ${String((latestWebhookRes.data as Record<string, unknown>).created_at || '')}`
+            : 'ยังไม่พบ webhook event',
+        },
+        {
+          key: 'linking',
+          label: 'Account Linking',
+          ok: linkedMembers > 0,
+          severity: linkedMembers > 0 ? 'ok' : 'warning',
+          detail: `${linkedMembers}/${activeMembers} คนผูก LINE แล้ว`,
+        },
+        {
+          key: 'delivery',
+          label: 'Delivery',
+          ok: (failedDeliveriesRes.count || 0) === 0 && (pendingDeliveriesRes.count || 0) === 0,
+          severity: (failedDeliveriesRes.count || 0) > 0 ? 'danger' : (pendingDeliveriesRes.count || 0) > 0 ? 'warning' : 'ok',
+          detail: `24 ชม. failed ${failedDeliveriesRes.count || 0}, pending stale ${pendingDeliveriesRes.count || 0}`,
+        },
+        {
+          key: 'issues',
+          label: 'Help Cases',
+          ok: (staleIssuesRes.count || 0) === 0,
+          severity: (staleIssuesRes.count || 0) > 0 ? 'warning' : 'ok',
+          detail: `open ${openIssuesRes.count || 0}, เกิน 24 ชม. ${staleIssuesRes.count || 0}`,
+        },
+        {
+          key: 'rich_menu',
+          label: 'Rich Menu',
+          ok: richMenus >= 1,
+          severity: richMenus >= 1 ? 'ok' : 'warning',
+          detail: `พบ ${richMenus} menu setting`,
+        },
+        {
+          key: 'quota',
+          label: 'Quota Guard',
+          ok: quotaGuard.mode !== 'critical' && quotaGuard.mode !== 'unknown',
+          severity: quotaGuard.mode === 'critical' ? 'danger' : quotaGuard.mode === 'save' || quotaGuard.mode === 'unknown' ? 'warning' : 'ok',
+          detail: `${quotaGuard.label}: ${quotaGuard.advice}`,
+        },
+      ];
+      return jsonResponse({
+        ok: true,
+        summary: {
+          healthy: healthItems.filter(item => item.severity === 'ok').length,
+          warning: healthItems.filter(item => item.severity === 'warning').length,
+          danger: healthItems.filter(item => item.severity === 'danger').length,
+          activeMembers,
+          linkedMembers,
+          unlinkedMembers: Math.max(0, activeMembers - linkedMembers),
+        },
+        quota,
+        quotaGuard,
+        lastDelivery: lastDeliveryRes.data || null,
+        items: healthItems,
+      });
+    }
+
+    case 'testLineCommand': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const text = String(p.text || 'สถานะ').trim();
+      const lineUserId = String(p.lineUserId || '').trim();
+      const memberName = String(p.memberName || '').trim();
+      let testUserId = lineUserId;
+      if (!testUserId && memberName) testUserId = await findLineUserId(db, memberName) || '';
+      if (!testUserId) {
+        const { data: first } = await db.from('line_members')
+          .select('line_user_id')
+          .order('registered_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        testUserId = String((first as Record<string, unknown> | null)?.line_user_id || '');
+      }
+      if (!testUserId) return errResponse('ยังไม่มีสมาชิกที่ผูก LINE สำหรับทดสอบ');
+
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+      const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+      if (!supabaseUrl || !serviceKey) return errResponse('SUPABASE_URL หรือ SERVICE_ROLE_KEY ไม่พร้อมสำหรับ self-test');
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/line-webhook`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-BNI-Sim': serviceKey,
+        },
+        body: JSON.stringify({ text, userId: testUserId }),
+      });
+      const body = await response.text();
+      if (!response.ok) return errResponse(`Webhook self-test failed ${response.status}: ${body.slice(0, 500)}`);
+      let parsed: Record<string, unknown> = {};
+      try { parsed = JSON.parse(body) as Record<string, unknown>; } catch (_) { parsed = { raw: body }; }
+      return jsonResponse({ ok: true, text, lineUserId: testUserId, result: parsed });
+    }
+
+    case 'getLineCommandGuide': {
+      const auth = await requireAuth(db, p, ['mc', 'growth', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
+      if (!auth.ok) return errResponse(auth.error!);
+      return jsonResponse({ ok: true, commands: memberCommandGuide() });
+    }
+
+    case 'getLineAutomationLibrary': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const quota = await getLineQuotaSnapshot();
+      return jsonResponse({
+        ok: true,
+        quota,
+        quotaGuard: lineQuotaMode(quota),
+        rows: lineAutomationLibrary(),
+      });
+    }
+
+    case 'getLineMemberJourney': {
+      const auth = await requireAuth(db, p, ['mc', 'growth', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const days = Math.min(90, Math.max(7, Number(p.days) || 30));
+      const since = new Date(Date.now() - days * 86400000).toISOString();
+      const allowedTeam = auth.isMC || auth.role === 'growth'
+        ? String(p.team || '').trim()
+        : String(auth.teamName || '');
+
+      const [membersRes, eventsRes, issuesRes, deliveriesRes] = await Promise.all([
+        db.from('v_member_dashboard')
+          .select('id, name, nickname, mentor_team, display_score, traffic_light, open_core_issue, days_to_expiry')
+          .eq('is_archived', false),
+        db.from('line_product_events')
+          .select('member_id, event_name, properties, occurred_at')
+          .gte('occurred_at', since)
+          .limit(2000),
+        db.from('line_issues')
+          .select('member_id, resolved_at, reported_at')
+          .gte('reported_at', since),
+        db.from('line_message_deliveries')
+          .select('member_id, status, created_at')
+          .gte('created_at', since)
+          .limit(2000),
+      ]);
+      const firstError = membersRes.error || eventsRes.error || issuesRes.error || deliveriesRes.error;
+      if (firstError) return errResponse(firstError.message);
+
+      const eventsByMember: Record<string, Record<string, number>> = {};
+      for (const row of ((eventsRes.data || []) as Record<string, unknown>[])) {
+        const memberId = String(row.member_id || '');
+        if (!memberId) continue;
+        const eventName = String(row.event_name || '');
+        const props = (row.properties || {}) as Record<string, unknown>;
+        const commandName = String(props.commandName || props.command || '');
+        eventsByMember[memberId] ||= {};
+        eventsByMember[memberId].total = (eventsByMember[memberId].total || 0) + 1;
+        if (commandName) eventsByMember[memberId][`cmd:${commandName}`] = (eventsByMember[memberId][`cmd:${commandName}`] || 0) + 1;
+        eventsByMember[memberId][eventName] = (eventsByMember[memberId][eventName] || 0) + 1;
+      }
+
+      const issuesByMember: Record<string, { open: number; total: number }> = {};
+      for (const row of ((issuesRes.data || []) as Record<string, unknown>[])) {
+        const memberId = String(row.member_id || '');
+        if (!memberId) continue;
+        issuesByMember[memberId] ||= { open: 0, total: 0 };
+        issuesByMember[memberId].total += 1;
+        if (!row.resolved_at) issuesByMember[memberId].open += 1;
+      }
+
+      const deliveryByMember: Record<string, { sent: number; failed: number }> = {};
+      for (const row of ((deliveriesRes.data || []) as Record<string, unknown>[])) {
+        const memberId = String(row.member_id || '');
+        if (!memberId) continue;
+        deliveryByMember[memberId] ||= { sent: 0, failed: 0 };
+        if (row.status === 'failed') deliveryByMember[memberId].failed += 1;
+        if (row.status === 'sent') deliveryByMember[memberId].sent += 1;
+      }
+
+      const rows = ((membersRes.data || []) as Record<string, unknown>[])
+        .filter(m => !allowedTeam || String(m.mentor_team || '') === allowedTeam)
+        .map((m) => {
+          const id = String(m.id || '');
+          const ev = eventsByMember[id] || {};
+          const iss = issuesByMember[id] || { open: 0, total: 0 };
+          const del = deliveryByMember[id] || { sent: 0, failed: 0 };
+          const commandCount = Number(ev.total || 0);
+          const hasStatus = Boolean(ev['cmd:status']);
+          const hasHistory = Boolean(ev['cmd:history']);
+          const hasAction = Boolean(ev['cmd:action-plan']);
+          const hasSupport = Boolean(ev['cmd:issues'] || ev['cmd:report-issue']);
+          const has121 = Boolean(ev['cmd:tracking'] || ev['cmd:match'] || ev['cmd:schedule'] || ev['cmd:met']);
+          const journeyScore = Math.max(0, Math.min(100,
+            Math.round(
+              Math.min(30, commandCount * 4)
+              + (hasStatus ? 15 : 0)
+              + (hasHistory ? 15 : 0)
+              + (hasAction ? 15 : 0)
+              + (has121 ? 10 : 0)
+              + (hasSupport ? 5 : 0)
+              + (del.failed ? -10 : 0)
+              + (iss.open ? -10 : 0),
+            ),
+          ));
+          const nextBestAction = !hasStatus
+            ? 'ชวนกด/พิมพ์ “สถานะ”'
+            : !hasHistory
+            ? 'ชวนดู “ประวัติ”'
+            : !hasAction
+            ? 'ชวนพิมพ์ “ทำอะไร”'
+            : iss.open
+            ? 'ตอบ Help Case ให้จบ'
+            : has121
+            ? 'รักษา engagement'
+            : 'ชวนใช้ 1-2-1 command';
+          return {
+            memberId: id,
+            name: String(m.name || ''),
+            nick: String(m.nickname || m.name || ''),
+            team: String(m.mentor_team || ''),
+            score: Number(m.display_score || 0),
+            traffic: String(m.traffic_light || 'none'),
+            commandCount,
+            journeyScore,
+            hasStatus,
+            hasHistory,
+            hasAction,
+            has121,
+            openIssues: iss.open,
+            failedDeliveries: del.failed,
+            nextBestAction,
+          };
+        })
+        .sort((a, b) => a.journeyScore - b.journeyScore || a.score - b.score)
+        .slice(0, 80);
+
+      return jsonResponse({
+        ok: true,
+        days,
+        teamScope: allowedTeam || 'chapter',
+        rows,
+        summary: {
+          total: rows.length,
+          quiet: rows.filter(r => r.commandCount === 0).length,
+          needsHelp: rows.filter(r => r.openIssues > 0 || r.failedDeliveries > 0).length,
+          averageJourney: rows.length
+            ? Math.round(rows.reduce((sum, r) => sum + r.journeyScore, 0) / rows.length)
+            : 0,
+        },
+      });
     }
 
     // ── LINE DELIVERY LOG ─────────────────────────────────────

@@ -51,6 +51,19 @@ main{padding:20px;max-width:1200px}
 .stat-chip .sl{font-size:10px;color:var(--sub)}
 .loading{color:var(--sub);text-align:center;padding:30px;font-size:12px}
 .empty{color:var(--sub);text-align:center;padding:30px;font-size:12px}
+.tool-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.mini-card{background:var(--card2);border:1px solid var(--bd);border-radius:10px;padding:12px}
+.mini-card h3{font-size:12px;margin-bottom:6px;color:var(--mint)}
+.mini-card p{font-size:11px;line-height:1.55;color:var(--sub)}
+.sev-ok{border-color:rgba(6,214,160,.35)}.sev-warning{border-color:rgba(255,209,102,.45)}.sev-danger{border-color:rgba(255,107,107,.55)}
+.sev-ok .status-dot{color:var(--gr)}.sev-warning .status-dot{color:var(--ye)}.sev-danger .status-dot{color:var(--re)}
+.inline-form{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.inline-form select,.inline-form input,.inline-form textarea{background:var(--card2);border:1px solid var(--bd2);color:var(--tx);padding:7px 9px;border-radius:8px;font-size:12px;outline:none;font-family:inherit}
+.inline-form textarea{min-height:62px;flex:1;min-width:260px;resize:vertical}
+.result-box{margin-top:10px;background:#07111f;border:1px solid var(--bd);border-radius:10px;padding:10px;font-size:12px;color:var(--sub);white-space:pre-wrap;max-height:220px;overflow:auto}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--bd);font-size:10px;color:var(--sub);white-space:nowrap}
+.journey-score{font-weight:900;font-size:18px}
+.issue-open{color:var(--ye)}.issue-closed{color:var(--gr)}
 #toast{position:fixed;bottom:20px;right:20px;background:#1e3a5c;color:var(--tx);padding:10px 16px;border-radius:8px;font-size:12px;display:none;z-index:999;border:1px solid var(--bd2)}
 </style>
 </head>
@@ -75,6 +88,76 @@ main{padding:20px;max-width:1200px}
     <div class="sec-body">
       <div class="quota-row" id="quota-cards"><div class="loading">⏳ กำลังโหลด...</div></div>
     </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hdr">
+      <h2>🩺 LINE Health Center</h2>
+      <span id="health-summary" style="font-size:11px;color:var(--sub)">—</span>
+      <button class="btn btn-line" onclick="loadHealth()">ตรวจระบบ</button>
+    </div>
+    <div class="sec-body">
+      <div class="tool-grid" id="health-cards"><div class="loading">⏳ กำลังโหลด...</div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hdr">
+      <h2>🧪 Bot Self-Test</h2>
+      <span style="font-size:11px;color:var(--sub)">ทดสอบคำสั่งผ่าน webhook simulator โดยไม่ส่งจริงหา member</span>
+    </div>
+    <div class="sec-body">
+      <div class="inline-form">
+        <select id="test-member"><option value="">เลือกสมาชิกที่ผูก LINE</option></select>
+        <select id="test-command">
+          <option value="สถานะ">📊 สถานะ</option>
+          <option value="ประวัติ">📈 ประวัติ</option>
+          <option value="ทำอะไร">🎯 ทำอะไร</option>
+          <option value="ขอความช่วยเหลือ">🆘 ขอความช่วยเหลือ</option>
+          <option value="ทีม">👥 ทีม</option>
+          <option value="แนะนำ">🤝 แนะนำ</option>
+          <option value="ช่วยเหลือ">🧭 ช่วยเหลือ</option>
+        </select>
+        <input id="test-custom" placeholder="หรือพิมพ์คำสั่งเอง..." style="min-width:220px">
+        <button class="btn btn-line" onclick="runSelfTest()">Run Test</button>
+      </div>
+      <div id="selftest-result" class="result-box" style="display:none"></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hdr">
+      <h2>🆘 Help Case Inbox</h2>
+      <span id="issue-summary" style="font-size:11px;color:var(--sub)">—</span>
+      <button class="btn btn-sub" onclick="loadIssues()">โหลดเคส</button>
+    </div>
+    <div class="sec-body" id="issues-wrap"><div class="loading">⏳ กำลังโหลด...</div></div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hdr">
+      <h2>🧭 Member Command Guide</h2>
+      <button class="btn btn-sub" onclick="loadCommandGuide()">โหลดคำสั่ง</button>
+    </div>
+    <div class="sec-body" id="command-guide"><div class="loading">⏳ กำลังโหลด...</div></div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hdr">
+      <h2>🗓️ Auto Schedule & Quota Guard</h2>
+      <span id="auto-summary" style="font-size:11px;color:var(--sub)">—</span>
+      <button class="btn btn-sub" onclick="loadAutomation()">โหลด Library</button>
+    </div>
+    <div class="sec-body" id="automation-wrap"><div class="loading">⏳ กำลังโหลด...</div></div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hdr">
+      <h2>🧠 Member Journey Score</h2>
+      <span id="journey-summary" style="font-size:11px;color:var(--sub)">—</span>
+      <button class="btn btn-sub" onclick="loadJourney()">วิเคราะห์ 30 วัน</button>
+    </div>
+    <div class="sec-body" id="journey-wrap"><div class="loading">⏳ กำลังโหลด...</div></div>
   </div>
 
   <div class="sec">
@@ -144,12 +227,186 @@ var _offset=0,_pageSize=50,_total=0,_debounceTimer=null;
 window.addEventListener('DOMContentLoaded',function(){
   checkAdminAuth().then(function(){
     loadQuota();
+    loadLineMemberOptions();
+    loadHealth();
+    loadIssues();
+    loadCommandGuide();
+    loadAutomation();
+    loadJourney();
     loadLog(true);
   });
 });
 
 function toast(msg){var el=document.getElementById('toast');el.textContent=msg;el.style.display='block';setTimeout(function(){el.style.display='none';},3000);}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function loadLineMemberOptions(){
+  adminCall({action:'getLineMembers'}).then(function(r){
+    var sel=document.getElementById('test-member');
+    if(!sel||!r||!r.ok)return;
+    var rows=r.list||[];
+    sel.innerHTML='<option value="">เลือกสมาชิกที่ผูก LINE</option>'+rows.map(function(m){
+      return '<option value="'+esc(m.lineUserId)+'">'+esc((m.nick||m.name||'สมาชิก')+(m.team?' · '+m.team:''))+'</option>';
+    }).join('');
+  });
+}
+
+function severityIcon(s){return s==='danger'?'❌':s==='warning'?'⚠️':'✅';}
+
+function loadHealth(){
+  var wrap=document.getElementById('health-cards');
+  var sum=document.getElementById('health-summary');
+  wrap.innerHTML='<div class="loading">⏳ กำลังตรวจ...</div>';
+  adminCall({action:'getLineHealth'}).then(function(r){
+    if(!r||!r.ok){wrap.innerHTML='<div class="empty">❌ '+esc(r&&r.error||'ตรวจระบบไม่สำเร็จ')+'</div>';return;}
+    var s=r.summary||{};
+    sum.textContent='Healthy '+(s.healthy||0)+' · Warning '+(s.warning||0)+' · Danger '+(s.danger||0)+' · Linked '+(s.linkedMembers||0)+'/'+(s.activeMembers||0);
+    wrap.innerHTML=(r.items||[]).map(function(item){
+      return '<div class="mini-card sev-'+esc(item.severity||'ok')+'">'
+        +'<h3><span class="status-dot">'+severityIcon(item.severity)+'</span> '+esc(item.label)+'</h3>'
+        +'<p>'+esc(item.detail)+'</p>'
+        +'</div>';
+    }).join('');
+  });
+}
+
+function runSelfTest(){
+  var lineUserId=document.getElementById('test-member').value;
+  var custom=(document.getElementById('test-custom').value||'').trim();
+  var cmd=custom||document.getElementById('test-command').value||'สถานะ';
+  var box=document.getElementById('selftest-result');
+  box.style.display='block';
+  box.textContent='⏳ กำลังทดสอบ '+cmd+' ...';
+  adminCall({action:'testLineCommand',lineUserId:lineUserId,text:cmd}).then(function(r){
+    if(!r||!r.ok){box.textContent='❌ '+(r&&r.error||'ทดสอบไม่สำเร็จ');return;}
+    var messages=((r.result||{}).messages||[]);
+    box.textContent='✅ Webhook ตอบกลับ '+messages.length+' message(s)\n\n'
+      +messages.map(function(m,i){
+        var alt=m.altText||m.text||JSON.stringify(m).slice(0,500);
+        return (i+1)+'. '+alt;
+      }).join('\n\n');
+  }).catch(function(e){box.textContent='❌ '+(e&&e.message||'ทดสอบไม่สำเร็จ');});
+}
+
+function loadIssues(){
+  var wrap=document.getElementById('issues-wrap');
+  var sum=document.getElementById('issue-summary');
+  wrap.innerHTML='<div class="loading">⏳ กำลังโหลดเคส...</div>';
+  adminCall({action:'getLineIssues'}).then(function(r){
+    if(!r||!r.ok){wrap.innerHTML='<div class="empty">❌ '+esc(r&&r.error||'โหลดเคสไม่ได้')+'</div>';return;}
+    var rows=r.list||[];
+    var open=rows.filter(function(x){return !x.resolvedAt;}).length;
+    sum.textContent='Open '+open+' · Total '+rows.length;
+    if(!rows.length){wrap.innerHTML='<div class="empty">ยังไม่มี Help Case</div>';return;}
+    var html='<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>วันที่</th><th>สมาชิก</th><th>ทีม</th><th>สถานะ</th><th>เรื่อง</th><th>ตอบกลับ</th></tr></thead><tbody>';
+    rows.forEach(function(x){
+      var openRow=!x.resolvedAt;
+      html+='<tr>'
+        +'<td style="white-space:nowrap;color:var(--sub)">'+esc(x.date)+'</td>'
+        +'<td><b>'+esc(x.nick||x.name)+'</b><br><span style="color:var(--sub);font-size:10px">'+esc(x.name)+'</span></td>'
+        +'<td>'+esc(x.team||'—')+'</td>'
+        +'<td><span class="'+(openRow?'issue-open':'issue-closed')+'">'+(openRow?'⏳ เปิดอยู่':'✅ ปิดแล้ว')+'</span></td>'
+        +'<td><div class="preview-text" style="-webkit-line-clamp:3">'+esc(x.detail)+'</div>'+(x.response?'<div style="margin-top:6px;color:var(--sub);font-size:10px">ตอบล่าสุด: '+esc(x.response)+'</div>':'')+'</td>'
+        +'<td><button class="btn btn-line" onclick="replyIssue(&quot;'+esc(x.id)+'&quot;,'+(openRow?'true':'false')+')">ตอบ</button> '
+        +'<button class="btn btn-sub" onclick="toggleIssue(&quot;'+esc(x.id)+'&quot;,&quot;'+(openRow?'closed':'open')+'&quot;)">'+(openRow?'ปิดเคส':'เปิดใหม่')+'</button></td>'
+        +'</tr>';
+    });
+    html+='</tbody></table></div>';
+    wrap.innerHTML=html;
+  });
+}
+
+function replyIssue(id,isOpen){
+  var text=prompt('พิมพ์ข้อความตอบกลับสมาชิกทาง LINE');
+  if(!text||!text.trim())return;
+  var closeIssue=confirm('ตอบแล้วต้องการปิดเคสนี้เลยไหม?');
+  adminCall({action:'replyLineIssue',issueId:id,response:text.trim(),closeIssue:closeIssue}).then(function(r){
+    if(!r||!r.ok){toast('❌ '+(r&&r.error||'ตอบกลับไม่สำเร็จ'));return;}
+    toast('✅ ส่งคำตอบแล้ว'+(r.closed?' และปิดเคสแล้ว':''));
+    loadIssues();
+    loadHealth();
+  });
+}
+
+function toggleIssue(id,status){
+  adminCall({action:'updateLineIssueStatus',issueId:id,status:status}).then(function(r){
+    if(!r||!r.ok){toast('❌ '+(r&&r.error||'อัปเดตเคสไม่สำเร็จ'));return;}
+    toast(status==='closed'?'✅ ปิดเคสแล้ว':'✅ เปิดเคสใหม่แล้ว');
+    loadIssues();
+    loadHealth();
+  });
+}
+
+function loadCommandGuide(){
+  var wrap=document.getElementById('command-guide');
+  wrap.innerHTML='<div class="loading">⏳ กำลังโหลด...</div>';
+  adminCall({action:'getLineCommandGuide'}).then(function(r){
+    if(!r||!r.ok){wrap.innerHTML='<div class="empty">❌ '+esc(r&&r.error||'โหลดคำสั่งไม่ได้')+'</div>';return;}
+    var groups={};
+    (r.commands||[]).forEach(function(c){(groups[c.group]=groups[c.group]||[]).push(c);});
+    wrap.innerHTML=Object.keys(groups).map(function(g){
+      return '<div class="mini-card" style="margin-bottom:10px"><h3>'+esc(g)+'</h3>'
+        +groups[g].map(function(c){
+          return '<div style="display:flex;gap:8px;align-items:flex-start;margin:7px 0">'
+            +'<span class="tag">'+esc(c.label)+'</span>'
+            +'<div><b>'+esc(c.command)+'</b><br><span style="color:var(--sub);font-size:11px">'+esc(c.result)+'</span></div>'
+            +'</div>';
+        }).join('')
+        +'</div>';
+    }).join('');
+  });
+}
+
+function loadAutomation(){
+  var wrap=document.getElementById('automation-wrap');
+  var sum=document.getElementById('auto-summary');
+  wrap.innerHTML='<div class="loading">⏳ กำลังโหลด...</div>';
+  adminCall({action:'getLineAutomationLibrary'}).then(function(r){
+    if(!r||!r.ok){wrap.innerHTML='<div class="empty">❌ '+esc(r&&r.error||'โหลด library ไม่ได้')+'</div>';return;}
+    var guard=r.quotaGuard||{};
+    sum.textContent='Quota Guard: '+(guard.label||'—')+' · '+(guard.advice||'');
+    var html='<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>ชุดข้อความ</th><th>วัน/เวลา</th><th>ส่งถึง</th><th>Quota</th><th>ใช้ทำอะไร</th><th>Guard</th></tr></thead><tbody>';
+    (r.rows||[]).forEach(function(x){
+      html+='<tr><td><b>'+esc(x.name)+'</b><br><span class="tag">'+esc(x.status)+'</span></td>'
+        +'<td>'+esc(x.schedule)+'</td><td>'+esc(x.audience)+'</td><td><span class="tag">'+esc(x.quotaImpact)+'</span></td>'
+        +'<td>'+esc(x.purpose)+'</td><td style="color:var(--sub)">'+esc(x.guard)+'</td></tr>';
+    });
+    html+='</tbody></table></div>';
+    wrap.innerHTML=html;
+  });
+}
+
+function tlIcon(t){return{green:'🟢',yellow:'🟡',red:'🔴',black:'⚫',none:'⚪'}[t]||'⚪';}
+function loadJourney(){
+  var wrap=document.getElementById('journey-wrap');
+  var sum=document.getElementById('journey-summary');
+  wrap.innerHTML='<div class="loading">⏳ กำลังวิเคราะห์...</div>';
+  adminCall({action:'getLineMemberJourney',days:30}).then(function(r){
+    if(!r||!r.ok){wrap.innerHTML='<div class="empty">❌ '+esc(r&&r.error||'วิเคราะห์ไม่ได้')+'</div>';return;}
+    var s=r.summary||{};
+    sum.textContent='Avg '+(s.averageJourney||0)+' · Quiet '+(s.quiet||0)+' · Needs help '+(s.needsHelp||0);
+    var rows=r.rows||[];
+    if(!rows.length){wrap.innerHTML='<div class="empty">ยังไม่มีข้อมูล Journey</div>';return;}
+    var html='<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Journey</th><th>สมาชิก</th><th>ทีม</th><th>BNI</th><th>ใช้คำสั่ง</th><th>Signals</th><th>Next Best Action</th></tr></thead><tbody>';
+    rows.slice(0,30).forEach(function(x){
+      var color=x.journeyScore>=70?'var(--gr)':x.journeyScore>=40?'var(--ye)':'var(--re)';
+      html+='<tr><td><span class="journey-score" style="color:'+color+'">'+esc(x.journeyScore)+'</span></td>'
+        +'<td><b>'+esc(x.nick||x.name)+'</b><br><span style="color:var(--sub);font-size:10px">'+esc(x.name)+'</span></td>'
+        +'<td>'+esc(x.team||'—')+'</td><td>'+tlIcon(x.traffic)+' '+esc(Math.round(x.score||0))+'</td>'
+        +'<td>'+esc(x.commandCount||0)+'</td>'
+        +'<td>'
+          +(x.hasStatus?'<span class="tag">สถานะ</span> ':'')
+          +(x.hasHistory?'<span class="tag">ประวัติ</span> ':'')
+          +(x.hasAction?'<span class="tag">ทำอะไร</span> ':'')
+          +(x.has121?'<span class="tag">1-2-1</span> ':'')
+          +(x.openIssues?'<span class="tag" style="color:var(--ye)">Help '+esc(x.openIssues)+'</span> ':'')
+          +(x.failedDeliveries?'<span class="tag" style="color:var(--re)">Fail '+esc(x.failedDeliveries)+'</span> ':'')
+        +'</td><td>'+esc(x.nextBestAction)+'</td></tr>';
+    });
+    html+='</tbody></table></div>';
+    wrap.innerHTML=html;
+  });
+}
 
 function loadQuota(){
   var el=document.getElementById('quota-cards');
