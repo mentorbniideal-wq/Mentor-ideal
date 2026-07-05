@@ -3590,12 +3590,12 @@ function renderKpiHero(){
     +'<div class="kpi-hero-bar"><div class="kpi-hero-bar-fill" style="width:'+Math.min(100,avg)+'%;background:'+avgC+'"></div></div>'
     +'<div style="font-size:12px;color:var(--sub);margin-top:6px">'+sc.length+' คนมีข้อมูล · '+avgLabel+' Zone</div>'
     +'</div>'
-    +'<div class="kpi-side-card" onclick="sw(\'mc-risk\',document.querySelector(\'#mc-tabs .tb:nth-child(6)\'),\'mc\')">'
+    +'<div class="kpi-side-card" onclick="sw(\'mc-risk\',null,\'mc\')">'
     +'<div class="kpi-hero-eyebrow">At Risk</div>'
     +'<div class="kpi-side-num" style="color:var(--re)">'+atRisk+'</div>'
     +'<div style="font-size:11px;color:var(--sub);margin-top:auto;padding-top:12px">Score &lt; 50 pts</div>'
     +'</div>'
-    +'<div class="kpi-side-card" onclick="sw(\'mc-ren\',document.querySelector(\'#mc-tabs .tb:nth-child(5)\'),\'mc\')">'
+    +'<div class="kpi-side-card" onclick="sw(\'mc-ren\',null,\'mc\')">'
     +'<div class="kpi-hero-eyebrow">Renewal ≤45 วัน</div>'
     +'<div class="kpi-side-num" style="color:var(--ye)">'+ren45+'</div>'
     +'<div style="font-size:11px;color:var(--sub);margin-top:auto;padding-top:12px">ต้องต่ออายุเร็วๆ นี้</div>'
@@ -3606,7 +3606,7 @@ function renderKpiHero(){
     html+='<div class="kpi-team-grid">';
     teams.forEach(function(t){
       var tc=t.avg>=70?'var(--gr)':t.avg>=50?'var(--ye)':t.avg>=30?'var(--re)':'var(--sub)';
-      html+='<div class="kpi-team-card" onclick="sw(\'mc-team\',document.querySelector(\'#mc-tabs .tb:nth-child(3)\'),\'mc\');loadDesktopScorecard()">'
+      html+='<div class="kpi-team-card" onclick="sw(\'mc-team\',null,\'mc\');loadDesktopScorecard()">'
         +'<div class="kpi-team-name">'+(t.team||'—')+'</div>'
         +'<div class="kpi-team-score" style="color:'+tc+'">'+(t.avg||'—')+'</div>'
         +'<div class="kpi-team-count">'+(t.count||0)+' คน</div>'
@@ -3770,7 +3770,7 @@ function _buildPassCalHTML(el,sessions){
     +'</table></div>'
     +'<div style="font-size:11px;color:var(--sub);margin-top:8px;display:flex;align-items:center;gap:8px">'
     +'<span>🔵 scheduled · 🟡 notified · 🟢 completed</span>'
-    +'<button class="bsm" onclick="sw(\'mc-passport\',document.querySelector(\'#mc-tabs .tb[onclick*=mc-passport]\'),\'mc\');loadPassportBoard()" style="font-size:10px;margin-left:auto">จัดการ Passport ▸</button>'
+    +'<button class="bsm" onclick="sw(\'mc-passport\',null,\'mc\');loadPassportBoard()" style="font-size:10px;margin-left:auto">จัดการ Passport ▸</button>'
     +'</div>'
     +'</div>';
 }
@@ -3894,7 +3894,7 @@ function renderChapterPulse(){
   var cards=[
     {ico:'🟢',val:greenPct+'%',lbl:'Green Zone',sub:(sm.green||0)+' จาก '+total+' คน',
      badge:benchOk?'<span class="pulse-badge pulse-ok">✅ BNI Benchmark ≥50%</span>':'<span class="pulse-badge pulse-warn">⚠️ ต่ำกว่า Benchmark</span>',
-     c:'var(--gr)',fn:"sw('mc-mem',document.querySelector('#mc-tabs .tb:nth-child(2)'),\'mc\')"},
+     c:'var(--gr)',fn:"sw('mc-mem',null,\'mc\')"},
     {ico:'💰',val:'฿'+fB(totalTYFCB),lbl:'TYFCB Chapter รวม',sub:'ธุรกิจที่ปิดได้จาก BNI ทั้งหมด',
      badge:totalTYFCB>0?'<span class="pulse-badge pulse-ok">มีข้อมูล</span>':'<span class="pulse-badge pulse-warn">รอข้อมูล</span>',
      c:'var(--ye)',fn:null},
@@ -4055,16 +4055,16 @@ function renderFocusBar(){
   function cls(v,hi,lo){return v>=hi?'alert':v>=lo?'warn':'ok';}
   var items=[
     {ico:'⚠️',val:lineIssueOpen,lbl:'LINE Issues รอตอบ',c:cls(lineIssueOpen,3,1),fn:"openLineIssueCenter()"},
-    {ico:'⚠️',val:risk.length,lbl:'Risk Members',c:cls(risk.length,4,1),fn:"sw('mc-risk',document.querySelector('#mc-tabs .tb:nth-child(6)'),\'mc\')"},
-    {ico:'📋',val:pend.length,lbl:'Open Reports',c:cls(pend.length,3,1),fn:"sw('mc-rep',document.querySelector('#mc-tabs .tb:nth-child(8)'),\'mc\')"},
-    {ico:'📅',val:ren30.length,lbl:'Renewal ≤30 วัน',c:cls(ren30.length,2,1),fn:"sw('mc-ren',document.querySelector('#mc-tabs .tb:nth-child(5)'),\'mc\')"},
+    {ico:'⚠️',val:risk.length,lbl:'Risk Members',c:cls(risk.length,4,1),fn:"sw('mc-risk',null,\'mc\')"},
+    {ico:'📋',val:pend.length,lbl:'Open Reports',c:cls(pend.length,3,1),fn:"sw('mc-rep',null,\'mc\')"},
+    {ico:'📅',val:ren30.length,lbl:'Renewal ≤30 วัน',c:cls(ren30.length,2,1),fn:"sw('mc-ren',null,\'mc\')"},
     {ico:'🔇',val:noMsg.length,lbl:'Red ไม่มีข้อความ',c:cls(noMsg.length,2,1),fn:"openActionCenter('coach')"},
     {ico:'🆘',val:dropH.length,lbl:'Drop Risk สูง',c:cls(dropH.length,2,1),fn:null},
-    {ico:'🤝',val:miss121.length,lbl:'Missing 1-2-1',c:cls(miss121.length,6,1),fn:"sw('mc-mem',document.querySelector('#mc-tabs .tb:nth-child(2)'),\'mc\')"},
-    {ico:'📚',val:missCEU.length,lbl:'Missing CEU',c:cls(missCEU.length,6,1),fn:"sw('mc-mem',document.querySelector('#mc-tabs .tb:nth-child(2)'),\'mc\')"},
-    {ico:'💡',val:lowRef.length,lbl:'Low Referral',c:cls(lowRef.length,6,1),fn:"sw('mc-mem',document.querySelector('#mc-tabs .tb:nth-child(2)'),\'mc\')"},
+    {ico:'🤝',val:miss121.length,lbl:'Missing 1-2-1',c:cls(miss121.length,6,1),fn:"sw('mc-mem',null,\'mc\')"},
+    {ico:'📚',val:missCEU.length,lbl:'Missing CEU',c:cls(missCEU.length,6,1),fn:"sw('mc-mem',null,\'mc\')"},
+    {ico:'💡',val:lowRef.length,lbl:'Low Referral',c:cls(lowRef.length,6,1),fn:"sw('mc-mem',null,\'mc\')"},
     {ico:'📆',val:noContact.length,lbl:'Mentor ไม่ได้ติดตาม >2wk',c:cls(noContact.length,3,1),fn:"openActionCenter('pq')"},
-    {ico:'🌱',val:nm.length,lbl:'New Members (8W)',c:'info',fn:"sw('mc-8w',document.querySelector('#mc-tabs .tb:last-child'),\'mc\');load8WProgress()"},
+    {ico:'🌱',val:nm.length,lbl:'New Members (8W)',c:'info',fn:"sw('mc-8w',null,\'mc\');load8WProgress()"},
   ];
   var urgent=items.filter(function(it){return it.c==='alert'||it.c==='warn';}).length;
   el.innerHTML='<div class="focus-bar">'
@@ -6779,7 +6779,7 @@ function render8WProgress(nmList){
     return '<div style="border:1px solid var(--bd);border-radius:10px;padding:9px 10px;margin:9px 0;background:linear-gradient(135deg,var(--sf2),var(--sf));">'
       +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">'
       +'<div style="font-size:11px;font-weight:900;color:var(--ac)">🛂 Passport '+done+'/'+total+'</div>'
-      +'<button class="bsm" onclick="event.stopPropagation();sw(&quot;mc-passport&quot;,document.querySelector(&quot;#mc-tabs .tb[onclick*=mc-passport]&quot;),&quot;mc&quot;);loadPassportBoard()" style="font-size:10px;padding:3px 8px">เปิด</button>'
+      +'<button class="bsm" onclick="event.stopPropagation();sw(&quot;mc-passport&quot;,null,&quot;mc&quot;);loadPassportBoard()" style="font-size:10px;padding:3px 8px">เปิด</button>'
       +'</div>'
       +'<div style="height:6px;background:var(--bd);border-radius:99px;overflow:hidden;margin-bottom:6px"><div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,var(--ac),#10b981)"></div></div>'
       +'<div style="font-size:10px;color:var(--sub);line-height:1.45">Next: <b style="color:var(--tx)">W'+(ns.week_no||'—')+' '+esc(ns.title||'')+'</b><br>พบ: <b style="color:var(--tx)">'+esc(ns.assigned_lt_name||ns.lt_role||'ยังไม่กำหนด')+'</b> · '+passportFmtDate(ns.scheduled_date)+'</div>'
@@ -9497,9 +9497,9 @@ function renderAlertDigest(){
   var noMsg=D.mem.filter(function(m){return m.bniTl==='red'&&!D.msgs.some(function(ms){return ms.name===m.name;});});
   var el=document.getElementById('mc-dig');if(!el)return;
   var items=[
-    {v:risk.length,l:'Risk Members',c:'re',fn:'sw(\'mc-risk\',document.querySelector(\'#mc-tabs .tb:nth-child(6)\'),\'mc\')'},
-    {v:pend.length,l:'รอ Reply Reports',c:'ye',fn:'sw(\'mc-rep\',document.querySelector(\'#mc-tabs .tb:nth-child(8)\'),\'mc\')'},
-    {v:ren.length,l:'Renewal ≤30 วัน',c:'pu',fn:'sw(\'mc-ren\',document.querySelector(\'#mc-tabs .tb:nth-child(5)\'),\'mc\')'},
+    {v:risk.length,l:'Risk Members',c:'re',fn:'sw(\'mc-risk\',null,\'mc\')'},
+    {v:pend.length,l:'รอ Reply Reports',c:'ye',fn:'sw(\'mc-rep\',null,\'mc\')'},
+    {v:ren.length,l:'Renewal ≤30 วัน',c:'pu',fn:'sw(\'mc-ren\',null,\'mc\')'},
     {v:noMsg.length,l:'Red Zone ไม่มีข้อความ',c:'re',fn:'openActionCenter(\'coach\')'},
   ];
   el.innerHTML='<div class="alert-dig">'+
@@ -9786,12 +9786,12 @@ function renderSmartAlerts(){
   var mentorLoad={};mem.forEach(function(m){mentorLoad[m.mentor||'—']=(mentorLoad[m.mentor||'—']||0)+1;});
   var overloaded=Object.keys(mentorLoad).filter(function(k){return mentorLoad[k]>6;}).length;
   var items=[
-    {ico:'🤝',v:miss121.length,l:'Missing 1-2-1',c:miss121.length>4?'alert':miss121.length>0?'warn':'ok',fn:"var t=document.querySelector('#mc-tabs .tb:nth-child(2)');if(t)sw('mc-mem',t,'mc')"},
-    {ico:'📚',v:missCEU.length,l:'Missing CEU',c:missCEU.length>4?'alert':missCEU.length>0?'warn':'ok',fn:"var t=document.querySelector('#mc-tabs .tb:nth-child(2)');if(t)sw('mc-mem',t,'mc')"},
-    {ico:'🔄',v:lowRef.length,l:'Low Referral (<3)',c:lowRef.length>5?'alert':lowRef.length>0?'warn':'ok',fn:"var t=document.querySelector('#mc-tabs .tb:nth-child(2)');if(t)sw('mc-mem',t,'mc')"},
+    {ico:'🤝',v:miss121.length,l:'Missing 1-2-1',c:miss121.length>4?'alert':miss121.length>0?'warn':'ok',fn:"sw('mc-mem',null,'mc')"},
+    {ico:'📚',v:missCEU.length,l:'Missing CEU',c:missCEU.length>4?'alert':missCEU.length>0?'warn':'ok',fn:"sw('mc-mem',null,'mc')"},
+    {ico:'🔄',v:lowRef.length,l:'Low Referral (<3)',c:lowRef.length>5?'alert':lowRef.length>0?'warn':'ok',fn:"sw('mc-mem',null,'mc')"},
     {ico:'📞',v:noContact.length,l:'ยังไม่ได้ติดต่อ',c:noContact.length>3?'alert':noContact.length>0?'warn':'ok',fn:"openActionCenter('pq')"},
-    {ico:'⚖️',v:overloaded,l:'Mentor Overload',c:overloaded>0?'alert':'ok',fn:"var t=document.querySelector('#mc-tabs .tb:nth-child(4)');if(t)sw('mc-team',t,'mc')"},
-    {ico:'⚠️',v:D.reps.filter(function(r){return repIsOpen(r);}).length,l:'Open Reports',c:D.reps.filter(function(r){return repIsOpen(r);}).length>0?'warn':'ok',fn:"var t=document.querySelector('#mc-tabs .tb:nth-child(8)');if(t)sw('mc-rep',t,'mc')"},
+    {ico:'⚖️',v:overloaded,l:'Mentor Overload',c:overloaded>0?'alert':'ok',fn:"sw('mc-team',null,'mc')"},
+    {ico:'⚠️',v:D.reps.filter(function(r){return repIsOpen(r);}).length,l:'Open Reports',c:D.reps.filter(function(r){return repIsOpen(r);}).length>0?'warn':'ok',fn:"sw('mc-rep',null,'mc')"},
   ];
   el.innerHTML=items.map(function(it){
     return'<div class="sa-card '+it.c+'" onclick="'+it.fn+'" title="คลิกเพื่อดูรายละเอียด">'+
@@ -10485,12 +10485,28 @@ function copyMCT(){
   navigator.clipboard.writeText(_mctText).then(function(){toast('Copy MC TALK แล้ว 📋','ok');}).catch(function(){toast('ไม่สามารถ Copy ได้','err');});
 }
 // ── Tab Switching ─────────────────────────────────
+function findTabButtonForSection(id,group){
+  var tabs=document.querySelectorAll('#'+group+'-tabs .tb');
+  for(var i=0;i<tabs.length;i++){
+    var attr=tabs[i].getAttribute('onclick')||'';
+    if(attr.indexOf("'"+id+"'")>=0||attr.indexOf('"'+id+'"')>=0)return tabs[i];
+  }
+  return null;
+}
 function sw(id,btn,group){
+  group=group||((String(id||'').indexOf('gr-')===0)?'gr':'mc');
+  var sec=document.getElementById(id);
+  if(!sec){
+    console.warn('[dashboard] section not found:',id);
+    if(typeof toast==='function')toast('ไม่พบหน้า '+id,'err');
+    return;
+  }
+  btn=btn||findTabButtonForSection(id,group);
   document.querySelectorAll('.sec').forEach(function(s){s.classList.remove('on');});
   document.querySelectorAll('#'+group+'-tabs .tb').forEach(function(b){b.classList.remove('on');});
-  document.getElementById(id).classList.add('on');
-  btn.classList.add('on');
-  if(id==='gr-dec')renderTrendSection();
+  sec.classList.add('on');
+  if(btn&&btn.classList)btn.classList.add('on');
+  if(id==='gr-dec'&&typeof renderTrendSection==='function')renderTrendSection();
 }
 
 // ── Tab Fold (collapse/expand left sidebar) ──────────────
