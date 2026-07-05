@@ -15,7 +15,7 @@ const ALL_TEAMS = ['TOOMTAM', 'Aof', 'Draft', 'PHAI', 'AMP'];
 async function fetchTeamGroups(db: ReturnType<typeof getServiceClient>) {
   const { data: rows, error } = await db
     .from('v_member_dashboard')
-    .select('id, name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb')
+    .select('id, name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb, bni_goal')
     .eq('is_archived', false)
     .order('display_score', { ascending: false });
 
@@ -82,7 +82,7 @@ async function fetchTeamGroups(db: ReturnType<typeof getServiceClient>) {
         lastName:    '',
         profession:  '',                                       // not in schema yet
         tl:          tlShort[String(m.traffic_light)] || '',  // frontend expects G/Y/R
-        bniGoal:     0,
+        bniGoal:     Number(m.bni_goal) || 0,
         recv:        Number(m.received_thb) || 0,
         given:       Number(m.given_thb) || 0,
         goalPct:     0,
@@ -131,11 +131,38 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
       return jsonResponse({ ok: true, teams, teamNames });
     }
 
-    // ── Save PT Member (stub: members already tracked in members table) ──
+    // ── Save PT Member — update bni_goal (and optionally received_thb) for existing member ──
+    // Frontend sends: { nick, firstName, bniGoal, recv, team, tl, profession, ... }
+    // Members are already tracked in the members table via assignToTeam; this only saves the goal.
     case 'savePTMember': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
-      // PT membership = mentor_team assignment, already managed via assignToTeam
+
+      const nick      = String(p.nick || p.firstName || '').trim();
+      const bniGoal   = p.bniGoal !== undefined ? Number(p.bniGoal) : null;
+
+      if (!nick) return jsonResponse({ ok: true }); // no-op if no identifier
+
+      // Look up by nickname first, then by name
+      let memberId = '';
+      const { data: byNick } = await db.from('members').select('id').eq('nickname', nick).maybeSingle();
+      if (byNick) {
+        memberId = String((byNick as Record<string, unknown>).id);
+      } else {
+        const { data: byName } = await db.from('members').select('id').eq('name', nick).maybeSingle();
+        if (byName) memberId = String((byName as Record<string, unknown>).id);
+      }
+
+      if (!memberId) return jsonResponse({ ok: true }); // member not in DB yet — no-op
+
+      const updates: Record<string, unknown> = {};
+      if (bniGoal !== null && !isNaN(bniGoal)) updates.bni_goal = bniGoal;
+
+      if (Object.keys(updates).length > 0) {
+        const { error } = await db.from('members').update(updates).eq('id', memberId);
+        if (error) return errResponse(error.message);
+      }
+
       return jsonResponse({ ok: true });
     }
 
@@ -188,11 +215,41 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
       return jsonResponse({ ok: true });
     }
 
-    // ── Update PT Member (stub: member data lives in members table) ──
+    // ── Update PT Member — update bni_goal or received_thb for a member ──
+    // Mobile sends: { nick, bniGoal } OR { nick, recv }
     case 'updatePTMember': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
-      // Extended member fields (bniGoal, etc.) not yet in schema
+
+      const nick = String(p.nick || '').trim();
+      if (!nick) return errResponse('nick required');
+
+      // Look up by nickname first, then by name
+      let memberId = '';
+      const { data: byNick } = await db.from('members').select('id').eq('nickname', nick).maybeSingle();
+      if (byNick) {
+        memberId = String((byNick as Record<string, unknown>).id);
+      } else {
+        const { data: byName } = await db.from('members').select('id').eq('name', nick).maybeSingle();
+        if (byName) memberId = String((byName as Record<string, unknown>).id);
+      }
+      if (!memberId) return errResponse(`ไม่พบสมาชิก: ${nick}`);
+
+      const updates: Record<string, unknown> = {};
+      if (p.bniGoal !== undefined) {
+        const v = Number(p.bniGoal);
+        if (!isNaN(v) && v >= 0) updates.bni_goal = v;
+      }
+      if (p.recv !== undefined) {
+        const v = Number(p.recv);
+        if (!isNaN(v) && v >= 0) updates.received_thb = v;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        const { error } = await db.from('members').update(updates).eq('id', memberId);
+        if (error) return errResponse(error.message);
+      }
+
       return jsonResponse({ ok: true });
     }
 
