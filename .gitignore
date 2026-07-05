@@ -2,3 +2,4 @@
 migration-exports/
 supabase/.temp/
 .vercel
+.claude/

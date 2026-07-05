@@ -42,7 +42,7 @@ class BNIPdf(FPDF):
             return
         self.set_font("Sarabun", "B", 8)
         self.set_text_color(*C_MUTED)
-        self.cell(0, 8, "BNI IDEAL Mentor System · คู่มือใช้งาน v3.0", align="L")
+        self.cell(0, 8, "BNI IDEAL Mentor System · คู่มือใช้งาน Edition 05", align="L")
         self.set_text_color(*C_TEXT)
         self.ln(0)
         self.set_draw_color(*C_BORDER)
@@ -50,6 +50,8 @@ class BNIPdf(FPDF):
         self.ln(3)
 
     def footer(self):
+        if self.page_no() == 1:
+            return
         self.set_y(-13)
         self.set_draw_color(*C_BORDER)
         self.line(16, self.get_y(), 194, self.get_y())
@@ -60,14 +62,24 @@ class BNIPdf(FPDF):
 
     def cover_page(self):
         self.add_page()
-        # Navy banner
+        # Full quiet-luxury canvas
         self.set_fill_color(*C_BG)
-        self.rect(0, 0, 210, 80, "F")
+        self.rect(0, 0, 210, 297, "F")
+        self.set_draw_color(66, 82, 102)
+        self.set_line_width(0.25)
+        self.ellipse(142, 188, 95, 95, "D")
+        self.ellipse(154, 200, 70, 70, "D")
+        self.set_draw_color(*C_GOLD)
+        self.set_line_width(0.25)
+        self.line(0, 252, 45, 297)
+        self.line(165, 0, 210, 45)
+        self.line(176, 0, 210, 34)
+
         # Gold accent line
         self.set_fill_color(*C_GOLD)
-        self.rect(0, 75, 210, 5, "F")
+        self.rect(22, 28, 28, 1.2, "F")
         # Badge
-        self.set_y(18)
+        self.set_y(45)
         self.set_font("Sarabun", "B", 9)
         self.set_text_color(*C_BG)
         self.set_fill_color(*C_GOLD)
@@ -76,7 +88,7 @@ class BNIPdf(FPDF):
         self.set_x((210 - badge_w) / 2)
         self.cell(badge_w, 6, badge_txt, fill=True, border=0, align="C")
         # Title
-        self.ln(6)
+        self.ln(10)
         self.set_font("Sarabun", "B", 28)
         self.set_text_color(*C_GOLD)
         self.cell(0, 12, "คู่มือใช้งาน", align="C")
@@ -88,11 +100,49 @@ class BNIPdf(FPDF):
         self.ln(10)
         self.set_font("Sarabun", "", 12)
         self.set_text_color(148, 163, 184)
-        self.cell(0, 6, "เวอร์ชัน v3.0  ·  อัปเดต พฤษภาคม 2026", align="C")
+        self.cell(0, 6, "Edition 05  ·  อัปเดต 4 กรกฎาคม 2026", align="C")
         self.ln(5)
-        self.cell(0, 6, "สำหรับ Mentor  ·  Growth Coordinator  ·  สมาชิก BNI IDEAL Chapter", align="C")
-        # Body area
-        self.ln(20)
+        self.cell(0, 6, "สำหรับ MC  ·  Mentor  ·  Growth  ·  ทีมงาน BNI IDEAL Chapter", align="C")
+
+        # System promise cards
+        self.set_y(150)
+        card_y = self.get_y()
+        cards = [
+            ("01", "Member Support", "LINE commands, help cases,\nand member-first nudges"),
+            ("02", "Traffic Light", "Monthly movement summary\nand 5 Key comparison"),
+            ("03", "Operations", "MC, Mentor, Growth rhythm\nfor weekly execution"),
+        ]
+        for i, (num, title, subtitle) in enumerate(cards):
+            x = 22 + i * 56
+            self.set_fill_color(17, 29, 43)
+            self.set_draw_color(58, 72, 91)
+            self.rect(x, card_y, 48, 45, "DF")
+            self.set_xy(x + 5, card_y + 6)
+            self.set_font("Sarabun", "B", 10)
+            self.set_text_color(*C_GOLD)
+            self.cell(38, 5, num)
+            self.set_xy(x + 5, card_y + 15)
+            self.set_font("Sarabun", "B", 13)
+            self.set_text_color(*C_WHITE)
+            self.cell(38, 6, title)
+            self.set_xy(x + 5, card_y + 25)
+            self.set_font("Sarabun", "", 9)
+            self.set_text_color(148, 163, 184)
+            self.multi_cell(38, 4.2, subtitle)
+
+        self.set_xy(22, 244)
+        self.set_draw_color(*C_GOLD)
+        self.line(22, 239, 92, 239)
+        self.set_font("Sarabun", "B", 9)
+        self.set_text_color(*C_GOLD)
+        self.cell(70, 5, "EDITION 05")
+        self.set_font("Sarabun", "", 9)
+        self.set_text_color(148, 163, 184)
+        self.cell(96, 5, "4 JULY 2026", align="R")
+        self.set_xy(22, 261)
+        self.set_font("Sarabun", "", 9)
+        self.cell(0, 5, "OPERATE CLEARLY · SUPPORT MEMBERS · GROW THE CHAPTER")
+
         self.set_text_color(*C_TEXT)
 
     def h1(self, text):
