@@ -188,13 +188,15 @@ async function sha256Hex(value: string): Promise<string> {
 | G-02 | HIGH→**FIXED** | `public/dashboard.html` `loadGrowth()` | `getNewMembers`, `getGrowthData`, `getGrowthTasks`, `getRiskMembers`, `getRenewal`, `createGrowthTask` all had hardcoded `role:'mc'` or `role:'growth'` — breaks PIN auth | **FIXED** — removed all hardcoded roles; `gsr()` now injects `S.role` automatically |
 | G-03 | HIGH→**FIXED** | `supabase/functions/api/handlers/power-teams.ts` | `deletePTMember`, `setPTMemberStatus`, `movePTMember`, `moveSynMember` required `['mc']` only — UI shows buttons to growth but all write calls returned 403 | **FIXED** — added `'growth'` to `requireAuth` on all 4 cases |
 | G-04 | HIGH→**FIXED** (F-91) | `supabase/functions/api/handlers/power-teams.ts:346` | `saveCrossTeamPair` had no role restriction — any authenticated role could write | **FIXED** — now requires `['mc', 'growth']` |
-| G-05 | MEDIUM | `supabase/functions/api/handlers/power-teams.ts` | `savePTMember` / `updatePTMember` are no-op stubs — `bni_goal` and extended fields not in `members` schema | **Deferred** — requires migration to add `bni_goal` column |
+| G-05 | MEDIUM→**FIXED** | `supabase/functions/api/handlers/power-teams.ts` | `savePTMember` / `updatePTMember` are no-op stubs — `bni_goal` and extended fields not in `members` schema | **FIXED** — migration 048 adds `bni_goal` column; both handlers now write to DB |
 
 ## Pending Deploy Actions
 
 1. ~~`supabase db push --linked`~~ — ✅ done 2026-07-03
-2. **Redeploy `api` edge function** — `power-teams.ts` updated (G-03, G-04): `supabase functions deploy api --project-ref itwyjhlfemxsfbimshby`
-3. **CODEX tasks** — pass F-94 and F-95 to CODEX for LINE domain fixes
+2. ~~Redeploy `api` edge function~~ — ✅ done 2026-07-04 (G-03/G-04) and 2026-07-05 (G-05)
+3. ~~Migration 048 `bni_goal`~~ — ✅ deployed 2026-07-05
+4. **GAS clasp push** — ✅ pushed 2026-07-05; production deployment @415 stuck at version limit (200 versions). Fix: go to Apps Script editor → Manage Deployments → update to latest version, or delete old versions from Project History.
+5. **CODEX tasks** — pass F-94 and F-95 to CODEX for LINE domain fixes
 
 ---
 
