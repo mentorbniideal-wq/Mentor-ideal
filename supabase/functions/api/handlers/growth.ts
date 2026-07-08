@@ -953,7 +953,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       if (!auth.ok) return errResponse(auth.error!);
       // Grouped structure for the Growth Sheet UI
       // Columns: 0=seq, 1=ชื่อ-สกุล, 2=ชื่อเล่น, 3=อายุสมาชิก, 4=หมายเหตุ, 5=เป้าหมาย ฿, 6=รับจริง ฿, 7=%ทำได้
-      const HEADERS = ['', 'ชื่อ-สกุล', 'ชื่อเล่น', 'อายุสมาชิก', 'หมายเหตุ', 'เป้าหมาย ฿', 'รับจริง ฿', '%ทำได้'];
+      const HEADERS = ['', 'ชื่อ-สกุล', 'ชื่อเล่น', 'อายุสมาชิก', 'หมายเหตุ', 'เป้า Growth/MSB ฿', 'รับจริง ฿', '%ทำได้'];
       const COL_MAP = { name: 1, nick: 2, memberAge: 3, note: 4, target: 5, received: 6, pct: 7 };
 
       const { data: groupRows, error: gErr } = await db
@@ -968,15 +968,22 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         .order('seq_no', { ascending: true });
       if (mErr) return errResponse(mErr.message);
 
-      // Fetch bni_days for members who are linked (to compute membership age dynamically)
+      // Fetch bni_days + MSB/BNI Goal for linked members. Growth target remains primary;
+      // members.bni_goal is a fallback synced from Member Success Blueprint.
       const linkedIds = ((memberRows || []) as Record<string, unknown>[])
         .map(m => m.member_id).filter(Boolean) as string[];
       const bniDaysMap: Record<string, number> = {};
+      const bniGoalMap: Record<string, number> = {};
       if (linkedIds.length) {
-        const { data: r2yRows } = await db
-          .from('r2y_stats').select('member_id, bni_days').in('member_id', linkedIds);
+        const [{ data: r2yRows }, { data: goalRows }] = await Promise.all([
+          db.from('r2y_stats').select('member_id, bni_days').in('member_id', linkedIds),
+          db.from('members').select('id, bni_goal').in('id', linkedIds),
+        ]);
         for (const r of (r2yRows || []) as Record<string, unknown>[]) {
           bniDaysMap[String(r.member_id)] = Number(r.bni_days) || 0;
+        }
+        for (const r of (goalRows || []) as Record<string, unknown>[]) {
+          bniGoalMap[String(r.id)] = Number(r.bni_goal) || 0;
         }
       }
 
@@ -1002,14 +1009,16 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         let gTarget = 0, gReceived = 0;
 
         const members = mems.map((m: Record<string, unknown>) => {
-          const tgt  = Number(m.target_thb)   || 0;
+          const memberId  = String(m.member_id || '');
+          const rawTarget = Number(m.target_thb) || 0;
+          const msbGoal   = memberId ? (bniGoalMap[memberId] || 0) : 0;
+          const tgt  = rawTarget > 0 ? rawTarget : msbGoal;
           const recv = Number(m.received_thb) || 0;
           const pct  = tgt > 0 ? Math.round(recv / tgt * 100) : 0;
           gTarget   += tgt;
           gReceived += recv;
           // Compute membership age from bni_days if linked, else use stored value (skip #REF! garbage)
           const storedAge = String(m.membership_age || '');
-          const memberId  = String(m.member_id || '');
           const bniDays   = memberId ? (bniDaysMap[memberId] || 0) : 0;
           const ageLabel  = bniDays > 0 ? computeMemberAge(bniDays)
             : (storedAge && !storedAge.includes('#') ? storedAge : '');
@@ -1018,6 +1027,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
             name:     String(m.raw_name || ''),
             nick:     String(m.nickname || ''),
             target:   tgt,
+            targetSource: rawTarget > 0 ? 'growth' : (msbGoal > 0 ? 'msb' : 'none'),
             received: recv,
             cells: [
               Number(m.seq_no) || 0,    // 0

@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Member Success Blueprint · BNI IDEAL</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0f1713;--panel:#fbf7ee;--card:#fffdf7;--ink:#17231e;--muted:#66736b;--line:#e6ddc9;--gold:#c7a76a;--green:#164c3f;--green2:#0f3b31;--red:#b45252;--soft:#f3ead8;--ok:#2f8c5b}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Prompt,system-ui,sans-serif;background:radial-gradient(circle at 80% 0%,rgba(199,167,106,.22),transparent 34%),linear-gradient(135deg,#0d1712,#16241d 48%,#0c1411);color:var(--ink);min-height:100svh}
+    .wrap{max-width:720px;margin:0 auto;padding:18px 14px 32px}
+    .hero{background:linear-gradient(160deg,var(--green),var(--green2));color:#fff;border-radius:28px;padding:24px 22px;box-shadow:0 22px 60px rgba(0,0,0,.28);position:relative;overflow:hidden}
+    .hero:after{content:"";position:absolute;right:-80px;top:-90px;width:220px;height:220px;border:1px solid rgba(199,167,106,.45);border-radius:999px}
+    .eyebrow{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#dbc58f;font-weight:800}
+    h1{font-size:30px;line-height:1.08;margin:10px 0 8px;font-weight:800}
+    .sub{color:rgba(255,255,255,.76);font-size:13px;line-height:1.7}
+    .panel{background:var(--panel);border:1px solid rgba(199,167,106,.28);border-radius:28px;margin-top:14px;box-shadow:0 18px 50px rgba(0,0,0,.22);overflow:hidden}
+    .top{display:flex;gap:10px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.45)}
+    .avatar{width:42px;height:42px;border-radius:16px;background:var(--green);color:#dbc58f;display:grid;place-items:center;font-weight:800}
+    .who{flex:1;min-width:0}.who b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.who span{font-size:11px;color:var(--muted)}
+    .progress{height:6px;background:#e8dfca}.bar{height:100%;background:linear-gradient(90deg,var(--gold),#e8ce85);width:16.6%;transition:.25s}
+    .content{padding:18px 16px 20px}
+    .step{display:none}.step.on{display:block;animation:fade .18s ease}@keyframes fade{from{opacity:.3;transform:translateY(4px)}to{opacity:1;transform:none}}
+    .step h2{font-size:20px;margin:0 0 6px;color:var(--green);line-height:1.25}.hint{font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:16px}
+    label{display:block;font-size:12px;font-weight:700;margin:13px 0 6px;color:#31433a}
+    input,textarea,select{width:100%;border:1px solid var(--line);background:var(--card);border-radius:16px;padding:13px 14px;font:inherit;font-size:15px;color:var(--ink);outline:none}
+    textarea{min-height:110px;resize:vertical;line-height:1.65}
+    input:focus,textarea:focus,select:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(199,167,106,.18)}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .calc{background:#0f3b31;color:#fff;border-radius:20px;padding:14px;margin:16px 0}.calc small{display:block;color:#dbc58f;font-size:11px;margin-bottom:4px}.calc b{font-size:25px}
+    .metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:14px 0}
+    .metric{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px}.metric span{display:block;font-size:11px;color:var(--muted)}.metric b{font-size:20px;color:var(--green)}
+    .chips{display:flex;flex-wrap:wrap;gap:8px}.chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:9px 12px;font-size:12px;color:#35463d;cursor:pointer;user-select:none}.chip.on{background:var(--green);border-color:var(--green);color:#fff}.chip.single.on{background:var(--gold);border-color:var(--gold);color:#17120a}
+    .coach{background:linear-gradient(180deg,#fffaf0,#f5ecdc);border:1px solid rgba(199,167,106,.38);border-radius:18px;padding:13px 13px;margin:8px 0 14px;color:#31433a;font-size:12px;line-height:1.75}
+    .coach b{color:var(--green)}.coach .title{font-weight:800;color:var(--green);font-size:13px;margin-bottom:3px}.coach .mini{background:rgba(255,255,255,.58);border:1px solid var(--line);border-radius:14px;padding:10px;margin-top:10px}
+    .coach .row{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-top:8px}.coach .row.two{grid-template-columns:1fr 1fr}.coach .row input{padding:10px 11px;border-radius:12px;font-size:13px}
+    .quick{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}.qbtn{border:1px solid rgba(199,167,106,.45);background:#fffdf7;color:#31433a;border-radius:999px;padding:8px 10px;font:inherit;font-size:11px;font-weight:800;cursor:pointer}
+    .result-note{background:#0f3b31;color:#fff;border-radius:18px;padding:13px 14px;line-height:1.7;font-size:12px;margin:14px 0}.result-note b{font-size:19px;color:#e8ce85}.result-note span{color:rgba(255,255,255,.76)}
+    details.learn{margin-top:9px;color:var(--muted)}details.learn summary{cursor:pointer;font-weight:800;color:#7a6742}details.learn div{padding-top:7px}
+    .warn{display:none;background:#fff4d7;border:1px solid #e0c36f;color:#664b00;border-radius:16px;padding:11px 12px;font-size:12px;line-height:1.6;margin:12px 0}.warn.on{display:block}
+    .summary{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:14px;line-height:1.7;font-size:13px}.summary h3{margin:0 0 8px;color:var(--green)}
+    .actions{display:flex;gap:10px;margin-top:18px}.btn{border:0;border-radius:16px;padding:13px 14px;font:inherit;font-weight:800;cursor:pointer}.ghost{background:#eee4d1;color:#3b453f}.main{background:var(--green);color:#fff;flex:1}.main.gold{background:linear-gradient(135deg,#c7a76a,#e5c982);color:#17120a}.btn:disabled{opacity:.55;cursor:not-allowed}
+    .state{padding:24px 18px;text-align:center;color:var(--muted);line-height:1.7}.state b{color:var(--green)}
+    .toast{position:fixed;left:14px;right:14px;bottom:16px;background:#121c17;color:#fff;border:1px solid rgba(199,167,106,.35);border-radius:18px;padding:13px 14px;font-size:13px;box-shadow:0 18px 45px rgba(0,0,0,.3);display:none;z-index:10}.toast.on{display:block}
+    @media(max-width:480px){.wrap{padding:12px 10px 24px}.hero{border-radius:24px;padding:22px 18px}h1{font-size:27px}.grid2,.metrics{grid-template-columns:1fr}.content{padding:16px 14px 18px}.actions{position:sticky;bottom:0;background:linear-gradient(transparent,var(--panel) 30%);padding-top:18px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <div class="eyebrow">BNI IDEAL · 2026</div>
+      <h1>Member Success Blueprint</h1>
+      <div class="sub">แผนธุรกิจประจำปีจาก Advanced MSP ใช้เวลาประมาณ 5 นาที เพื่อให้ Mentor และ Growth ช่วยสนับสนุนได้ตรงจุดขึ้น</div>
+    </section>
+
+    <section class="panel">
+      <div class="top">
+        <div class="avatar">MSB</div>
+        <div class="who"><b id="memberName">กำลังตรวจสอบลิงก์ส่วนตัว...</b><span id="memberMeta">ระบบจะดึงชื่อและทีมจากข้อมูลสมาชิกเดิม</span></div>
+      </div>
+      <div class="progress"><div class="bar" id="bar"></div></div>
+      <div class="content" id="app">
+        <div class="state">กำลังตรวจสอบลิงก์ส่วนตัว...</div>
+      </div>
+    </section>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    var API='https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
+    var ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
+    var HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+ANON};
+    var step=0,formToken='',member=null,blueprint=null,year=new Date().getFullYear();
+    var data={blueprintYear:year,total_sales_target_year:'',expected_sales_from_bni_year:'',existing_customer_revenue_from_bni:'',new_customer_revenue_from_bni:'',average_customer_value_year:'',conversion_rate_percent:'',looking_for_categories:[],looking_for_detail:'',power_team_categories:[],power_team_detail:'',personal_goal_category:'',personal_goal_detail:''};
+    var helperState={avgMonthly:'',convReferrals:'10',convClosed:'3'};
+    var LOOK=['SME Owner','เจ้าของกิจการ','HR / People','Finance / Accounting','Real Estate','Health / Wellness','Education','Retail / F&B','Marketing / Media','Legal / Consulting','IT / Digital','ครอบครัว/เพื่อนของลูกค้า'];
+    var POWER=['Finance','Legal','Real Estate','Health','Marketing','Construction','Hospitality','Education','Technology','Insurance','Automotive','Lifestyle'];
+    var PERSONAL=['เพิ่มยอดขาย','เพิ่ม Referral คุณภาพ','สร้าง Power Team','พัฒนาการ Follow-up','เพิ่ม Visibility','สร้างระบบทีมขาย','วางแผนการเงิน','พัฒนาทักษะ Networking'];
+    function esc(s){return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+    function n(v){var x=Number(String(v||'').replace(/[,฿\\s]/g,''));return isFinite(x)?x:0;}
+    function fmt(v){return n(v).toLocaleString('th-TH',{maximumFractionDigits:1});}
+    function money(v){return '฿'+n(v).toLocaleString('th-TH',{maximumFractionDigits:0});}
+    function toast(s){var t=document.getElementById('toast');t.textContent=s;t.classList.add('on');setTimeout(function(){t.classList.remove('on');},2600);}
+    function call(action,p,cb){fetch(API,{method:'POST',headers:HEADERS,body:JSON.stringify(Object.assign({action:action,token:formToken},p||{}))}).then(function(r){return r.json();}).then(cb).catch(function(e){cb({ok:false,error:e.message});});}
+    function calc(){
+      var total=n(data.total_sales_target_year), bni=n(data.expected_sales_from_bni_year), avg=n(data.average_customer_value_year), conv=n(data.conversion_rate_percent);
+      var cust=avg>0?Math.ceil(bni/avg):0;
+      var ref=conv>0?Math.ceil(cust/(conv/100)):0;
+      return {pct:total>0?bni/total*100:0,cust:cust,ref:ref,month:ref/12,week:ref/52};
+    }
+    function persist(){try{localStorage.setItem('msb_draft_'+year,JSON.stringify(data));}catch(e){}}
+    function hydrateDraft(){try{var raw=localStorage.getItem('msb_draft_'+year);if(raw)Object.assign(data,JSON.parse(raw));}catch(e){}}
+    function loadServer(){
+      call('getMemberSuccessBlueprintByToken',{},function(r){
+        if(!r.ok){showState('<b>ลิงก์นี้ยังใช้งานไม่ได้</b><br>'+esc(r.error||'ลิงก์ไม่ถูกต้องหรือหมดอายุ')+'<br><br>กรุณาขอลิงก์ใหม่จาก MC หรือ Growth หรือพิมพ์ <b>Goal</b> ใน LINE Official Account');return;}
+        member=r.member||{};blueprint=r.blueprint||null;
+        year=Number(r.blueprintYear)||year;
+        data.blueprintYear=year;
+        document.getElementById('memberName').textContent=(member.nickname||member.name||'สมาชิก BNI IDEAL');
+        document.getElementById('memberMeta').textContent=(member.mentor_team?'ทีม '+member.mentor_team:'BNI IDEAL')+' · '+year;
+        if(blueprint){
+          Object.assign(data,{
+            total_sales_target_year:blueprint.total_sales_target_year||'',
+            expected_sales_from_bni_year:blueprint.expected_sales_from_bni_year||'',
+            existing_customer_revenue_from_bni:blueprint.existing_customer_revenue_from_bni||'',
+            new_customer_revenue_from_bni:blueprint.new_customer_revenue_from_bni||'',
+            average_customer_value_year:blueprint.average_customer_value_year||'',
+            conversion_rate_percent:blueprint.conversion_rate_percent||'',
+            looking_for_categories:blueprint.looking_for_categories||[],
+            looking_for_detail:blueprint.looking_for_detail||'',
+            power_team_categories:blueprint.power_team_categories||[],
+            power_team_detail:blueprint.power_team_detail||'',
+            personal_goal_category:blueprint.personal_goal_category||'',
+            personal_goal_detail:blueprint.personal_goal_detail||''
+          });
+        }else hydrateDraft();
+        render();
+      });
+    }
+    function showState(html){document.getElementById('app').innerHTML='<div class="state">'+html+'</div>';}
+    function init(){
+      try{formToken=new URLSearchParams(window.location.search).get('t')||'';}catch(e){formToken='';}
+      if(!formToken){showState('<b>ไม่พบลิงก์ส่วนตัว</b><br>กรุณาเปิดจากลิงก์ที่ได้รับจาก MC / Growth หรือพิมพ์ <b>Goal</b> ใน LINE Official Account เพื่อขอลิงก์ใหม่');return;}
+      loadServer();
+    }
+    function setVal(k,v){data[k]=v;persist();render();}
+    function setInput(k,v){data[k]=v;persist();updateLive();}
+    function setMonthlyTotal(v){data.total_sales_target_year=String(n(v)*12);persist();render();}
+    function setBniPct(pct){var total=n(data.total_sales_target_year);if(!total){toast('กรอกยอดขายรวมทั้งปีก่อนครับ');return;}data.expected_sales_from_bni_year=String(Math.round(total*(pct/100)));persist();render();}
+    function setAvgMonthlySpend(v){helperState.avgMonthly=String(v||'');data.average_customer_value_year=String(n(v)*12);persist();updateLive(true);}
+    function setConversionCalc(k,v){helperState[k]=String(v||'');var ref=n(helperState.convReferrals),closed=n(helperState.convClosed);if(ref>0)data.conversion_rate_percent=String(Math.min(100,(closed/ref)*100).toFixed(1));persist();updateLive(true);}
+    function toggleArr(k,v){var a=data[k]||[];data[k]=a.includes(v)?a.filter(function(x){return x!==v;}):a.concat([v]);persist();render();}
+    function setSingle(k,v){data[k]=v;persist();render();}
+    function chips(list,k,single){return '<div class="chips">'+list.map(function(x){var on=single?data[k]===x:(data[k]||[]).includes(x);return '<button type="button" class="chip '+(single?'single ':'')+(on?'on':'')+'" onclick=\''+(single?'setSingle':'toggleArr')+'('+JSON.stringify(k)+','+JSON.stringify(x)+')\'>'+esc(x)+'</button>';}).join('')+'</div>';}
+    function field(k,label,type,ph,helper){return '<label>'+label+'</label><input id="fld_'+esc(k)+'" inputmode="decimal" type="'+(type||'text')+'" value="'+esc(data[k])+'" placeholder="'+esc(ph||'')+'" oninput=\'setInput('+JSON.stringify(k)+',this.value)\'>'+(helper?'<div class="coach" id="'+helper+'">'+coach(helper)+'</div>':'');}
+    function area(k,label,ph){return '<label>'+label+'</label><textarea placeholder="'+esc(ph||'')+'" oninput=\'setInput('+JSON.stringify(k)+',this.value)\'>'+esc(data[k])+'</textarea>';}
+    function quickMonthly(){
+      return '<div class="quick">'+[50000,80000,100000,150000,200000].map(function(v){return '<button type="button" class="qbtn" onclick="setMonthlyTotal('+v+')">'+fmt(v)+' / เดือน</button>';}).join('')+'</div>';
+    }
+    function quickPct(){
+      return '<div class="quick">'+[5,10,15,20,30,50].map(function(v){return '<button type="button" class="qbtn" onclick="setBniPct('+v+')">'+v+'%</button>';}).join('')+'</div>';
+    }
+    function learn(text){return '<details class="learn"><summary>ดูวิธีคิด</summary><div>'+text+'</div></details>';}
+    function coach(id){
+      var total=n(data.total_sales_target_year), bni=n(data.expected_sales_from_bni_year), avg=n(data.average_customer_value_year), conv=n(data.conversion_rate_percent);
+      if(id==='h-total'){
+        var monthly=total?Math.round(total/12):100000, yearly=monthly*12;
+        return '<div class="title">ยอดขายรวมทั้งปี</div>นี่คือยอดขายทั้งหมดที่คุณอยากให้ธุรกิจทำได้ในปีนี้ รวมลูกค้าเก่า ลูกค้าใหม่ และทุกช่องทางการขาย<br><br><b>ตัวอย่าง</b><br>ถ้าธุรกิจอยากขายได้เดือนละ '+money(monthly)+' ระบบจะแนะนำเป้าทั้งปีประมาณ <b>'+money(yearly)+'</b>'+quickMonthly()+learn('เอายอดขายที่อยากได้ต่อเดือน × 12 เดือน = ยอดขายรวมทั้งปี เช่น 100,000 × 12 = 1,200,000 บาท');
+      }
+      if(id==='h-bni'){
+        var pct=total&&bni?Math.round((bni/total)*100):20, suggested=total?Math.round(total*(pct/100)):240000;
+        return '<div class="title">ยอดขายที่คาดหวังจาก BNI</div>นี่คือยอดขายที่คุณคาดหวังว่าจะเกิดจาก BNI เท่านั้น ไม่ต้องรวมช่องทางอื่น เลขนี้จะเป็น <b>MSB Goal</b> ให้ Mentor และ Growth ใช้วางแผนช่วยคุณ<br><br><b>ตัวอย่าง</b><br>ถ้าเป้ายอดขายทั้งปีคือ '+money(total||1200000)+' และอยากให้ BNI ช่วยประมาณ '+pct+'% ระบบจะแนะนำ <b>'+money(suggested)+'</b>'+quickPct()+learn('เอายอดขายรวมทั้งปี × เปอร์เซ็นต์ที่คาดหวังจาก BNI = ยอดขายจาก BNI เช่น 1,200,000 × 20% = 240,000 บาท');
+      }
+      if(id==='h-avg'){
+        var monthly=helperState.avgMonthly? n(helperState.avgMonthly) : (avg?Math.round(avg/12):2500);
+        return '<div class="title">มูลค่าลูกค้าเฉลี่ยต่อปี</div>ลูกค้า 1 ราย สร้างรายได้ให้คุณทั้งปีประมาณเท่าไร คิดจากยอดขายรวมของลูกค้าหนึ่งรายใน 1 ปี<br><br><b>ตัวอย่าง</b><br>ถ้าลูกค้าจ่ายเดือนละ '+money(monthly)+' ทั้งปีจะเป็น <b>'+money(monthly*12)+'</b><div class="mini"><b>ลองคิดจากรายเดือน</b><div class="row"><input inputmode="decimal" value="'+esc(helperState.avgMonthly||'')+'" placeholder="เช่น 2500" oninput="setAvgMonthlySpend(this.value)"><span>× 12 =</span><b id="avgMiniResult">'+money(avg||monthly*12)+'</b></div></div>'+learn('เอายอดที่ลูกค้าหนึ่งรายใช้ต่อเดือน × 12 เดือน = มูลค่าลูกค้าเฉลี่ยต่อปี');
+      }
+      if(id==='h-conv'){
+        var ref=n(helperState.convReferrals)||10, closed=n(helperState.convClosed)||0, pct=ref>0?(closed/ref)*100:conv;
+        return '<div class="title">Conversion Rate</div>จาก Referral ที่ได้รับ คุณปิดการขายได้กี่คน ให้คิดแบบง่าย ๆ เช่น Referral 10 คน ปิดได้ 3 คน คือ 30%<div class="mini"><b>ลองคำนวณจากประสบการณ์จริง</b><div class="row two"><input inputmode="decimal" value="'+esc(helperState.convReferrals)+'" placeholder="Referral ที่ได้รับ" oninput="setConversionCalc(&quot;convReferrals&quot;,this.value)"><input inputmode="decimal" value="'+esc(helperState.convClosed)+'" placeholder="ปิดการขายได้" oninput="setConversionCalc(&quot;convClosed&quot;,this.value)"></div><div style="margin-top:8px">ระบบคำนวณให้ประมาณ <b id="convMiniResult">'+fmt(pct)+'%</b></div></div>'+learn('จำนวนที่ปิดการขายได้ ÷ จำนวน Referral ที่ได้รับ × 100 = Conversion Rate เช่น 3 ÷ 10 × 100 = 30%');
+      }
+      if(id==='h-existing'){
+        return '<div class="title">ยอดขายจากลูกค้าเดิมผ่าน BNI</div>นี่คือยอดขายที่คาดว่าจะมาจากลูกค้าเดิมที่ยังทำธุรกิจกับคุณ และความสัมพันธ์นั้นเกิดหรือเติบโตผ่าน BNI<br><br><b>ตัวอย่าง</b><br>ลูกค้าเก่าจาก BNI 2 ราย ยังซื้อซ้ำปีนี้ รายละ 60,000 บาท รวมเป็น <b>'+money(120000)+'</b>'+learn('รวมยอดขายทั้งปีจากลูกค้าเดิมที่เกี่ยวข้องกับ BNI เท่านั้น ถ้ายังไม่แน่ใจให้ใส่ประมาณการแบบ conservative ได้');
+      }
+      if(id==='h-new'){
+        return '<div class="title">ยอดขายจากลูกค้าใหม่ที่ต้องการจาก BNI</div>นี่คือยอดขายที่คุณคาดว่าจะได้จากลูกค้าใหม่ที่ Chapter ช่วยแนะนำหรือเปิดโอกาสให้ในปีนี้<br><br><b>ตัวอย่าง</b><br>อยากได้ลูกค้าใหม่จาก BNI 4 ราย รายละ 50,000 บาท รวมเป็น <b>'+money(200000)+'</b>'+learn('จำนวนลูกค้าใหม่ที่อยากได้ × มูลค่าลูกค้าเฉลี่ยต่อปี = ยอดขายลูกค้าใหม่จาก BNI');
+      }
+      return '';
+    }
+    function resultExplain(){
+      var c=calc(), conv=n(data.conversion_rate_percent), avg=n(data.average_customer_value_year);
+      if(!n(data.expected_sales_from_bni_year)||!avg||!conv)return '<div class="result-note"><span>เมื่อกรอกมูลค่าลูกค้าเฉลี่ยและ Conversion แล้ว ระบบจะแปลเป้าหมายให้เป็นจำนวนลูกค้าและ Referral ที่ต้องใช้ครับ</span></div>';
+      return '<div class="result-note">จากข้อมูลที่คุณกรอก<br>คุณต้องการลูกค้าประมาณ <b id="custText">'+fmt(c.cust)+'</b> ราย<br><span>หากปิดการขายได้ '+fmt(conv)+'% คุณต้องได้รับ Referral ประมาณ '+fmt(c.ref)+' ครั้งต่อปี หรือเฉลี่ย '+fmt(c.month)+' ครั้งต่อเดือน</span></div>';
+    }
+    function updateLive(skipCoach){
+      ['pct','cust','ref','month','week','splitWarn','logicWarn'].forEach(function(id){var el=document.getElementById(id);if(!el)return;});
+      var c=calc();
+      ['average_customer_value_year','conversion_rate_percent'].forEach(function(k){var el=document.getElementById('fld_'+k);if(el&&document.activeElement!==el)el.value=data[k]||'';});
+      var pct=document.getElementById('pct');if(pct)pct.textContent=fmt(c.pct)+'%';
+      var cust=document.getElementById('cust');if(cust)cust.textContent=fmt(c.cust);
+      var ref=document.getElementById('ref');if(ref)ref.textContent=fmt(c.ref);
+      var month=document.getElementById('month');if(month)month.textContent=fmt(c.month);
+      var week=document.getElementById('week');if(week)week.textContent=fmt(c.week);
+      var split=n(data.existing_customer_revenue_from_bni)+n(data.new_customer_revenue_from_bni), bni=n(data.expected_sales_from_bni_year);
+      var sw=document.getElementById('splitWarn');if(sw){sw.className='warn '+(split&&bni&&Math.abs(split-bni)/bni>.1?'on':'');sw.textContent='ยอด Existing + New ยังไม่ใกล้เคียงกับยอดขายที่คาดหวังจาก BNI แต่สามารถบันทึกได้';}
+      var lw=document.getElementById('logicWarn');if(lw){var msg=[];if(c.ref>100)msg.push('Referral ที่ต้องการมากกว่า 100 ใบ/ปี');if(n(data.conversion_rate_percent)<10&&n(data.conversion_rate_percent)>0)msg.push('Conversion ต่ำกว่า 10%');if(c.pct>50)msg.push('พึ่งพา BNI เกิน 50%');lw.className='warn '+(msg.length?'on':'');lw.innerHTML=msg.map(esc).join('<br>');}
+      var avgMini=document.getElementById('avgMiniResult');if(avgMini)avgMini.textContent=money(data.average_customer_value_year);
+      var convMini=document.getElementById('convMiniResult');if(convMini)convMini.textContent=fmt(data.conversion_rate_percent)+'%';
+      if(skipCoach)return;
+      ['h-total','h-bni','h-avg','h-conv','h-existing','h-new'].forEach(function(id){var el=document.getElementById(id);if(el)el.innerHTML=coach(id);});
+      var rn=document.getElementById('resultExplain');if(rn)rn.innerHTML=resultExplain();
+    }
+    function validateStep(){
+      if(step===0&&(!n(data.total_sales_target_year)||!n(data.expected_sales_from_bni_year)))return 'กรุณากรอกเป้ายอดขาย';
+      if(step===0&&n(data.expected_sales_from_bni_year)>n(data.total_sales_target_year))return 'ยอดขายจาก BNI ไม่ควรเกินเป้ายอดขายรวม';
+      if(step===1&&(!n(data.average_customer_value_year)||!n(data.conversion_rate_percent)||n(data.conversion_rate_percent)>100))return 'กรุณากรอกมูลค่าลูกค้าเฉลี่ยและ Conversion 1–100%';
+      if(step===3&&(!(data.looking_for_categories||[]).length||!data.looking_for_detail.trim()))return 'กรุณาเลือกและอธิบายคนที่มองหา';
+      if(step===4&&(!(data.power_team_categories||[]).length||!data.power_team_detail.trim()))return 'กรุณาเลือกและอธิบาย Power Team';
+      if(step===5&&!data.personal_goal_category)return 'กรุณาเลือก Personal Goal';
+      return '';
+    }
+    function next(){var e=validateStep();if(e){toast(e);return;}step=Math.min(6,step+1);render();}
+    function back(){step=Math.max(0,step-1);render();}
+    function saveFinal(){
+      var e;for(var i=0;i<6;i++){step=i;e=validateStep();if(e){render();toast(e);return;}}
+      step=6;render();
+      var btn=document.getElementById('saveBtn');if(btn){btn.disabled=true;btn.textContent='กำลังบันทึก...';}
+      call('saveMemberSuccessBlueprintByToken',Object.assign({},data,{status:'submitted'}),function(r){
+        if(btn){btn.disabled=false;btn.textContent='บันทึกแผนธุรกิจ';}
+        if(!r.ok){toast(r.error||'บันทึกไม่สำเร็จ');return;}
+        blueprint=r.blueprint;try{localStorage.removeItem('msb_draft_'+year);}catch(e){}
+        toast('บันทึกแผนธุรกิจเรียบร้อยครับ');
+      });
+    }
+    function nav(final){return '<div class="actions">'+(step>0?'<button class="btn ghost" onclick="back()">ย้อนกลับ</button>':'')+(final?'<button class="btn main gold" id="saveBtn" onclick="saveFinal()">บันทึกแผนธุรกิจ</button>':'<button class="btn main" onclick="next()">ถัดไป</button>')+'</div>';}
+    function render(){
+      document.getElementById('bar').style.width=((Math.min(step+1,6)/6)*100)+'%';
+      var c=calc(), html='';
+      if(step===0)html='<div class="step on"><h2>1. Business Goal</h2><div class="hint">เริ่มจากภาพใหญ่ก่อนครับ ปีนี้อยากให้ธุรกิจโตประมาณไหน และอยากให้ BNI ช่วยสร้างยอดขายส่วนไหน</div>'+field('total_sales_target_year','ยอดขายรวมทั้งปี','number','เช่น 1200000','h-total')+field('expected_sales_from_bni_year','ยอดขายที่คาดหวังจาก BNI','number','เช่น 240000','h-bni')+'<div class="calc"><small>BNI Contribution · สัดส่วนที่อยากให้ BNI ช่วย</small><b id="pct">'+fmt(c.pct)+'%</b></div>'+nav(false)+'</div>';
+      if(step===1)html='<div class="step on"><h2>2. Customer & Referral Guide</h2><div class="hint">หน้านี้ช่วยแปลงเป้ายอดขายให้เป็นภาษาง่าย ๆ ว่าต้องการลูกค้ากี่ราย และควรได้รับ Referral ประมาณเท่าไร</div>'+field('average_customer_value_year','มูลค่าลูกค้าเฉลี่ยต่อปี','number','เช่น 30000','h-avg')+field('conversion_rate_percent','Conversion rate จาก Referral เป็นลูกค้า (%)','number','เช่น 30','h-conv')+'<div id="resultExplain">'+resultExplain()+'</div><div class="metrics"><div class="metric"><span>ลูกค้าที่ต้องการ</span><b id="cust">'+fmt(c.cust)+'</b></div><div class="metric"><span>Referral/ปี</span><b id="ref">'+fmt(c.ref)+'</b></div><div class="metric"><span>Referral/เดือน</span><b id="month">'+fmt(c.month)+'</b></div><div class="metric"><span>Referral/สัปดาห์</span><b id="week">'+fmt(c.week)+'</b></div></div><div class="warn" id="logicWarn"></div>'+nav(false)+'</div>';
+      if(step===2)html='<div class="step on"><h2>3. Existing vs New Business</h2><div class="hint">แยกแบบง่าย ๆ ว่ายอดจาก BNI ปีนี้มาจากลูกค้าเดิมเท่าไร และต้องหาลูกค้าใหม่เพิ่มประมาณเท่าไร</div>'+field('existing_customer_revenue_from_bni','ยอดจากลูกค้าเดิมที่มาจาก BNI','number','เช่น 100000','h-existing')+field('new_customer_revenue_from_bni','ยอดจากลูกค้าใหม่ที่ต้องการจาก BNI','number','เช่น 140000','h-new')+'<div class="warn" id="splitWarn"></div>'+nav(false)+'</div>';
+      if(step===3)html='<div class="step on"><h2>4. Looking For</h2><div class="hint">เลือกให้น้อยแต่ชัด เพื่อให้คนใน Chapter แนะนำได้ง่าย</div><label>หมวดคนที่กำลังมองหา</label>'+chips(LOOK,'looking_for_categories')+area('looking_for_detail','รายละเอียดที่อยากให้ช่วยมองหา','เช่น เจ้าของโรงงาน 50–300 คน ที่กำลังทำประกันกลุ่ม / วางระบบ HR')+nav(false)+'</div>';
+      if(step===4)html='<div class="step on"><h2>5. Power Team</h2><div class="hint">ใครคือกลุ่มอาชีพที่ช่วยส่งงานต่อกันได้จริง</div><label>หมวด Power Team</label>'+chips(POWER,'power_team_categories')+area('power_team_detail','รายละเอียด Power Team ที่อยากสร้าง','เช่น Real estate + loan + insurance + interior สำหรับลูกค้าซื้อบ้านใหม่')+nav(false)+'</div>';
+      if(step===5)html='<div class="step on"><h2>6. Personal Goal</h2><div class="hint">เลือกเป้าหมายส่วนตัวหนึ่งเรื่องที่อยากให้ Mentor ช่วยติดตาม</div><label>Personal Goal</label>'+chips(PERSONAL,'personal_goal_category',true)+area('personal_goal_detail','รายละเอียดเพิ่มเติม (ถ้ามี)','เช่น อยากนัด 1-2-1 อย่างน้อยสัปดาห์ละ 2 ครั้ง')+nav(false)+'</div>';
+      if(step===6)html='<div class="step on"><h2>Final Summary</h2><div class="summary"><h3>แผนธุรกิจ '+year+'</h3><div>ยอดขายรวม: ฿'+fmt(data.total_sales_target_year)+'</div><div>คาดหวังจาก BNI: ฿'+fmt(data.expected_sales_from_bni_year)+' ('+fmt(c.pct)+'%)</div><div>ต้องการลูกค้า '+fmt(c.cust)+' ราย · Referral '+fmt(c.ref)+' ใบ/ปี · '+fmt(c.week)+' ใบ/สัปดาห์</div><hr style="border:0;border-top:1px solid var(--line);margin:12px 0"><div><b>Looking For:</b> '+esc((data.looking_for_categories||[]).join(', '))+'</div><div>'+esc(data.looking_for_detail)+'</div><br><div><b>Power Team:</b> '+esc((data.power_team_categories||[]).join(', '))+'</div><div>'+esc(data.power_team_detail)+'</div><br><div><b>Personal Goal:</b> '+esc(data.personal_goal_category)+'</div><div>'+esc(data.personal_goal_detail)+'</div></div><div class="warn on" id="logicWarn"></div>'+nav(true)+'</div>';
+      document.getElementById('app').innerHTML=html;updateLive();
+    }
+    init();
+  </script>
+</body>
+</html>

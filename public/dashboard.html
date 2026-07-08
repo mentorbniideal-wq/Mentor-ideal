@@ -1352,6 +1352,7 @@ main{
     <button class="tb" onclick="sw('mc-rep',this,'mc')">📋 Reports<span class="nb" id="badge-rep"></span></button>
     <button class="tb" id="mc-ac-tab" onclick="openActionCenter('pq')">⚡ Action Center<span class="nb" id="badge-pq"></span><span class="nb" id="badge-line-issue" style="margin-left:2px;background:#f59e0b"></span><span class="nb" id="badge-coach" style="margin-left:2px"></span></button>
     <button class="tb" onclick="sw('mc-gw',this,'mc');renderGrowthWatch()">🌱 Growth Watch<span class="nb" id="badge-gw"></span></button>
+    <button class="tb" onclick="sw('mc-msb',this,'mc');msbLoad('mc')">🎯 Blueprint</button>
     <button class="tb" onclick="sw('mc-8w',this,'mc');load8WProgress()">🗓 8W Progress<span class="nb" id="badge-8w"></span></button>
     <button class="tb" onclick="sw('mc-passport',this,'mc');loadPassportBoard()">🛂 Passport<span class="nb" id="badge-passport"></span></button>
     <button class="tb" onclick="sw('mc-vis',this,'mc');loadVisitorLog()">🤝 Visitors</button>
@@ -1369,6 +1370,7 @@ main{
     <button class="tb-fold" id="gr-fold-btn" onclick="toggleTabFold('gr')" title="พับ/ขยาย Tab Bar">☰</button>
     <span class="tb-fold-label" id="gr-fold-label" style="display:none"></span>
     <button class="tb on" onclick="sw('gr-ov',this,'gr')">🏛 Chapter Overview</button>
+    <button class="tb" onclick="sw('gr-msb',this,'gr');msbLoad('gr')">🎯 Chapter Blueprint</button>
     <button class="tb" onclick="sw('gr-bal',this,'gr')">⚖️ Referral Balance</button>
     <button class="tb" onclick="sw('gr-task',this,'gr')">📌 Growth Tasks<span class="nb" id="badge-task"></span></button>
     <button class="tb" onclick="sw('gr-nm',this,'gr')">🆕 New Members<span class="nb" id="badge-nm"></span></button>
@@ -2097,7 +2099,55 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       </div>
     </div>
 
+    <!-- Member Success Blueprint (Mentor / MC) -->
+    <div id="mc-msb" class="sec">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap">
+        <div>
+          <h2 style="font-size:15px;font-weight:800;margin:0">🎯 Member Success Blueprint</h2>
+          <div style="font-size:11px;color:var(--sub);margin-top:3px">อ่านแผนธุรกิจรายปีของสมาชิก เพื่อใช้วางแผนช่วยเหลือแบบไม่เดา</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="msb-mc-year" onchange="msbLoad('mc',true)" style="background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:6px 10px;font-size:12px"></select>
+          <button class="bsm" onclick="msbLoad('mc',true)" style="font-size:11px">🔄 รีเฟรช</button>
+        </div>
+      </div>
+      <div id="msb-mc-summary" class="kgrid" style="margin-bottom:14px"></div>
+      <div style="background:var(--sf);border:1px solid var(--bd);border-radius:14px;overflow:hidden">
+        <div style="padding:12px 14px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-size:13px;font-weight:800">📋 Member Blueprint Table</span>
+          <input id="msb-mc-search" oninput="msbRender('mc')" placeholder="ค้นหาสมาชิก..." style="margin-left:auto;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;color:var(--tx);padding:6px 10px;font-size:12px;min-width:180px">
+        </div>
+        <div id="msb-mc-table" style="overflow-x:auto"></div>
+      </div>
+    </div>
+
     <!-- ════════ GROWTH SECTIONS ════════ -->
+
+    <!-- Member Success Blueprint (Growth) -->
+    <div id="gr-msb" class="sec">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap">
+        <div>
+          <h2 style="font-size:15px;font-weight:800;margin:0">🎯 Chapter Blueprint</h2>
+          <div style="font-size:11px;color:var(--sub);margin-top:3px">ภาพรวมความต้องการ Referral และ Power Team จากแผน Advanced MSP ของทั้ง Chapter</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="msb-gr-year" onchange="msbLoad('gr',true)" style="background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:6px 10px;font-size:12px"></select>
+          <button class="bsm" onclick="msbLoad('gr',true)" style="font-size:11px">🔄 รีเฟรช</button>
+        </div>
+      </div>
+      <div id="msb-gr-summary" class="kgrid" style="margin-bottom:14px"></div>
+      <div id="msb-gr-tops" class="row2" style="margin-bottom:14px"></div>
+      <div style="background:var(--sf);border:1px solid var(--bd);border-radius:14px;overflow:hidden">
+        <div style="padding:12px 14px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-size:13px;font-weight:800">📋 Chapter Blueprint Table</span>
+          <select id="msb-gr-team" onchange="msbRender('gr')" style="margin-left:auto;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;color:var(--tx);padding:6px 10px;font-size:12px">
+            <option value="">ทุกทีม</option><option>TOOMTAM</option><option>Aof</option><option>Draft</option><option>PHAI</option><option>AMP</option>
+          </select>
+          <input id="msb-gr-search" oninput="msbRender('gr')" placeholder="ค้นหาสมาชิก..." style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;color:var(--tx);padding:6px 10px;font-size:12px;min-width:180px">
+        </div>
+        <div id="msb-gr-table" style="overflow-x:auto"></div>
+      </div>
+    </div>
 
     <!-- Growth Overview -->
     <div id="gr-ov" class="sec">
@@ -10588,6 +10638,123 @@ function tlL(tl){return tl==='green'?'GREEN':tl==='yellow'?'YELLOW':tl==='red'?'
 function tlC(tl){return tl==='green'?'#00d4aa':tl==='yellow'?'#ffc14d':tl==='red'?'#ff6b6b':tl==='blue'?'#60a5fa':'#6b7280';}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
+// ── Member Success Blueprint (MSB) ───────────────────────────
+var MSB={mc:{loaded:false,rows:[],summary:null,year:new Date().getFullYear()},gr:{loaded:false,rows:[],summary:null,year:new Date().getFullYear()}};
+function msbMoney(v){v=Number(v)||0;if(v>=1000000)return '฿'+(v/1000000).toFixed(v>=10000000?0:1)+'M';if(v>=1000)return '฿'+Math.round(v/1000)+'K';return '฿'+Math.round(v).toLocaleString('th-TH');}
+function msbNum(v,d){v=Number(v)||0;return v.toLocaleString('th-TH',{maximumFractionDigits:d==null?1:d});}
+function msbYearSelect(group){
+  var id=group==='gr'?'msb-gr-year':'msb-mc-year';
+  var el=document.getElementById(id);if(!el||el.options.length)return;
+  var y=new Date().getFullYear();
+  for(var i=-1;i<=2;i++){var o=document.createElement('option');o.value=String(y+i);o.textContent=String(y+i);if(i===0)o.selected=true;el.appendChild(o);}
+}
+function msbStatusLabel(s){
+  if(s==='submitted')return '<span style="color:var(--gr);font-weight:800">✅ submitted</span>';
+  if(s==='draft')return '<span style="color:var(--ye);font-weight:800">📝 draft</span>';
+  return '<span style="color:var(--sub);font-weight:800">— missing</span>';
+}
+function msbLinkStatusLabel(s){
+  if(s==='saved')return '<span style="color:var(--gr);font-weight:800">✅ saved</span>';
+  if(s==='link_created')return '<span style="color:var(--ye);font-weight:800">🔗 link created</span>';
+  return '<span style="color:var(--sub);font-weight:800">ยังไม่สร้างลิงก์</span>';
+}
+function msbCanManageLinks(){return S&&(S.role==='mc'||S.role==='growth');}
+function msbGenerateLink(memberId,group){
+  group=group==='gr'?'gr':'mc';
+  var year=MSB[group]&&MSB[group].year||new Date().getFullYear();
+  gsr('generateMemberSuccessBlueprintLink',{role:S.role,memberId:memberId,blueprintYear:year},function(r){
+    if(!r||!r.ok){toast('สร้างลิงก์ไม่สำเร็จ: '+(r&&r.error||'unknown'));return;}
+    var link=r.link||'';
+    function done(){toast('คัดลอกลิงก์ Blueprint แล้ว');MSB[group].loaded=false;msbLoad(group,true);}
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(link).then(done).catch(function(){prompt('คัดลอกลิงก์นี้',link);done();});
+    }else{
+      prompt('คัดลอกลิงก์นี้',link);done();
+    }
+  });
+}
+function msbLoad(group,force){
+  group=group==='gr'?'gr':'mc';
+  msbYearSelect(group);
+  var yEl=document.getElementById(group==='gr'?'msb-gr-year':'msb-mc-year');
+  var year=Number(yEl&&yEl.value)||new Date().getFullYear();
+  if(MSB[group].loaded&&!force&&MSB[group].year===year){msbRender(group);return;}
+  var table=document.getElementById(group==='gr'?'msb-gr-table':'msb-mc-table');
+  if(table)table.innerHTML='<div style="text-align:center;padding:36px;color:var(--sub)">⏳ กำลังโหลด Blueprint...</div>';
+  MSB[group].year=year;
+  gsr('getMemberSuccessBlueprintsForDashboard',{role:S.role,blueprintYear:year},function(r){
+    if(!r||!r.ok){if(table)table.innerHTML='<div style="padding:26px;color:var(--re)">โหลดข้อมูลไม่สำเร็จ: '+esc(r&&r.error||'unknown')+'</div>';return;}
+    MSB[group].rows=r.rows||[];
+    gsr('getMemberSuccessBlueprintSummary',{role:S.role,blueprintYear:year},function(s){
+      MSB[group].summary=(s&&s.ok)?s.summary:null;
+      MSB[group].loaded=true;
+      msbRender(group);
+    });
+  });
+}
+function msbSummaryCard(label,value,sub,color){
+  return '<div class="kc"><div class="kl">'+esc(label)+'</div><div class="kv" style="color:'+(color||'var(--tx)')+'">'+value+'</div><div style="font-size:11px;color:var(--sub);margin-top:6px">'+esc(sub||'')+'</div></div>';
+}
+function msbRender(group){
+  group=group==='gr'?'gr':'mc';
+  var state=MSB[group], rows=(state.rows||[]).slice(), sm=state.summary||{};
+  var qEl=document.getElementById(group==='gr'?'msb-gr-search':'msb-mc-search');
+  var teamEl=document.getElementById('msb-gr-team');
+  var q=(qEl&&qEl.value||'').toLowerCase().trim();
+  var team=group==='gr'?(teamEl&&teamEl.value||''):'';
+  rows=rows.filter(function(r){
+    var b=r.blueprint||{};
+    var hay=[r.name,r.nickname,r.mentorTeam,b.looking_for_detail,b.power_team_detail,b.personal_goal_category].join(' ').toLowerCase();
+    return (!q||hay.indexOf(q)>=0)&&(!team||r.mentorTeam===team);
+  });
+  var sumEl=document.getElementById(group==='gr'?'msb-gr-summary':'msb-mc-summary');
+  if(sumEl){
+    sumEl.innerHTML=[
+      msbSummaryCard('Completion',msbNum(sm.completionPct,0)+'%','submitted '+(sm.submitted||0)+' / '+(sm.totalMembers||0),'var(--gr)'),
+      msbSummaryCard('MSB Goal Total',msbMoney(sm.totalExpectedSalesFromBni||0),'รวมยอดที่สมาชิกตั้งจาก Blueprint','var(--ye)'),
+      msbSummaryCard('Referral Demand',msbNum(sm.totalReferralDemand,0),'ใบต่อปีรวม','var(--ac)'),
+      msbSummaryCard('Avg Referral / Week',msbNum(sm.avgReferralPerWeek,1),'ค่าเฉลี่ยต่อสมาชิกที่กรอก','#a78bfa')
+    ].join('');
+  }
+  if(group==='gr'){
+    var tops=document.getElementById('msb-gr-tops');
+    if(tops){
+      function topBox(title,items){
+        return '<div class="cc"><div class="cct">'+esc(title)+'</div>'+((items||[]).length?(items||[]).map(function(x){return '<div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--bd);padding:8px 0;font-size:12px"><span>'+esc(x.name)+'</span><b>'+x.count+'</b></div>';}).join(''):'<div style="color:var(--sub);font-size:12px;padding:16px 0">ยังไม่มีข้อมูล</div>')+'</div>';
+      }
+      tops.innerHTML=topBox('Top Looking For',sm.topLookingForCategories)+topBox('Top Power Team',sm.topPowerTeamCategories);
+    }
+  }
+  var canLink=msbCanManageLinks();
+  var html='<table class="tbl" style="min-width:1160px"><thead><tr><th>สมาชิก</th><th>ทีม</th><th>MSB Goal</th><th>ลูกค้า</th><th>Referral/ปี</th><th>Referral/wk</th><th>Looking For</th><th>Power Team</th><th>Personal Goal</th><th>Status</th><th>Link</th>'+(canLink?'<th>Action</th>':'')+'</tr></thead><tbody>';
+  if(!rows.length){
+    html+='<tr><td colspan="'+(canLink?12:11)+'" style="text-align:center;color:var(--sub);padding:28px">ยังไม่มีข้อมูลตาม filter นี้</td></tr>';
+  }else{
+    rows.forEach(function(r){
+      var b=r.blueprint||{};
+      var looking=(b.looking_for_categories||[]).slice(0,3).join(', ');
+      var power=(b.power_team_categories||[]).slice(0,3).join(', ');
+      html+='<tr>'+
+        '<td><b>'+esc(r.nickname||r.name)+'</b><div style="font-size:10px;color:var(--sub)">'+esc(r.name||'')+'</div></td>'+
+        '<td>'+esc(r.mentorTeam||'—')+'</td>'+
+        '<td>'+msbMoney(r.bniGoal||0)+'</td>'+
+        '<td>'+((r.status==='missing')?'—':msbNum(b.customer_needed,0))+'</td>'+
+        '<td>'+((r.status==='missing')?'—':msbNum(b.referral_needed,0))+'</td>'+
+        '<td>'+((r.status==='missing')?'—':msbNum(b.referral_per_week,1))+'</td>'+
+        '<td><div style="max-width:190px;white-space:normal">'+esc(looking||'—')+'<div style="font-size:10px;color:var(--sub);line-height:1.5">'+esc(b.looking_for_detail||'')+'</div></div></td>'+
+        '<td><div style="max-width:180px;white-space:normal">'+esc(power||'—')+'<div style="font-size:10px;color:var(--sub);line-height:1.5">'+esc(b.power_team_detail||'')+'</div></div></td>'+
+        '<td><div style="max-width:160px;white-space:normal">'+esc(b.personal_goal_category||'—')+'</div></td>'+
+        '<td>'+msbStatusLabel(r.status)+'</td>'+
+        '<td>'+msbLinkStatusLabel(r.linkStatus)+'</td>'+
+        (canLink?'<td><button class="btn small" onclick="msbGenerateLink(\''+esc(r.memberId)+'\',\''+group+'\')">🔗 Copy Link</button></td>':'')+
+      '</tr>';
+    });
+  }
+  html+='</tbody></table>';
+  var table=document.getElementById(group==='gr'?'msb-gr-table':'msb-mc-table');
+  if(table)table.innerHTML=html;
+}
+
 // ── Growth Revenue Dashboard ──────────────────────────────────
 var _rvData=null,_rvLoaded=false,_rvSort={col:-1,asc:true},_rvFilter={team:'',q:''};
 
@@ -10768,7 +10935,7 @@ function rvRenderTable(){
       if(ci===colMap.received){
         tdHtml+='<td><span style="font-weight:700;color:'+mc2+';">'+rvFmt(cv)+'</span></td>';
       } else if(ci===colMap.target){
-        tdHtml+='<td style="color:var(--sub);">'+rvFmt(cv)+'</td>';
+        tdHtml+='<td style="color:var(--sub);">'+rvFmt(cv)+(m.targetSource==='msb'?'<div style="font-size:9px;color:var(--ye);font-weight:800;margin-top:2px">MSB Goal</div>':'')+'</td>';
       } else if(ci===colMap.pct){
         tdHtml+='<td>'
           +'<div class="rv-pbar"><div class="rv-pbar-f" style="background:'+mc2+';width:'+Math.min(mP,100)+'%;"></div></div>'

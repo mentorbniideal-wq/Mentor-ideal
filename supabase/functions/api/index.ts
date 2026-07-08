@@ -34,6 +34,7 @@ import { handleLineAdmin }  from './handlers/line-admin.ts';
 import { handleUsage }         from './handlers/usage.ts';
 import { handleNotifications } from './handlers/notifications.ts';
 import { handleCopilot } from './handlers/copilot.ts';
+import { handleMemberSuccessBlueprints } from './handlers/member-success-blueprints.ts';
 
 // ── Public actions that require NO PIN ────────────────────────
 const PUBLIC_ACTIONS = new Set([
@@ -41,6 +42,12 @@ const PUBLIC_ACTIONS = new Set([
   'getSimulateData',
   'getMemberPublicDetail',
   'getTrainingEvents',
+  // Public entrypoint, but handler verifies LINE access token and resolves own member_id server-side.
+  'getMyMemberSuccessBlueprint',
+  'saveMyMemberSuccessBlueprint',
+  // Public token entrypoint. Handler resolves member_id server-side from msb_access_tokens only.
+  'getMemberSuccessBlueprintByToken',
+  'saveMemberSuccessBlueprintByToken',
 ]);
 
 const AUTH_ACTIONS = new Set([
@@ -179,6 +186,15 @@ const ROUTES: Record<string, string> = {
   // AI Copilot (read-only recommendations; write actions require separate confirmation)
   'askCopilot': 'copilot',
 
+  // Member Success Blueprint
+  'getMyMemberSuccessBlueprint': 'member-success-blueprints',
+  'saveMyMemberSuccessBlueprint': 'member-success-blueprints',
+  'getMemberSuccessBlueprintByToken': 'member-success-blueprints',
+  'saveMemberSuccessBlueprintByToken': 'member-success-blueprints',
+  'generateMemberSuccessBlueprintLink': 'member-success-blueprints',
+  'getMemberSuccessBlueprintsForDashboard': 'member-success-blueprints',
+  'getMemberSuccessBlueprintSummary': 'member-success-blueprints',
+
   // Usage
   'logUsage': 'usage', 'getUsageLog': 'usage', 'getLineAnalytics': 'usage',
 };
@@ -201,6 +217,7 @@ const HANDLERS: Record<string, (p: Record<string, unknown>) => Promise<Response>
   'line-admin':  handleLineAdmin,
   'usage':       handleUsage,
   'copilot':     handleCopilot,
+  'member-success-blueprints': handleMemberSuccessBlueprints,
 };
 
 // ── Main entry point ──────────────────────────────────────────

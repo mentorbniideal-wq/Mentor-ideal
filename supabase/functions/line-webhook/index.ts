@@ -247,6 +247,43 @@ async function handleEvent(
       return;
     }
   }
+  if (memberName && parsedCommand.name === 'goals' && ev.replyToken) {
+    const link = await createMemberSuccessBlueprintLink(
+      db,
+      String(lineRec?.member_id || ''),
+      userId,
+    );
+    const body = [
+      '🎯 Member Success Blueprint',
+      '',
+      'กดปุ่มด้านล่างเพื่อกรอกแผนธุรกิจประจำปีจาก Advanced MSP',
+      'ระบบจะดึงชื่อ/ทีมจากข้อมูลสมาชิกเดิม และเก็บเฉพาะข้อมูลเป้าหมายใหม่ครับ',
+      '',
+      'ลิงก์นี้เป็นลิงก์ส่วนตัว เปิดจาก browser ได้เลย และแก้ไขซ้ำได้จนกว่าจะหมดอายุ',
+    ].join('\n');
+    await lineReplyMessages(
+      ev.replyToken,
+      [commandCardFlex('MEMBER SUCCESS BLUEPRINT', body, {
+        eyebrow: 'BNI IDEAL · GOAL SETTING',
+        actions: [{ label: 'เปิด Blueprint', type: 'uri', uri: link, primary: true }],
+        quickReplyItems: quickRepliesFor(role, true, undefined, parsedCommand.name),
+      })],
+      {
+        db,
+        idempotencyKey: `webhook:${eventId}:msb-link`,
+        memberId: lineRec?.member_id ? String(lineRec.member_id) : null,
+        notificationType: 'msb_link',
+        source: 'line-webhook',
+      },
+    );
+    await trackLineEvent(db, 'msb_link_sent', {
+      lineUserId: userId,
+      memberId: lineRec?.member_id ? String(lineRec.member_id) : null,
+      role,
+      source: 'line-webhook',
+    });
+    return;
+  }
   const replyText = await processCommand(db, userId, text, memberName, eventId, role);
 
   if (replyText && ev.replyToken) {
@@ -281,6 +318,47 @@ async function handleEvent(
       },
     });
   }
+}
+
+function base64Url(bytes: Uint8Array): string {
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+async function createMemberSuccessBlueprintLink(
+  db: ReturnType<typeof getServiceClient>,
+  memberId: string,
+  lineUserId: string,
+): Promise<string> {
+  if (!memberId) throw new Error('member_id required for Member Success Blueprint link');
+  const year = new Date().getFullYear();
+  const baseUrl = (Deno.env.get('MSB_FORM_URL') || 'https://bni-mentor-system.vercel.app/member-success-blueprint').replace(/\/$/, '');
+  const { data: existing, error: existingErr } = await db.from('msb_access_tokens')
+    .select('token, expires_at')
+    .eq('member_id', memberId)
+    .eq('blueprint_year', year)
+    .maybeSingle();
+  if (existingErr) throw new Error(existingErr.message);
+  const existingRec = existing as Record<string, unknown> | null;
+  const expiresAtMs = existingRec?.expires_at ? new Date(String(existingRec.expires_at)).getTime() : null;
+  if (existingRec?.token && (!expiresAtMs || expiresAtMs > Date.now())) {
+    return `${baseUrl}?t=${encodeURIComponent(String(existingRec.token))}`;
+  }
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  const token = base64Url(bytes);
+  const expiresAt = new Date(`${year}-12-31T23:59:59+07:00`).toISOString();
+  const { error } = await db.from('msb_access_tokens').upsert({
+    member_id: memberId,
+    token,
+    blueprint_year: year,
+    expires_at: expiresAt,
+    created_by: `line:${lineUserId}`,
+    created_at: new Date().toISOString(),
+  }, { onConflict: 'member_id,blueprint_year' });
+  if (error) throw new Error(error.message);
+  return `${baseUrl}?t=${encodeURIComponent(token)}`;
 }
 
 function safeLineTextPreview(text: string): string {
