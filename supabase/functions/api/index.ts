@@ -194,6 +194,10 @@ const ROUTES: Record<string, string> = {
   'generateMemberSuccessBlueprintLink': 'member-success-blueprints',
   'getMemberSuccessBlueprintsForDashboard': 'member-success-blueprints',
   'getMemberSuccessBlueprintSummary': 'member-success-blueprints',
+  'getMSBIntelligenceOverview': 'member-success-blueprints',
+  'getMSBPlanVsActual': 'member-success-blueprints',
+  'getMSBMemberIntelligence': 'member-success-blueprints',
+  'getMSBMatchingSuggestions': 'member-success-blueprints',
 
   // Usage
   'logUsage': 'usage', 'getUsageLog': 'usage', 'getLineAnalytics': 'usage',

@@ -78,6 +78,141 @@ function buildWarnings(row: Record<string, unknown>): string[] {
   return warnings;
 }
 
+function roleCanSeeAll(auth: Awaited<ReturnType<typeof requireAuth>>): boolean {
+  return Boolean(auth.isMC || String(auth.role) === 'growth');
+}
+
+function statusLabel(status: string): string {
+  const map: Record<string, string> = {
+    no_plan: 'ยังไม่ได้กรอก Blueprint',
+    no_actual_data: 'ยังไม่มีข้อมูล Actual',
+    on_track: 'On Track',
+    behind: 'Behind',
+    critical: 'Critical',
+  };
+  return map[status] || status || '—';
+}
+
+function supportSuggestion(row: Record<string, unknown>): string {
+  const status = txt(row.intelligence_status);
+  if (status === 'no_plan') return 'ยังไม่ได้กรอก Blueprint';
+
+  const referralGap = num(row.referral_gap);
+  const referralNeeded = num(row.referral_needed);
+  const revenueProgress = num(row.revenue_progress_percent);
+  const rg = num(row.rg);
+  const rr = num(row.rr);
+  const bniContribution = num(row.bni_contribution_percent);
+  const conversion = num(row.conversion_rate_percent);
+  const powerCats = arr(row.power_team_categories);
+
+  if (referralNeeded > 0 && referralGap >= Math.max(5, referralNeeded * 0.4)) {
+    return 'ช่วยปรับ Looking For และ Referral Trigger';
+  }
+  if (revenueProgress < 40 && rg >= Math.max(5, rr * 1.5)) {
+    return 'ให้เยอะแต่รับต่ำ ควรช่วยเรื่อง Weekly Presentation / Referral Trigger';
+  }
+  if (rg <= 2 && rr <= 2) {
+    return 'ควรเริ่มจาก Visibility, 1-2-1 และ Power Team';
+  }
+  if (bniContribution > 50) {
+    return 'เป้าจาก BNI สูง ควรมี Power Team ชัดเจน';
+  }
+  if (conversion > 0 && conversion < 10) {
+    return 'Conversion ต่ำ ควรโฟกัสคุณภาพ Referral';
+  }
+  if (powerCats.length === 0) {
+    return 'ควรระบุ Power Team ที่ต้องการ';
+  }
+  if (status === 'on_track') return 'กำลังไปได้ดี รักษา rhythm และเพิ่ม 1-2-1 คุณภาพ';
+  if (status === 'behind') return 'ควรวาง action 30 วันเพื่อปิด gap ที่ใหญ่ที่สุด';
+  if (status === 'critical') return 'ควรให้ Mentor/Growth ช่วยจับคู่และทบทวนเป้าทันที';
+  return 'ติดตามต่อเนื่องและช่วยให้แผนชัดขึ้น';
+}
+
+function mapPlanRow(row: Record<string, unknown>) {
+  return {
+    memberId: row.member_id,
+    name: row.name,
+    nickname: row.nickname,
+    profession: row.profession,
+    companyName: row.company_name,
+    mentorTeam: row.mentor_team,
+    blueprintYear: row.blueprint_year,
+    blueprintStatus: row.blueprint_status || (row.blueprint_id ? 'draft' : 'missing'),
+    msbGoal: num(row.expected_sales_from_bni_year),
+    totalSalesTargetYear: num(row.total_sales_target_year),
+    actualReceived: num(row.actual_received_thb ?? row.received_thb),
+    palmsTyfcb: num(row.tyfcb_thb),
+    growthReceived: num(row.growth_received_thb),
+    revenueProgressPercent: num(row.revenue_progress_percent),
+    revenueGap: num(row.revenue_gap),
+    customerNeeded: num(row.customer_needed),
+    referralNeeded: num(row.referral_needed),
+    referralReceived: num(row.rr),
+    referralProgressPercent: num(row.referral_progress_percent),
+    referralGap: num(row.referral_gap),
+    referralPerWeek: num(row.referral_per_week),
+    estimatedActualReferralPerWeek: num(row.estimated_actual_referral_per_week),
+    referralWeekGap: num(row.referral_week_gap),
+    trafficLight: row.traffic_light,
+    latestMonthlyScore: row.latest_monthly_score,
+    rg: num(row.rg),
+    rr: num(row.rr),
+    visitors: num(row.visitors),
+    oneToOne: num(row.one_to_one),
+    ceu: num(row.ceu),
+    conversionRatePercent: num(row.conversion_rate_percent),
+    bniContributionPercent: num(row.bni_contribution_percent),
+    lookingForCategories: arr(row.looking_for_categories),
+    lookingForDetail: row.looking_for_detail,
+    powerTeamCategories: arr(row.power_team_categories),
+    powerTeamDetail: row.power_team_detail,
+    personalGoalCategory: row.personal_goal_category,
+    personalGoalDetail: row.personal_goal_detail,
+    status: row.intelligence_status,
+    statusLabel: statusLabel(txt(row.intelligence_status)),
+    suggestedSupport: supportSuggestion(row),
+    r2ySyncedAt: row.r2y_synced_at,
+  };
+}
+
+async function fetchPlanRows(
+  db: Db,
+  auth: Awaited<ReturnType<typeof requireAuth>>,
+  year: number,
+  memberId?: string,
+) {
+  let q = db
+    .from('v_msb_plan_vs_actual')
+    .select('*')
+    .eq('blueprint_year', year)
+    .order('mentor_team')
+    .order('name');
+  if (memberId) q = q.eq('member_id', memberId);
+  if (!roleCanSeeAll(auth) && auth.teamName) q = q.eq('mentor_team', auth.teamName);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return ((data || []) as Record<string, unknown>[]).map(mapPlanRow);
+}
+
+function topCountsFromRows(rows: ReturnType<typeof mapPlanRow>[], field: 'lookingForCategories' | 'powerTeamCategories') {
+  const counts: Record<string, number> = {};
+  for (const row of rows) {
+    for (const item of (row[field] || [])) counts[item] = (counts[item] || 0) + 1;
+  }
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([name, count]) => ({ name, count }));
+}
+
+function statusCountsFromRows(rows: ReturnType<typeof mapPlanRow>[]) {
+  const counts: Record<string, number> = { no_plan: 0, no_actual_data: 0, on_track: 0, behind: 0, critical: 0 };
+  for (const row of rows) counts[String(row.status || 'no_plan')] = (counts[String(row.status || 'no_plan')] || 0) + 1;
+  return counts;
+}
+
 function base64Url(bytes: Uint8Array): string {
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -448,6 +583,145 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
           topPowerTeamCategories: countTop('power_team_categories'),
         },
       });
+    }
+
+    case 'getMSBIntelligenceOverview': {
+      const auth = await requireAuth(db, p, DASHBOARD_ROLES);
+      if (!auth.ok) return errResponse(auth.error!);
+      const rows = await fetchPlanRows(db, auth, year);
+      const submitted = rows.filter(r => r.blueprintStatus === 'submitted');
+      const planned = rows.filter(r => r.blueprintStatus && r.blueprintStatus !== 'missing');
+      const totalMgb = rows.reduce((s, r) => s + num(r.msbGoal), 0);
+      const totalActualReceived = rows.reduce((s, r) => s + num(r.actualReceived), 0);
+      const totalReferralNeeded = rows.reduce((s, r) => s + num(r.referralNeeded), 0);
+      const totalReferralReceived = rows.reduce((s, r) => s + num(r.referralReceived), 0);
+      return jsonResponse({
+        ok: true,
+        blueprintYear: year,
+        overview: {
+          totalMembers: rows.length,
+          submittedCount: submitted.length,
+          plannedCount: planned.length,
+          completionPercent: rows.length ? Math.round((submitted.length / rows.length) * 100) : 0,
+          totalMsbBniGoal: totalMgb,
+          totalActualReceived,
+          totalRevenueGap: Math.max(0, totalMgb - totalActualReceived),
+          totalReferralNeeded,
+          totalReferralReceived,
+          totalReferralGap: Math.max(0, totalReferralNeeded - totalReferralReceived),
+          topLookingForCategories: topCountsFromRows(rows, 'lookingForCategories'),
+          topPowerTeamCategories: topCountsFromRows(rows, 'powerTeamCategories'),
+          statusCounts: statusCountsFromRows(rows),
+        },
+      });
+    }
+
+    case 'getMSBPlanVsActual': {
+      const auth = await requireAuth(db, p, DASHBOARD_ROLES);
+      if (!auth.ok) return errResponse(auth.error!);
+      const rows = await fetchPlanRows(db, auth, year);
+      return jsonResponse({ ok: true, blueprintYear: year, rows });
+    }
+
+    case 'getMSBMemberIntelligence': {
+      const auth = await requireAuth(db, p, DASHBOARD_ROLES);
+      if (!auth.ok) return errResponse(auth.error!);
+      const memberId = txt(p.memberId || p.member_id);
+      if (!memberId) return errResponse('memberId required', 400);
+      const rows = await fetchPlanRows(db, auth, year, memberId);
+      const row = rows[0];
+      if (!row) return errResponse('ไม่พบข้อมูลสมาชิกนี้ หรือไม่มีสิทธิ์ดูข้อมูล', 404);
+      return jsonResponse({
+        ok: true,
+        blueprintYear: year,
+        member: {
+          memberId: row.memberId,
+          name: row.name,
+          nickname: row.nickname,
+          profession: row.profession,
+          companyName: row.companyName,
+          mentorTeam: row.mentorTeam,
+        },
+        planSummary: {
+          msbGoal: row.msbGoal,
+          totalSalesTargetYear: row.totalSalesTargetYear,
+          customerNeeded: row.customerNeeded,
+          referralNeeded: row.referralNeeded,
+          referralPerWeek: row.referralPerWeek,
+          conversionRatePercent: row.conversionRatePercent,
+          bniContributionPercent: row.bniContributionPercent,
+        },
+        actualSummary: {
+          actualReceived: row.actualReceived,
+          palmsTyfcb: row.palmsTyfcb,
+          growthReceived: row.growthReceived,
+          rg: row.rg,
+          rr: row.rr,
+          visitors: row.visitors,
+          oneToOne: row.oneToOne,
+          ceu: row.ceu,
+          trafficLight: row.trafficLight,
+          latestMonthlyScore: row.latestMonthlyScore,
+        },
+        gapSummary: {
+          revenueProgressPercent: row.revenueProgressPercent,
+          revenueGap: row.revenueGap,
+          referralProgressPercent: row.referralProgressPercent,
+          referralGap: row.referralGap,
+          referralWeekGap: row.referralWeekGap,
+          status: row.status,
+          statusLabel: row.statusLabel,
+        },
+        lookingFor: { categories: row.lookingForCategories, detail: row.lookingForDetail },
+        powerTeam: { categories: row.powerTeamCategories, detail: row.powerTeamDetail },
+        personalGoal: { category: row.personalGoalCategory, detail: row.personalGoalDetail },
+        coachingInsights: [
+          row.suggestedSupport,
+          row.referralGap > 0 ? `ยังขาด Referral ประมาณ ${Math.round(row.referralGap).toLocaleString('th-TH')} ครั้งจากแผน` : '',
+          row.revenueGap > 0 ? `ยังมี Revenue Gap ประมาณ ${Math.round(row.revenueGap).toLocaleString('th-TH')} บาทจาก MSB Goal` : '',
+        ].filter(Boolean),
+      });
+    }
+
+    case 'getMSBMatchingSuggestions': {
+      const auth = await requireAuth(db, p, DASHBOARD_ROLES);
+      if (!auth.ok) return errResponse(auth.error!);
+      const memberId = txt(p.memberId || p.member_id);
+      if (!memberId) return errResponse('memberId required', 400);
+      const rows = await fetchPlanRows(db, auth, year, memberId);
+      const row = rows[0];
+      if (!row) return errResponse('ไม่พบข้อมูลสมาชิกนี้ หรือไม่มีสิทธิ์ดูข้อมูล', 404);
+      const desired = [...row.powerTeamCategories, ...row.lookingForCategories].map(s => s.toLowerCase());
+      if (!desired.length) return jsonResponse({ ok: true, blueprintYear: year, suggestions: [] });
+      let memberQuery = db.from('members')
+        .select('id, name, nickname, mentor_team, profession, company_name, is_archived')
+        .eq('is_archived', false)
+        .neq('id', memberId)
+        .order('mentor_team')
+        .order('name');
+      if (!roleCanSeeAll(auth) && auth.teamName) memberQuery = memberQuery.eq('mentor_team', auth.teamName);
+      const { data, error } = await memberQuery;
+      if (error) return errResponse(error.message, 400);
+      const suggestions = ((data || []) as Record<string, unknown>[])
+        .map(m => {
+          const profession = txt(m.profession).toLowerCase();
+          const company = txt(m.company_name).toLowerCase();
+          const matched = desired.filter(cat => cat && (profession.includes(cat) || company.includes(cat) || cat.includes(profession)));
+          return {
+            memberId: m.id,
+            name: m.name,
+            nickname: m.nickname,
+            mentorTeam: m.mentor_team,
+            profession: m.profession,
+            companyName: m.company_name,
+            matchedCategories: Array.from(new Set(matched)),
+            confidence: matched.length >= 2 ? 'medium' : matched.length === 1 ? 'low' : '',
+            label: 'category-based suggestion',
+          };
+        })
+        .filter(m => m.matchedCategories.length)
+        .slice(0, 12);
+      return jsonResponse({ ok: true, blueprintYear: year, suggestions });
     }
   }
 
