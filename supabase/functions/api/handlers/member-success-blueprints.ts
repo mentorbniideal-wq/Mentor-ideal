@@ -213,6 +213,15 @@ function statusCountsFromRows(rows: ReturnType<typeof mapPlanRow>[]) {
   return counts;
 }
 
+function normalizeCategoryKey(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[’']/g, '')
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9\u0E00-\u0E7F]+/g, '')
+    .trim();
+}
+
 function base64Url(bytes: Uint8Array): string {
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -512,6 +521,51 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       const saved = await saveBlueprintForMember(db, identity.memberId, tokenYear, p);
       if (saved.error) return errResponse(saved.error, saved.status || 400);
       return jsonResponse({ ok: true, blueprint: saved.blueprint, blueprintYear: tokenYear });
+    }
+
+    case 'getMSBCategorySuggestions': {
+      const identity = await resolveWebAccessToken(db, String(p.token || p.t || p.msbToken || ''));
+      if (identity.error || !identity.memberId) return errResponse(identity.error || 'Unauthorized', 401);
+      const tokenYear = identity.blueprintYear || year;
+      const [{ data, error }, { data: aliases, error: aliasErr }] = await Promise.all([
+        db.from('v_msb_category_demand')
+          .select('category_type, category')
+          .eq('blueprint_year', tokenYear),
+        db.from('msb_category_aliases')
+          .select('category_type, canonical_category, alias'),
+      ]);
+      if (error) return errResponse(error.message, 400);
+      if (aliasErr) return errResponse(aliasErr.message, 400);
+      const aliasByKey: Record<string, string> = {};
+      for (const a of (aliases || []) as Record<string, unknown>[]) {
+        aliasByKey[`${txt(a.category_type)}:${normalizeCategoryKey(txt(a.alias))}`] = txt(a.canonical_category);
+      }
+
+      const buckets: Record<string, Record<string, { name: string; count: number }>> = {
+        looking_for: {},
+        power_team: {},
+      };
+      for (const row of (data || []) as Record<string, unknown>[]) {
+        const type = txt(row.category_type);
+        const rawCategory = txt(row.category);
+        const category = aliasByKey[`${type}:${normalizeCategoryKey(rawCategory)}`] || rawCategory;
+        if (!category || !buckets[type]) continue;
+        const key = normalizeCategoryKey(category);
+        if (!key) continue;
+        if (!buckets[type][key]) buckets[type][key] = { name: category, count: 0 };
+        buckets[type][key].count += 1;
+      }
+      const toList = (type: string) => Object.values(buckets[type] || {})
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'th'))
+        .slice(0, 24);
+      return jsonResponse({
+        ok: true,
+        blueprintYear: tokenYear,
+        suggestions: {
+          looking_for: toList('looking_for'),
+          power_team: toList('power_team'),
+        },
+      });
     }
 
     case 'getMyMemberSuccessBlueprint': {

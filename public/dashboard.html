@@ -824,6 +824,11 @@ body.dark input,body.dark select,body.dark textarea{box-shadow:inset 0 1px 0 rgb
 .rv-search{background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:7px 11px;color:var(--tx);font-size:13px;outline:none;width:200px;transition:border .2s;}
 .rv-search:focus{border-color:var(--ac);}
 .rv-tf{background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:7px 11px;color:var(--tx);font-size:12px;outline:none;}
+.rv-pill{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--bd);border-radius:999px;padding:3px 7px;font-size:10px;font-weight:800;background:var(--sf);}
+.rv-action{border:1px solid var(--bd);background:var(--sf);color:var(--tx);border-radius:7px;padding:4px 8px;font-size:10px;font-weight:800;cursor:pointer;margin-top:4px}
+.rv-action:hover{border-color:var(--ac);color:var(--ac)}
+.rv-lib{background:var(--sf2);border:1px solid var(--bd);border-radius:12px;padding:14px 16px;margin-bottom:18px;}
+.rv-lib-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}.rv-lib-title{font-size:13px;font-weight:800;flex:1}.rv-lib-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.rv-lib-box{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:12px}.rv-lib-row{display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid var(--bd);padding:7px 0;font-size:12px}.rv-lib-row:last-child{border-bottom:none}.rv-lib-row button{border:1px solid var(--bd);background:transparent;color:var(--sub);border-radius:6px;padding:3px 7px;font-size:10px;cursor:pointer}.rv-lib-row button:hover{color:var(--ac);border-color:var(--ac)}
 /* ── Growth Sheet ── */
 .gsh-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
 .gsh-card{background:var(--sf2);border-radius:10px;padding:14px 12px;text-align:center;}
@@ -1378,7 +1383,7 @@ main{
     <button class="tb" onclick="sw('gr-dec',this,'gr')">📉 Score Trend<span class="nb" id="badge-dec"></span></button>
     <button class="tb" onclick="sw('gr-top',this,'gr')">🥇 Top Performance</button>
     <button class="tb" onclick="sw('gr-heat',this,'gr')">🔥 Heatmap</button>
-    <button class="tb" onclick="sw('gr-rev',this,'gr');rvLoad()">💰 Revenue</button>
+    <button class="tb" onclick="sw('gr-rev',this,'gr');rvLoad()">💰 Growth Plan</button>
     <button class="tb" onclick="sw('gr-cmd',this,'gr');cmdLoad()">🎮 Command</button>
     <button class="tb" onclick="sw('gr-cross',this,'gr');crossLoad()">🔀 Cross-Team</button>
     <button class="tb" onclick="sw('gr-sprint',this,'gr');sprintLoad()">🏃 Sprint</button>
@@ -2763,12 +2768,15 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       </div>
     </div>
 
-    <!-- Growth Revenue Dashboard -->
+    <!-- Growth Plan Dashboard -->
     <div id="gr-rev" class="sec">
       <div id="rv-loading" style="text-align:center;padding:2rem;color:var(--sub);">⏳ กำลังโหลด...</div>
       <div id="rv-content" style="display:none;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-          <h2 style="font-size:15px;font-weight:800;letter-spacing:-.3px;">📊 Revenue Dashboard</h2>
+          <div>
+            <h2 style="font-size:15px;font-weight:800;letter-spacing:-.3px;margin:0">💰 Growth Plan</h2>
+            <div style="font-size:11px;color:var(--sub);margin-top:3px">Legacy Revenue เดิม + MSB Goal ใหม่ รวมเป็น Active Goal สำหรับติดตาม Growth</div>
+          </div>
           <div style="display:flex;gap:8px;align-items:center;">
             <select class="rv-tf" id="rv-tf-team" onchange="rvFilterTeam(this.value)" style="font-size:11px;">
               <option value="">ทุกทีม</option>
@@ -2780,9 +2788,10 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         <div id="rv-hero" class="rv-hero"></div>
         <div id="rv-prog-wrap" class="rv-prog-wrap"></div>
         <div id="rv-teams" class="rv-teams"></div>
+        <div id="rv-library" class="rv-lib" style="display:none"></div>
         <div class="rv-tbl-wrap">
           <div class="rv-tbl-hdr">
-            <span class="rv-tbl-title">📋 สมาชิกทั้งหมด</span>
+            <span class="rv-tbl-title">📋 Growth Plan รายสมาชิก</span>
             <span id="rv-cnt" style="font-size:11px;color:var(--sub);"></span>
             <button class="rv-add-btn" id="rv-add-global-btn" onclick="rvOpenAdd('')" style="display:none;">+ เพิ่มสมาชิก</button>
           </div>
@@ -10803,7 +10812,7 @@ function msbRender(group){
 }
 
 // ── Growth Revenue Dashboard ──────────────────────────────────
-var _rvData=null,_rvLoaded=false,_rvSort={col:-1,asc:true},_rvFilter={team:'',q:''};
+var _rvData=null,_rvLoaded=false,_rvSort={col:-1,asc:true},_rvFilter={team:'',q:''},_rvLibrary=null;
 
 function rvLoad(){
   if(_rvLoaded)return;
@@ -10821,6 +10830,7 @@ function rvLoad(){
     document.getElementById('rv-content').style.display='block';
     rvBuildTeamFilter();
     rvRender();
+    rvLoadLibrary();
   });
 }
 
@@ -10833,6 +10843,70 @@ function rvFmt(n){
 }
 
 function rvPctColor(p){return p>=80?'#00d4aa':p>=50?'#ffc14d':'#ff6b6b';}
+function rvGoalBadge(src){
+  if(src==='msb')return '<div style="font-size:9px;color:var(--ye);font-weight:900;margin-top:2px">MSB active</div>';
+  if(src==='legacy')return '<div style="font-size:9px;color:var(--sub);font-weight:800;margin-top:2px">Legacy baseline</div>';
+  if(src==='msb_fallback')return '<div style="font-size:9px;color:var(--ye);font-weight:800;margin-top:2px">MSB fallback</div>';
+  return '<div style="font-size:9px;color:var(--sub);font-weight:800;margin-top:2px">No goal</div>';
+}
+function rvReviewBadge(m){
+  if(m.blueprintStatus==='missing')return '<span style="color:var(--sub);font-weight:800">📝 No MSB</span>';
+  if(m.goalReviewStatus==='reviewed')return '<span style="color:var(--gr);font-weight:900">✅ Reviewed</span>';
+  if(m.goalReviewStatus==='needs_revision')return '<span style="color:var(--re);font-weight:900">↩ Needs Revision</span>';
+  if(m.goalReviewNeeded)return '<span style="color:var(--ye);font-weight:900">⚠️ Review Goal</span><div style="font-size:9px;color:var(--sub);margin-top:2px">MSB ต่างจากเดิม '+(m.goalDeltaPct>0?'+':'')+(m.goalDeltaPct||0)+'%</div>';
+  if(m.activeGoalSource==='msb')return '<span style="color:var(--gr);font-weight:900">✅ MSB Ready</span>';
+  return '<span style="color:var(--sub);font-weight:800">Baseline</span>';
+}
+function rvQualityBadge(m){
+  var score=Number(m.dataQualityScore)||0, grade=m.dataQualityGrade||'weak';
+  var color=score>=85?'var(--gr)':score>=65?'var(--ye)':score>=45?'#f59e0b':'var(--re)';
+  var label=grade==='excellent'?'Excellent':grade==='good'?'Good':grade==='needs_work'?'Needs work':'Weak';
+  var miss=(m.dataQualityMissing||[]).slice(0,2).join(', ');
+  return '<span class="rv-pill" style="color:'+color+';border-color:'+color+'">'+score+' · '+label+'</span>'+(miss?'<div style="font-size:9px;color:var(--sub);margin-top:3px;white-space:normal;max-width:150px">เติม: '+esc(miss)+'</div>':'');
+}
+function rvSaveReview(memberId,status){
+  var note='';
+  if(status==='needs_revision')note=prompt('หมายเหตุให้สมาชิก/ทีมแก้เป้า:', '')||'';
+  gsr('saveGrowthGoalReview',{role:S.role,memberId:memberId,status:status,note:note},function(r){
+    if(!r||!r.ok){toast('บันทึก review ไม่สำเร็จ: '+(r&&r.error||'unknown'),'err');return;}
+    toast(status==='reviewed'?'บันทึกว่า review แล้ว':'บันทึกว่าให้แก้เป้าแล้ว','ok');
+    _rvLoaded=false;rvLoad();
+  });
+}
+function rvLoadLibrary(){
+  gsr('getMSBCategoryLibrary',{role:S.role},function(r){
+    if(!r||!r.ok)return;
+    _rvLibrary=r;
+    rvRenderLibrary();
+  });
+}
+function rvRenderLibrary(){
+  var el=document.getElementById('rv-library');if(!el||!_rvLibrary)return;
+  var cats=_rvLibrary.categories||{};
+  function box(type,title,items){
+    items=(items||[]).slice(0,8);
+    return '<div class="rv-lib-box"><div style="font-size:12px;font-weight:900;margin-bottom:8px">'+esc(title)+'</div>'
+      +(items.length?items.map(function(x){
+        var raws=(x.raw||[]).filter(function(r){return r!==x.name;}).slice(0,3);
+        return '<div class="rv-lib-row"><div><b>'+esc(x.name)+'</b> <span style="color:var(--sub)">· '+x.count+'</span>'
+          +(raws.length?'<div style="font-size:10px;color:var(--sub);margin-top:2px">alias: '+esc(raws.join(', '))+'</div>':'')+'</div>'
+          +'<button onclick="rvAddAlias('+JSON.stringify(type)+','+JSON.stringify(x.name)+')">+ alias</button></div>';
+      }).join(''):'<div style="color:var(--sub);font-size:12px;padding:8px 0">ยังไม่มีข้อมูล</div>')
+      +'</div>';
+  }
+  el.style.display='block';
+  el.innerHTML='<div class="rv-lib-head"><div class="rv-lib-title">🧹 Category Library <span style="color:var(--sub);font-weight:500">รวมคำซ้ำให้ Matching อ่านง่ายขึ้น</span></div><button class="bsm" onclick="rvLoadLibrary()" style="font-size:11px">↺</button></div>'
+    +'<div class="rv-lib-grid">'+box('looking_for','Top Looking For',cats.looking_for)+box('power_team','Top Power Team',cats.power_team)+'</div>';
+}
+function rvAddAlias(type,canonical){
+  var alias=prompt('คำสะกดอื่นที่อยากรวมเข้า "'+canonical+'"', '');
+  if(!alias)return;
+  gsr('saveMSBCategoryAlias',{role:S.role,categoryType:type,canonicalCategory:canonical,alias:alias},function(r){
+    if(!r||!r.ok){toast('บันทึก alias ไม่สำเร็จ: '+(r&&r.error||'unknown'),'err');return;}
+    toast('บันทึก alias แล้ว','ok');
+    rvLoadLibrary();
+  });
+}
 
 function rvBuildTeamFilter(){
   var tf=document.getElementById('rv-tf-team');
@@ -10853,18 +10927,25 @@ function rvRender(){
   if(!_rvData)return;
   var s=_rvData.summary;
   var pc=s.pct>=80?'#00d4aa':s.pct>=50?'#ffc14d':'#ff6b6b';
+  var completion=s.memberCount?Math.round((s.submittedBlueprints||0)/s.memberCount*100):0;
 
   // Hero KPI cards
   document.getElementById('rv-hero').innerHTML=
-    rvKpi('💰','รับจริง',rvFmt(s.totalReceived),'#00d4aa','Chapter revenue ปีนี้')
-    +rvKpi('🎯','เป้าหมาย',rvFmt(s.totalTarget),'#6366F1','Target ทั้ง Chapter')
-    +rvKpi('📊','สำเร็จ',s.pct+'%',pc,'% ของ target')
-    +rvKpi('👥','สมาชิก',s.memberCount+' คน','#F59E0B',s.groupCount+' ทีม');
+    rvKpi('🎯','Active Goal',rvFmt(s.totalTarget),'#c7a76a','MSB ถ้ามี / Legacy ถ้ายังไม่มี')
+    +rvKpi('💰','Actual Received',rvFmt(s.totalReceived),'#00d4aa','รายได้ที่รับจริงในระบบ Growth')
+    +rvKpi('📊','Progress',s.pct+'%',pc,'Actual / Active Goal')
+    +rvKpi('📝','MSB Completion',completion+'%','#a78bfa',(s.submittedBlueprints||0)+' / '+(s.memberCount||0)+' คน')
+    +rvKpi('📚','Legacy Baseline',rvFmt(s.totalLegacyTarget||0),'#94a3b8','เป้าเดิมก่อนมี MSB')
+    +rvKpi('✨','MSB Goal Total',rvFmt(s.totalMsbGoal||0),'#fbbf24','เป้าใหม่จากสมาชิก')
+    +rvKpi('📉','Revenue Gap',rvFmt(s.revenueGap||0),'#ff6b6b','Active Goal - Actual')
+    +rvKpi('⚠️','Need Review',(s.reviewNeeded||0)+' คน','#f59e0b','MSB ต่างจาก Legacy ≥30%')
+    +rvKpi('🧹','Data Quality',(s.avgDataQuality||0)+'/100','#38bdf8','ความพร้อมของข้อมูลต่อสมาชิก')
+    +rvKpi('✅','Reviewed',(s.reviewedGoals||0)+' คน','#34d399','เป้าที่ Growth/MC ตรวจแล้ว');
 
   // Chapter progress bar
   document.getElementById('rv-prog-wrap').innerHTML=
     '<div class="rv-prog-top">'
-    +'<span class="rv-prog-title">Chapter Progress</span>'
+    +'<span class="rv-prog-title">Chapter Growth Plan Progress</span>'
     +'<span class="rv-prog-pct" style="color:'+pc+';">'+s.pct+'% · '+rvFmt(s.totalReceived)+' / '+rvFmt(s.totalTarget)+'</span>'
     +'</div>'
     +'<div class="rv-prog-bar">'
@@ -10877,11 +10958,13 @@ function rvRender(){
     var gT=g.totalRow?g.totalRow.target:g.members.reduce(function(a,m){return a+m.target;},0);
     var gP=gT>0?Math.round(gR/gT*100):0;
     var gc=rvPctColor(gP);
+    var revNeed=g.totalRow?g.totalRow.reviewNeeded:0;
+    var msbCnt=g.totalRow?g.totalRow.submittedBlueprints:0;
     return '<div class="rv-team-card" style="cursor:pointer;" onclick="document.getElementById(\'rv-tf-team\').value=\''+esc(g.name)+'\';rvFilterTeam(\''+esc(g.name)+'\')">'
       +'<div class="rv-tc-name">'+esc(g.name)+'</div>'
-      +'<div class="rv-tc-meta">'+g.members.length+' คน · '+rvFmt(gR)+' / '+rvFmt(gT)+'</div>'
+      +'<div class="rv-tc-meta">'+g.members.length+' คน · '+rvFmt(gR)+' / '+rvFmt(gT)+' · MSB '+msbCnt+'</div>'
       +'<div class="rv-tc-bar"><div class="rv-tc-fill" style="background:'+gc+';width:'+Math.min(gP,100)+'%;"></div></div>'
-      +'<div class="rv-tc-pct" style="color:'+gc+';">'+gP+'%</div>'
+      +'<div class="rv-tc-pct" style="color:'+gc+';">'+gP+'%'+(revNeed?'<span style="float:right;color:var(--ye);font-size:10px">⚠️ '+revNeed+'</span>':'')+'</div>'
       +'</div>';
   }).join('');
 
@@ -10899,8 +10982,6 @@ function rvKpi(icon,lbl,val,color,sub){
 
 function rvRenderTable(){
   if(!_rvData)return;
-  var h=_rvData.headers||[];
-  var colMap=_rvData.colMap||{};
 
   // Collect all members matching filter
   var all=[];
@@ -10927,12 +11008,16 @@ function rvRenderTable(){
       var av,bv;
       if(sc===-2){av=a.nick||a.name||'';bv=b.nick||b.name||'';}
       else if(sc===-3){av=a._group||'';bv=b._group||'';}
-      else{
-        av=a.cells&&a.cells[sc]!==undefined?a.cells[sc]:0;
-        bv=b.cells&&b.cells[sc]!==undefined?b.cells[sc]:0;
-        var an=parseFloat(av),bn=parseFloat(bv);
-        if(!isNaN(an)&&!isNaN(bn)){return asc?an-bn:bn-an;}
-      }
+      else if(sc===-4){av=a.legacyTarget||0;bv=b.legacyTarget||0;}
+      else if(sc===-5){av=a.msbGoal||0;bv=b.msbGoal||0;}
+      else if(sc===-6){av=a.activeGoal||a.target||0;bv=b.activeGoal||b.target||0;}
+      else if(sc===-7){av=a.received||0;bv=b.received||0;}
+      else if(sc===-8){av=a.pct||0;bv=b.pct||0;}
+      else if(sc===-9){av=a.gap||0;bv=b.gap||0;}
+      else if(sc===-10){av=a.goalReviewNeeded?1:0;bv=b.goalReviewNeeded?1:0;}
+      else{av=a.cells&&a.cells[sc]!==undefined?a.cells[sc]:0;bv=b.cells&&b.cells[sc]!==undefined?b.cells[sc]:0;}
+      var an=parseFloat(av),bn=parseFloat(bv);
+      if(!isNaN(an)&&!isNaN(bn)){return asc?an-bn:bn-an;}
       return asc?String(av).localeCompare(String(bv),'th'):String(bv).localeCompare(String(av),'th');
     });
   }
@@ -10943,21 +11028,20 @@ function rvRenderTable(){
 
   document.getElementById('rv-cnt').textContent=all.length+' รายการ';
 
-  // Determine visible columns: skip col A (sequence), always show name/nick + all detected + rest
-  var skipCols={};
-  skipCols[0]=true; // col A = sequence
-  if(colMap.name!==undefined)skipCols[colMap.name]=true; // merged into display name
-
   // Build header row
   var thHtml='<th style="width:36px;text-align:center;">#</th>';
   thHtml+='<th onclick="rvSortBy(-2,this)">ชื่อ / นิคเนม</th>';
   thHtml+='<th onclick="rvSortBy(-3,this)">ทีม</th>';
-  for(var ci=0;ci<h.length;ci++){
-    if(skipCols[ci])continue;
-    var hl=h[ci]?h[ci]:'';
-    if(!hl)continue;
-    thHtml+='<th onclick="rvSortBy('+ci+',this)">'+esc(hl)+'</th>';
-  }
+  thHtml+='<th onclick="rvSortBy(-4,this)">Legacy Target</th>';
+  thHtml+='<th onclick="rvSortBy(-5,this)">MSB Goal</th>';
+  thHtml+='<th onclick="rvSortBy(-6,this)">Active Goal</th>';
+  thHtml+='<th onclick="rvSortBy(-7,this)">Actual</th>';
+  thHtml+='<th onclick="rvSortBy(-8,this)">Progress</th>';
+  thHtml+='<th onclick="rvSortBy(-9,this)">Gap</th>';
+  thHtml+='<th>Looking For</th>';
+  thHtml+='<th>Power Team</th>';
+  thHtml+='<th>Data Quality</th>';
+  thHtml+='<th onclick="rvSortBy(-10,this)">Review</th>';
   thHtml+='<th style="width:50px;"></th>';
   document.getElementById('rv-thead').innerHTML='<tr>'+thHtml+'</tr>';
 
@@ -10966,33 +11050,24 @@ function rvRenderTable(){
     var mP=m.target>0?Math.round(m.received/m.target*100):0;
     var mc2=rvPctColor(mP);
     var dn=m.nick&&m.nick!==m.name?m.nick:m.name;
+    var looking=(m.lookingForCategories||[]).slice(0,2).join(', ');
+    var power=(m.powerTeamCategories||[]).slice(0,2).join(', ');
 
     var tdHtml='<td style="color:var(--sub);text-align:center;font-size:11px;">'+(idx+1)+'</td>';
     tdHtml+='<td><div style="font-weight:600;font-size:13px;">'+esc(dn)+'</div>'
       +(m.nick&&m.nick!==m.name?'<div style="font-size:10px;color:var(--sub);">'+esc(m.name)+'</div>':'')
       +'</td>';
     tdHtml+='<td style="color:var(--sub);">'+esc(m._group)+'</td>';
-
-    for(var ci=0;ci<h.length;ci++){
-      if(skipCols[ci])continue;
-      if(!h[ci])continue;
-      var cv=m.cells&&m.cells[ci]!==undefined?m.cells[ci]:'';
-
-      // Special rendering for received/target/pct columns
-      if(ci===colMap.received){
-        tdHtml+='<td><span style="font-weight:700;color:'+mc2+';">'+rvFmt(cv)+'</span></td>';
-      } else if(ci===colMap.target){
-        tdHtml+='<td style="color:var(--sub);">'+rvFmt(cv)+(m.targetSource==='msb'?'<div style="font-size:9px;color:var(--ye);font-weight:800;margin-top:2px">MSB Goal</div>':'')+'</td>';
-      } else if(ci===colMap.pct){
-        tdHtml+='<td>'
-          +'<div class="rv-pbar"><div class="rv-pbar-f" style="background:'+mc2+';width:'+Math.min(mP,100)+'%;"></div></div>'
-          +' <span style="font-size:11px;color:'+mc2+';font-weight:700;">'+mP+'%</span>'
-          +'</td>';
-      } else {
-        tdHtml+='<td>'+esc(String(cv||''))+'</td>';
-      }
-    }
-
+    tdHtml+='<td style="color:var(--sub)">'+rvFmt(m.legacyTarget||0)+'<div style="font-size:9px;color:var(--sub);margin-top:2px">old baseline</div></td>';
+    tdHtml+='<td>'+(m.msbGoal?rvFmt(m.msbGoal):'—')+'<div style="font-size:9px;color:var(--ye);font-weight:800;margin-top:2px">'+(m.blueprintStatus==='submitted'?'submitted':'not submitted')+'</div></td>';
+    tdHtml+='<td><b>'+rvFmt(m.activeGoal||m.target||0)+'</b>'+rvGoalBadge(m.activeGoalSource||m.targetSource)+'</td>';
+    tdHtml+='<td><span style="font-weight:800;color:'+mc2+'">'+rvFmt(m.received||0)+'</span></td>';
+    tdHtml+='<td><div class="rv-pbar"><div class="rv-pbar-f" style="background:'+mc2+';width:'+Math.min(mP,100)+'%;"></div></div> <span style="font-size:11px;color:'+mc2+';font-weight:800">'+mP+'%</span></td>';
+    tdHtml+='<td>'+rvFmt(m.gap||0)+'</td>';
+    tdHtml+='<td><div style="max-width:180px;white-space:normal;line-height:1.35">'+esc(looking||'—')+'<div style="font-size:9px;color:var(--sub)">'+esc((m.lookingForDetail||'').slice(0,64))+'</div></div></td>';
+    tdHtml+='<td><div style="max-width:180px;white-space:normal;line-height:1.35">'+esc(power||'—')+'<div style="font-size:9px;color:var(--sub)">'+esc((m.powerTeamDetail||'').slice(0,64))+'</div></div></td>';
+    tdHtml+='<td>'+rvQualityBadge(m)+'</td>';
+    tdHtml+='<td>'+rvReviewBadge(m)+(m.memberId&&m.goalReviewNeeded?'<div><button class="rv-action" onclick="rvSaveReview(\''+esc(m.memberId)+'\',\'reviewed\')">Mark reviewed</button><br><button class="rv-action" onclick="rvSaveReview(\''+esc(m.memberId)+'\',\'needs_revision\')">Needs revision</button></div>':'')+'</td>';
     tdHtml+='<td><button class="rv-edt" onclick="gshOpenEdit('+m._gi+',\''+m.sheetRow+'\');document.getElementById(\'gsh-modal\').classList.add(\'open\')">✏️</button></td>';
     return '<tr>'+tdHtml+'</tr>';
   }).join('');

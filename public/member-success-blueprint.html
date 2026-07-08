@@ -34,6 +34,7 @@
     .metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:14px 0}
     .metric{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px}.metric span{display:block;font-size:11px;color:var(--muted)}.metric b{font-size:20px;color:var(--green)}
     .chips{display:flex;flex-wrap:wrap;gap:8px}.chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:9px 12px;font-size:12px;color:#35463d;cursor:pointer;user-select:none}.chip.on{background:var(--green);border-color:var(--green);color:#fff}.chip.single.on{background:var(--gold);border-color:var(--gold);color:#17120a}
+    .smartpick{background:#fffaf0;border:1px solid rgba(199,167,106,.34);border-radius:18px;padding:12px;margin:10px 0 14px}.smartpick .sp-title{font-size:12px;font-weight:800;color:var(--green);margin-bottom:8px}.smartpick .sp-title span{font-weight:500;color:var(--muted)}.smartpick .sp-row{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:10px}.smartpick input{padding:10px 12px;border-radius:12px;font-size:13px}.smartpick .add{border:0;border-radius:12px;background:var(--green);color:#fff;font:inherit;font-size:12px;font-weight:800;padding:0 13px;cursor:pointer}.smartpick .near{font-size:11px;color:#7a6742;line-height:1.55;margin-top:8px}.smartpick .near button{border:1px solid rgba(199,167,106,.5);background:#fffdf7;border-radius:999px;padding:5px 8px;margin:4px 4px 0 0;font:inherit;font-size:11px;font-weight:800;color:var(--green);cursor:pointer}
     .coach{background:linear-gradient(180deg,#fffaf0,#f5ecdc);border:1px solid rgba(199,167,106,.38);border-radius:18px;padding:13px 13px;margin:8px 0 14px;color:#31433a;font-size:12px;line-height:1.75}
     .coach b{color:var(--green)}.coach .title{font-weight:800;color:var(--green);font-size:13px;margin-bottom:3px}.coach .mini{background:rgba(255,255,255,.58);border:1px solid var(--line);border-radius:14px;padding:10px;margin-top:10px}
     .coach .row{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-top:8px}.coach .row.two{grid-template-columns:1fr 1fr}.coach .row input{padding:10px 11px;border-radius:12px;font-size:13px}
@@ -75,7 +76,7 @@
     var HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+ANON};
     var step=0,formToken='',member=null,blueprint=null,year=new Date().getFullYear();
     var data={blueprintYear:year,total_sales_target_year:'',expected_sales_from_bni_year:'',existing_customer_revenue_from_bni:'',new_customer_revenue_from_bni:'',average_customer_value_year:'',conversion_rate_percent:'',looking_for_categories:[],looking_for_detail:'',power_team_categories:[],power_team_detail:'',personal_goal_category:'',personal_goal_detail:''};
-    var helperState={avgMonthly:'',convReferrals:'10',convClosed:'3'};
+    var helperState={avgMonthly:'',convReferrals:'10',convClosed:'3'},categorySuggestions={looking_for:[],power_team:[]},categoryDraft={looking_for_categories:'',power_team_categories:''};
     var LOOK=['SME Owner','เจ้าของกิจการ','HR / People','Finance / Accounting','Real Estate','Health / Wellness','Education','Retail / F&B','Marketing / Media','Legal / Consulting','IT / Digital','ครอบครัว/เพื่อนของลูกค้า'];
     var POWER=['Finance','Legal','Real Estate','Health','Marketing','Construction','Hospitality','Education','Technology','Insurance','Automotive','Lifestyle'];
     var PERSONAL=['เพิ่มยอดขาย','เพิ่ม Referral คุณภาพ','สร้าง Power Team','พัฒนาการ Follow-up','เพิ่ม Visibility','สร้างระบบทีมขาย','วางแผนการเงิน','พัฒนาทักษะ Networking'];
@@ -118,6 +119,14 @@
           });
         }else hydrateDraft();
         render();
+        loadCategorySuggestions();
+      });
+    }
+    function loadCategorySuggestions(){
+      call('getMSBCategorySuggestions',{},function(r){
+        if(!r||!r.ok)return;
+        categorySuggestions=(r.suggestions||categorySuggestions);
+        if(step===3||step===4)render();
       });
     }
     function showState(html){document.getElementById('app').innerHTML='<div class="state">'+html+'</div>';}
@@ -134,7 +143,39 @@
     function setConversionCalc(k,v){helperState[k]=String(v||'');var ref=n(helperState.convReferrals),closed=n(helperState.convClosed);if(ref>0)data.conversion_rate_percent=String(Math.min(100,(closed/ref)*100).toFixed(1));persist();updateLive(true);}
     function toggleArr(k,v){var a=data[k]||[];data[k]=a.includes(v)?a.filter(function(x){return x!==v;}):a.concat([v]);persist();render();}
     function setSingle(k,v){data[k]=v;persist();render();}
+    function normCat(s){return String(s||'').toLowerCase().replace(/[’']/g,'').replace(/&/g,'and').replace(/[^a-z0-9\u0E00-\u0E7F]+/g,'').trim();}
+    function uniqueCats(base,extra){
+      var seen={},out=[];
+      (base||[]).concat(extra||[]).forEach(function(x){
+        x=String(x&&x.name||x||'').trim();var k=normCat(x);
+        if(x&&k&&!seen[k]){seen[k]=1;out.push(x);}
+      });
+      return out;
+    }
     function chips(list,k,single){return '<div class="chips">'+list.map(function(x){var on=single?data[k]===x:(data[k]||[]).includes(x);return '<button type="button" class="chip '+(single?'single ':'')+(on?'on':'')+'" onclick=\''+(single?'setSingle':'toggleArr')+'('+JSON.stringify(k)+','+JSON.stringify(x)+')\'>'+esc(x)+'</button>';}).join('')+'</div>';}
+    function categorySmartPick(type,k){
+      var items=(categorySuggestions[type]||[]).filter(function(x){return x&&x.name;});
+      var top=items.slice(0,10), val=categoryDraft[k]||'', near=[];
+      if(val.trim()){
+        var nk=normCat(val);
+        near=items.filter(function(x){var ck=normCat(x.name);return ck&&nk&&(ck.indexOf(nk)>=0||nk.indexOf(ck)>=0);}).slice(0,5);
+      }
+      var html='<div class="smartpick"><div class="sp-title">คำที่ Chapter ใช้บ่อย <span>เลือกคำเดียวกันจะช่วยให้ Growth เห็น demand ชัดขึ้น</span></div>';
+      html+=top.length?'<div class="chips">'+top.map(function(x){var on=(data[k]||[]).includes(x.name);return '<button type="button" class="chip '+(on?'on':'')+'" onclick="toggleArr('+JSON.stringify(k)+','+JSON.stringify(x.name)+')">'+esc(x.name)+' · '+x.count+'</button>';}).join('')+'</div>':'<div class="hint" style="margin:0">ยังไม่มีคำยอดนิยมจาก Blueprint ก่อนหน้า</div>';
+      html+='<div class="sp-row"><input value="'+esc(val)+'" placeholder="เพิ่มคำเอง เช่น โรงงาน, เจ้าของบ้าน, HR Manager" oninput="categoryDraft['+JSON.stringify(k)+']=this.value"><button type="button" class="add" onclick="addCustomCategory('+JSON.stringify(k)+')">เพิ่ม</button></div>';
+      if(near.length)html+='<div class="near">คำที่ใกล้เคียงกัน ลองเลือกคำเดิมเพื่อให้ข้อมูลรวมกันสวยขึ้น:<br>'+near.map(function(x){return '<button type="button" onclick="toggleArr('+JSON.stringify(k)+','+JSON.stringify(x.name)+')">'+esc(x.name)+' · '+x.count+'</button>';}).join('')+'</div>';
+      html+='</div>';
+      return html;
+    }
+    function addCustomCategory(k){
+      var v=String(categoryDraft[k]||'').trim();
+      if(!v){toast('พิมพ์คำที่อยากเพิ่มก่อนครับ');return;}
+      var existing=uniqueCats(k==='looking_for_categories'?LOOK:POWER,categorySuggestions[k==='looking_for_categories'?'looking_for':'power_team']);
+      var nk=normCat(v), close=existing.find(function(x){var ek=normCat(x);return ek&&nk&&(ek===nk||ek.indexOf(nk)>=0||nk.indexOf(ek)>=0);});
+      if(close&&close!==v&&!confirm('มีคำที่ใกล้เคียงอยู่แล้ว: "'+close+'"\nกด OK เพื่อใช้คำนี้แทน จะช่วยให้ข้อมูลรวมกันตรงขึ้น'))return;
+      categoryDraft[k]='';
+      toggleArr(k,close||v);
+    }
     function field(k,label,type,ph,helper){return '<label>'+label+'</label><input id="fld_'+esc(k)+'" inputmode="decimal" type="'+(type||'text')+'" value="'+esc(data[k])+'" placeholder="'+esc(ph||'')+'" oninput=\'setInput('+JSON.stringify(k)+',this.value)\'>'+(helper?'<div class="coach" id="'+helper+'">'+coach(helper)+'</div>':'');}
     function area(k,label,ph){return '<label>'+label+'</label><textarea placeholder="'+esc(ph||'')+'" oninput=\'setInput('+JSON.stringify(k)+',this.value)\'>'+esc(data[k])+'</textarea>';}
     function quickMonthly(){
@@ -222,8 +263,8 @@
       if(step===0)html='<div class="step on"><h2>1. Business Goal</h2><div class="hint">เริ่มจากภาพใหญ่ก่อนครับ ปีนี้อยากให้ธุรกิจโตประมาณไหน และอยากให้ BNI ช่วยสร้างยอดขายส่วนไหน</div>'+field('total_sales_target_year','ยอดขายรวมทั้งปี','number','เช่น 1200000','h-total')+field('expected_sales_from_bni_year','ยอดขายที่คาดหวังจาก BNI','number','เช่น 240000','h-bni')+'<div class="calc"><small>BNI Contribution · สัดส่วนที่อยากให้ BNI ช่วย</small><b id="pct">'+fmt(c.pct)+'%</b></div>'+nav(false)+'</div>';
       if(step===1)html='<div class="step on"><h2>2. Customer & Referral Guide</h2><div class="hint">หน้านี้ช่วยแปลงเป้ายอดขายให้เป็นภาษาง่าย ๆ ว่าต้องการลูกค้ากี่ราย และควรได้รับ Referral ประมาณเท่าไร</div>'+field('average_customer_value_year','มูลค่าลูกค้าเฉลี่ยต่อปี','number','เช่น 30000','h-avg')+field('conversion_rate_percent','Conversion rate จาก Referral เป็นลูกค้า (%)','number','เช่น 30','h-conv')+'<div id="resultExplain">'+resultExplain()+'</div><div class="metrics"><div class="metric"><span>ลูกค้าที่ต้องการ</span><b id="cust">'+fmt(c.cust)+'</b></div><div class="metric"><span>Referral/ปี</span><b id="ref">'+fmt(c.ref)+'</b></div><div class="metric"><span>Referral/เดือน</span><b id="month">'+fmt(c.month)+'</b></div><div class="metric"><span>Referral/สัปดาห์</span><b id="week">'+fmt(c.week)+'</b></div></div><div class="warn" id="logicWarn"></div>'+nav(false)+'</div>';
       if(step===2)html='<div class="step on"><h2>3. Existing vs New Business</h2><div class="hint">แยกแบบง่าย ๆ ว่ายอดจาก BNI ปีนี้มาจากลูกค้าเดิมเท่าไร และต้องหาลูกค้าใหม่เพิ่มประมาณเท่าไร</div>'+field('existing_customer_revenue_from_bni','ยอดจากลูกค้าเดิมที่มาจาก BNI','number','เช่น 100000','h-existing')+field('new_customer_revenue_from_bni','ยอดจากลูกค้าใหม่ที่ต้องการจาก BNI','number','เช่น 140000','h-new')+'<div class="warn" id="splitWarn"></div>'+nav(false)+'</div>';
-      if(step===3)html='<div class="step on"><h2>4. Looking For</h2><div class="hint">เลือกให้น้อยแต่ชัด เพื่อให้คนใน Chapter แนะนำได้ง่าย</div><label>หมวดคนที่กำลังมองหา</label>'+chips(LOOK,'looking_for_categories')+area('looking_for_detail','รายละเอียดที่อยากให้ช่วยมองหา','เช่น เจ้าของโรงงาน 50–300 คน ที่กำลังทำประกันกลุ่ม / วางระบบ HR')+nav(false)+'</div>';
-      if(step===4)html='<div class="step on"><h2>5. Power Team</h2><div class="hint">ใครคือกลุ่มอาชีพที่ช่วยส่งงานต่อกันได้จริง</div><label>หมวด Power Team</label>'+chips(POWER,'power_team_categories')+area('power_team_detail','รายละเอียด Power Team ที่อยากสร้าง','เช่น Real estate + loan + insurance + interior สำหรับลูกค้าซื้อบ้านใหม่')+nav(false)+'</div>';
+      if(step===3){var lookList=uniqueCats(LOOK,categorySuggestions.looking_for);html='<div class="step on"><h2>4. Looking For</h2><div class="hint">เลือกให้น้อยแต่ชัด เพื่อให้คนใน Chapter แนะนำได้ง่าย</div><label>หมวดคนที่กำลังมองหา</label>'+categorySmartPick('looking_for','looking_for_categories')+chips(lookList,'looking_for_categories')+area('looking_for_detail','รายละเอียดที่อยากให้ช่วยมองหา','เช่น เจ้าของโรงงาน 50–300 คน ที่กำลังทำประกันกลุ่ม / วางระบบ HR')+nav(false)+'</div>';}
+      if(step===4){var powerList=uniqueCats(POWER,categorySuggestions.power_team);html='<div class="step on"><h2>5. Power Team</h2><div class="hint">ใครคือกลุ่มอาชีพที่ช่วยส่งงานต่อกันได้จริง</div><label>หมวด Power Team</label>'+categorySmartPick('power_team','power_team_categories')+chips(powerList,'power_team_categories')+area('power_team_detail','รายละเอียด Power Team ที่อยากสร้าง','เช่น Real estate + loan + insurance + interior สำหรับลูกค้าซื้อบ้านใหม่')+nav(false)+'</div>';}
       if(step===5)html='<div class="step on"><h2>6. Personal Goal</h2><div class="hint">เลือกเป้าหมายส่วนตัวหนึ่งเรื่องที่อยากให้ Mentor ช่วยติดตาม</div><label>Personal Goal</label>'+chips(PERSONAL,'personal_goal_category',true)+area('personal_goal_detail','รายละเอียดเพิ่มเติม (ถ้ามี)','เช่น อยากนัด 1-2-1 อย่างน้อยสัปดาห์ละ 2 ครั้ง')+nav(false)+'</div>';
       if(step===6)html='<div class="step on"><h2>Final Summary</h2><div class="summary"><h3>แผนธุรกิจ '+year+'</h3><div>ยอดขายรวม: ฿'+fmt(data.total_sales_target_year)+'</div><div>คาดหวังจาก BNI: ฿'+fmt(data.expected_sales_from_bni_year)+' ('+fmt(c.pct)+'%)</div><div>ต้องการลูกค้า '+fmt(c.cust)+' ราย · Referral '+fmt(c.ref)+' ใบ/ปี · '+fmt(c.week)+' ใบ/สัปดาห์</div><hr style="border:0;border-top:1px solid var(--line);margin:12px 0"><div><b>Looking For:</b> '+esc((data.looking_for_categories||[]).join(', '))+'</div><div>'+esc(data.looking_for_detail)+'</div><br><div><b>Power Team:</b> '+esc((data.power_team_categories||[]).join(', '))+'</div><div>'+esc(data.power_team_detail)+'</div><br><div><b>Personal Goal:</b> '+esc(data.personal_goal_category)+'</div><div>'+esc(data.personal_goal_detail)+'</div></div><div class="warn on" id="logicWarn"></div>'+nav(true)+'</div>';
       document.getElementById('app').innerHTML=html;updateLive();

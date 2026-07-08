@@ -24,6 +24,40 @@ function parseNumber(value: unknown): number {
   return Number.isFinite(num) ? num : 0;
 }
 
+function cleanText(value: unknown): string {
+  return String(value || '').trim();
+}
+
+function normalizeCategoryKey(value: unknown): string {
+  return cleanText(value)
+    .toLowerCase()
+    .replace(/[’']/g, '')
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9\u0E00-\u0E7F]+/g, '')
+    .trim();
+}
+
+function dataQualityFromFlags(flags: Record<string, boolean>) {
+  const checks = [
+    { key: 'blueprintSubmitted', label: 'มี MSB submitted', points: 22 },
+    { key: 'lineLinked', label: 'เชื่อม LINE แล้ว', points: 12 },
+    { key: 'hasProfession', label: 'มี profession / category', points: 12 },
+    { key: 'hasGrowthGroup', label: 'อยู่ใน Growth group', points: 10 },
+    { key: 'hasR2Y', label: 'มี R2Y synced', points: 14 },
+    { key: 'hasLookingDetail', label: 'Looking For ชัดเจน', points: 12 },
+    { key: 'hasPowerDetail', label: 'Power Team ชัดเจน', points: 12 },
+    { key: 'goalAlignedOrReviewed', label: 'เป้าไม่ชนกัน หรือ review แล้ว', points: 6 },
+  ];
+  const passed = checks.filter(c => flags[c.key]);
+  const missing = checks.filter(c => !flags[c.key]).map(c => c.label);
+  const score = passed.reduce((s, c) => s + c.points, 0);
+  return {
+    score,
+    grade: score >= 85 ? 'excellent' : score >= 65 ? 'good' : score >= 45 ? 'needs_work' : 'weak',
+    missing,
+  };
+}
+
 function parseCsvString(csvString: string | null | undefined): string[][] {
   if (!csvString) return [];
   const rows: string[][] = [];
@@ -968,22 +1002,47 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         .order('seq_no', { ascending: true });
       if (mErr) return errResponse(mErr.message);
 
-      // Fetch bni_days + MSB/BNI Goal for linked members. Growth target remains primary;
-      // members.bni_goal is a fallback synced from Member Success Blueprint.
+      // Fetch bni_days + MSB Goal for linked members.
+      // Growth sheet target is treated as Legacy Revenue Baseline.
+      // MSB submitted goal is treated as current member-owned plan.
       const linkedIds = ((memberRows || []) as Record<string, unknown>[])
         .map(m => m.member_id).filter(Boolean) as string[];
       const bniDaysMap: Record<string, number> = {};
       const bniGoalMap: Record<string, number> = {};
+      const msbMap: Record<string, Record<string, unknown>> = {};
+      const memberMetaMap: Record<string, Record<string, unknown>> = {};
+      const lineLinkedSet = new Set<string>();
+      const reviewMap: Record<string, Record<string, unknown>> = {};
+      const blueprintYear = Number(p.blueprintYear || p.blueprint_year || new Date().getFullYear());
       if (linkedIds.length) {
-        const [{ data: r2yRows }, { data: goalRows }] = await Promise.all([
-          db.from('r2y_stats').select('member_id, bni_days').in('member_id', linkedIds),
-          db.from('members').select('id, bni_goal').in('id', linkedIds),
+        const [{ data: r2yRows }, { data: goalRows }, { data: msbRows }, { data: memberMetaRows }, { data: lineRows }, { data: reviewRows }] = await Promise.all([
+          db.from('r2y_stats').select('member_id, bni_days, synced_at').in('member_id', linkedIds),
+          db.from('members').select('id, bni_goal, profession, company_name').in('id', linkedIds),
+          db.from('member_success_blueprints')
+            .select('member_id, blueprint_year, status, expected_sales_from_bni_year, referral_needed, looking_for_categories, looking_for_detail, power_team_categories, power_team_detail')
+            .eq('blueprint_year', blueprintYear)
+            .in('member_id', linkedIds),
+          db.from('members').select('id, profession, company_name').in('id', linkedIds),
+          db.from('line_members').select('member_id').in('member_id', linkedIds),
+          db.from('msb_goal_reviews').select('member_id, blueprint_year, status, note, reviewed_by, reviewed_at').eq('blueprint_year', blueprintYear).in('member_id', linkedIds),
         ]);
         for (const r of (r2yRows || []) as Record<string, unknown>[]) {
           bniDaysMap[String(r.member_id)] = Number(r.bni_days) || 0;
         }
         for (const r of (goalRows || []) as Record<string, unknown>[]) {
           bniGoalMap[String(r.id)] = Number(r.bni_goal) || 0;
+        }
+        for (const r of (msbRows || []) as Record<string, unknown>[]) {
+          msbMap[String(r.member_id)] = r;
+        }
+        for (const r of (memberMetaRows || []) as Record<string, unknown>[]) {
+          memberMetaMap[String(r.id)] = r;
+        }
+        for (const r of (lineRows || []) as Record<string, unknown>[]) {
+          if (r.member_id) lineLinkedSet.add(String(r.member_id));
+        }
+        for (const r of (reviewRows || []) as Record<string, unknown>[]) {
+          reviewMap[String(r.member_id)] = r;
         }
       }
 
@@ -1002,21 +1061,51 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         membersByGroup[gid].push(m);
       }
 
-      let totalTarget = 0, totalReceived = 0;
+      let totalTarget = 0, totalReceived = 0, totalLegacyTarget = 0, totalMsbGoal = 0, submittedBlueprints = 0, reviewNeeded = 0, reviewedGoals = 0, dataQualityTotal = 0;
       const groups = (groupRows || []).map((g: Record<string, unknown>) => {
         const gid    = String(g.id);
         const mems   = membersByGroup[gid] || [];
-        let gTarget = 0, gReceived = 0;
+        let gTarget = 0, gReceived = 0, gLegacyTarget = 0, gMsbGoal = 0, gSubmittedBlueprints = 0, gReviewNeeded = 0;
 
         const members = mems.map((m: Record<string, unknown>) => {
           const memberId  = String(m.member_id || '');
-          const rawTarget = Number(m.target_thb) || 0;
-          const msbGoal   = memberId ? (bniGoalMap[memberId] || 0) : 0;
-          const tgt  = rawTarget > 0 ? rawTarget : msbGoal;
+          const legacyTarget = Number(m.target_thb) || 0;
+          const msb = memberId ? msbMap[memberId] : null;
+          const review = memberId ? reviewMap[memberId] : null;
+          const meta = memberId ? memberMetaMap[memberId] : null;
+          const msbGoalSubmitted = msb && String(msb.status || '') === 'submitted'
+            ? (Number(msb.expected_sales_from_bni_year) || 0)
+            : 0;
+          const syncedBniGoal = memberId ? (bniGoalMap[memberId] || 0) : 0;
+          const msbGoal = msbGoalSubmitted || syncedBniGoal;
+          const tgt  = msbGoalSubmitted > 0 ? msbGoalSubmitted : legacyTarget;
           const recv = Number(m.received_thb) || 0;
           const pct  = tgt > 0 ? Math.round(recv / tgt * 100) : 0;
+          const gap  = Math.max(0, tgt - recv);
+          const delta = msbGoalSubmitted > 0 && legacyTarget > 0 ? msbGoalSubmitted - legacyTarget : 0;
+          const deltaPct = msbGoalSubmitted > 0 && legacyTarget > 0 ? Math.round((delta / legacyTarget) * 100) : 0;
+          const materialDiff = msbGoalSubmitted > 0 && legacyTarget > 0 && Math.abs(deltaPct) >= 30;
+          const reviewStatus = review ? String(review.status || 'pending') : (materialDiff ? 'pending' : 'not_required');
+          const needsReview = materialDiff && reviewStatus !== 'reviewed';
+          const hasLookingDetail = Boolean(msb && String(msb.looking_for_detail || '').trim().length >= 8);
+          const hasPowerDetail = Boolean(msb && String(msb.power_team_detail || '').trim().length >= 8);
+          const dq = dataQualityFromFlags({
+            blueprintSubmitted: msbGoalSubmitted > 0,
+            lineLinked: memberId ? lineLinkedSet.has(memberId) : false,
+            hasProfession: Boolean(meta && (String(meta.profession || '').trim() || String(meta.company_name || '').trim())),
+            hasGrowthGroup: true,
+            hasR2Y: memberId ? bniDaysMap[memberId] > 0 : false,
+            hasLookingDetail,
+            hasPowerDetail,
+            goalAlignedOrReviewed: !materialDiff || reviewStatus === 'reviewed',
+          });
           gTarget   += tgt;
           gReceived += recv;
+          gLegacyTarget += legacyTarget;
+          gMsbGoal += msbGoalSubmitted;
+          if (msbGoalSubmitted > 0) gSubmittedBlueprints++;
+          if (needsReview) gReviewNeeded++;
+          if (reviewStatus === 'reviewed') reviewedGoals++;
           // Compute membership age from bni_days if linked, else use stored value (skip #REF! garbage)
           const storedAge = String(m.membership_age || '');
           const bniDays   = memberId ? (bniDaysMap[memberId] || 0) : 0;
@@ -1024,18 +1113,45 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
             : (storedAge && !storedAge.includes('#') ? storedAge : '');
           return {
             sheetRow: String(m.id),
+            memberId,
             name:     String(m.raw_name || ''),
             nick:     String(m.nickname || ''),
+            legacyTarget,
+            msbGoal: msbGoalSubmitted,
+            msbGoalFallback: msbGoal,
+            activeGoal: tgt,
+            activeGoalSource: msbGoalSubmitted > 0 ? 'msb' : (legacyTarget > 0 ? 'legacy' : 'none'),
             target:   tgt,
-            targetSource: rawTarget > 0 ? 'growth' : (msbGoal > 0 ? 'msb' : 'none'),
+            targetSource: msbGoalSubmitted > 0 ? 'msb' : (legacyTarget > 0 ? 'legacy' : (msbGoal > 0 ? 'msb_fallback' : 'none')),
             received: recv,
+            gap,
+            pct,
+            goalDelta: delta,
+            goalDeltaPct: deltaPct,
+            goalReviewNeeded: needsReview,
+            goalReviewStatus: reviewStatus,
+            goalReviewNote: review ? String(review.note || '') : '',
+            goalReviewedBy: review ? String(review.reviewed_by || '') : '',
+            goalReviewedAt: review ? review.reviewed_at || null : null,
+            dataQualityScore: dq.score,
+            dataQualityGrade: dq.grade,
+            dataQualityMissing: dq.missing,
+            lineLinked: memberId ? lineLinkedSet.has(memberId) : false,
+            profession: meta ? String(meta.profession || '') : '',
+            companyName: meta ? String(meta.company_name || '') : '',
+            blueprintStatus: msb ? String(msb.status || 'draft') : 'missing',
+            referralNeeded: msb ? Number(msb.referral_needed) || 0 : 0,
+            lookingForCategories: msb && Array.isArray(msb.looking_for_categories) ? (msb.looking_for_categories as unknown[]).map(String) : [],
+            lookingForDetail: msb ? String(msb.looking_for_detail || '') : '',
+            powerTeamCategories: msb && Array.isArray(msb.power_team_categories) ? (msb.power_team_categories as unknown[]).map(String) : [],
+            powerTeamDetail: msb ? String(msb.power_team_detail || '') : '',
             cells: [
               Number(m.seq_no) || 0,    // 0
               m.raw_name || '',          // 1 name
               m.nickname || '',          // 2 nick
               ageLabel,                  // 3 membership age (computed)
               m.note || '',              // 4
-              tgt,                       // 5 target
+              tgt,                       // 5 active target
               recv,                      // 6 received
               pct + '%',                 // 7 pct
             ],
@@ -1044,12 +1160,26 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
 
         totalTarget   += gTarget;
         totalReceived += gReceived;
+        totalLegacyTarget += gLegacyTarget;
+        totalMsbGoal += gMsbGoal;
+        submittedBlueprints += gSubmittedBlueprints;
+        reviewNeeded += gReviewNeeded;
+        dataQualityTotal += members.reduce((sum, m) => sum + (Number(m.dataQualityScore) || 0), 0);
         const gPct = gTarget > 0 ? Math.round(gReceived / gTarget * 100) : 0;
 
         return {
           id: gid, name: String(g.name),
           members,
-          totalRow: { received: gReceived, target: gTarget, pct: gPct, cells: ['รวม', '', '', '', '', gTarget, gReceived, gPct + '%'] },
+          totalRow: {
+            received: gReceived,
+            target: gTarget,
+            legacyTarget: gLegacyTarget,
+            msbGoal: gMsbGoal,
+            reviewNeeded: gReviewNeeded,
+            submittedBlueprints: gSubmittedBlueprints,
+            pct: gPct,
+            cells: ['รวม', '', '', '', '', gTarget, gReceived, gPct + '%'],
+          },
         };
       });
 
@@ -1061,6 +1191,13 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         groups,
         summary: {
           totalTarget, totalReceived, pct: overallPct,
+          totalLegacyTarget,
+          totalMsbGoal,
+          revenueGap: Math.max(0, totalTarget - totalReceived),
+          submittedBlueprints,
+          reviewNeeded,
+          reviewedGoals,
+          avgDataQuality: (memberRows || []).length ? Math.round(dataQualityTotal / (memberRows || []).length) : 0,
           groupCount: groups.length,
           memberCount: (memberRows || []).length,
         },
@@ -1090,6 +1227,91 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         (t as Record<string, unknown>).oldestOpenDays = oldest;
       }
       return jsonResponse({ ok: true, teams });
+    }
+
+    case 'saveGrowthGoalReview': {
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const memberId = cleanText(p.memberId || p.member_id);
+      const blueprintYear = Number(p.blueprintYear || p.blueprint_year || new Date().getFullYear());
+      const status = cleanText(p.status || 'reviewed');
+      const note = cleanText(p.note);
+      if (!memberId) return errResponse('memberId required', 400);
+      if (!['pending', 'reviewed', 'needs_revision'].includes(status)) return errResponse('Invalid review status', 400);
+      const now = new Date().toISOString();
+      const payload = {
+        member_id: memberId,
+        blueprint_year: blueprintYear,
+        status,
+        note: note || null,
+        reviewed_by: String(auth.displayName || auth.role || 'growth'),
+        reviewed_at: status === 'pending' ? null : now,
+        updated_at: now,
+      };
+      const { error } = await db.from('msb_goal_reviews')
+        .upsert(payload, { onConflict: 'member_id,blueprint_year' });
+      if (error) return errResponse(error.message, 400);
+      return jsonResponse({ ok: true, review: payload });
+    }
+
+    case 'getMSBCategoryLibrary': {
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const blueprintYear = Number(p.blueprintYear || p.blueprint_year || new Date().getFullYear());
+      const [{ data: demand, error: dErr }, { data: aliases, error: aErr }] = await Promise.all([
+        db.from('v_msb_category_demand').select('category_type, category').eq('blueprint_year', blueprintYear),
+        db.from('msb_category_aliases').select('id, category_type, canonical_category, alias, created_by, created_at').order('category_type').order('canonical_category'),
+      ]);
+      if (dErr) return errResponse(dErr.message, 400);
+      if (aErr) return errResponse(aErr.message, 400);
+      const aliasByKey: Record<string, string> = {};
+      for (const a of (aliases || []) as Record<string, unknown>[]) {
+        aliasByKey[`${String(a.category_type)}:${normalizeCategoryKey(a.alias)}`] = cleanText(a.canonical_category);
+      }
+      const counts: Record<string, Record<string, { name: string; count: number; raw: string[] }>> = { looking_for: {}, power_team: {} };
+      for (const r of (demand || []) as Record<string, unknown>[]) {
+        const type = cleanText(r.category_type);
+        const raw = cleanText(r.category);
+        if (!raw || !counts[type]) continue;
+        const canonical = aliasByKey[`${type}:${normalizeCategoryKey(raw)}`] || raw;
+        const key = normalizeCategoryKey(canonical);
+        if (!key) continue;
+        if (!counts[type][key]) counts[type][key] = { name: canonical, count: 0, raw: [] };
+        counts[type][key].count++;
+        if (!counts[type][key].raw.includes(raw)) counts[type][key].raw.push(raw);
+      }
+      const toList = (type: string) => Object.values(counts[type] || {})
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'th'));
+      return jsonResponse({
+        ok: true,
+        blueprintYear,
+        categories: {
+          looking_for: toList('looking_for'),
+          power_team: toList('power_team'),
+        },
+        aliases: aliases || [],
+      });
+    }
+
+    case 'saveMSBCategoryAlias': {
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const categoryType = cleanText(p.categoryType || p.category_type);
+      const canonical = cleanText(p.canonicalCategory || p.canonical_category);
+      const alias = cleanText(p.alias);
+      if (!['looking_for', 'power_team'].includes(categoryType)) return errResponse('Invalid category type', 400);
+      if (!canonical || !alias) return errResponse('canonicalCategory and alias are required', 400);
+      const payload = {
+        category_type: categoryType,
+        canonical_category: canonical,
+        alias,
+        created_by: String(auth.displayName || auth.role || 'growth'),
+        updated_at: new Date().toISOString(),
+      };
+      const { error } = await db.from('msb_category_aliases')
+        .upsert(payload, { onConflict: 'category_type,alias' });
+      if (error) return errResponse(error.message, 400);
+      return jsonResponse({ ok: true, alias: payload });
     }
 
     // ── Growth Tasks ──────────────────────────────────────────
