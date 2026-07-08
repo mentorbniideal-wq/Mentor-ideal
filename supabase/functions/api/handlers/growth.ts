@@ -1012,6 +1012,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const msbMap: Record<string, Record<string, unknown>> = {};
       const memberMetaMap: Record<string, Record<string, unknown>> = {};
       const lineLinkedSet = new Set<string>();
+      const r2ySyncedSet = new Set<string>();
       const reviewMap: Record<string, Record<string, unknown>> = {};
       const blueprintYear = Number(p.blueprintYear || p.blueprint_year || new Date().getFullYear());
       if (linkedIds.length) {
@@ -1027,7 +1028,9 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           db.from('msb_goal_reviews').select('member_id, blueprint_year, status, note, reviewed_by, reviewed_at').eq('blueprint_year', blueprintYear).in('member_id', linkedIds),
         ]);
         for (const r of (r2yRows || []) as Record<string, unknown>[]) {
-          bniDaysMap[String(r.member_id)] = Number(r.bni_days) || 0;
+          const id = String(r.member_id);
+          bniDaysMap[id] = Number(r.bni_days) || 0;
+          r2ySyncedSet.add(id);
         }
         for (const r of (goalRows || []) as Record<string, unknown>[]) {
           bniGoalMap[String(r.id)] = Number(r.bni_goal) || 0;
@@ -1094,7 +1097,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
             lineLinked: memberId ? lineLinkedSet.has(memberId) : false,
             hasProfession: Boolean(meta && (String(meta.profession || '').trim() || String(meta.company_name || '').trim())),
             hasGrowthGroup: true,
-            hasR2Y: memberId ? bniDaysMap[memberId] > 0 : false,
+            hasR2Y: memberId ? r2ySyncedSet.has(memberId) : false,
             hasLookingDetail,
             hasPowerDetail,
             goalAlignedOrReviewed: !materialDiff || reviewStatus === 'reviewed',
@@ -1311,6 +1314,15 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const { error } = await db.from('msb_category_aliases')
         .upsert(payload, { onConflict: 'category_type,alias' });
       if (error) return errResponse(error.message, 400);
+      const { error: selfErr } = await db.from('msb_category_aliases')
+        .upsert({
+          category_type: categoryType,
+          canonical_category: canonical,
+          alias: canonical,
+          created_by: String(auth.displayName || auth.role || 'growth'),
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'category_type,alias' });
+      if (selfErr) return errResponse(selfErr.message, 400);
       return jsonResponse({ ok: true, alias: payload });
     }
 
