@@ -10815,7 +10815,14 @@ function msbRender(group){
 var _rvData=null,_rvLoaded=false,_rvSort={col:-1,asc:true},_rvFilter={team:'',q:''},_rvLibrary=null;
 
 function rvLoad(){
-  if(_rvLoaded)return;
+  if(_rvLoaded&&_rvData){
+    document.getElementById('rv-loading').style.display='none';
+    document.getElementById('rv-content').style.display='block';
+    rvBuildTeamFilter();
+    rvRender();
+    rvLoadLibrary();
+    return;
+  }
   document.getElementById('rv-loading').style.display='block';
   document.getElementById('rv-content').style.display='none';
   gsr('getGrowthSheetData',{role:S.role},function(r){
