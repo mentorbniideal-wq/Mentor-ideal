@@ -72,7 +72,7 @@ header{background:var(--sf);border-bottom:1px solid var(--bd);padding:0 28px;dis
 .bac{color:var(--ac);font-weight:600}
 .blo{color:var(--sub)}.blo:hover{border-color:var(--re);color:var(--re)}
 
-.tabs-wrap{position:relative;grid-column:1;grid-row:2;min-height:0}
+.tabs-wrap{position:relative;grid-column:1;grid-row:2;min-height:0;align-self:start}
 .tabs-wrap::after{display:none}
 .tabs{background:var(--sf);border-bottom:none;padding:8px 20px;display:flex;gap:5px;overflow-x:auto;position:relative;scrollbar-width:none;box-shadow:0 1px 0 var(--bd)}
 .tabs::-webkit-scrollbar{display:none}
@@ -10723,7 +10723,7 @@ function msbLoad(group,force){
             gsr('getMSBPairMatchingSuggestions',{role:S.role,blueprintYear:year},function(pm){
               MSB[group].pairs=(pm&&pm.ok)?pm.matching:null;
               gsr('getMSBFollowUpQueue',{role:S.role},function(fq){
-                MSB[group].followups=(fq&&fq.ok)?fq.queue:null;
+                MSB[group].followups=(fq&&fq.ok)?fq.queue:{error:(fq&&fq.error)||'โหลด Follow-up Queue ไม่สำเร็จ'};
                 MSB[group].loaded=true;
                 msbRender(group);
               });
@@ -10793,6 +10793,15 @@ function msbFollowUpRender(group){
   if(!wrap)return;
   var data=MSB[group]&&MSB[group].followups;
   if(!data){wrap.innerHTML='';return;}
+  if(data.error){
+    wrap.innerHTML='<div style="background:var(--sf);border:1px solid rgba(255,107,107,.35);border-radius:14px;padding:14px">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">'
+      +'<div><h3 style="font-size:14px;font-weight:900;margin:0;color:var(--re)">📌 Follow-up Due Queue</h3><div style="font-size:11px;color:var(--sub);margin-top:3px">กล่องนี้มีแล้ว แต่โหลดข้อมูลค้างงานไม่สำเร็จ</div></div>'
+      +'<button class="bsm" onclick="msbLoad('+JSON.stringify(group)+',true)" style="font-size:11px">🔄 ลองใหม่</button></div>'
+      +'<div style="font-size:12px;color:var(--re);margin-top:12px;border-top:1px solid var(--bd);padding-top:12px">'+esc(data.error)+'</div>'
+      +'</div>';
+    return;
+  }
   var sm=data.summary||{}, items=data.items||[];
   function levelMeta(level){
     if(level==='overdue')return ['เลยกำหนด','var(--re)','🚨'];
