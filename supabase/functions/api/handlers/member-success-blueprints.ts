@@ -466,6 +466,103 @@ function buildPairMatching(rows: ReturnType<typeof mapPlanRow>[]) {
   };
 }
 
+async function buildFollowUpQueue(db: Db, auth: Awaited<ReturnType<typeof requireAuth>>) {
+  const canSeeAll = roleCanSeeAll(auth);
+  const role = txt(auth.role).toLowerCase();
+  const teamName = txt(auth.teamName);
+  const now = Date.now();
+  const dayMs = 86400000;
+
+  let issueQuery = db.from('core_issues')
+    .select('id, member_id, mentor_team, issue_text, action_plan, action_taken, follow_up_at, opened_at, updated_at')
+    .eq('status', 'open')
+    .order('follow_up_at', { ascending: true, nullsFirst: false })
+    .order('opened_at', { ascending: true });
+  if (!canSeeAll && teamName) issueQuery = issueQuery.eq('mentor_team', teamName);
+  const { data: issueRows, error: issueErr } = await issueQuery;
+  if (issueErr) throw new Error(issueErr.message);
+
+  const memberIds = Array.from(new Set(((issueRows || []) as Record<string, unknown>[]).map(r => txt(r.member_id)).filter(Boolean)));
+  const { data: memberRows } = memberIds.length
+    ? await db.from('members').select('id, name, nickname, mentor_team').in('id', memberIds)
+    : { data: [] };
+  const memberById: Record<string, Record<string, unknown>> = {};
+  for (const m of (memberRows || []) as Record<string, unknown>[]) memberById[txt(m.id)] = m;
+
+  let taskQuery = db.from('growth_tasks')
+    .select('id, assigned_to, task_text, task_type, priority, member_name, created_at, responded_at')
+    .is('responded_at', null)
+    .order('created_at', { ascending: true });
+  if (!canSeeAll && role) taskQuery = taskQuery.eq('assigned_to', role);
+  const { data: taskRows, error: taskErr } = await taskQuery;
+  if (taskErr) throw new Error(taskErr.message);
+
+  const items: Record<string, unknown>[] = [];
+
+  for (const row of (issueRows || []) as Record<string, unknown>[]) {
+    const openedAt = txt(row.opened_at);
+    const followUpAt = txt(row.follow_up_at);
+    const ageDays = openedAt ? Math.floor((now - new Date(openedAt).getTime()) / dayMs) : 0;
+    const dueDays = followUpAt ? Math.floor((new Date(followUpAt).getTime() - now) / dayMs) : null;
+    const member = memberById[txt(row.member_id)] || {};
+    const overdue = dueDays !== null ? dueDays < 0 : ageDays >= 14;
+    const dueSoon = dueDays !== null ? dueDays <= 3 : ageDays >= 10;
+    items.push({
+      id: row.id,
+      type: 'core_issue',
+      icon: '📋',
+      title: txt(row.issue_text) || 'Core Issue',
+      detail: txt(row.action_plan || row.action_taken),
+      memberName: txt(member.name),
+      nickname: txt(member.nickname),
+      team: txt(row.mentor_team),
+      followUpAt,
+      createdAt: openedAt,
+      ageDays,
+      dueDays,
+      level: overdue ? 'overdue' : dueSoon ? 'due_soon' : 'open',
+      sortKey: overdue ? 1000 + ageDays : dueSoon ? 500 + ageDays : ageDays,
+      canClose: Boolean(auth.isMC),
+    });
+  }
+
+  for (const row of (taskRows || []) as Record<string, unknown>[]) {
+    const createdAt = txt(row.created_at);
+    const ageDays = createdAt ? Math.floor((now - new Date(createdAt).getTime()) / dayMs) : 0;
+    const overdue = ageDays >= 7;
+    const dueSoon = ageDays >= 3;
+    items.push({
+      id: row.id,
+      type: 'growth_task',
+      icon: txt(row.priority) || '🎯',
+      title: txt(row.task_type) || 'Growth Task',
+      detail: txt(row.task_text),
+      memberName: txt(row.member_name),
+      nickname: '',
+      team: txt(row.assigned_to).toUpperCase(),
+      followUpAt: '',
+      createdAt,
+      ageDays,
+      dueDays: null,
+      level: overdue ? 'overdue' : dueSoon ? 'due_soon' : 'open',
+      sortKey: overdue ? 900 + ageDays : dueSoon ? 450 + ageDays : ageDays,
+      canClose: true,
+    });
+  }
+
+  items.sort((a, b) => num(b.sortKey) - num(a.sortKey));
+  return {
+    summary: {
+      totalOpen: items.length,
+      overdue: items.filter(i => i.level === 'overdue').length,
+      dueSoon: items.filter(i => i.level === 'due_soon').length,
+      coreIssues: items.filter(i => i.type === 'core_issue').length,
+      growthTasks: items.filter(i => i.type === 'growth_task').length,
+    },
+    items: items.slice(0, 30),
+  };
+}
+
 function normalizeCategoryKey(value: string): string {
   return value
     .toLowerCase()
@@ -942,6 +1039,13 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       if (!auth.ok) return errResponse(auth.error!);
       const rows = await fetchPlanRows(db, auth, year);
       return jsonResponse({ ok: true, blueprintYear: year, matching: buildPairMatching(rows) });
+    }
+
+    case 'getMSBFollowUpQueue': {
+      const auth = await requireAuth(db, p, DASHBOARD_ROLES);
+      if (!auth.ok) return errResponse(auth.error!);
+      const queue = await buildFollowUpQueue(db, auth);
+      return jsonResponse({ ok: true, queue });
     }
 
     case 'getMSBMemberIntelligence': {
