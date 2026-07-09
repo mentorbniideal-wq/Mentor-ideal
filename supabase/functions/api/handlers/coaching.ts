@@ -15,7 +15,9 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
 
       const memberName = String(p.memberName || p.name || '').trim();
       const issueText  = String(p.issue || p.coreIssue || p.issueText || '').trim();
-      const statusVal  = String(p.status || 'open');
+      const rawStatus  = String(p.status || 'open');
+      const statusMap: Record<string, string> = { open: 'open', reopened: 'open', resolved: 'resolved', done: 'resolved', snoozed: 'snoozed' };
+      const statusVal  = statusMap[rawStatus] || 'open';
       const actionTaken= String(p.actionTaken || p.action_taken || '').trim() || null;
       const followUpAt = String(p.followUpAt || p.follow_up_at || '').trim() || null;
 
@@ -37,13 +39,16 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
       const actionPlan = String(p.plan || p.actionPlan || p.action_plan || '').trim() || null;
 
       if (existing) {
+        const statusPatch: Record<string, unknown> = { status: statusVal };
+        if (statusVal === 'resolved') statusPatch.closed_at = new Date().toISOString();
+        if (statusVal === 'open') statusPatch.closed_at = null;
         const { error } = await db.from('core_issues')
           .update({
             issue_text: issueText,
             action_taken: actionTaken,
             action_plan: actionPlan,
             follow_up_at: followUpAt,
-            status: statusVal,
+            ...statusPatch,
             updated_at: new Date().toISOString(),
           })
           .eq('id', String((existing as Record<string, unknown>).id));
@@ -56,7 +61,8 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
           action_taken: actionTaken,
           action_plan: actionPlan,
           follow_up_at: followUpAt,
-          status: 'open',
+          status: statusVal,
+          closed_at: statusVal === 'resolved' ? new Date().toISOString() : null,
         });
         if (error) return errResponse(error.message);
       }

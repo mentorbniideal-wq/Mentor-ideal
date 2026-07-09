@@ -10732,6 +10732,29 @@ function msbLoad(group,force){
 function msbSummaryCard(label,value,sub,color){
   return '<div class="kc"><div class="kl">'+esc(label)+'</div><div class="kv" style="color:'+(color||'var(--tx)')+'">'+value+'</div><div style="font-size:11px;color:var(--sub);margin-top:6px">'+esc(sub||'')+'</div></div>';
 }
+function msbActionBtn(label,fn,color){
+  return '<button class="bsm" onclick="'+fn+'" style="font-size:10px;padding:5px 8px;border-color:'+color+';color:'+color+'">'+label+'</button>';
+}
+function msbCreateTask(team,memberName,taskType,note,priority){
+  if(!team||!memberName){toast('ข้อมูลทีม/สมาชิกไม่ครบ','err');return;}
+  gsr('createGrowthTask',{role:S.role,teamName:team,memberName:memberName,taskType:taskType||'MSB Follow-up',priority:priority||'🎯',note:note||''},function(r){
+    if(r&&r.ok){toast('สร้าง Growth Task แล้ว','ok');try{gsr('getGrowthTasks',{statusFilter:'all'},function(r2){if(r2&&r2.ok){G.tasks=r2.tasks||[];updateBadges&&updateBadges();}});}catch(e){}}
+    else toast('สร้าง Task ไม่สำเร็จ: '+(r&&r.error||'unknown'),'err');
+  });
+}
+function msbCreateCoreIssue(memberName,issue,plan){
+  if(!memberName||!issue){toast('ข้อมูลสมาชิก/ประเด็นไม่ครบ','err');return;}
+  if(!confirm('สร้าง Core Issue ให้ '+memberName+' ใช่ไหม?'))return;
+  gsr('saveCoreIssue',{role:S.role,memberName:memberName,issue:issue,actionPlan:plan||''},function(r){
+    if(r&&r.ok){toast('สร้าง Core Issue แล้ว','ok');try{updateBadges&&updateBadges();}catch(e){}}
+    else toast('สร้าง Core Issue ไม่สำเร็จ: '+(r&&r.error||'unknown'),'err');
+  });
+}
+function msbCopyText(text,label){
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text||'').then(function(){toast('Copy '+(label||'ข้อความ')+' แล้ว','ok');}).catch(function(){prompt('คัดลอกข้อความนี้',text||'');});
+  }else prompt('คัดลอกข้อความนี้',text||'');
+}
 function msbRadarRender(group){
   var wrap=document.getElementById(group==='gr'?'msb-gr-radar':'msb-mc-radar');
   if(!wrap)return;
@@ -10748,6 +10771,10 @@ function msbRadarRender(group){
       +'<div style="font-size:11px;color:var(--tx);line-height:1.5;margin-top:6px">'+esc(x.reason||'')+'</div>'
       +'<div style="font-size:11px;color:var(--sub);line-height:1.5;margin-top:4px">Next: '+esc(x.nextAction||x.suggestedSupport||'ติดตามต่อ')+'</div>'
       +(cats.length?'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">'+cats.map(function(c){return '<span style="font-size:9px;border:1px solid var(--bd);border-radius:999px;padding:2px 6px;color:var(--sub)">'+esc(c)+'</span>';}).join('')+'</div>':'')
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'
+      +msbActionBtn('⚡ Task','msbCreateTask('+JSON.stringify(x.mentorTeam||'')+','+JSON.stringify(x.name||'')+','+JSON.stringify('MSB Radar')+','+JSON.stringify((x.reason||'')+' · Next: '+(x.nextAction||x.suggestedSupport||''))+','+JSON.stringify(x.lane==='urgent'?'🚨':'🎯')+')','var(--ye)')
+      +(x.lane==='urgent'?msbActionBtn('📋 Core Issue','msbCreateCoreIssue('+JSON.stringify(x.name||'')+','+JSON.stringify(x.reason||'MSB / Growth follow-up needed')+','+JSON.stringify(x.nextAction||x.suggestedSupport||'')+')','var(--re)'):'')
+      +'</div>'
       +'</div>';
   }
   function lane(title,subtitle,items,color){
@@ -10807,6 +10834,10 @@ function msbPairsRender(group){
       +'<div style="font-size:11px;color:var(--tx);line-height:1.55;margin-top:10px">'+(p.reasons||[]).map(esc).join('<br>')+'</div>'
       +(terms.length?'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px">'+terms.map(function(t){return '<span style="font-size:9px;background:rgba(199,167,106,.12);border:1px solid rgba(199,167,106,.28);border-radius:999px;padding:2px 6px;color:var(--ye)">'+esc(t)+'</span>';}).join('')+'</div>':'')
       +'<details style="margin-top:9px;font-size:11px;color:var(--sub);line-height:1.55"><summary style="cursor:pointer;color:var(--ye);font-weight:900">หัวข้อคุย 1-2-1</summary><ol style="margin:7px 0 0 18px;padding:0">'+(p.suggestedAgenda||[]).map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ol></details>'
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">'
+      +msbActionBtn('⚡ สร้าง Task','msbCreateTask('+JSON.stringify((p.source&&p.source.mentorTeam)||'')+','+JSON.stringify((p.source&&p.source.name)||'')+','+JSON.stringify('1-2-1 Matching')+','+JSON.stringify('แนะนำ 1-2-1 กับ '+((p.target&&p.target.nickname)||(p.target&&p.target.name)||'สมาชิกที่ match')+' · '+(p.reasons||[]).join(' / '))+','+JSON.stringify('🤝')+')','var(--ye)')
+      +msbActionBtn('📋 Copy Agenda','msbCopyText('+JSON.stringify((p.suggestedAgenda||[]).join('\\n'))+','+JSON.stringify('Agenda')+')','var(--ac)')
+      +'</div>'
       +'</div>';
   }
   wrap.innerHTML='<div style="background:var(--sf);border:1px solid var(--bd);border-radius:14px;padding:14px">'
