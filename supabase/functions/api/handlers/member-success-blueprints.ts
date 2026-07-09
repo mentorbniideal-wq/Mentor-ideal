@@ -313,6 +313,159 @@ function supportRadar(rows: ReturnType<typeof mapPlanRow>[]) {
   };
 }
 
+function matchTokens(value: string): string[] {
+  const normalized = value
+    .toLowerCase()
+    .replace(/[’']/g, '')
+    .replace(/&/g, ' and ')
+    .replace(/[/|,;()]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const raw = normalized.split(' ').map(s => s.trim()).filter(s => s.length >= 2);
+  const compact = normalized.replace(/[^a-z0-9\u0E00-\u0E7F]+/g, '');
+  return Array.from(new Set([...raw, compact].filter(Boolean)));
+}
+
+function expandedNeedTerms(value: string): string[] {
+  const base = matchTokens(value);
+  const key = base.join(' ');
+  const related: string[] = [];
+  const add = (terms: string[]) => related.push(...terms);
+  if (/real|estate|อสัง|บ้าน|property/.test(key)) add(['loan', 'สินเชื่อ', 'insurance', 'ประกัน', 'legal', 'กฎหมาย', 'interior', 'ตกแต่ง', 'construction', 'รับเหมา']);
+  if (/hr|people|human|ทรัพยากร|พนักงาน/.test(key)) add(['insurance', 'ประกันกลุ่ม', 'payroll', 'training', 'health', 'legal', 'labor']);
+  if (/finance|account|บัญชี|การเงิน|tax/.test(key)) add(['legal', 'insurance', 'business', 'owner', 'sme', 'audit', 'tax']);
+  if (/health|wellness|สุขภาพ|clinic|medical/.test(key)) add(['hr', 'corporate', 'insurance', 'wellness', 'fitness', 'employee']);
+  if (/marketing|media|brand|digital|it|website|content/.test(key)) add(['sme', 'owner', 'business', 'website', 'ads', 'video', 'branding']);
+  if (/retail|f&b|restaurant|cafe|hospitality|โรงแรม|อาหาร/.test(key)) add(['marketing', 'real estate', 'accounting', 'supplier', 'event', 'media']);
+  return Array.from(new Set([...base, ...related.map(t => t.toLowerCase())].filter(Boolean)));
+}
+
+function textMatchScore(need: string, candidateText: string): { score: number; hits: string[] } {
+  const terms = expandedNeedTerms(need).filter(t => t.length >= 2);
+  const hay = ` ${candidateText.toLowerCase()} `;
+  const hayCompact = hay.replace(/[^a-z0-9\u0E00-\u0E7F]+/g, '');
+  const hits: string[] = [];
+  for (const term of terms) {
+    const compact = term.replace(/[^a-z0-9\u0E00-\u0E7F]+/g, '');
+    if (!compact) continue;
+    if (hay.includes(` ${term} `) || hayCompact.includes(compact) || compact.includes(hayCompact.trim())) {
+      hits.push(term);
+    }
+  }
+  return { score: Math.min(30, hits.length * 10), hits: Array.from(new Set(hits)).slice(0, 4) };
+}
+
+function buildPairMatching(rows: ReturnType<typeof mapPlanRow>[]) {
+  const eligible = rows.filter(r => r.blueprintStatus !== 'missing');
+  const makePair = (
+    source: ReturnType<typeof mapPlanRow>,
+    target: ReturnType<typeof mapPlanRow>,
+    score: number,
+    reasons: string[],
+    matchedTerms: string[],
+  ) => ({
+    source: {
+      memberId: source.memberId,
+      name: source.name,
+      nickname: source.nickname,
+      mentorTeam: source.mentorTeam,
+      profession: source.profession,
+      companyName: source.companyName,
+      lookingForCategories: source.lookingForCategories,
+      powerTeamCategories: source.powerTeamCategories,
+    },
+    target: {
+      memberId: target.memberId,
+      name: target.name,
+      nickname: target.nickname,
+      mentorTeam: target.mentorTeam,
+      profession: target.profession,
+      companyName: target.companyName,
+      trafficLight: target.trafficLight,
+    },
+    score: Math.min(100, Math.round(score)),
+    confidence: score >= 70 ? 'high' : score >= 45 ? 'medium' : 'low',
+    reasons: Array.from(new Set(reasons)).slice(0, 4),
+    matchedTerms: Array.from(new Set(matchedTerms)).slice(0, 6),
+    suggestedAgenda: [
+      `ให้ ${txt(source.nickname || source.name)} เล่า Looking For ที่ต้องการให้ชัดใน 60 วินาที`,
+      `ให้ ${txt(target.nickname || target.name)} ช่วยคิดว่าใน network มีใครใกล้เคียงหรือไม่`,
+      'จบด้วย next step: นัด follow-up / ขอ intro / ปรับ referral trigger',
+    ],
+  });
+
+  const pairs: ReturnType<typeof makePair>[] = [];
+  for (const source of eligible) {
+    const needs = [
+      ...source.lookingForCategories,
+      ...source.powerTeamCategories,
+      txt(source.lookingForDetail),
+      txt(source.powerTeamDetail),
+    ].filter(Boolean);
+    if (!needs.length) continue;
+    for (const target of rows) {
+      if (target.memberId === source.memberId) continue;
+      const targetText = [
+        target.profession,
+        target.companyName,
+        target.mentorTeam,
+        ...target.lookingForCategories,
+        ...target.powerTeamCategories,
+        target.lookingForDetail,
+        target.powerTeamDetail,
+      ].map(v => txt(v)).filter(Boolean).join(' ');
+      if (!targetText) continue;
+
+      let score = 0;
+      const reasons: string[] = [];
+      const hits: string[] = [];
+      for (const need of needs) {
+        const m = textMatchScore(need, targetText);
+        if (m.score > 0) {
+          score += m.score;
+          hits.push(...m.hits);
+          if (txt(target.profession) || txt(target.companyName)) reasons.push('อาชีพ/บริษัทของคู่สนทนาใกล้กับสิ่งที่สมาชิกกำลังมองหา');
+        }
+      }
+      const sourceCats = new Set([...source.lookingForCategories, ...source.powerTeamCategories].map(s => normalizeCategoryKey(s)));
+      const targetCats = [...target.lookingForCategories, ...target.powerTeamCategories].map(s => normalizeCategoryKey(s)).filter(Boolean);
+      const overlap = targetCats.filter(c => sourceCats.has(c));
+      if (overlap.length) {
+        score += Math.min(25, overlap.length * 12);
+        reasons.push('มีหมวด Looking For / Power Team ที่ตรงกัน');
+        hits.push(...overlap);
+      }
+      if (source.mentorTeam && target.mentorTeam && source.mentorTeam !== target.mentorTeam) {
+        score += 8;
+        reasons.push('ข้ามทีม Mentor ช่วยเพิ่ม network ใหม่');
+      }
+      if (target.trafficLight === 'green') {
+        score += 5;
+        reasons.push('คู่สนทนาอยู่ Green Zone มี rhythm การทำ BNI ดี');
+      }
+      if (score >= 25) pairs.push(makePair(source, target, score, reasons.length ? reasons : ['ข้อมูลมีความใกล้เคียงพอสำหรับลองนัด 1-2-1'], hits));
+    }
+  }
+
+  const byPair: Record<string, ReturnType<typeof makePair>> = {};
+  for (const pair of pairs) {
+    const key = `${pair.source.memberId}:${pair.target.memberId}`;
+    if (!byPair[key] || byPair[key].score < pair.score) byPair[key] = pair;
+  }
+  const deduped = Object.values(byPair)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 24);
+  return {
+    summary: {
+      pairCount: deduped.length,
+      highConfidence: deduped.filter(p => p.confidence === 'high').length,
+      mediumConfidence: deduped.filter(p => p.confidence === 'medium').length,
+      membersWithPlan: eligible.length,
+    },
+    pairs: deduped,
+  };
+}
+
 function normalizeCategoryKey(value: string): string {
   return value
     .toLowerCase()
@@ -782,6 +935,13 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       if (!auth.ok) return errResponse(auth.error!);
       const rows = await fetchPlanRows(db, auth, year);
       return jsonResponse({ ok: true, blueprintYear: year, radar: supportRadar(rows) });
+    }
+
+    case 'getMSBPairMatchingSuggestions': {
+      const auth = await requireAuth(db, p, DASHBOARD_ROLES);
+      if (!auth.ok) return errResponse(auth.error!);
+      const rows = await fetchPlanRows(db, auth, year);
+      return jsonResponse({ ok: true, blueprintYear: year, matching: buildPairMatching(rows) });
     }
 
     case 'getMSBMemberIntelligence': {

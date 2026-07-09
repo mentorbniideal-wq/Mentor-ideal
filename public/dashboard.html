@@ -2119,6 +2119,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       <div id="msb-mc-summary" class="kgrid" style="margin-bottom:14px"></div>
       <div id="msb-mc-intel" class="row2" style="margin-bottom:14px"></div>
       <div id="msb-mc-radar" style="margin-bottom:14px"></div>
+      <div id="msb-mc-pairs" style="margin-bottom:14px"></div>
       <div style="background:var(--sf);border:1px solid var(--bd);border-radius:14px;overflow:hidden">
         <div style="padding:12px 14px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span style="font-size:13px;font-weight:800">📋 Member Blueprint Table</span>
@@ -2145,6 +2146,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       <div id="msb-gr-summary" class="kgrid" style="margin-bottom:14px"></div>
       <div id="msb-gr-intel" class="row2" style="margin-bottom:14px"></div>
       <div id="msb-gr-radar" style="margin-bottom:14px"></div>
+      <div id="msb-gr-pairs" style="margin-bottom:14px"></div>
       <div id="msb-gr-tops" class="row2" style="margin-bottom:14px"></div>
       <div style="background:var(--sf);border:1px solid var(--bd);border-radius:14px;overflow:hidden">
         <div style="padding:12px 14px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -10652,7 +10654,7 @@ function tlC(tl){return tl==='green'?'#00d4aa':tl==='yellow'?'#ffc14d':tl==='red
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 // ── Member Success Blueprint (MSB) ───────────────────────────
-var MSB={mc:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,year:new Date().getFullYear()},gr:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,year:new Date().getFullYear()}};
+var MSB={mc:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,pairs:null,year:new Date().getFullYear()},gr:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,pairs:null,year:new Date().getFullYear()}};
 function msbMoney(v){v=Number(v)||0;if(v>=1000000)return '฿'+(v/1000000).toFixed(v>=10000000?0:1)+'M';if(v>=1000)return '฿'+Math.round(v/1000)+'K';return '฿'+Math.round(v).toLocaleString('th-TH');}
 function msbNum(v,d){v=Number(v)||0;return v.toLocaleString('th-TH',{maximumFractionDigits:d==null?1:d});}
 function msbYearSelect(group){
@@ -10716,8 +10718,11 @@ function msbLoad(group,force){
           MSB[group].intelRows=(pa&&pa.ok)?(pa.rows||[]):[];
           gsr('getMSBSupportRadar',{role:S.role,blueprintYear:year},function(rd){
             MSB[group].radar=(rd&&rd.ok)?rd.radar:null;
-            MSB[group].loaded=true;
-            msbRender(group);
+            gsr('getMSBPairMatchingSuggestions',{role:S.role,blueprintYear:year},function(pm){
+              MSB[group].pairs=(pm&&pm.ok)?pm.matching:null;
+              MSB[group].loaded=true;
+              msbRender(group);
+            });
           });
         });
       });
@@ -10767,6 +10772,53 @@ function msbRadarRender(group){
     +lane('🤝 Ready to Match','พร้อมจับคู่ 1-2-1 / Power Circle',lanes.matching,'var(--gr)')
     +lane('🧹 Data Quality','เติมข้อมูลเพื่อให้ matching แม่นขึ้น',lanes.dataQuality,'var(--bl)')
     +'</div></div>';
+}
+function msbPairsRender(group){
+  var wrap=document.getElementById(group==='gr'?'msb-gr-pairs':'msb-mc-pairs');
+  if(!wrap)return;
+  var data=MSB[group]&&MSB[group].pairs;
+  if(!data){wrap.innerHTML='';return;}
+  var sm=data.summary||{}, pairs=data.pairs||[];
+  function conf(p){
+    if(p.confidence==='high')return ['High','var(--gr)','✅'];
+    if(p.confidence==='medium')return ['Medium','var(--ye)','⚠️'];
+    return ['Low','var(--sub)','•'];
+  }
+  function memberBox(m,label){
+    return '<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:12px;padding:10px;min-width:0">'
+      +'<div style="font-size:9px;color:var(--sub);font-weight:900;text-transform:uppercase;letter-spacing:.05em">'+esc(label)+'</div>'
+      +'<div style="font-size:13px;font-weight:900;margin-top:3px">'+esc(m.nickname||m.name||'—')+'</div>'
+      +'<div style="font-size:10px;color:var(--sub);margin-top:2px">'+esc([m.mentorTeam,m.profession,m.companyName].filter(Boolean).join(' · ')||'—')+'</div>'
+      +(m.lookingForCategories&&m.lookingForCategories.length?'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:7px">'+m.lookingForCategories.slice(0,2).map(function(c){return '<span style="font-size:9px;border:1px solid var(--bd);border-radius:999px;padding:2px 6px;color:var(--sub)">'+esc(c)+'</span>';}).join('')+'</div>':'')
+      +'</div>';
+  }
+  function pairCard(p){
+    var c=conf(p), terms=(p.matchedTerms||[]).slice(0,4);
+    return '<div class="cc" style="overflow:hidden">'
+      +'<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:10px">'
+      +'<div class="cct">🤝 Suggested 1-2-1</div>'
+      +'<span style="font-size:10px;color:'+c[1]+';font-weight:900;border:1px solid var(--bd);border-radius:999px;padding:3px 8px">'+c[2]+' '+c[0]+' · '+msbNum(p.score,0)+'</span>'
+      +'</div>'
+      +'<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:stretch">'
+      +memberBox(p.source||{},'คนที่ต้องการโอกาส')
+      +'<div style="display:grid;place-items:center;color:var(--ye);font-weight:900">→</div>'
+      +memberBox(p.target||{},'คนที่น่าคุยด้วย')
+      +'</div>'
+      +'<div style="font-size:11px;color:var(--tx);line-height:1.55;margin-top:10px">'+(p.reasons||[]).map(esc).join('<br>')+'</div>'
+      +(terms.length?'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px">'+terms.map(function(t){return '<span style="font-size:9px;background:rgba(199,167,106,.12);border:1px solid rgba(199,167,106,.28);border-radius:999px;padding:2px 6px;color:var(--ye)">'+esc(t)+'</span>';}).join('')+'</div>':'')
+      +'<details style="margin-top:9px;font-size:11px;color:var(--sub);line-height:1.55"><summary style="cursor:pointer;color:var(--ye);font-weight:900">หัวข้อคุย 1-2-1</summary><ol style="margin:7px 0 0 18px;padding:0">'+(p.suggestedAgenda||[]).map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ol></details>'
+      +'</div>';
+  }
+  wrap.innerHTML='<div style="background:var(--sf);border:1px solid var(--bd);border-radius:14px;padding:14px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
+    +'<div><h3 style="font-size:14px;font-weight:900;margin:0">🤝 Pair Matching Engine</h3><div style="font-size:11px;color:var(--sub);margin-top:3px">แนะนำคู่ 1-2-1 จาก MSB Looking For / Power Team + อาชีพและบริษัทใน roster</div></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    +'<span style="font-size:11px;background:rgba(0,212,170,.12);color:var(--gr);border:1px solid rgba(0,212,170,.28);border-radius:999px;padding:5px 9px;font-weight:800">High '+msbNum(sm.highConfidence||0,0)+'</span>'
+    +'<span style="font-size:11px;background:rgba(199,167,106,.12);color:var(--ye);border:1px solid rgba(199,167,106,.28);border-radius:999px;padding:5px 9px;font-weight:800">Medium '+msbNum(sm.mediumConfidence||0,0)+'</span>'
+    +'<span style="font-size:11px;background:rgba(96,165,250,.12);color:var(--bl);border:1px solid rgba(96,165,250,.28);border-radius:999px;padding:5px 9px;font-weight:800">Pairs '+msbNum(sm.pairCount||0,0)+'</span>'
+    +'</div></div>'
+    +(pairs.length?'<div class="row2">'+pairs.slice(0,6).map(pairCard).join('')+'</div>':'<div style="font-size:12px;color:var(--sub);padding:18px;border-top:1px solid var(--bd)">ยังไม่มีคู่ที่ระบบมั่นใจพอ ลองเติม profession / company / Looking For / Power Team ให้ครบขึ้น</div>')
+    +'</div>';
 }
 function msbRender(group){
   group=group==='gr'?'gr':'mc';
@@ -10820,6 +10872,7 @@ function msbRender(group){
     }
   }
   msbRadarRender(group);
+  msbPairsRender(group);
   var canLink=msbCanManageLinks();
   var html='<table class="tbl" style="min-width:1680px"><thead><tr><th>สมาชิก</th><th>ทีม</th><th>MSB Goal</th><th>Actual Received</th><th>Revenue Progress</th><th>Revenue Gap</th><th>Referral Needed/Received</th><th>Referral Progress</th><th>Referral Gap</th><th>Looking For</th><th>Power Team</th><th>Intelligence Status</th><th>Suggested Support</th><th>Blueprint</th><th>Link</th>'+(canLink?'<th>Action</th>':'')+'</tr></thead><tbody>';
   if(!rows.length){
