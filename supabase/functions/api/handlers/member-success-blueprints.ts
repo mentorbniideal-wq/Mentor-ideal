@@ -213,6 +213,106 @@ function statusCountsFromRows(rows: ReturnType<typeof mapPlanRow>[]) {
   return counts;
 }
 
+function supportRadar(rows: ReturnType<typeof mapPlanRow>[]) {
+  const mk = (
+    row: ReturnType<typeof mapPlanRow>,
+    lane: string,
+    reason: string,
+    nextAction: string,
+    priority: number,
+  ) => ({
+    memberId: row.memberId,
+    name: row.name,
+    nickname: row.nickname,
+    mentorTeam: row.mentorTeam,
+    profession: row.profession,
+    companyName: row.companyName,
+    trafficLight: row.trafficLight,
+    score: row.latestMonthlyScore,
+    status: row.status,
+    statusLabel: row.statusLabel,
+    msbGoal: row.msbGoal,
+    actualReceived: row.actualReceived,
+    revenueProgressPercent: row.revenueProgressPercent,
+    revenueGap: row.revenueGap,
+    referralNeeded: row.referralNeeded,
+    referralReceived: row.referralReceived,
+    referralGap: row.referralGap,
+    lookingForCategories: row.lookingForCategories,
+    powerTeamCategories: row.powerTeamCategories,
+    suggestedSupport: row.suggestedSupport,
+    lane,
+    reason,
+    nextAction,
+    priority,
+  });
+
+  const urgent: ReturnType<typeof mk>[] = [];
+  const growth: ReturnType<typeof mk>[] = [];
+  const matching: ReturnType<typeof mk>[] = [];
+  const dataQuality: ReturnType<typeof mk>[] = [];
+
+  for (const row of rows) {
+    const hasPlan = row.blueprintStatus && row.blueprintStatus !== 'missing';
+    const hasProfession = Boolean(txt(row.profession) || txt(row.companyName));
+    const hasLookingFor = row.lookingForCategories.length > 0 || txt(row.lookingForDetail).length > 0;
+    const hasPowerTeam = row.powerTeamCategories.length > 0 || txt(row.powerTeamDetail).length > 0;
+    const highReferralGap = row.referralNeeded > 0 && row.referralGap >= Math.max(5, row.referralNeeded * 0.4);
+    const highRevenueGap = row.msbGoal > 0 && row.revenueGap >= Math.max(100000, row.msbGoal * 0.5);
+
+    if (!hasPlan) {
+      urgent.push(mk(row, 'urgent', 'ยังไม่ได้กรอก MSB Blueprint', 'ส่งลิงก์ Goal และให้ Mentor ช่วยกรอกให้จบในสัปดาห์นี้', 95));
+    } else if (row.status === 'critical' || highReferralGap || highRevenueGap) {
+      urgent.push(mk(row, 'urgent', row.status === 'critical' ? 'Plan vs Actual อยู่ในระดับ Critical' : 'Gap ระหว่างแผนกับผลงานจริงค่อนข้างสูง', row.suggestedSupport || 'นัดคุย 15 นาทีเพื่อเลือก action ที่เร็วที่สุด', 90));
+    }
+
+    if (hasPlan && (row.status === 'behind' || row.bniContributionPercent > 50 || row.referralNeeded > 100 || (row.conversionRatePercent > 0 && row.conversionRatePercent < 10))) {
+      growth.push(mk(row, 'growth', row.suggestedSupport || 'มีสัญญาณที่ Growth ควรช่วยออกแบบแผน 30 วัน', 'ให้ Growth ช่วยปรับกลุ่มลูกค้า / Power Team / Referral Trigger', 75));
+    }
+
+    if (hasPlan && hasLookingFor && hasPowerTeam) {
+      matching.push(mk(row, 'matching', 'มี Looking For และ Power Team พร้อมสำหรับจับคู่', 'ให้ Growth จับคู่ 1-2-1 หรือสร้าง mini power circle', 65));
+    } else if (hasPlan && hasLookingFor) {
+      matching.push(mk(row, 'matching', 'มี Looking For แล้ว แต่ Power Team ยังไม่ชัด', 'ช่วยเลือก Power Team 2–3 อาชีพที่น่าคุยก่อน', 55));
+    }
+
+    if (!hasProfession) {
+      dataQuality.push(mk(row, 'data_quality', 'ยังไม่มีข้อมูลอาชีพ/บริษัทจาก roster', 'อัปเดต profession/company_name เพื่อให้ Matching แม่นขึ้น', 70));
+    } else if (hasPlan && (!hasLookingFor || !hasPowerTeam)) {
+      dataQuality.push(mk(row, 'data_quality', !hasLookingFor ? 'Blueprint ยังขาด Looking For ที่ชัด' : 'Blueprint ยังขาด Power Team ที่ชัด', 'ให้ Mentor ช่วยถามเพิ่มว่า “ลูกค้าคนไหนที่อยากให้เพื่อนมองหา?”', 60));
+    }
+  }
+
+  const sortTake = (items: ReturnType<typeof mk>[], limit: number) =>
+    items
+      .sort((a, b) => b.priority - a.priority || num(b.revenueGap) - num(a.revenueGap) || num(b.referralGap) - num(a.referralGap))
+      .slice(0, limit);
+
+  const noProfession = rows.filter(r => !txt(r.profession) && !txt(r.companyName)).length;
+  const readyToMatch = rows.filter(r =>
+    r.blueprintStatus !== 'missing' &&
+    (r.lookingForCategories.length > 0 || txt(r.lookingForDetail)) &&
+    (r.powerTeamCategories.length > 0 || txt(r.powerTeamDetail))
+  ).length;
+
+  return {
+    summary: {
+      totalMembers: rows.length,
+      urgentCount: urgent.length,
+      growthActionCount: growth.length,
+      matchingReadyCount: readyToMatch,
+      dataQualityCount: dataQuality.length,
+      professionCoveragePercent: rows.length ? Math.round(((rows.length - noProfession) / rows.length) * 100) : 0,
+    },
+    lanes: {
+      urgent: sortTake(urgent, 12),
+      growth: sortTake(growth, 12),
+      matching: sortTake(matching, 12),
+      dataQuality: sortTake(dataQuality, 12),
+    },
+  };
+}
+
 function normalizeCategoryKey(value: string): string {
   return value
     .toLowerCase()
@@ -675,6 +775,13 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       if (!auth.ok) return errResponse(auth.error!);
       const rows = await fetchPlanRows(db, auth, year);
       return jsonResponse({ ok: true, blueprintYear: year, rows });
+    }
+
+    case 'getMSBSupportRadar': {
+      const auth = await requireAuth(db, p, DASHBOARD_ROLES);
+      if (!auth.ok) return errResponse(auth.error!);
+      const rows = await fetchPlanRows(db, auth, year);
+      return jsonResponse({ ok: true, blueprintYear: year, radar: supportRadar(rows) });
     }
 
     case 'getMSBMemberIntelligence': {

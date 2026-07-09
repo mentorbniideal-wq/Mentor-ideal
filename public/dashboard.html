@@ -2118,6 +2118,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       </div>
       <div id="msb-mc-summary" class="kgrid" style="margin-bottom:14px"></div>
       <div id="msb-mc-intel" class="row2" style="margin-bottom:14px"></div>
+      <div id="msb-mc-radar" style="margin-bottom:14px"></div>
       <div style="background:var(--sf);border:1px solid var(--bd);border-radius:14px;overflow:hidden">
         <div style="padding:12px 14px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span style="font-size:13px;font-weight:800">📋 Member Blueprint Table</span>
@@ -2143,6 +2144,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       </div>
       <div id="msb-gr-summary" class="kgrid" style="margin-bottom:14px"></div>
       <div id="msb-gr-intel" class="row2" style="margin-bottom:14px"></div>
+      <div id="msb-gr-radar" style="margin-bottom:14px"></div>
       <div id="msb-gr-tops" class="row2" style="margin-bottom:14px"></div>
       <div style="background:var(--sf);border:1px solid var(--bd);border-radius:14px;overflow:hidden">
         <div style="padding:12px 14px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -10650,7 +10652,7 @@ function tlC(tl){return tl==='green'?'#00d4aa':tl==='yellow'?'#ffc14d':tl==='red
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 // ── Member Success Blueprint (MSB) ───────────────────────────
-var MSB={mc:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],year:new Date().getFullYear()},gr:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],year:new Date().getFullYear()}};
+var MSB={mc:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,year:new Date().getFullYear()},gr:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,year:new Date().getFullYear()}};
 function msbMoney(v){v=Number(v)||0;if(v>=1000000)return '฿'+(v/1000000).toFixed(v>=10000000?0:1)+'M';if(v>=1000)return '฿'+Math.round(v/1000)+'K';return '฿'+Math.round(v).toLocaleString('th-TH');}
 function msbNum(v,d){v=Number(v)||0;return v.toLocaleString('th-TH',{maximumFractionDigits:d==null?1:d});}
 function msbYearSelect(group){
@@ -10712,8 +10714,11 @@ function msbLoad(group,force){
         MSB[group].overview=(o&&o.ok)?o.overview:null;
         gsr('getMSBPlanVsActual',{role:S.role,blueprintYear:year},function(pa){
           MSB[group].intelRows=(pa&&pa.ok)?(pa.rows||[]):[];
-          MSB[group].loaded=true;
-          msbRender(group);
+          gsr('getMSBSupportRadar',{role:S.role,blueprintYear:year},function(rd){
+            MSB[group].radar=(rd&&rd.ok)?rd.radar:null;
+            MSB[group].loaded=true;
+            msbRender(group);
+          });
         });
       });
     });
@@ -10721,6 +10726,47 @@ function msbLoad(group,force){
 }
 function msbSummaryCard(label,value,sub,color){
   return '<div class="kc"><div class="kl">'+esc(label)+'</div><div class="kv" style="color:'+(color||'var(--tx)')+'">'+value+'</div><div style="font-size:11px;color:var(--sub);margin-top:6px">'+esc(sub||'')+'</div></div>';
+}
+function msbRadarRender(group){
+  var wrap=document.getElementById(group==='gr'?'msb-gr-radar':'msb-mc-radar');
+  if(!wrap)return;
+  var radar=MSB[group]&&MSB[group].radar;
+  if(!radar){wrap.innerHTML='';return;}
+  var sm=radar.summary||{}, lanes=radar.lanes||{};
+  function item(x){
+    var cats=(x.lookingForCategories||[]).slice(0,2).concat((x.powerTeamCategories||[]).slice(0,1)).filter(Boolean);
+    return '<div style="border-top:1px solid var(--bd);padding:9px 0">'
+      +'<div style="display:flex;gap:8px;align-items:flex-start;justify-content:space-between">'
+      +'<div><b style="font-size:12px">'+esc(x.nickname||x.name||'—')+'</b><span style="font-size:10px;color:var(--sub)"> · '+esc(x.mentorTeam||'—')+'</span>'
+      +(x.profession||x.companyName?'<div style="font-size:10px;color:var(--sub);margin-top:2px">'+esc([x.profession,x.companyName].filter(Boolean).join(' · '))+'</div>':'')
+      +'</div><span style="font-size:10px;color:'+tlC(x.trafficLight)+';font-weight:900">'+tlL(x.trafficLight)+'</span></div>'
+      +'<div style="font-size:11px;color:var(--tx);line-height:1.5;margin-top:6px">'+esc(x.reason||'')+'</div>'
+      +'<div style="font-size:11px;color:var(--sub);line-height:1.5;margin-top:4px">Next: '+esc(x.nextAction||x.suggestedSupport||'ติดตามต่อ')+'</div>'
+      +(cats.length?'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">'+cats.map(function(c){return '<span style="font-size:9px;border:1px solid var(--bd);border-radius:999px;padding:2px 6px;color:var(--sub)">'+esc(c)+'</span>';}).join('')+'</div>':'')
+      +'</div>';
+  }
+  function lane(title,subtitle,items,color){
+    return '<div class="cc"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;margin-bottom:8px">'
+      +'<div><div class="cct" style="color:'+color+'">'+esc(title)+'</div><div style="font-size:10px;color:var(--sub);line-height:1.4">'+esc(subtitle)+'</div></div>'
+      +'<b style="color:'+color+'">'+(items||[]).length+'</b></div>'
+      +((items||[]).length?(items||[]).slice(0,4).map(item).join(''):'<div style="font-size:12px;color:var(--sub);padding:14px 0;border-top:1px solid var(--bd)">ยังไม่มีรายการในกลุ่มนี้</div>')
+      +'</div>';
+  }
+  wrap.innerHTML='<div style="background:var(--sf);border:1px solid var(--bd);border-radius:14px;padding:14px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
+    +'<div><h3 style="font-size:14px;font-weight:900;margin:0">🧭 Member Support Radar</h3><div style="font-size:11px;color:var(--sub);margin-top:3px">ระบบช่วยจัดลำดับว่า Mentor/Growth ควรช่วยใครก่อน และช่วยเรื่องอะไร</div></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    +'<span style="font-size:11px;background:rgba(255,107,107,.12);color:var(--re);border:1px solid rgba(255,107,107,.28);border-radius:999px;padding:5px 9px;font-weight:800">Urgent '+msbNum(sm.urgentCount||0,0)+'</span>'
+    +'<span style="font-size:11px;background:rgba(199,167,106,.12);color:var(--ye);border:1px solid rgba(199,167,106,.28);border-radius:999px;padding:5px 9px;font-weight:800">Growth '+msbNum(sm.growthActionCount||0,0)+'</span>'
+    +'<span style="font-size:11px;background:rgba(0,212,170,.12);color:var(--gr);border:1px solid rgba(0,212,170,.28);border-radius:999px;padding:5px 9px;font-weight:800">Match '+msbNum(sm.matchingReadyCount||0,0)+'</span>'
+    +'<span style="font-size:11px;background:rgba(96,165,250,.12);color:var(--bl);border:1px solid rgba(96,165,250,.28);border-radius:999px;padding:5px 9px;font-weight:800">Profession '+msbNum(sm.professionCoveragePercent||0,0)+'%</span>'
+    +'</div></div>'
+    +'<div class="row2">'
+    +lane('🚨 Help First','ต้องช่วยก่อนเพราะยังไม่มีแผนหรือ gap สูง',lanes.urgent,'var(--re)')
+    +lane('🌱 Growth Actions','ควรให้ Growth ช่วยออกแบบ action 30 วัน',lanes.growth,'var(--ye)')
+    +lane('🤝 Ready to Match','พร้อมจับคู่ 1-2-1 / Power Circle',lanes.matching,'var(--gr)')
+    +lane('🧹 Data Quality','เติมข้อมูลเพื่อให้ matching แม่นขึ้น',lanes.dataQuality,'var(--bl)')
+    +'</div></div>';
 }
 function msbRender(group){
   group=group==='gr'?'gr':'mc';
@@ -10773,6 +10819,7 @@ function msbRender(group){
       tops.innerHTML=topBox('Top Looking For',sm.topLookingForCategories)+topBox('Top Power Team',sm.topPowerTeamCategories);
     }
   }
+  msbRadarRender(group);
   var canLink=msbCanManageLinks();
   var html='<table class="tbl" style="min-width:1680px"><thead><tr><th>สมาชิก</th><th>ทีม</th><th>MSB Goal</th><th>Actual Received</th><th>Revenue Progress</th><th>Revenue Gap</th><th>Referral Needed/Received</th><th>Referral Progress</th><th>Referral Gap</th><th>Looking For</th><th>Power Team</th><th>Intelligence Status</th><th>Suggested Support</th><th>Blueprint</th><th>Link</th>'+(canLink?'<th>Action</th>':'')+'</tr></thead><tbody>';
   if(!rows.length){
