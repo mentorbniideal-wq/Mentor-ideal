@@ -1158,6 +1158,8 @@ header.command-top{
 .cmd-mark{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(135deg,rgba(194,220,0,.18),rgba(22,163,74,.10));border:1px solid rgba(194,220,0,.22);font-size:18px}
 .cmd-title{font-size:15px;font-weight:800;letter-spacing:.04em;line-height:1}
 .cmd-subtitle{font-size:10px;color:var(--sub);font-weight:600;letter-spacing:.08em;margin-top:4px;text-transform:uppercase}
+.cmd-freshness{font-size:10px;color:var(--sub);font-weight:600;margin-top:5px;letter-spacing:.02em}
+.cmd-freshness strong{color:var(--tx);font-weight:800}
 .cmd-status{display:flex;align-items:center;gap:8px;padding:7px 10px;background:rgba(28,26,18,.05);border:1px solid var(--bd);border-radius:10px;color:var(--sub);font-size:11px;white-space:nowrap}
 .cmd-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
 .cmd-actions .bsm{height:32px}
@@ -1317,20 +1319,17 @@ main{
     <div class="cmd-brand">
       <div class="cmd-mark">BNI</div>
       <div>
-        <div class="cmd-title">IDEAL COMMAND</div>
+        <div class="cmd-title">MENTOR CO.</div>
         <div class="cmd-subtitle">Chapter Operations Center</div>
+        <div class="cmd-freshness">Data freshness <strong id="hup"></strong></div>
       </div>
     </div>
     <span class="hbadge" id="hrole"></span>
-    <span class="cmd-status"><span>Data freshness</span><strong id="hup" style="color:var(--tx);font-weight:700"></strong></span>
     <div class="gs-wrap" style="margin-left:auto">
       <input id="gs-input" type="text" placeholder="🔍 ค้นหาสมาชิก..." oninput="onGS(this.value)" onblur="setTimeout(closeGS,200)" autocomplete="off">
       <div class="gs-drop" id="gs-drop"></div>
     </div>
     <div class="cmd-actions">
-      <div class="ar-wrap"><span class="ar-dot live" id="ar-dot"></span><span id="ar-txt">5:00</span></div>
-      <button class="bsm" id="btn-ar" onclick="toggleAR()" title="Auto-refresh">⏸</button>
-      <button class="bsm bac" id="btn-meeting" onclick="enterMeeting()" style="display:none">Meeting</button>
       <button class="bsm" onclick="toggleLight()" id="themeBtn" title="Light/Dark">🌙</button>
       <button class="bsm" id="btn-monthly-sync" onclick="openSyncModal()" style="display:none;background:var(--ac-dim);border-color:var(--bd-hover);color:var(--ac);font-weight:700;" title="Monthly Sync วันที่ 5">Sync</button>
       <button class="bsm" id="btn-role-growth" onclick="switchDesktopRole('growth')" style="display:none;background:rgba(139,92,246,.16);border-color:rgba(139,92,246,.42);color:#C4B5FD;font-weight:800;" title="ไปหน้า Growth Desktop">Growth View</button>
@@ -1353,7 +1352,7 @@ main{
     <button class="tb" onclick="sw('mc-team',this,'mc');loadDesktopScorecard()">🏆 Mentor Teams</button>
     <button class="tb" onclick="sw('mc-ren',this,'mc')">🔄 Renewal<span class="nb" id="badge-ren"></span></button>
     <button class="tb" onclick="sw('mc-risk',this,'mc')">⚠️ Risk<span class="nb" id="badge-risk"></span></button>
-    <button class="tb" onclick="sw('mc-msg',this,'mc')">💬 Messages<span class="nb" id="badge-msg"></span></button>
+    <button class="tb" onclick="sw('mc-msg',this,'mc');loadOnboardEditor()">💬 Messages<span class="nb" id="badge-msg"></span></button>
     <button class="tb" onclick="sw('mc-rep',this,'mc')">📋 Reports<span class="nb" id="badge-rep"></span></button>
     <button class="tb" id="mc-ac-tab" onclick="openActionCenter('pq')">⚡ Action Center<span class="nb" id="badge-pq"></span><span class="nb" id="badge-line-issue" style="margin-left:2px;background:#f59e0b"></span><span class="nb" id="badge-coach" style="margin-left:2px"></span></button>
     <button class="tb" onclick="sw('mc-gw',this,'mc');renderGrowthWatch()">🌱 Growth Watch<span class="nb" id="badge-gw"></span></button>
@@ -1362,7 +1361,6 @@ main{
     <button class="tb" onclick="sw('mc-passport',this,'mc');loadPassportBoard()">🛂 Passport<span class="nb" id="badge-passport"></span></button>
     <button class="tb" onclick="sw('mc-vis',this,'mc');loadVisitorLog()">🤝 Visitors</button>
     <button class="tb" onclick="sw('mc-checkin',this,'mc');deskCiLoadHistory()">✅ Check-In</button>
-    <button class="tb" onclick="sw('mc-onboard-edit',this,'mc');loadOnboardEditor()">📨 Onboard Msgs</button>
     <button class="tb" onclick="sw('mc-usage',this,'mc');loadUsageLog()">📈 Activity</button>
     <button class="tb" onclick="sw('mc-access',this,'mc');loadAccessMgmt()">🔑 Access</button>
     <button class="tb" onclick="sw('mc-import',this,'mc')">📥 Import</button>
@@ -1705,6 +1703,46 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         </div>
         <div style="margin-top:10px;font-size:10px;color:var(--sub);line-height:1.6">ระบบจะบันทึกกิจกรรมเข้า Activity / LINE log ให้ MC ตรวจย้อนหลังได้ ส่วนเรื่องขอความช่วยเหลือและการลา ระบบจะแจ้งผู้เกี่ยวข้องแบบ quota-safe ตามที่ตั้งไว้</div>
       </div>
+      <div class="mco" id="mc-onboard-edit" style="margin-top:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+          <div>
+            <h3 style="margin-bottom:4px">📝 แก้ไขข้อความ 8-Week Onboarding</h3>
+            <div style="font-size:11px;color:var(--sub);line-height:1.6">รวมอยู่ใน Messages แล้ว เพื่อให้ทุกข้อความของสมาชิกอยู่ที่เดียวกัน · ใช้ <code style="background:var(--sf2);padding:1px 5px;border-radius:4px">{nick}</code> แทนชื่อเล่นสมาชิก</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input id="oe-nick-preview" placeholder="ชื่อเล่นตัวอย่าง" value="Pete" style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;color:var(--tx);font-size:12px;width:120px" oninput="oeUpdatePreview()">
+            <button class="bsm" onclick="loadOnboardEditor()" style="font-size:11px">↺ โหลดข้อความ</button>
+            <button class="bsm" onclick="oeResetWeek()" style="background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.3);color:#f87171">↩ รีเซ็ต Week นี้</button>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px" id="oe-week-tabs">
+          <button onclick="oeSelectWeek(1,this)" class="oe-wtab oe-active" style="padding:6px 14px;border-radius:8px;border:1px solid rgba(99,102,241,.5);background:rgba(99,102,241,.2);color:#818cf8;font-size:12px;font-weight:700;cursor:pointer">W1</button>
+          <button onclick="oeSelectWeek(2,this)" class="oe-wtab" style="padding:6px 14px;border-radius:8px;border:1px solid var(--bd);background:var(--sf2);color:var(--sub);font-size:12px;font-weight:700;cursor:pointer">W2</button>
+          <button onclick="oeSelectWeek(3,this)" class="oe-wtab" style="padding:6px 14px;border-radius:8px;border:1px solid var(--bd);background:var(--sf2);color:var(--sub);font-size:12px;font-weight:700;cursor:pointer">W3</button>
+          <button onclick="oeSelectWeek(4,this)" class="oe-wtab" style="padding:6px 14px;border-radius:8px;border:1px solid var(--bd);background:var(--sf2);color:var(--sub);font-size:12px;font-weight:700;cursor:pointer">W4</button>
+          <button onclick="oeSelectWeek(5,this)" class="oe-wtab" style="padding:6px 14px;border-radius:8px;border:1px solid var(--bd);background:var(--sf2);color:var(--sub);font-size:12px;font-weight:700;cursor:pointer">W5</button>
+          <button onclick="oeSelectWeek(6,this)" class="oe-wtab" style="padding:6px 14px;border-radius:8px;border:1px solid var(--bd);background:var(--sf2);color:var(--sub);font-size:12px;font-weight:700;cursor:pointer">W6</button>
+          <button onclick="oeSelectWeek(7,this)" class="oe-wtab" style="padding:6px 14px;border-radius:8px;border:1px solid var(--bd);background:var(--sf2);color:var(--sub);font-size:12px;font-weight:700;cursor:pointer">W7</button>
+          <button onclick="oeSelectWeek(8,this)" class="oe-wtab" style="padding:6px 14px;border-radius:8px;border:1px solid var(--bd);background:var(--sf2);color:var(--sub);font-size:12px;font-weight:700;cursor:pointer">W8</button>
+          <span id="oe-modified-badge" style="display:none;font-size:10px;background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b44;border-radius:6px;padding:2px 8px;align-self:center">✏️ มีการแก้ไข</span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div>
+            <div style="font-size:11px;color:var(--sub);margin-bottom:6px;font-weight:600">✏️ แก้ไข</div>
+            <textarea id="oe-editor" rows="18" oninput="oeUpdatePreview();oeMarkModified()" style="width:100%;box-sizing:border-box;background:var(--sf2);border:1px solid var(--bd);border-radius:10px;padding:12px;color:var(--tx);font-size:12.5px;font-family:Sarabun,sans-serif;line-height:1.7;resize:vertical"></textarea>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button id="oe-save-btn" class="btn" onclick="oeSave()" style="flex:1">💾 บันทึก Week นี้</button>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--sub);margin-bottom:6px;font-weight:600">👁 Preview (สิ่งที่สมาชิกจะเห็น)</div>
+            <pre id="oe-preview" style="white-space:pre-wrap;font-family:Sarabun,sans-serif;font-size:12.5px;line-height:1.7;background:rgba(6,199,85,.06);border:1px solid rgba(6,199,85,.2);border-radius:10px;padding:14px;margin:0;min-height:320px;color:var(--tx)"></pre>
+            <div style="margin-top:8px;font-size:10px;color:var(--sub);text-align:center">📱 Preview นี้แสดงตรงกับที่สมาชิกได้รับทาง LINE Bot</div>
+          </div>
+        </div>
+      </div>
       <div class="sh"><h2>📩 ข้อความที่มีอยู่</h2><span class="ctag" id="msgn">0</span></div>
       <div class="ml" id="msgl"></div>
     </div>
@@ -1795,49 +1833,6 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
           <select id="dci-week-sel" onchange="deskCiLoadWeek(this.value)" style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:5px 10px;color:var(--tx);font-size:12px"></select>
         </div>
         <div id="dci-week-list"></div>
-      </div>
-    </div>
-
-    <!-- Onboarding Message Editor -->
-    <div id="mc-onboard-edit" class="sec">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
-        <div>
-          <h2 style="font-size:14px;font-weight:700;margin:0">📝 แก้ไขข้อความ 8-Week Onboarding</h2>
-          <p style="font-size:11px;color:var(--sub);margin:4px 0 0">ใช้ <code style="background:var(--sf2);padding:1px 5px;border-radius:4px">{nick}</code> แทนชื่อเล่นสมาชิก — จะถูกแทนค่าอัตโนมัติตอนส่ง</p>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input id="oe-nick-preview" placeholder="ชื่อเล่นตัวอย่าง" value="Pete" style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;color:var(--tx);font-size:12px;width:120px" oninput="oeUpdatePreview()">
-          <button class="bsm" onclick="oeResetWeek()" style="background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.3);color:#f87171">↩ รีเซ็ต Week นี้</button>
-        </div>
-      </div>
-
-      <!-- Week selector -->
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px" id="oe-week-tabs">
-        <button onclick="oeSelectWeek(1,this)" class="oe-wtab oe-active" style="padding:6px 14px;border-radius:8px;border:1px solid rgba(99,102,241,.5);background:rgba(99,102,241,.2);color:#818cf8;font-size:12px;font-weight:700;cursor:pointer">W1</button>
-        <button onclick="oeSelectWeek(2,this)" class="oe-wtab" style="padding:6px 14px;border-radius:8px;border:1px solid var(--bd);background:var(--sf2);color:var(--sub);font-size:12px;font-weight:700;cursor:pointer">W2</button>
-        <button onclick="oeSelectWeek(3,this)" class="oe-wtab" style="padding:6px 14px;border-radius:8px;border:1px solid var(--bd);background:var(--sf2);color:var(--sub);font-size:12px;font-weight:700;cursor:pointer">W3</button>
-        <button onclick="oeSelectWeek(4,this)" class="oe-wtab" style="padding:6px 14px;border-radius:8px;border:1px solid var(--bd);background:var(--sf2);color:var(--sub);font-size:12px;font-weight:700;cursor:pointer">W4</button>
-        <button onclick="oeSelectWeek(5,this)" class="oe-wtab" style="padding:6px 14px;border-radius:8px;border:1px solid var(--bd);background:var(--sf2);color:var(--sub);font-size:12px;font-weight:700;cursor:pointer">W5</button>
-        <button onclick="oeSelectWeek(6,this)" class="oe-wtab" style="padding:6px 14px;border-radius:8px;border:1px solid var(--bd);background:var(--sf2);color:var(--sub);font-size:12px;font-weight:700;cursor:pointer">W6</button>
-        <button onclick="oeSelectWeek(7,this)" class="oe-wtab" style="padding:6px 14px;border-radius:8px;border:1px solid var(--bd);background:var(--sf2);color:var(--sub);font-size:12px;font-weight:700;cursor:pointer">W7</button>
-        <button onclick="oeSelectWeek(8,this)" class="oe-wtab" style="padding:6px 14px;border-radius:8px;border:1px solid var(--bd);background:var(--sf2);color:var(--sub);font-size:12px;font-weight:700;cursor:pointer">W8</button>
-        <span id="oe-modified-badge" style="display:none;font-size:10px;background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b44;border-radius:6px;padding:2px 8px;align-self:center">✏️ มีการแก้ไข</span>
-      </div>
-
-      <!-- Editor + Preview -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-        <div>
-          <div style="font-size:11px;color:var(--sub);margin-bottom:6px;font-weight:600">✏️ แก้ไข</div>
-          <textarea id="oe-editor" rows="18" oninput="oeUpdatePreview();oeMarkModified()" style="width:100%;box-sizing:border-box;background:var(--sf2);border:1px solid var(--bd);border-radius:10px;padding:12px;color:var(--tx);font-size:12.5px;font-family:Sarabun,sans-serif;line-height:1.7;resize:vertical"></textarea>
-          <div style="display:flex;gap:8px;margin-top:10px">
-            <button id="oe-save-btn" class="btn" onclick="oeSave()" style="flex:1">💾 บันทึก Week นี้</button>
-          </div>
-        </div>
-        <div>
-          <div style="font-size:11px;color:var(--sub);margin-bottom:6px;font-weight:600">👁 Preview (สิ่งที่สมาชิกจะเห็น)</div>
-          <pre id="oe-preview" style="white-space:pre-wrap;font-family:Sarabun,sans-serif;font-size:12.5px;line-height:1.7;background:rgba(6,199,85,.06);border:1px solid rgba(6,199,85,.2);border-radius:10px;padding:14px;margin:0;min-height:320px;color:var(--tx)"></pre>
-          <div style="margin-top:8px;font-size:10px;color:var(--sub);text-align:center">📱 Preview นี้แสดงตรงกับที่สมาชิกได้รับทาง LINE Bot</div>
-        </div>
       </div>
     </div>
 
@@ -3440,7 +3435,7 @@ function enterApp(r){
   document.getElementById('app').style.display='grid';
   setDesktopTabs(S.role);
   restoreTabFold(S.role==='mc'?'mc':'gr');
-  document.getElementById('btn-meeting').style.display=S.role==='mc'?'':'none';
+  var meetingBtn=document.getElementById('btn-meeting');if(meetingBtn)meetingBtn.style.display=S.role==='mc'?'':'none';
   document.getElementById('btn-monthly-sync').style.display=S.role==='mc'?'':'none';
   document.getElementById('btn-line-sim').style.display=S.role==='mc'?'':'none';
   document.getElementById('btn-admin-settings').style.display=S.role==='mc'?'':'none';
@@ -8045,8 +8040,8 @@ function startAR(){
 function toggleAR(){
   arActive=!arActive;
   var btn=document.getElementById('btn-ar'),dot=document.getElementById('ar-dot'),txt=document.getElementById('ar-txt');
-  if(arActive){startAR();btn.textContent='⏸';if(dot)dot.style.animation='blink 2s infinite';}
-  else{clearInterval(arTimer);btn.textContent='▶';if(txt)txt.textContent='หยุด';if(dot)dot.style.animation='none';}
+  if(arActive){startAR();if(btn)btn.textContent='⏸';if(dot)dot.style.animation='blink 2s infinite';}
+  else{clearInterval(arTimer);if(btn)btn.textContent='▶';if(txt)txt.textContent='หยุด';if(dot)dot.style.animation='none';}
 }
 
 // ── Score Timeline ────────────────────────────────
@@ -9201,7 +9196,13 @@ function buildIMDCats(m){
 function buildIMDHistory(m){
   var reps=D.reps.filter(function(r){return r.memberName===m.name;});
   var msgs=D.msgs.filter(function(msg){return msg.name===m.name;});
-  var html='<div class="sh"><h2>📋 History</h2></div>';
+  var tlUid='imd-health-tl-'+Date.now();
+  setTimeout(function(){loadIMDHealthTimeline(m.name,tlUid);},80);
+  var html='<div class="sh"><h2>📋 History</h2></div>'
+    +'<div id="'+tlUid+'" style="background:var(--sf2);border:1px solid var(--bd);border-radius:12px;padding:13px 14px;margin-bottom:16px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">'
+    +'<div><div style="font-size:13px;font-weight:900">🧵 Member Health Timeline</div><div style="font-size:10px;color:var(--sub);margin-top:2px">รวม Core Issue, Mentor Log, 1-2-1, Renewal และ Assignment จากระบบเดียวกัน</div></div>'
+    +'<span style="font-size:11px;color:var(--sub)">⏳ กำลังโหลด...</span></div></div>';
   // Monthly score trend comes from monthly_scores imported from Traffic Lights Evolution.
   var scoreHistory=(m.scoreHistory||[]).filter(function(s){return s&&s.score!==null&&s.score!==undefined&&Number(s.score)>0;});
   var hist=(m.hist||[]).filter(function(v){return v>0;});
@@ -9255,6 +9256,34 @@ function buildIMDHistory(m){
     html+=msgs.map(function(msg){return'<div class="mc3" style="margin-bottom:8px"><div class="mb2">'+esc(msg.msg)+'</div></div>';}).join('');
   }
   return html;
+}
+function loadIMDHealthTimeline(memberName,containerId){
+  var el=document.getElementById(containerId);if(!el)return;
+  gsr('getMemberTimeline',{role:S.role,memberName:memberName},function(r){
+    if(!el)return;
+    if(!r||!r.ok){
+      el.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div><div style="font-size:13px;font-weight:900;color:var(--re)">🧵 Member Health Timeline</div><div style="font-size:10px;color:var(--sub);margin-top:2px">โหลด timeline ไม่สำเร็จ</div></div><button class="bsm" onclick="loadIMDHealthTimeline('+JSON.stringify(memberName)+','+JSON.stringify(containerId)+')" style="font-size:10px">↺</button></div><div style="font-size:11px;color:var(--re);margin-top:8px">'+esc(r&&r.error||'unknown')+'</div>';
+      return;
+    }
+    var events=(r.events||[]).slice(0,12);
+    function fmtDate(v){
+      if(!v)return '—';
+      try{var d=new Date(v);return d.toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'});}catch(e){return String(v).slice(0,10);}
+    }
+    function evCard(x,i){
+      var color=x.status==='done'||x.status==='resolved'||x.status==='logged'?'var(--gr)':x.status==='pending'||x.status==='open'?'var(--ye)':'var(--sub)';
+      return '<div style="display:grid;grid-template-columns:28px 1fr;gap:9px;padding:9px 0;border-top:1px solid var(--bd)">'
+        +'<div style="width:24px;height:24px;border-radius:999px;background:var(--sf);display:grid;place-items:center;font-size:13px">'+esc(x.icon||'•')+'</div>'
+        +'<div style="min-width:0"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><b style="font-size:12px">'+esc(x.title||'Activity')+'</b><span style="font-size:10px;color:var(--sub);white-space:nowrap">'+fmtDate(x.at)+'</span></div>'
+        +(x.detail?'<div style="font-size:10px;color:var(--sub);line-height:1.5;margin-top:3px">'+esc(x.detail).slice(0,180)+'</div>':'')
+        +'<div style="font-size:9px;color:'+color+';font-weight:900;margin-top:4px">'+esc(x.type||'event')+' · '+esc(x.status||'')+'</div></div>'
+        +'</div>';
+    }
+    el.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">'
+      +'<div><div style="font-size:13px;font-weight:900">🧵 Member Health Timeline</div><div style="font-size:10px;color:var(--sub);margin-top:2px">ล่าสุด '+events.length+' รายการ จาก report / mentor log / 1-2-1 / renewal / assignment</div></div>'
+      +'<button class="bsm" onclick="loadIMDHealthTimeline('+JSON.stringify(memberName)+','+JSON.stringify(containerId)+')" style="font-size:10px">↺</button></div>'
+      +(events.length?events.map(evCard).join(''):'<div style="font-size:12px;color:var(--sub);padding:14px 0;border-top:1px solid var(--bd)">ยังไม่มี timeline event จากระบบกลาง</div>');
+  });
 }
 // ── Training event cache for Fast-Track suggestions ──────────────
 var _deskTrainCache = null;
