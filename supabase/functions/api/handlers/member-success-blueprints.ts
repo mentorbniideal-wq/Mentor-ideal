@@ -790,6 +790,203 @@ async function listDashboardRows(db: Db, auth: Awaited<ReturnType<typeof require
   });
 }
 
+function summarizeDashboardRows(rows: Awaited<ReturnType<typeof listDashboardRows>>) {
+  const submitted = rows.filter(r => r.status === 'submitted');
+  const drafts = rows.filter(r => r.status === 'draft');
+  const blueprints = rows.map(r => r.blueprint).filter(Boolean) as Record<string, unknown>[];
+  const totalExpectedSalesFromBni = blueprints.reduce((s, b) => s + num(b.expected_sales_from_bni_year), 0);
+  const totalReferralDemand = blueprints.reduce((s, b) => s + num(b.referral_needed), 0);
+  const avgConversionRate = blueprints.length
+    ? blueprints.reduce((s, b) => s + num(b.conversion_rate_percent), 0) / blueprints.length
+    : 0;
+  const avgReferralPerWeek = blueprints.length
+    ? blueprints.reduce((s, b) => s + num(b.referral_per_week), 0) / blueprints.length
+    : 0;
+  const countTop = (field: string) => {
+    const counts: Record<string, number> = {};
+    for (const b of blueprints) for (const item of arr(b[field])) counts[item] = (counts[item] || 0) + 1;
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([name, count]) => ({ name, count }));
+  };
+  return {
+    totalMembers: rows.length,
+    submitted: submitted.length,
+    drafts: drafts.length,
+    missing: rows.filter(r => r.status === 'missing').length,
+    completionPct: rows.length ? Math.round((submitted.length / rows.length) * 100) : 0,
+    totalExpectedSalesFromBni,
+    totalReferralDemand,
+    avgConversionRate,
+    avgReferralPerWeek,
+    topLookingForCategories: countTop('looking_for_categories'),
+    topPowerTeamCategories: countTop('power_team_categories'),
+  };
+}
+
+function intelligenceOverviewFromRows(rows: ReturnType<typeof mapPlanRow>[]) {
+  const submitted = rows.filter(r => r.blueprintStatus === 'submitted');
+  const planned = rows.filter(r => r.blueprintStatus && r.blueprintStatus !== 'missing');
+  const totalMgb = rows.reduce((s, r) => s + num(r.msbGoal), 0);
+  const totalActualReceived = rows.reduce((s, r) => s + num(r.actualReceived), 0);
+  const totalReferralNeeded = rows.reduce((s, r) => s + num(r.referralNeeded), 0);
+  const totalReferralReceived = rows.reduce((s, r) => s + num(r.referralReceived), 0);
+  return {
+    totalMembers: rows.length,
+    submittedCount: submitted.length,
+    plannedCount: planned.length,
+    completionPercent: rows.length ? Math.round((submitted.length / rows.length) * 100) : 0,
+    totalMsbBniGoal: totalMgb,
+    totalActualReceived,
+    totalRevenueGap: Math.max(0, totalMgb - totalActualReceived),
+    totalReferralNeeded,
+    totalReferralReceived,
+    totalReferralGap: Math.max(0, totalReferralNeeded - totalReferralReceived),
+    topLookingForCategories: topCountsFromRows(rows, 'lookingForCategories'),
+    topPowerTeamCategories: topCountsFromRows(rows, 'powerTeamCategories'),
+    statusCounts: statusCountsFromRows(rows),
+  };
+}
+
+function dataQualityCenterFromRows(
+  dashboardRows: Awaited<ReturnType<typeof listDashboardRows>>,
+  planRows: ReturnType<typeof mapPlanRow>[],
+) {
+  const planById = new Map(planRows.map(row => [String(row.memberId), row]));
+  const issues: Array<{
+    type: string;
+    level: 'critical' | 'warning' | 'info';
+    memberId: unknown;
+    name: unknown;
+    nickname: unknown;
+    mentorTeam: unknown;
+    title: string;
+    detail: string;
+    nextAction: string;
+  }> = [];
+
+  for (const row of dashboardRows) {
+    const plan = planById.get(String(row.memberId));
+    const bp = (row.blueprint || {}) as Record<string, unknown>;
+    const hasPlan = row.status && row.status !== 'missing';
+    const hasLink = row.linkStatus && row.linkStatus !== 'link_not_created';
+    const looking = arr(bp.looking_for_categories);
+    const power = arr(bp.power_team_categories);
+    const lookingDetail = txt(bp.looking_for_detail);
+    const powerDetail = txt(bp.power_team_detail);
+
+    if (!hasLink && !hasPlan) {
+      issues.push({
+        type: 'missing_link',
+        level: 'critical',
+        memberId: row.memberId,
+        name: row.name,
+        nickname: row.nickname,
+        mentorTeam: row.mentorTeam,
+        title: 'ยังไม่ได้สร้างลิงก์ Blueprint',
+        detail: 'สมาชิกยังไม่มีทางเข้ากรอก MSB Goal',
+        nextAction: 'กด Copy Link แล้วส่งให้สมาชิกผ่าน LINE หรือช่องทางที่สะดวก',
+      });
+    } else if (!hasPlan) {
+      issues.push({
+        type: 'missing_blueprint',
+        level: 'critical',
+        memberId: row.memberId,
+        name: row.name,
+        nickname: row.nickname,
+        mentorTeam: row.mentorTeam,
+        title: 'ยังไม่ได้กรอก Blueprint',
+        detail: 'มีลิงก์แล้วแต่ยังไม่บันทึกแผน',
+        nextAction: 'ให้ Mentor ช่วย follow-up และนัดกรอกให้จบ',
+      });
+    }
+
+    if (hasPlan && (!looking.length || lookingDetail.length < 8)) {
+      issues.push({
+        type: 'weak_looking_for',
+        level: 'warning',
+        memberId: row.memberId,
+        name: row.name,
+        nickname: row.nickname,
+        mentorTeam: row.mentorTeam,
+        title: 'Looking For ยังไม่ชัด',
+        detail: 'ข้อมูลยังไม่พอให้ Growth จับคู่หรือช่วยหา referral ได้แม่น',
+        nextAction: 'ถามเพิ่มว่า “ลูกค้าแบบไหนที่อยากให้เพื่อนมองหาให้?”',
+      });
+    }
+
+    if (hasPlan && (!power.length || powerDetail.length < 8)) {
+      issues.push({
+        type: 'weak_power_team',
+        level: 'warning',
+        memberId: row.memberId,
+        name: row.name,
+        nickname: row.nickname,
+        mentorTeam: row.mentorTeam,
+        title: 'Power Team ยังไม่ชัด',
+        detail: 'ยังไม่รู้ว่าควรจับวง 1-2-1 กับอาชีพกลุ่มไหนก่อน',
+        nextAction: 'เลือก Power Team 2–3 อาชีพที่ส่ง referral ให้กันได้จริง',
+      });
+    }
+
+    if (plan && !txt(plan.profession) && !txt(plan.companyName)) {
+      issues.push({
+        type: 'missing_profession',
+        level: 'info',
+        memberId: row.memberId,
+        name: row.name,
+        nickname: row.nickname,
+        mentorTeam: row.mentorTeam,
+        title: 'ยังไม่มีอาชีพ/บริษัทใน roster',
+        detail: 'Pair Matching จะเดาได้ยากขึ้น',
+        nextAction: 'เติม profession/company_name ตอน sync roster หรือหน้า members',
+      });
+    }
+
+    if (plan && plan.msbGoal > 0 && plan.actualReceived <= 0 && plan.referralReceived <= 0) {
+      issues.push({
+        type: 'no_actual_signal',
+        level: 'warning',
+        memberId: row.memberId,
+        name: row.name,
+        nickname: row.nickname,
+        mentorTeam: row.mentorTeam,
+        title: 'มีแผนแล้ว แต่ยังไม่เห็น Actual signal',
+        detail: 'ยังไม่เจอ receive หรือ referral received ในข้อมูลปัจจุบัน',
+        nextAction: 'เช็ค R2Y / Traffic Light sync หรือช่วยวาง action เริ่มต้น',
+      });
+    }
+  }
+
+  const counts = issues.reduce<Record<string, number>>((acc, issue) => {
+    acc[issue.level] = (acc[issue.level] || 0) + 1;
+    acc[issue.type] = (acc[issue.type] || 0) + 1;
+    return acc;
+  }, {});
+
+  return {
+    summary: {
+      totalIssues: issues.length,
+      critical: counts.critical || 0,
+      warning: counts.warning || 0,
+      info: counts.info || 0,
+      missingLink: counts.missing_link || 0,
+      missingBlueprint: counts.missing_blueprint || 0,
+      weakLookingFor: counts.weak_looking_for || 0,
+      weakPowerTeam: counts.weak_power_team || 0,
+      missingProfession: counts.missing_profession || 0,
+      noActualSignal: counts.no_actual_signal || 0,
+    },
+    issues: issues
+      .sort((a, b) => {
+        const weight = { critical: 3, warning: 2, info: 1 };
+        return weight[b.level] - weight[a.level] || txt(a.mentorTeam).localeCompare(txt(b.mentorTeam), 'th') || txt(a.name).localeCompare(txt(b.name), 'th');
+      })
+      .slice(0, 30),
+  };
+}
+
 export async function handleMemberSuccessBlueprints(p: Record<string, unknown>): Promise<Response> {
   const db = getServiceClient();
   const action = String(p.action || '');
@@ -951,40 +1148,38 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       const auth = await requireAuth(db, p, DASHBOARD_ROLES);
       if (!auth.ok) return errResponse(auth.error!);
       const rows = await listDashboardRows(db, auth, year);
-      const submitted = rows.filter(r => r.status === 'submitted');
-      const drafts = rows.filter(r => r.status === 'draft');
-      const blueprints = rows.map(r => r.blueprint).filter(Boolean) as Record<string, unknown>[];
-      const totalExpectedSalesFromBni = blueprints.reduce((s, b) => s + num(b.expected_sales_from_bni_year), 0);
-      const totalReferralDemand = blueprints.reduce((s, b) => s + num(b.referral_needed), 0);
-      const avgConversionRate = blueprints.length
-        ? blueprints.reduce((s, b) => s + num(b.conversion_rate_percent), 0) / blueprints.length
-        : 0;
-      const avgReferralPerWeek = blueprints.length
-        ? blueprints.reduce((s, b) => s + num(b.referral_per_week), 0) / blueprints.length
-        : 0;
-      const countTop = (field: string) => {
-        const counts: Record<string, number> = {};
-        for (const b of blueprints) for (const item of arr(b[field])) counts[item] = (counts[item] || 0) + 1;
-        return Object.entries(counts)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 8)
-          .map(([name, count]) => ({ name, count }));
-      };
       return jsonResponse({
         ok: true,
         blueprintYear: year,
-        summary: {
-          totalMembers: rows.length,
-          submitted: submitted.length,
-          drafts: drafts.length,
-          missing: rows.filter(r => r.status === 'missing').length,
-          completionPct: rows.length ? Math.round((submitted.length / rows.length) * 100) : 0,
-          totalExpectedSalesFromBni,
-          totalReferralDemand,
-          avgConversionRate,
-          avgReferralPerWeek,
-          topLookingForCategories: countTop('looking_for_categories'),
-          topPowerTeamCategories: countTop('power_team_categories'),
+        summary: summarizeDashboardRows(rows),
+      });
+    }
+
+    case 'getMSBDashboardBundle': {
+      const auth = await requireAuth(db, p, DASHBOARD_ROLES);
+      if (!auth.ok) return errResponse(auth.error!);
+      const [dashboardRows, planRows, followups] = await Promise.all([
+        listDashboardRows(db, auth, year),
+        fetchPlanRows(db, auth, year),
+        buildFollowUpQueue(db, auth),
+      ]);
+      const summary = summarizeDashboardRows(dashboardRows);
+      const overview = intelligenceOverviewFromRows(planRows);
+      return jsonResponse({
+        ok: true,
+        blueprintYear: year,
+        rows: dashboardRows,
+        summary,
+        overview,
+        planVsActual: { rows: planRows },
+        radar: supportRadar(planRows),
+        matching: buildPairMatching(planRows),
+        followups,
+        dataQuality: dataQualityCenterFromRows(dashboardRows, planRows),
+        meta: {
+          bundled: true,
+          generatedAt: new Date().toISOString(),
+          source: 'getMSBDashboardBundle',
         },
       });
     }
@@ -993,30 +1188,10 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       const auth = await requireAuth(db, p, DASHBOARD_ROLES);
       if (!auth.ok) return errResponse(auth.error!);
       const rows = await fetchPlanRows(db, auth, year);
-      const submitted = rows.filter(r => r.blueprintStatus === 'submitted');
-      const planned = rows.filter(r => r.blueprintStatus && r.blueprintStatus !== 'missing');
-      const totalMgb = rows.reduce((s, r) => s + num(r.msbGoal), 0);
-      const totalActualReceived = rows.reduce((s, r) => s + num(r.actualReceived), 0);
-      const totalReferralNeeded = rows.reduce((s, r) => s + num(r.referralNeeded), 0);
-      const totalReferralReceived = rows.reduce((s, r) => s + num(r.referralReceived), 0);
       return jsonResponse({
         ok: true,
         blueprintYear: year,
-        overview: {
-          totalMembers: rows.length,
-          submittedCount: submitted.length,
-          plannedCount: planned.length,
-          completionPercent: rows.length ? Math.round((submitted.length / rows.length) * 100) : 0,
-          totalMsbBniGoal: totalMgb,
-          totalActualReceived,
-          totalRevenueGap: Math.max(0, totalMgb - totalActualReceived),
-          totalReferralNeeded,
-          totalReferralReceived,
-          totalReferralGap: Math.max(0, totalReferralNeeded - totalReferralReceived),
-          topLookingForCategories: topCountsFromRows(rows, 'lookingForCategories'),
-          topPowerTeamCategories: topCountsFromRows(rows, 'powerTeamCategories'),
-          statusCounts: statusCountsFromRows(rows),
-        },
+        overview: intelligenceOverviewFromRows(rows),
       });
     }
 

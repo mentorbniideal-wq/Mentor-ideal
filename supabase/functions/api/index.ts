@@ -198,6 +198,7 @@ const ROUTES: Record<string, string> = {
   'generateMemberSuccessBlueprintLink': 'member-success-blueprints',
   'getMemberSuccessBlueprintsForDashboard': 'member-success-blueprints',
   'getMemberSuccessBlueprintSummary': 'member-success-blueprints',
+  'getMSBDashboardBundle': 'member-success-blueprints',
   'getMSBIntelligenceOverview': 'member-success-blueprints',
   'getMSBPlanVsActual': 'member-success-blueprints',
   'getMSBSupportRadar': 'member-success-blueprints',

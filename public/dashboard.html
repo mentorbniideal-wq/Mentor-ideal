@@ -2113,6 +2113,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       </div>
       <div id="msb-mc-summary" class="kgrid" style="margin-bottom:14px"></div>
       <div id="msb-mc-intel" class="row2" style="margin-bottom:14px"></div>
+      <div id="msb-mc-data-quality" style="margin-bottom:14px"></div>
       <div id="msb-mc-followups" style="margin-bottom:14px"></div>
       <div id="msb-mc-radar" style="margin-bottom:14px"></div>
       <div id="msb-mc-pairs" style="margin-bottom:14px"></div>
@@ -2141,6 +2142,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       </div>
       <div id="msb-gr-summary" class="kgrid" style="margin-bottom:14px"></div>
       <div id="msb-gr-intel" class="row2" style="margin-bottom:14px"></div>
+      <div id="msb-gr-data-quality" style="margin-bottom:14px"></div>
       <div id="msb-gr-followups" style="margin-bottom:14px"></div>
       <div id="msb-gr-radar" style="margin-bottom:14px"></div>
       <div id="msb-gr-pairs" style="margin-bottom:14px"></div>
@@ -10685,7 +10687,7 @@ function tlC(tl){return tl==='green'?'#00d4aa':tl==='yellow'?'#ffc14d':tl==='red
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 // ── Member Success Blueprint (MSB) ───────────────────────────
-var MSB={mc:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,pairs:null,followups:null,year:new Date().getFullYear()},gr:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,pairs:null,followups:null,year:new Date().getFullYear()}};
+var MSB={mc:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,pairs:null,followups:null,dataQuality:null,year:new Date().getFullYear()},gr:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,pairs:null,followups:null,dataQuality:null,year:new Date().getFullYear()}};
 function msbMoney(v){v=Number(v)||0;if(v>=1000000)return '฿'+(v/1000000).toFixed(v>=10000000?0:1)+'M';if(v>=1000)return '฿'+Math.round(v/1000)+'K';return '฿'+Math.round(v).toLocaleString('th-TH');}
 function msbNum(v,d){v=Number(v)||0;return v.toLocaleString('th-TH',{maximumFractionDigits:d==null?1:d});}
 function msbYearSelect(group){
@@ -10738,6 +10740,25 @@ function msbLoad(group,force){
   var table=document.getElementById(group==='gr'?'msb-gr-table':'msb-mc-table');
   if(table)table.innerHTML='<div style="text-align:center;padding:36px;color:var(--sub)">⏳ กำลังโหลด Blueprint...</div>';
   MSB[group].year=year;
+  gsr('getMSBDashboardBundle',{role:S.role,blueprintYear:year},function(b){
+    if(b&&b.ok){
+      MSB[group].rows=b.rows||[];
+      MSB[group].summary=b.summary||null;
+      MSB[group].overview=b.overview||null;
+      MSB[group].intelRows=(b.planVsActual&&b.planVsActual.rows)||b.rowsPlan||[];
+      MSB[group].radar=b.radar||null;
+      MSB[group].pairs=b.matching||null;
+      MSB[group].followups=b.followups||null;
+      MSB[group].dataQuality=b.dataQuality||null;
+      MSB[group].loaded=true;
+      msbRender(group);
+      return;
+    }
+    console.warn('[MSB] bundle fallback:',b&&b.error);
+    msbLoadLegacy(group,year,table);
+  });
+}
+function msbLoadLegacy(group,year,table){
   gsr('getMemberSuccessBlueprintsForDashboard',{role:S.role,blueprintYear:year},function(r){
     if(!r||!r.ok){if(table)table.innerHTML='<div style="padding:26px;color:var(--re)">โหลดข้อมูลไม่สำเร็จ: '+esc(r&&r.error||'unknown')+'</div>';return;}
     MSB[group].rows=r.rows||[];
@@ -10753,6 +10774,7 @@ function msbLoad(group,force){
               MSB[group].pairs=(pm&&pm.ok)?pm.matching:null;
               gsr('getMSBFollowUpQueue',{role:S.role},function(fq){
                 MSB[group].followups=(fq&&fq.ok)?fq.queue:{error:(fq&&fq.error)||'โหลด Follow-up Queue ไม่สำเร็จ'};
+                MSB[group].dataQuality=null;
                 MSB[group].loaded=true;
                 msbRender(group);
               });
@@ -10864,6 +10886,45 @@ function msbFollowUpRender(group){
     +'<span style="font-size:11px;background:rgba(0,212,170,.12);color:var(--gr);border:1px solid rgba(0,212,170,.28);border-radius:999px;padding:5px 9px;font-weight:800">Tasks '+msbNum(sm.growthTasks||0,0)+'</span>'
     +'</div></div>'
     +(items.length?'<div class="row2">'+items.slice(0,8).map(itemCard).join('')+'</div>':'<div style="font-size:12px;color:var(--sub);padding:18px;border-top:1px solid var(--bd)">ไม่มี Follow-up ที่ค้างอยู่ตอนนี้ — หน้า dashboard หายใจโล่งขึ้นนิดนึงครับ</div>')
+    +'</div>';
+}
+function msbDataQualityRender(group){
+  var wrap=document.getElementById(group==='gr'?'msb-gr-data-quality':'msb-mc-data-quality');
+  if(!wrap)return;
+  var dq=MSB[group]&&MSB[group].dataQuality;
+  if(!dq){wrap.innerHTML='';return;}
+  var sm=dq.summary||{}, issues=dq.issues||[];
+  function levelMeta(level){
+    if(level==='critical')return ['ต้องรีบปิด','var(--re)','🚨'];
+    if(level==='warning')return ['ควรเติม','var(--ye)','⚠️'];
+    return ['ช่วยให้แม่นขึ้น','var(--bl)','ℹ️'];
+  }
+  function issueCard(x){
+    var lv=levelMeta(x.level);
+    return '<div style="border-top:1px solid var(--bd);padding:10px 0">'
+      +'<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">'
+      +'<div style="min-width:0"><div style="font-size:12px;font-weight:900">'+esc(x.nickname||x.name||'—')+'</div>'
+      +'<div style="font-size:10px;color:var(--sub);margin-top:2px">'+esc(x.mentorTeam||'—')+'</div></div>'
+      +'<span style="font-size:10px;color:'+lv[1]+';font-weight:900;white-space:nowrap">'+lv[2]+' '+lv[0]+'</span></div>'
+      +'<div style="font-size:11px;color:var(--tx);line-height:1.5;margin-top:7px;font-weight:800">'+esc(x.title||'')+'</div>'
+      +'<div style="font-size:10px;color:var(--sub);line-height:1.5;margin-top:4px">'+esc(x.detail||'')+'</div>'
+      +'<div style="font-size:10px;color:var(--ac);line-height:1.5;margin-top:6px">Next: '+esc(x.nextAction||'เติมข้อมูลให้ครบ')+'</div>'
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'
+      +(x.name?msbActionBtn('📊 เปิดสมาชิก','openIMD('+JSON.stringify(x.name)+')','var(--ac)'):'')
+      +(x.type==='missing_link'&&msbCanManageLinks()?msbActionBtn('🔗 Copy Link','msbGenerateLink('+JSON.stringify(x.memberId)+','+JSON.stringify(group)+')','var(--ye)'):'')
+      +(x.level!=='info'?msbActionBtn('⚡ Task','msbCreateTask('+JSON.stringify(x.mentorTeam||'')+','+JSON.stringify(x.name||'')+','+JSON.stringify('MSB Data Quality')+','+JSON.stringify((x.title||'')+' · '+(x.nextAction||''))+','+JSON.stringify(x.level==='critical'?'🚨':'🧹')+')','var(--ye)'):'')
+      +'</div>'
+      +'</div>';
+  }
+  wrap.innerHTML='<div style="background:var(--sf);border:1px solid var(--bd);border-radius:14px;padding:14px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
+    +'<div><h3 style="font-size:14px;font-weight:900;margin:0">🧹 Data Quality Center</h3><div style="font-size:11px;color:var(--sub);margin-top:3px">จุดที่ควรเติมข้อมูล เพื่อให้ Growth / Mentor จับคู่และติดตามได้แม่นขึ้น</div></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    +'<span style="font-size:11px;background:rgba(255,107,107,.12);color:var(--re);border:1px solid rgba(255,107,107,.28);border-radius:999px;padding:5px 9px;font-weight:800">Critical '+msbNum(sm.critical||0,0)+'</span>'
+    +'<span style="font-size:11px;background:rgba(199,167,106,.12);color:var(--ye);border:1px solid rgba(199,167,106,.28);border-radius:999px;padding:5px 9px;font-weight:800">Warning '+msbNum(sm.warning||0,0)+'</span>'
+    +'<span style="font-size:11px;background:rgba(96,165,250,.12);color:var(--bl);border:1px solid rgba(96,165,250,.28);border-radius:999px;padding:5px 9px;font-weight:800">Info '+msbNum(sm.info||0,0)+'</span>'
+    +'</div></div>'
+    +(issues.length?'<div class="row2">'+issues.slice(0,8).map(issueCard).join('')+'</div>':'<div style="font-size:12px;color:var(--sub);padding:18px;border-top:1px solid var(--bd)">ข้อมูลหลักพร้อมใช้งานครับ — ตอนนี้ระบบมีวัตถุดิบพอสำหรับการช่วยจับคู่และ follow-up</div>')
     +'</div>';
 }
 function msbRadarRender(group){
@@ -11013,6 +11074,7 @@ function msbRender(group){
       tops.innerHTML=topBox('Top Looking For',sm.topLookingForCategories)+topBox('Top Power Team',sm.topPowerTeamCategories);
     }
   }
+  msbDataQualityRender(group);
   msbFollowUpRender(group);
   msbRadarRender(group);
   msbPairsRender(group);
