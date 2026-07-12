@@ -961,7 +961,9 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           zone = 'balanced'; balanced++;
         }
         const bniDaysN = Number(m.bni_days) || 0;
+        const memberId = String(m.id || '');
         return {
+          id: memberId, memberId,
           name: m.name, nick: m.nickname, mentor: m.mentor_team,
           score: Number(m.display_score) || 0, tl, zone,
           given, recv, tyfcb, absent, attend,

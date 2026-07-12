@@ -646,7 +646,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       }));
 
       return jsonResponse({
-        ok: true, name: mv.name, nick: mv.nickname, mentor: mv.mentor_team,
+        ok: true, memberId, name: mv.name, nick: mv.nickname, mentor: mv.mentor_team,
         score: displayScore, tl, bniScore: displayScore, bniTl: tl,
         cats, attendRisk, fastTrack, priorities, balance,
         given: Number(mv.given_thb) || 0, recv: Number(mv.received_thb) || 0,

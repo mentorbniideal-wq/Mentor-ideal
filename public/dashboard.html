@@ -8991,8 +8991,15 @@ function openIMD(name){
   // Fetch business description if not yet loaded
   if(mem.business===undefined){
     gsr('getMemberDetail',{memberName:name},function(r){
-      if(r.ok&&r.business!=null){mem.business=r.business;var s=document.getElementById('imd-s0');if(s)s.innerHTML=buildIMDScore(mem);}
+      if(r.ok){
+        if(r.memberId)mem.memberId=r.memberId;
+        if(r.business!=null)mem.business=r.business;
+        var s=document.getElementById('imd-s0');if(s)s.innerHTML=buildIMDScore(mem);
+        loadIMDMSB(mem);
+      }
     });
+  }else{
+    loadIMDMSB(mem);
   }
   var tl=S.role==='mc'?mem.bniTl:mem.tl;
   var sc=S.role==='mc'?mem.bniScore:mem.score;
@@ -9421,7 +9428,7 @@ function buildIMDCoachPlan(m){
 }
 function buildIMDGrOverview(m){
   var ar=m.attendRate||0;
-  return'<div class="m360g" style="margin-bottom:14px">'+
+  return imdMSBPlaceholder(m)+'<div class="m360g" style="margin-bottom:14px">'+
     '<div class="m360c"><div class="m360l">PALMS Score</div><div style="font-size:36px;font-weight:800;color:'+tlC(m.tl)+'">'+( m.score||'—')+'</div><span class="badge b-'+tlK(m.tl)+'">'+tlL(m.tl)+'</span></div>'+
     '<div class="m360c"><div class="m360l">Attendance</div><div style="font-size:28px;font-weight:800;color:'+(ar>=80?'var(--gr)':ar>=60?'var(--ye)':'var(--re)')+'">'+ar+'%</div><div style="font-size:11px;color:var(--sub)">ขาด '+m.absent+' ครั้ง</div></div>'+
   '</div>'+
@@ -9478,17 +9485,93 @@ function _findGshMember(name, nick){
   return null;
 }
 
+function imdMSBId(name){return 'imd-msb-'+String(name||'').replace(/[^a-zA-Z0-9ก-๙_-]/g,'_');}
+function imdMSBPlaceholder(m){
+  return '<div id="'+imdMSBId(m.name)+'" style="background:var(--sf);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:14px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">'
+    +'<div><div style="font-size:14px;font-weight:900">🎯 MSB Goal Intelligence</div><div style="font-size:11px;color:var(--sub);margin-top:3px">เป้าหมายจาก Blueprint + Actual + คำแนะนำสำหรับ Mentor/Growth</div></div>'
+    +'<span style="font-size:11px;color:var(--sub)">⏳ กำลังโหลด...</span>'
+    +'</div></div>';
+}
+function imdMSBRetry(name,memberId){
+  var mem=(D.mem||[]).find(function(x){return x.name===name;})||(G.mem||[]).find(function(x){return x.name===name;})||{name:name};
+  if(memberId)mem.memberId=memberId;
+  if(mem.memberId){loadIMDMSB(mem);return;}
+  gsr('getMemberDetail',{memberName:name},function(r){
+    if(r&&r.ok){
+      mem.memberId=r.memberId;
+      if(r.business!=null)mem.business=r.business;
+    }
+    loadIMDMSB(mem);
+  });
+}
+function loadIMDMSB(m){
+  if(!m||!m.name)return;
+  var box=document.getElementById(imdMSBId(m.name));
+  if(!box)return;
+  if(!m.memberId){
+    box.innerHTML='<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><div style="font-size:14px;font-weight:900;color:var(--ye)">🎯 MSB Goal Intelligence</div><div style="font-size:11px;color:var(--sub);margin-top:3px">ยังไม่พบ member_id สำหรับโหลด Blueprint</div></div><button class="bsm" onclick="imdMSBRetry('+JSON.stringify(m.name).replace(/"/g,'&quot;')+')" style="font-size:10px">↺</button></div>';
+    return;
+  }
+  var year=new Date().getFullYear();
+  gsr('getMSBMemberIntelligence',{role:S.role,memberId:m.memberId,blueprintYear:year},function(r){
+    if(!r||!r.ok){
+      box.innerHTML='<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><div style="font-size:14px;font-weight:900;color:var(--re)">🎯 MSB Goal Intelligence</div><div style="font-size:11px;color:var(--sub);margin-top:3px">โหลด MSB ไม่สำเร็จ</div></div><button class="bsm" onclick="imdMSBRetry('+JSON.stringify(m.name).replace(/"/g,'&quot;')+','+JSON.stringify(m.memberId).replace(/"/g,'&quot;')+')" style="font-size:10px">↺</button></div><div style="font-size:11px;color:var(--re);margin-top:10px">'+esc(r&&r.error||'unknown')+'</div>';
+      return;
+    }
+    gsr('getMSBMatchingSuggestions',{role:S.role,memberId:m.memberId,blueprintYear:year},function(pm){
+      renderIMDMSB(box,r,(pm&&pm.ok)?(pm.suggestions||[]):[]);
+    });
+  });
+}
+function renderIMDMSB(box,r,suggestions){
+  var ps=r.planSummary||{}, as=r.actualSummary||{}, gs=r.gapSummary||{}, member=r.member||{};
+  var revPct=Number(gs.revenueProgressPercent)||0, refPct=Number(gs.referralProgressPercent)||0;
+  function pctColor(p){return p>=70?'var(--gr)':p>=40?'var(--ye)':'var(--re)';}
+  function mini(label,val,sub,color){
+    return '<div class="m360c"><div class="m360l">'+esc(label)+'</div><div style="font-size:20px;font-weight:900;color:'+(color||'var(--tx)')+'">'+val+'</div><div style="font-size:10px;color:var(--sub);margin-top:3px">'+esc(sub||'')+'</div></div>';
+  }
+  function bar(label,pct,color){
+    return '<div style="margin-top:9px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span>'+esc(label)+'</span><b style="color:'+color+'">'+msbNum(pct,1)+'%</b></div><div style="height:7px;background:var(--bd);border-radius:999px;overflow:hidden"><div style="height:100%;width:'+Math.max(0,Math.min(100,pct))+'%;background:'+color+';border-radius:999px"></div></div></div>';
+  }
+  var insights=(r.coachingInsights||[]).filter(Boolean);
+  var lf=r.lookingFor||{}, pt=r.powerTeam||{};
+  var statusText=(gs.statusLabel||gs.status||'—');
+  box.innerHTML='<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
+    +'<div><div style="font-size:14px;font-weight:900">🎯 MSB Goal Intelligence</div><div style="font-size:11px;color:var(--sub);margin-top:3px">'+esc(member.nickname||member.name||'สมาชิก')+' · '+esc(member.mentorTeam||'—')+' · '+esc(statusText)+'</div></div>'
+    +'<span style="font-size:10px;color:'+pctColor(Math.max(revPct,refPct))+';font-weight:900;border:1px solid var(--bd);border-radius:999px;padding:5px 9px">'+esc(statusText)+'</span>'
+    +'</div>'
+    +'<div class="m360g" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:12px">'
+    +mini('MSB Goal',msbMoney(ps.msbGoal||0),'เป้ารายได้จาก BNI','var(--ye)')
+    +mini('Actual Received',msbMoney(as.actualReceived||0),'ยอดรับจริง','var(--gr)')
+    +mini('Revenue Gap',msbMoney(gs.revenueGap||0),'ส่วนที่ยังต้องปิด',gs.revenueGap>0?'var(--re)':'var(--gr)')
+    +mini('Referral',msbNum(as.rr||0,0)+' / '+msbNum(ps.referralNeeded||0,0),'received / needed',pctColor(refPct))
+    +'</div>'
+    +bar('Revenue Progress',revPct,pctColor(revPct))
+    +bar('Referral Progress',refPct,pctColor(refPct))
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:12px">'
+    +'<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:12px;padding:11px"><div style="font-size:11px;font-weight:900;color:var(--ac)">Looking For</div><div style="font-size:12px;color:var(--tx);line-height:1.55;margin-top:5px">'+esc((lf.categories||[]).join(', ')||'—')+'</div><div style="font-size:10px;color:var(--sub);line-height:1.5;margin-top:4px">'+esc(lf.detail||'')+'</div></div>'
+    +'<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:12px;padding:11px"><div style="font-size:11px;font-weight:900;color:var(--ac)">Power Team</div><div style="font-size:12px;color:var(--tx);line-height:1.55;margin-top:5px">'+esc((pt.categories||[]).join(', ')||'—')+'</div><div style="font-size:10px;color:var(--sub);line-height:1.5;margin-top:4px">'+esc(pt.detail||'')+'</div></div>'
+    +'</div>'
+    +(insights.length?'<div style="margin-top:12px;background:rgba(199,167,106,.10);border:1px solid rgba(199,167,106,.25);border-radius:12px;padding:11px"><div style="font-size:11px;font-weight:900;color:var(--ye);margin-bottom:5px">Suggested Support</div>'+insights.slice(0,3).map(function(x){return '<div style="font-size:11px;color:var(--tx);line-height:1.55">• '+esc(x)+'</div>';}).join('')+'</div>':'')
+    +(suggestions.length?'<div style="margin-top:12px"><div style="font-size:11px;font-weight:900;color:var(--gr);margin-bottom:6px">🤝 Suggested Matching</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">'+suggestions.slice(0,3).map(function(s){var reason=(s.matchedCategories&&s.matchedCategories.length)?('Matched: '+s.matchedCategories.join(', ')):(s.label||'น่าคุย 1-2-1');return '<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:10px;padding:9px"><div style="font-size:12px;font-weight:900">'+esc(s.nickname||s.name||'—')+'</div><div style="font-size:10px;color:var(--sub);margin-top:2px">'+esc([s.mentorTeam,s.profession].filter(Boolean).join(' · ')||'—')+'</div><div style="font-size:10px;color:var(--ac);margin-top:5px">'+esc(reason.slice(0,90))+'</div></div>';}).join('')+'</div></div>':'')
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px">'
+    +msbActionBtn('⚡ สร้าง Task','msbCreateTask('+JSON.stringify(member.mentorTeam||'')+','+JSON.stringify(member.name||'')+','+JSON.stringify('MSB Member 360')+','+JSON.stringify((insights[0]||'ติดตาม MSB Goal / Actual gap'))+','+JSON.stringify(gs.status==='critical'?'🚨':'🎯')+')','var(--ye)')
+    +msbActionBtn('📋 Copy Summary','msbCopyText('+JSON.stringify('MSB Goal: '+msbMoney(ps.msbGoal||0)+'\\nActual Received: '+msbMoney(as.actualReceived||0)+'\\nRevenue Gap: '+msbMoney(gs.revenueGap||0)+'\\nReferral: '+msbNum(as.rr||0,0)+'/'+msbNum(ps.referralNeeded||0,0)+'\\nSupport: '+(insights[0]||''))+','+JSON.stringify('MSB Summary')+')','var(--ac)')
+    +'</div>';
+}
 function buildIMDGrowthData(m){
+  var msbHtml=imdMSBPlaceholder(m);
   var gMem=_findGshMember(m.name,m.nick||'');
   if(!_gshLoaded){
-    return'<div class="sh"><h2>💰 Growth Data</h2></div>'
+    return msbHtml+'<div class="sh"><h2>💰 Growth Data</h2></div>'
       +'<div style="text-align:center;padding:30px">'
       +'<div style="color:var(--sub);margin-bottom:14px">ยังไม่ได้โหลด Growth Sheet</div>'
       +'<button class="bx" onclick="imdGrowthLoad(\''+esc(m.name)+'\',8)">📊 โหลด Growth Data</button>'
       +'</div>';
   }
   if(!gMem){
-    return'<div class="sh"><h2>💰 Growth Data</h2></div>'
+    return msbHtml+'<div class="sh"><h2>💰 Growth Data</h2></div>'
       +'<div class="es">ไม่พบข้อมูล Growth ของ '+esc(m.name)+'<br><small style="color:var(--sub)">ชื่อใน BNI อาจต่างจากชื่อใน Growth Sheet</small></div>';
   }
   var gT=gMem.target||0,gR=gMem.received||0;
@@ -9510,7 +9593,7 @@ function buildIMDGrowthData(m){
     colCards+='<div class="m360c"><div class="m360l">'+esc(hdr)+'</div>'
       +'<div style="font-size:16px;font-weight:700;color:'+color+'">'+esc(display)+'</div></div>';
   });
-  return'<div class="sh"><h2>💰 Growth — '+esc(gMem.nick||gMem.name)+'</h2></div>'
+  return msbHtml+'<div class="sh"><h2>💰 Growth — '+esc(gMem.nick||gMem.name)+'</h2></div>'
     +'<div style="background:var(--sf2);border-radius:12px;padding:14px;margin-bottom:14px;display:flex;align-items:center;gap:14px">'
     +'<div style="text-align:center;min-width:64px">'
     +'<div style="font-size:10px;color:var(--sub)">ทำได้</div>'
@@ -9539,7 +9622,7 @@ function imdGrowthLoad(name,secIdx){
     }
     _gshData=r;_gshLoaded=true;_rvData=r;_rvLoaded=true;
     var mem=(D.mem||[]).find(function(mm){return mm.name===name;});
-    if(mem&&sec)sec.innerHTML=buildIMDGrowthData(mem);
+    if(mem&&sec){sec.innerHTML=buildIMDGrowthData(mem);loadIMDMSB(mem);}
   });
 }
 
@@ -10789,7 +10872,7 @@ function msbSummaryCard(label,value,sub,color){
   return '<div class="kc"><div class="kl">'+esc(label)+'</div><div class="kv" style="color:'+(color||'var(--tx)')+'">'+value+'</div><div style="font-size:11px;color:var(--sub);margin-top:6px">'+esc(sub||'')+'</div></div>';
 }
 function msbActionBtn(label,fn,color){
-  return '<button class="bsm" onclick="'+fn+'" style="font-size:10px;padding:5px 8px;border-color:'+color+';color:'+color+'">'+label+'</button>';
+  return '<button class="bsm" onclick="'+esc(fn)+'" style="font-size:10px;padding:5px 8px;border-color:'+color+';color:'+color+'">'+label+'</button>';
 }
 function msbCreateTask(team,memberName,taskType,note,priority){
   if(!team||!memberName){toast('ข้อมูลทีม/สมาชิกไม่ครบ','err');return;}
