@@ -1354,7 +1354,7 @@ main{
     <button class="tb" onclick="sw('mc-risk',this,'mc')">⚠️ Risk<span class="nb" id="badge-risk"></span></button>
     <button class="tb" onclick="sw('mc-msg',this,'mc');loadOnboardEditor()">💬 Messages<span class="nb" id="badge-msg"></span></button>
     <button class="tb" onclick="sw('mc-rep',this,'mc')">📋 Reports<span class="nb" id="badge-rep"></span></button>
-    <button class="tb" id="mc-ac-tab" onclick="openActionCenter('pq')">⚡ Action Center<span class="nb" id="badge-pq"></span><span class="nb" id="badge-line-issue" style="margin-left:2px;background:#f59e0b"></span><span class="nb" id="badge-coach" style="margin-left:2px"></span></button>
+    <button class="tb" id="mc-ac-tab" onclick="openActionCenter('pq')">⚡ Action Center<span class="nb" id="badge-pq"></span><span class="nb" id="badge-inbox" style="margin-left:2px;background:#f59e0b"></span><span class="nb" id="badge-line-issue" style="margin-left:2px;background:#f59e0b"></span><span class="nb" id="badge-coach" style="margin-left:2px"></span></button>
     <button class="tb" onclick="sw('mc-gw',this,'mc');renderGrowthWatch()">🌱 Growth Watch<span class="nb" id="badge-gw"></span></button>
     <button class="tb" onclick="sw('mc-msb',this,'mc');msbLoad('mc')">🎯 Blueprint</button>
     <button class="tb" onclick="sw('mc-8w',this,'mc');load8WProgress()">🗓 8W Progress<span class="nb" id="badge-8w"></span></button>
@@ -3755,6 +3755,7 @@ function renderMCAll(){
   renderGWBadge();
   loadNotifications();
   loadLineQuota();
+  if(typeof loadUnifiedFollowUpInbox==='function')loadUnifiedFollowUpInbox();
 }
 
 var _lqLoaded=false;
@@ -10453,10 +10454,11 @@ function acSub(sub){
   else if(sub==='ft')renderFT();
   else if(sub==='coach'){renderCoach();}
   // sync badges
-  var bpq=document.getElementById('ac-badge-pq'),bco=document.getElementById('ac-badge-coach');
-  var bpq2=document.getElementById('badge-pq'),bco2=document.getElementById('badge-coach');
+  var bpq=document.getElementById('ac-badge-pq'),bco=document.getElementById('ac-badge-coach'),bin=document.getElementById('ac-badge-inbox');
+  var bpq2=document.getElementById('badge-pq'),bco2=document.getElementById('badge-coach'),bin2=document.getElementById('badge-inbox');
   if(bpq&&bpq2)bpq.textContent=bpq2.textContent;
   if(bco&&bco2)bco.textContent=bco2.textContent;
+  if(bin&&bin2)bin.textContent=bin2.textContent;
 }
 
 var _ufiLoaded=false,_ufiData=null;
@@ -10487,10 +10489,14 @@ function ufiSummaryChip(label,value,color){
 }
 function ufiOpenTarget(target){
   if(target==='line'){sw('mc-usage',null,'mc');setTimeout(function(){actSw('line',document.getElementById('act-tab-line'));loadLineActivityTimeline(true);},80);return;}
-  if(target==='renewal'){sw('mc-renewal',null,'mc');return;}
+  if(target==='renewal'){sw('mc-ren',null,'mc');return;}
   if(target==='passport'){sw('mc-passport',null,'mc');loadPassportBoard();return;}
   if(target==='msb'){sw('mc-msb',null,'mc');msbLoad('mc');return;}
   openActionCenter('pq');
+}
+function ufiOpenMember(name){
+  if(!name){toast('ยังไม่มีชื่อสมาชิกสำหรับเปิด Member 360','err');return;}
+  openIMD(name);
 }
 function ufiCard(x){
   var lm=ufiLevelMeta(x.level),tm=ufiTypeMeta(x.type);
@@ -10513,6 +10519,7 @@ function ufiCard(x){
       +'</div>'
     +'</div>'
     +'<div style="display:flex;justify-content:flex-end;margin-top:10px">'
+      +(x.memberName?'<button class="bsm" onclick="ufiOpenMember('+JSON.stringify(x.memberName).replace(/"/g,'&quot;')+')" style="font-size:10px;margin-right:6px">👤 Member 360</button>':'')
       +'<button class="bsm bac" onclick="ufiOpenTarget('+JSON.stringify(x.actionTarget||'pq').replace(/"/g,'&quot;')+')" style="font-size:10px">'+esc(x.actionLabel||'เปิด')+' ▸</button>'
     +'</div>'
   +'</article>';
@@ -10532,8 +10539,9 @@ function loadUnifiedFollowUpInbox(force){
 }
 function renderUnifiedFollowUpInbox(){
   var data=_ufiData||{},items=data.items||[],sum=document.getElementById('ufi-summary'),list=document.getElementById('ufi-list');
-  var badgeEl=document.getElementById('ac-badge-inbox');
-  if(badgeEl)badgeEl.textContent=items.filter(function(x){return ['critical','overdue','urgent'].indexOf(x.level)>=0;}).length||'';
+  var urgentCount=items.filter(function(x){return ['critical','overdue','urgent'].indexOf(x.level)>=0;}).length||0;
+  badge('ac-badge-inbox',urgentCount);
+  badge('badge-inbox',urgentCount);
   if(sum){
     var levels=data.levels||{},counts=data.counts||{};
     sum.innerHTML=[

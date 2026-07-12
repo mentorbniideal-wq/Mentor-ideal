@@ -196,6 +196,17 @@ async function buildUnifiedFollowUpInbox(
     || renewalsRes.error || passportRes.error || msbRes.error;
   if (firstError) throw new Error(firstError.message);
 
+  const coreMemberIds = Array.from(new Set(((coreIssuesRes.data || []) as Record<string, unknown>[])
+    .map((row) => txt(row.member_id))
+    .filter(Boolean)));
+  const { data: coreMembers } = coreMemberIds.length
+    ? await db.from('members').select('id, name, nickname, mentor_team').in('id', coreMemberIds)
+    : { data: [] };
+  const coreMemberById: Record<string, Record<string, unknown>> = {};
+  for (const member of (coreMembers || []) as Record<string, unknown>[]) {
+    coreMemberById[txt(member.id)] = member;
+  }
+
   for (const row of (lineIssuesRes.data || []) as Record<string, unknown>[]) {
     const m = memberFromJoined(row);
     const ageDays = daysBetween(row.reported_at, now) ?? 0;
@@ -223,6 +234,7 @@ async function buildUnifiedFollowUpInbox(
     const ageDays = daysBetween(row.opened_at, now) ?? 0;
     const dueDays = daysUntil(row.follow_up_at, now);
     const overdue = dueDays !== null ? dueDays < 0 : ageDays >= 14;
+    const member = coreMemberById[txt(row.member_id)] || {};
     push({
       id: `core:${row.id}`,
       source: 'core_issues',
@@ -231,9 +243,9 @@ async function buildUnifiedFollowUpInbox(
       level: overdue ? 'overdue' : (dueDays !== null && dueDays <= 3) || ageDays >= 10 ? 'due_soon' : 'open',
       title: txt(row.issue_text) || 'Core Issue ค้าง',
       detail: txt(row.action_plan),
-      memberName: '',
-      nickname: '',
-      team: txt(row.mentor_team),
+      memberName: txt(member.name),
+      nickname: txt(member.nickname || member.name),
+      team: txt(row.mentor_team || member.mentor_team),
       ageDays,
       dueText: dueDays === null ? `${ageDays} วันที่แล้ว` : dueDays < 0 ? `เลยกำหนด ${Math.abs(dueDays)} วัน` : `อีก ${dueDays} วัน`,
       nextAction: 'ติดตาม action plan และปิดเคสเมื่อจบ',
