@@ -1850,7 +1850,10 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         <!-- 🧭 Member Command Timeline -->
         <div style="background:var(--sf2);border-radius:12px;overflow:hidden;margin-bottom:16px;border:1px solid rgba(6,199,85,.14)">
           <div style="padding:12px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <span style="font-size:13px;font-weight:700;flex:1">🧭 LINE Member Activity Timeline</span>
+            <div style="flex:1;min-width:220px">
+              <div style="font-size:13px;font-weight:800;color:var(--tx)">🧭 LINE Member Activity Timeline</div>
+              <div style="font-size:10px;color:var(--sub);line-height:1.5;margin-top:2px">สแกนพฤติกรรมสมาชิกจาก LINE แบบ card — เห็นทันทีว่าใครพิมพ์อะไร ต้อง follow-up จุดไหน</div>
+            </div>
             <select id="line-activity-type" onchange="loadLineActivityTimeline(true)" style="background:var(--sf);border:1px solid var(--bd);border-radius:7px;color:var(--tx);padding:5px 9px;font-size:11px;outline:none">
               <option value="">ทุกประเภท</option>
               <option value="command_received">Member พิมพ์</option>
@@ -4818,7 +4821,65 @@ function fmtLineActivityTime(iso){
   return d.toLocaleString('th-TH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
 }
 function lineActivitySummaryChip(label,value,color){
-  return '<span style="display:inline-flex;align-items:center;gap:5px;background:'+color+'18;border:1px solid '+color+'44;color:'+color+';border-radius:999px;padding:4px 9px;font-size:10px;font-weight:700">'+esc(label)+' '+esc(value)+'</span>';
+  return '<span style="display:inline-flex;align-items:center;gap:7px;background:'+color+'16;border:1px solid '+color+'44;color:'+color+';border-radius:14px;padding:7px 10px;font-size:11px;font-weight:800;box-shadow:0 8px 18px rgba(0,0,0,.08)">'
+    +'<span>'+esc(label)+'</span><strong style="font-size:14px;line-height:1;color:var(--tx)">'+esc(value)+'</strong></span>';
+}
+function lineActivityMeta(it){
+  var type=String(it&&it.type||'');
+  var m={
+    command_received:{icon:'💬',label:'Member พิมพ์',tone:'#38bdf8',hint:'คำสั่ง/ข้อความจากสมาชิก'},
+    absence:{icon:'🙋',label:'แจ้งลา',tone:'#f59e0b',hint:'ต้องดูแผนการเข้าแทน'},
+    substitute:{icon:'👥',label:'ส่ง Sub',tone:'#f59e0b',hint:'มีคนมาแทนการประชุม'},
+    issue:{icon:'🆘',label:'ขอความช่วยเหลือ',tone:'#f87171',hint:'ควร follow-up'},
+    goal:{icon:'🎯',label:'เป้าหมาย',tone:'#a78bfa',hint:'สมาชิกตั้ง/ดูเป้า'},
+    one_to_one:{icon:'🤝',label:'1-2-1',tone:'#34d399',hint:'กิจกรรมสัมพันธ์'},
+    delivery:{icon:'📤',label:'ส่งข้อความ',tone:'#94a3b8',hint:'ระบบส่งออกไปแล้ว'}
+  };
+  var meta=m[type]||{};
+  return {
+    icon:it.icon||meta.icon||'•',
+    label:it.label||meta.label||type||'Activity',
+    tone:it.tone||meta.tone||'#94a3b8',
+    hint:meta.hint||'LINE activity'
+  };
+}
+function lineActivityStatusPill(status,color){
+  if(!status)return'';
+  var s=String(status);
+  var low=s.toLowerCase();
+  var tone=low.indexOf('open')>=0||low.indexOf('pending')>=0||s.indexOf('รอ')>=0?'#f59e0b'
+    :low.indexOf('resolved')>=0||low.indexOf('sent')>=0||s.indexOf('สำเร็จ')>=0?'#34d399'
+    :color||'#94a3b8';
+  return '<span style="display:inline-flex;align-items:center;gap:5px;background:'+tone+'16;border:1px solid '+tone+'44;color:'+tone+';border-radius:999px;padding:4px 9px;font-size:10px;font-weight:800;white-space:nowrap">'+esc(s)+'</span>';
+}
+function lineActivityCard(it){
+  var meta=lineActivityMeta(it);
+  var name=it.memberNick||it.memberName||'ไม่ทราบสมาชิก';
+  var team=it.memberTeam?'<span style="font-size:10px;background:var(--sf2);border:1px solid var(--bd);border-radius:999px;padding:3px 7px;color:var(--sub);font-weight:800">'+esc(it.memberTeam)+'</span>':'';
+  var title=it.title||meta.hint;
+  var detail=String(it.detail||'').trim();
+  var raw=String(it.rawText||'').trim();
+  var shortDetail=detail?esc(detail.slice(0,260)):'';
+  var rawLine=raw&&raw!==detail?'<div style="font-size:10px;color:var(--sub);margin-top:8px;line-height:1.5">พิมพ์จริง: <code style="background:var(--sf2);border:1px solid var(--bd);border-radius:6px;padding:2px 5px;color:var(--tx)">'+esc(raw.slice(0,120))+'</code></div>':'';
+  var status=lineActivityStatusPill(it.status,meta.tone);
+  return '<article style="position:relative;background:var(--sf);border:1px solid var(--bd);border-left:4px solid '+meta.tone+';border-radius:14px;padding:13px 14px;box-shadow:0 10px 26px rgba(0,0,0,.10);overflow:hidden">'
+    +'<div style="position:absolute;right:-18px;top:-22px;width:74px;height:74px;border-radius:999px;background:'+meta.tone+'12"></div>'
+    +'<div style="position:relative;display:flex;align-items:flex-start;gap:11px">'
+      +'<div style="width:38px;height:38px;border-radius:13px;background:'+meta.tone+'18;border:1px solid '+meta.tone+'44;display:flex;align-items:center;justify-content:center;font-size:18px;flex:0 0 auto">'+esc(meta.icon)+'</div>'
+      +'<div style="flex:1;min-width:0">'
+        +'<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:4px">'
+          +'<span style="font-size:11px;font-weight:900;color:'+meta.tone+';letter-spacing:.2px;text-transform:uppercase">'+esc(meta.label)+'</span>'
+          +team
+          +'<span style="font-size:10px;color:var(--sub);margin-left:auto;white-space:nowrap">'+esc(fmtLineActivityTime(it.occurredAt))+'</span>'
+        +'</div>'
+        +'<div style="font-size:14px;font-weight:900;color:var(--tx);line-height:1.35;word-break:break-word">'+esc(name)+'</div>'
+        +'<div style="font-size:11px;color:var(--sub);line-height:1.5;margin-top:3px">'+esc(title)+'</div>'
+        +(shortDetail?'<div style="margin-top:10px;background:var(--sf2);border:1px solid var(--bd);border-radius:11px;padding:9px 10px;font-size:12px;color:var(--tx);line-height:1.6;white-space:pre-wrap;word-break:break-word">'+shortDetail+'</div>':'')
+        +rawLine
+      +'</div>'
+      +(status?'<div style="flex:0 0 auto;position:relative">'+status+'</div>':'')
+    +'</div>'
+  +'</article>';
 }
 function loadLineActivityTimeline(force){
   if(_lineActivityLoaded&&!force)return;
@@ -4832,7 +4893,7 @@ function loadLineActivityTimeline(force){
   gsr('getLineActivityTimeline',{role:S.role,type:type,team:team,limit:90},function(r){
     _lineActivityLoaded=true;
     if(!r||!r.ok){
-      wrap.innerHTML='<div style="color:var(--re);padding:16px;font-size:12px">❌ '+esc(r&&r.error||'โหลด Timeline ไม่ได้')+'</div>';
+      wrap.innerHTML='<div style="margin:14px 16px;background:rgba(248,113,113,.10);border:1px solid rgba(248,113,113,.28);border-radius:14px;color:var(--re);padding:16px;font-size:12px">❌ '+esc(r&&r.error||'โหลด Timeline ไม่ได้')+'</div>';
       if(cnt)cnt.textContent='—';
       return;
     }
@@ -4853,30 +4914,14 @@ function loadLineActivityTimeline(force){
       sumEl.style.display=sumEl.innerHTML?'flex':'none';
     }
     if(!items.length){
-      wrap.innerHTML='<div style="color:var(--sub);font-size:12px;text-align:center;padding:22px">ยังไม่มี LINE activity ในช่วงนี้</div>';
+      wrap.innerHTML='<div style="margin:14px 16px;background:var(--sf);border:1px dashed var(--bd);border-radius:14px;color:var(--sub);font-size:12px;text-align:center;padding:24px;line-height:1.7">ยังไม่มี LINE activity ในช่วงนี้<br><span style="font-size:10px">ลองเปลี่ยน filter ประเภทหรือทีมด้านบนครับ</span></div>';
       return;
     }
-    wrap.innerHTML='<div style="padding:10px 16px 14px">'+items.map(function(it){
-      var color=it.tone||'#94a3b8';
-      var name=it.memberNick||it.memberName||'ไม่ทราบสมาชิก';
-      var team=it.memberTeam?'<span style="font-size:10px;color:var(--sub);font-weight:600;margin-left:5px">'+esc(it.memberTeam)+'</span>':'';
-      var detail=it.detail?'<div style="font-size:12px;color:var(--tx);line-height:1.55;margin-top:4px;white-space:pre-wrap">'+esc(String(it.detail).slice(0,240))+'</div>':'';
-      var status=it.status?'<span style="font-size:10px;background:rgba(255,255,255,.06);border:1px solid var(--bd);border-radius:999px;padding:2px 7px;color:var(--sub);white-space:nowrap">'+esc(it.status)+'</span>':'';
-      var raw=it.rawText&&it.rawText!==it.detail?'<div style="font-size:10px;color:var(--sub);margin-top:3px">typed: '+esc(String(it.rawText).slice(0,120))+'</div>':'';
-      return '<div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)">'
-        +'<div style="width:30px;height:30px;border-radius:10px;background:'+color+'18;border:1px solid '+color+'44;display:flex;align-items:center;justify-content:center;flex:0 0 auto">'+esc(it.icon||'•')+'</div>'
-        +'<div style="flex:1;min-width:0">'
-          +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
-            +'<span style="font-size:12px;font-weight:800;color:'+color+'">'+esc(it.label||it.type||'Activity')+'</span>'
-            +'<span style="font-size:12px;font-weight:700">'+esc(name)+'</span>'+team
-            +'<span style="font-size:10px;color:var(--sub);margin-left:auto">'+esc(fmtLineActivityTime(it.occurredAt))+'</span>'
-          +'</div>'
-          +'<div style="font-size:12px;color:var(--sub);margin-top:2px">'+esc(it.title||'')+'</div>'
-          +detail+raw
-        +'</div>'
-        +'<div style="flex:0 0 auto">'+status+'</div>'
-      +'</div>';
-    }).join('')+'</div>';
+    wrap.innerHTML='<div style="padding:14px 16px 16px">'
+      +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:12px">'
+      +items.map(lineActivityCard).join('')
+      +'</div>'
+    +'</div>';
   });
 }
 
