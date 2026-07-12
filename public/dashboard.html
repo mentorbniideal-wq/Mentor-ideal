@@ -2345,6 +2345,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       <!-- Action Center sub-tabs -->
       <div class="sub-tabs" style="margin-bottom:16px">
         <button class="sub-tab on" id="ac-stb-pq" onclick="acSub('pq')">🎯 Priority Queue<span class="nb" id="ac-badge-pq" style="margin-left:4px"></span></button>
+        <button class="sub-tab" id="ac-stb-inbox" onclick="acSub('inbox')">📌 Follow-up Inbox<span class="nb" id="ac-badge-inbox" style="margin-left:4px;background:#f59e0b"></span></button>
         <button class="sub-tab" id="ac-stb-ft" onclick="acSub('ft')">🚀 Fast Track</button>
         <button class="sub-tab" id="ac-stb-coach" onclick="acSub('coach')">🎓 Coaching Guide<span class="nb" id="ac-badge-coach" style="margin-left:4px"></span></button>
       </div>
@@ -2357,6 +2358,17 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
           <button class="bsm" onclick="renderPriority()" style="margin-left:auto;font-size:11px">↺ คำนวณใหม่</button>
         </div>
         <div id="pq-list"></div>
+      </div>
+
+      <!-- Unified Follow-up Inbox panel -->
+      <div id="ac-inbox" class="sub-panel">
+        <div class="pq-hdr">
+          <h2 style="font-size:14px;font-weight:800">📌 Unified Follow-up Inbox</h2>
+          <span style="font-size:11px;color:var(--sub)">รวมงานค้างจาก LINE, Renewal, Passport, MSB, Core Issue และ Growth Task</span>
+          <button class="bsm" onclick="loadUnifiedFollowUpInbox(true)" style="margin-left:auto;font-size:11px">↺ รีเฟรช</button>
+        </div>
+        <div id="ufi-summary" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
+        <div id="ufi-list"><div class="es">กด Follow-up Inbox เพื่อโหลดงานค้างทั้งหมด</div></div>
       </div>
 
       <!-- Fast Track panel -->
@@ -10430,13 +10442,14 @@ function openActionCenter(sub){
   acSub(sub||'pq');
 }
 function acSub(sub){
-  ['pq','ft','coach'].forEach(function(k){
+  ['pq','inbox','ft','coach'].forEach(function(k){
     var p=document.getElementById('ac-'+k);
     var b=document.getElementById('ac-stb-'+k);
     if(p)p.classList.toggle('on',k===sub);
     if(b)b.classList.toggle('on',k===sub);
   });
   if(sub==='pq')renderPriority();
+  else if(sub==='inbox')loadUnifiedFollowUpInbox();
   else if(sub==='ft')renderFT();
   else if(sub==='coach'){renderCoach();}
   // sync badges
@@ -10444,6 +10457,98 @@ function acSub(sub){
   var bpq2=document.getElementById('badge-pq'),bco2=document.getElementById('badge-coach');
   if(bpq&&bpq2)bpq.textContent=bpq2.textContent;
   if(bco&&bco2)bco.textContent=bco2.textContent;
+}
+
+var _ufiLoaded=false,_ufiData=null;
+function ufiLevelMeta(level){
+  return ({
+    critical:{label:'Critical',color:'var(--re)',icon:'🚨'},
+    overdue:{label:'Overdue',color:'var(--re)',icon:'⏰'},
+    urgent:{label:'Urgent',color:'var(--ye)',icon:'⚠️'},
+    due_soon:{label:'Due soon',color:'var(--ye)',icon:'📌'},
+    open:{label:'Open',color:'var(--sub)',icon:'•'}
+  })[level]||{label:level||'Open',color:'var(--sub)',icon:'•'};
+}
+function ufiTypeMeta(type){
+  return ({
+    line_issue:{label:'LINE Help',color:'#f87171'},
+    core_issue:{label:'Core Issue',color:'#fb7185'},
+    growth_task:{label:'Growth Task',color:'#a78bfa'},
+    renewal:{label:'Renewal',color:'#fbbf24'},
+    passport:{label:'Passport',color:'#38bdf8'},
+    msb:{label:'MSB',color:'#34d399'}
+  })[type]||{label:type||'Follow-up',color:'var(--ac)'};
+}
+function ufiSummaryChip(label,value,color){
+  return '<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:12px;padding:9px 12px;min-width:92px">'
+    +'<div style="font-size:18px;font-weight:900;color:'+color+';line-height:1">'+esc(value)+'</div>'
+    +'<div style="font-size:10px;color:var(--sub);font-weight:800;margin-top:4px">'+esc(label)+'</div>'
+  +'</div>';
+}
+function ufiOpenTarget(target){
+  if(target==='line'){sw('mc-usage',null,'mc');setTimeout(function(){actSw('line',document.getElementById('act-tab-line'));loadLineActivityTimeline(true);},80);return;}
+  if(target==='renewal'){sw('mc-renewal',null,'mc');return;}
+  if(target==='passport'){sw('mc-passport',null,'mc');loadPassportBoard();return;}
+  if(target==='msb'){sw('mc-msb',null,'mc');msbLoad('mc');return;}
+  openActionCenter('pq');
+}
+function ufiCard(x){
+  var lm=ufiLevelMeta(x.level),tm=ufiTypeMeta(x.type);
+  var name=x.nickname||x.memberName||x.team||'Chapter';
+  var detail=x.detail?'<div style="margin-top:8px;background:var(--sf2);border:1px solid var(--bd);border-radius:10px;padding:8px 9px;font-size:11px;color:var(--tx);line-height:1.55">'+esc(String(x.detail).slice(0,220))+'</div>':'';
+  return '<article style="background:var(--sf);border:1px solid var(--bd);border-left:4px solid '+lm.color+';border-radius:14px;padding:13px 14px;box-shadow:0 10px 24px rgba(0,0,0,.10)">'
+    +'<div style="display:flex;align-items:flex-start;gap:10px">'
+      +'<div style="width:38px;height:38px;border-radius:13px;background:'+tm.color+'18;border:1px solid '+tm.color+'44;display:flex;align-items:center;justify-content:center;font-size:18px;flex:0 0 auto">'+esc(x.icon||lm.icon)+'</div>'
+      +'<div style="flex:1;min-width:0">'
+        +'<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">'
+          +'<span style="font-size:10px;font-weight:900;color:'+tm.color+';text-transform:uppercase">'+esc(tm.label)+'</span>'
+          +'<span style="font-size:10px;border:1px solid '+lm.color+'55;background:'+lm.color+'16;color:'+lm.color+';border-radius:999px;padding:3px 7px;font-weight:900">'+esc(lm.icon+' '+lm.label)+'</span>'
+          +(x.team?'<span style="font-size:10px;color:var(--sub);background:var(--sf2);border:1px solid var(--bd);border-radius:999px;padding:3px 7px;font-weight:800">'+esc(x.team)+'</span>':'')
+          +'<span style="margin-left:auto;font-size:10px;color:var(--sub)">'+esc(x.dueText||'')+'</span>'
+        +'</div>'
+        +'<div style="font-size:14px;font-weight:900;color:var(--tx);line-height:1.35;margin-top:6px">'+esc(name)+'</div>'
+        +'<div style="font-size:12px;font-weight:800;color:var(--tx);line-height:1.45;margin-top:3px">'+esc(x.title||'Follow-up')+'</div>'
+        +detail
+        +'<div style="font-size:11px;color:var(--sub);line-height:1.5;margin-top:8px">Next: <b style="color:var(--tx)">'+esc(x.nextAction||'ติดตามต่อ')+'</b></div>'
+      +'</div>'
+    +'</div>'
+    +'<div style="display:flex;justify-content:flex-end;margin-top:10px">'
+      +'<button class="bsm bac" onclick="ufiOpenTarget('+JSON.stringify(x.actionTarget||'pq').replace(/"/g,'&quot;')+')" style="font-size:10px">'+esc(x.actionLabel||'เปิด')+' ▸</button>'
+    +'</div>'
+  +'</article>';
+}
+function loadUnifiedFollowUpInbox(force){
+  if(_ufiLoaded&&!force){renderUnifiedFollowUpInbox();return;}
+  var list=document.getElementById('ufi-list'),sum=document.getElementById('ufi-summary');
+  if(list)list.innerHTML='<div class="es">⏳ กำลังรวมงานค้างจากทุกระบบ...</div>';
+  gsr('getUnifiedFollowUpInbox',{role:S.role},function(r){
+    if(!r||!r.ok){
+      if(list)list.innerHTML='<div style="background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.28);border-radius:12px;padding:14px;color:var(--re);font-size:12px">❌ '+esc(r&&r.error||'โหลด Follow-up Inbox ไม่สำเร็จ')+'</div>';
+      if(sum)sum.innerHTML='';
+      return;
+    }
+    _ufiLoaded=true;_ufiData=r.inbox||{};renderUnifiedFollowUpInbox();
+  });
+}
+function renderUnifiedFollowUpInbox(){
+  var data=_ufiData||{},items=data.items||[],sum=document.getElementById('ufi-summary'),list=document.getElementById('ufi-list');
+  var badgeEl=document.getElementById('ac-badge-inbox');
+  if(badgeEl)badgeEl.textContent=items.filter(function(x){return ['critical','overdue','urgent'].indexOf(x.level)>=0;}).length||'';
+  if(sum){
+    var levels=data.levels||{},counts=data.counts||{};
+    sum.innerHTML=[
+      ufiSummaryChip('ทั้งหมด',data.total||items.length,'var(--ac)'),
+      ufiSummaryChip('Critical',levels.critical||0,'var(--re)'),
+      ufiSummaryChip('Overdue',levels.overdue||0,'var(--re)'),
+      ufiSummaryChip('LINE Help',counts.line_issue||0,'#f87171'),
+      ufiSummaryChip('Renewal',counts.renewal||0,'#fbbf24'),
+      ufiSummaryChip('MSB',counts.msb||0,'#34d399')
+    ].join('');
+  }
+  if(!list)return;
+  if(!items.length){list.innerHTML='<div class="es">✅ ไม่มีงานค้างสำคัญใน Follow-up Inbox ตอนนี้</div>';return;}
+  list.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px">'+items.map(ufiCard).join('')+'</div>'
+    +'<div class="pq-legend" style="margin-top:12px">Unified Inbox รวม source เดิมโดยไม่เปลี่ยน workflow: LINE Issue, Core Issue, Growth Task, Renewal, Passport และ MSB Intelligence</div>';
 }
 
 function renderPriority(){

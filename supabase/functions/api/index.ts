@@ -169,7 +169,7 @@ const ROUTES: Record<string, string> = {
   'saveLineId': 'line-admin', 'getLineIds': 'line-admin',
   'createLineLinkToken': 'line-admin', 'revokeLineLinkTokens': 'line-admin', 'unlinkLineMember': 'line-admin',
   'getLineMembers': 'line-admin', 'getLineMembersDetail': 'line-admin',
-  'getLineActivityTimeline': 'line-admin',
+  'getLineActivityTimeline': 'line-admin', 'getUnifiedFollowUpInbox': 'line-admin',
   'sendLineMessage': 'line-admin', 'sendLineBroadcast': 'line-admin',
   'sendLineIntro': 'line-admin', 'setMCLineId': 'line-admin',
   'getAbsenceLog': 'line-admin', 'getLineIssues': 'line-admin',

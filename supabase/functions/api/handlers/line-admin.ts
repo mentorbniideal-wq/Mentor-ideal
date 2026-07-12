@@ -99,9 +99,256 @@ function memberFromJoined(row: Record<string, unknown>, key = 'members'): {
   };
 }
 
+function txt(value: unknown): string {
+  return String(value ?? '').trim();
+}
+
+function num(value: unknown, fallback = 0): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function daysBetween(fromIso: unknown, toMs = Date.now()): number | null {
+  const raw = txt(fromIso);
+  if (!raw) return null;
+  const t = new Date(raw).getTime();
+  if (!Number.isFinite(t)) return null;
+  return Math.floor((toMs - t) / 86400000);
+}
+
+function daysUntil(dateIso: unknown, fromMs = Date.now()): number | null {
+  const raw = txt(dateIso);
+  if (!raw) return null;
+  const t = new Date(raw).getTime();
+  if (!Number.isFinite(t)) return null;
+  return Math.ceil((t - fromMs) / 86400000);
+}
+
 function canManageTeamIssue(auth: Awaited<ReturnType<typeof requireAuth>>, team: string): boolean {
   if (auth.isMC || auth.role === 'growth') return true;
   return Boolean(auth.teamName && team && auth.teamName === team);
+}
+
+async function buildUnifiedFollowUpInbox(
+  db: ReturnType<typeof getServiceClient>,
+  auth: Awaited<ReturnType<typeof requireAuth>>,
+) {
+  const canSeeAll = Boolean(auth.isMC || auth.role === 'growth');
+  const teamName = txt(auth.teamName);
+  const now = Date.now();
+  const blueprintYear = new Date(now).getFullYear();
+  const items: Record<string, unknown>[] = [];
+
+  const push = (item: Record<string, unknown>) => {
+    const team = txt(item.team);
+    if (!canSeeAll && teamName && team && team !== teamName) return;
+    const level = txt(item.level);
+    const weight = level === 'critical' ? 400 : level === 'overdue' ? 350 : level === 'urgent' ? 300 : level === 'due_soon' ? 220 : 120;
+    items.push({
+      ...item,
+      sortScore: weight + num(item.ageDays, 0) + num(item.priorityBoost, 0),
+    });
+  };
+
+  const [
+    lineIssuesRes,
+    coreIssuesRes,
+    growthTasksRes,
+    renewalsRes,
+    passportRes,
+    msbRes,
+  ] = await Promise.all([
+    db.from('line_issues')
+      .select('id, issue_text, reported_at, resolved_at, members(name, nickname, mentor_team)')
+      .is('resolved_at', null)
+      .order('reported_at', { ascending: true })
+      .limit(40),
+    db.from('core_issues')
+      .select('id, member_id, mentor_team, issue_text, action_plan, follow_up_at, opened_at, status')
+      .eq('status', 'open')
+      .order('follow_up_at', { ascending: true, nullsFirst: false })
+      .order('opened_at', { ascending: true })
+      .limit(60),
+    db.from('growth_tasks')
+      .select('id, assigned_to, task_text, task_type, priority, member_name, created_at, responded_at')
+      .is('responded_at', null)
+      .order('created_at', { ascending: true })
+      .limit(60),
+    db.from('renewals')
+      .select('id, expiry_date, workflow_status, members(name, nickname, mentor_team)')
+      .lte('expiry_date', new Date(now + 45 * 86400000).toISOString().slice(0, 10))
+      .order('expiry_date', { ascending: true })
+      .limit(60),
+    db.from('passport_sessions')
+      .select('id, scheduled_date, status, title, week_no, lt_role, assigned_lt_name, members!passport_sessions_member_id_fkey(name, nickname, mentor_team)')
+      .in('status', ['scheduled', 'notified', 'declined', 'rescheduled', 'missed'])
+      .order('scheduled_date', { ascending: true })
+      .limit(60),
+    db.from('v_msb_plan_vs_actual')
+      .select('member_id, name, nickname, mentor_team, blueprint_year, intelligence_status, revenue_gap, referral_gap, blueprint_status')
+      .eq('blueprint_year', blueprintYear)
+      .in('intelligence_status', ['no_plan', 'critical', 'behind'])
+      .order('revenue_gap', { ascending: false, nullsFirst: false })
+      .limit(80),
+  ]);
+
+  const firstError = lineIssuesRes.error || coreIssuesRes.error || growthTasksRes.error
+    || renewalsRes.error || passportRes.error || msbRes.error;
+  if (firstError) throw new Error(firstError.message);
+
+  for (const row of (lineIssuesRes.data || []) as Record<string, unknown>[]) {
+    const m = memberFromJoined(row);
+    const ageDays = daysBetween(row.reported_at, now) ?? 0;
+    push({
+      id: `line:${row.id}`,
+      source: 'line_issues',
+      type: 'line_issue',
+      icon: '🆘',
+      level: ageDays >= 2 ? 'urgent' : 'due_soon',
+      title: 'สมาชิกขอความช่วยเหลือผ่าน LINE',
+      detail: txt(row.issue_text),
+      memberName: m.memberName,
+      nickname: m.memberNick,
+      team: m.memberTeam,
+      ageDays,
+      dueText: ageDays ? `${ageDays} วันที่แล้ว` : 'วันนี้',
+      nextAction: 'เปิด Help Case และตอบกลับสมาชิก',
+      actionLabel: 'เปิด LINE Activity',
+      actionTarget: 'line',
+      priorityBoost: 30,
+    });
+  }
+
+  for (const row of (coreIssuesRes.data || []) as Record<string, unknown>[]) {
+    const ageDays = daysBetween(row.opened_at, now) ?? 0;
+    const dueDays = daysUntil(row.follow_up_at, now);
+    const overdue = dueDays !== null ? dueDays < 0 : ageDays >= 14;
+    push({
+      id: `core:${row.id}`,
+      source: 'core_issues',
+      type: 'core_issue',
+      icon: '📋',
+      level: overdue ? 'overdue' : (dueDays !== null && dueDays <= 3) || ageDays >= 10 ? 'due_soon' : 'open',
+      title: txt(row.issue_text) || 'Core Issue ค้าง',
+      detail: txt(row.action_plan),
+      memberName: '',
+      nickname: '',
+      team: txt(row.mentor_team),
+      ageDays,
+      dueText: dueDays === null ? `${ageDays} วันที่แล้ว` : dueDays < 0 ? `เลยกำหนด ${Math.abs(dueDays)} วัน` : `อีก ${dueDays} วัน`,
+      nextAction: 'ติดตาม action plan และปิดเคสเมื่อจบ',
+      actionLabel: 'Action Center',
+      actionTarget: 'pq',
+    });
+  }
+
+  for (const row of (growthTasksRes.data || []) as Record<string, unknown>[]) {
+    const ageDays = daysBetween(row.created_at, now) ?? 0;
+    push({
+      id: `task:${row.id}`,
+      source: 'growth_tasks',
+      type: 'growth_task',
+      icon: txt(row.priority) || '🎯',
+      level: ageDays >= 7 ? 'overdue' : ageDays >= 3 ? 'due_soon' : 'open',
+      title: txt(row.task_type) || 'Growth Task ค้าง',
+      detail: txt(row.task_text),
+      memberName: txt(row.member_name),
+      nickname: '',
+      team: txt(row.assigned_to).toUpperCase(),
+      ageDays,
+      dueText: ageDays ? `${ageDays} วันที่แล้ว` : 'วันนี้',
+      nextAction: 'ให้ owner update หรือ mark done',
+      actionLabel: 'Action Center',
+      actionTarget: 'pq',
+    });
+  }
+
+  for (const row of (renewalsRes.data || []) as Record<string, unknown>[]) {
+    const m = memberFromJoined(row);
+    const dueDays = daysUntil(row.expiry_date, now);
+    if (dueDays !== null && dueDays > 45) continue;
+    push({
+      id: `renewal:${row.id}`,
+      source: 'renewals',
+      type: 'renewal',
+      icon: '💳',
+      level: dueDays !== null && dueDays <= 7 ? 'critical' : dueDays !== null && dueDays <= 30 ? 'urgent' : 'due_soon',
+      title: 'Renewal ใกล้ถึงกำหนด',
+      detail: `สถานะ: ${txt(row.workflow_status) || 'ยังไม่เริ่ม'}`,
+      memberName: m.memberName,
+      nickname: m.memberNick,
+      team: m.memberTeam,
+      ageDays: dueDays !== null ? Math.max(0, 45 - dueDays) : 0,
+      dueText: dueDays === null ? 'ไม่ทราบวันหมดอายุ' : dueDays < 0 ? `หมดอายุแล้ว ${Math.abs(dueDays)} วัน` : `อีก ${dueDays} วัน`,
+      nextAction: 'ติดต่อสมาชิกและอัปเดต renewal workflow',
+      actionLabel: 'เปิด Renewal',
+      actionTarget: 'renewal',
+      priorityBoost: 20,
+    });
+  }
+
+  for (const row of (passportRes.data || []) as Record<string, unknown>[]) {
+    const m = memberFromJoined(row);
+    const dueDays = daysUntil(row.scheduled_date, now);
+    const status = txt(row.status);
+    push({
+      id: `passport:${row.id}`,
+      source: 'passport_sessions',
+      type: 'passport',
+      icon: status === 'missed' || status === 'declined' ? '🚨' : '🛂',
+      level: status === 'missed' || status === 'declined' ? 'urgent' : dueDays !== null && dueDays <= 1 ? 'due_soon' : 'open',
+      title: `Passport W${row.week_no || '—'} · ${txt(row.title) || 'Session'}`,
+      detail: `พบ ${txt(row.assigned_lt_name || row.lt_role) || 'ยังไม่กำหนด LT'} · status ${status || 'scheduled'}`,
+      memberName: m.memberName,
+      nickname: m.memberNick,
+      team: m.memberTeam,
+      ageDays: dueDays !== null && dueDays < 0 ? Math.abs(dueDays) : 0,
+      dueText: dueDays === null ? 'ยังไม่ระบุวัน' : dueDays < 0 ? `เลย ${Math.abs(dueDays)} วัน` : dueDays === 0 ? 'วันนี้' : `อีก ${dueDays} วัน`,
+      nextAction: 'ยืนยัน LT / เลื่อนนัด / mark completed',
+      actionLabel: 'เปิด Passport',
+      actionTarget: 'passport',
+    });
+  }
+
+  const seenMsb = new Set<string>();
+  for (const row of (msbRes.data || []) as Record<string, unknown>[]) {
+    const memberId = txt(row.member_id);
+    if (seenMsb.has(memberId)) continue;
+    seenMsb.add(memberId);
+    const status = txt(row.intelligence_status);
+    push({
+      id: `msb:${memberId || row.name}`,
+      source: 'msb_intelligence',
+      type: 'msb',
+      icon: status === 'no_plan' ? '📝' : '🎯',
+      level: status === 'no_plan' ? 'urgent' : status === 'critical' ? 'critical' : 'due_soon',
+      title: status === 'no_plan' ? 'ยังไม่ได้กรอก Blueprint' : 'MSB Plan vs Actual ต้องตาม',
+      detail: `Revenue gap ${Math.round(num(row.revenue_gap)).toLocaleString('th-TH')} · Referral gap ${Math.round(num(row.referral_gap)).toLocaleString('th-TH')}`,
+      memberName: txt(row.name),
+      nickname: txt(row.nickname),
+      team: txt(row.mentor_team),
+      ageDays: 0,
+      dueText: txt(row.blueprint_year) || 'ปีนี้',
+      nextAction: status === 'no_plan' ? 'ส่งลิงก์ Blueprint และให้ Mentor follow-up' : 'ให้ Growth/Mentor วาง action จาก gap',
+      actionLabel: 'เปิด Blueprint',
+      actionTarget: 'msb',
+    });
+  }
+
+  const sorted = items.sort((a, b) => num(b.sortScore) - num(a.sortScore)).slice(0, 60);
+  const counts: Record<string, number> = {};
+  const levels: Record<string, number> = {};
+  for (const item of sorted) {
+    counts[txt(item.type)] = (counts[txt(item.type)] || 0) + 1;
+    levels[txt(item.level)] = (levels[txt(item.level)] || 0) + 1;
+  }
+  return {
+    total: sorted.length,
+    counts,
+    levels,
+    generatedAt: new Date().toISOString(),
+    items: sorted,
+  };
 }
 
 async function getLineQuotaSnapshot(): Promise<Record<string, unknown>> {
@@ -2016,6 +2263,17 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       const auth = await requireAuth(db, p, ['mc', 'growth', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
       return jsonResponse({ ok: true, commands: memberCommandGuide() });
+    }
+
+    case 'getUnifiedFollowUpInbox': {
+      const auth = await requireAuth(db, p, ['mc', 'growth', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
+      if (!auth.ok) return errResponse(auth.error!);
+      try {
+        const inbox = await buildUnifiedFollowUpInbox(db, auth);
+        return jsonResponse({ ok: true, inbox });
+      } catch (error) {
+        return errResponse(error instanceof Error ? error.message : String(error));
+      }
     }
 
     case 'getLineAutomationLibrary': {
