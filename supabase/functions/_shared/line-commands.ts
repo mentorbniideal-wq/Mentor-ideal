@@ -8,6 +8,7 @@ export type LineCommand =
   | 'chapter-pulse'
   | 'chapter-trend'
   | 'tracking'
+  | 'blueprint'
   | 'goals'
   | 'notifications'
   | 'issues'
@@ -37,14 +38,15 @@ export function parseLineCommand(input: string): ParsedLineCommand {
   if (['myid', 'id'].includes(normalized)) return command('debug-id');
   if (['ช่วยเหลือ', 'help', 'คำสั่ง', 'command', 'commands', 'เมนู'].includes(normalized)) return command('help');
   if (['สถานะ', 'score', 'คะแนน'].includes(normalized)) return command('status');
-  if (['ทำอะไร', 'action', 'next action', 'ทำอะไรดี'].includes(normalized)) return command('action-plan');
+  if (['ทำอะไร', 'action', 'next', 'next action', 'ต่อไป', 'แนะนำต่อไป', 'ทำอะไรดี'].includes(normalized)) return command('action-plan');
   if (['ประวัติ', 'trend', 'history'].includes(normalized)) return command('history');
   if (['ทีม', 'team', 'ทีมของฉัน'].includes(normalized)) return command('team');
   if (['focus 3', 'focus3', 'โฟกัส 3', 'f3'].includes(normalized)) return command('focus3');
   if (['chapter pulse', 'chapter', 'ภาพรวม'].includes(normalized)) return command('chapter-pulse');
   if (normalized === 'chapter trend') return command('chapter-trend');
   if (['ติดตาม', '1-2-1', 'นัด 1-2-1', 'นัด1-2-1'].includes(normalized)) return command('tracking');
-  if (['เป้า', 'เป้าหมาย', 'goal', 'goals'].includes(normalized)) return command('goals');
+  if (['blueprint', 'msb', 'member success blueprint', 'advanced msp', 'goal', 'goals', 'แผนธุรกิจ', 'แผนธุรกิจประจำปี'].includes(normalized)) return command('blueprint');
+  if (['เป้า', 'เป้าหมาย', 'เป้าของฉัน'].includes(normalized)) return command('goals');
   if (['แจ้งเตือน', 'notif'].includes(normalized)) return command('notifications');
   if (['ปัญหา', 'issue', 'ขอความช่วยเหลือ'].includes(normalized)) return command('issues');
   if (['เจอแล้ว', 'met'].includes(normalized)) return command('met');

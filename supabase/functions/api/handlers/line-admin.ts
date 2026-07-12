@@ -265,7 +265,7 @@ function memberCommandGuide(): Record<string, unknown>[] {
   return [
     { group: 'Core', command: 'สถานะ', label: '📊 สถานะ', result: 'ดูคะแนนล่าสุด + คำแนะนำขึ้นสี', priority: 1 },
     { group: 'Core', command: 'ประวัติ', label: '📈 ประวัติ', result: 'ดู Traffic Light ย้อนหลัง + 5 Key เทียบเดือนก่อน', priority: 2 },
-    { group: 'Core', command: 'ทำอะไร', label: '🎯 ทำอะไร', result: 'action ที่ควรทำเร็วที่สุด', priority: 3 },
+    { group: 'Core', command: 'ทำอะไร / next', label: '🎯 ทำอะไร', result: 'action ที่ควรทำเร็วที่สุด', priority: 3 },
     { group: 'Support', command: 'ขอความช่วยเหลือ', label: '🆘 ขอความช่วยเหลือ', result: 'เปิด Help Case ให้ทีมดูแล', priority: 4 },
     { group: 'Support', command: 'ปัญหา [รายละเอียด]', label: '⚠️ แจ้งปัญหา', result: 'บันทึกปัญหาแบบมีรายละเอียด', priority: 5 },
     { group: '1-2-1', command: 'แนะนำ', label: '🤝 แนะนำ', result: 'หา match 1-2-1', priority: 6 },
@@ -273,8 +273,10 @@ function memberCommandGuide(): Record<string, unknown>[] {
     { group: '1-2-1', command: 'เจอแล้ว', label: '✅ เจอแล้ว', result: 'ปิดรายการ 1-2-1 ล่าสุด', priority: 8 },
     { group: 'Meeting', command: 'ลา [เหตุผล]', label: '🙋 ลา', result: 'แจ้งลาและเข้าระบบ', priority: 9 },
     { group: 'Meeting', command: 'ส่ง sub [ชื่อ]', label: '👥 ส่ง sub', result: 'แจ้งคนมาแทน', priority: 10 },
-    { group: 'Goal', command: 'เป้า', label: '🎯 เป้า', result: 'ดูเป้าหมายปัจจุบัน', priority: 11 },
-    { group: 'AI', command: 'ถาม [คำถาม]', label: '🤖 ถาม AI', result: 'ให้ Copilot ช่วยคิดจากบริบทสมาชิก', priority: 12 },
+    { group: 'Goal', command: 'เป้า', label: '🎯 เป้า', result: 'ดูเป้าสั้นใน LINE', priority: 11 },
+    { group: 'Goal', command: 'เป้า ref 8', label: '✍️ ตั้งเป้าสั้น', result: 'ตั้งเป้าแบบเร็ว เช่น Referral / Visitor / 1-2-1', priority: 12 },
+    { group: 'Goal', command: 'Blueprint', label: '📋 Blueprint', result: 'เปิดฟอร์ม Member Success Blueprint ประจำปี', priority: 13 },
+    { group: 'AI', command: 'ถาม [คำถาม]', label: '🤖 ถาม AI', result: 'ให้ Copilot ช่วยคิดจากบริบทสมาชิก', priority: 14 },
   ];
 }
 

@@ -247,7 +247,7 @@ async function handleEvent(
       return;
     }
   }
-  if (memberName && parsedCommand.name === 'goals' && ev.replyToken) {
+  if (memberName && parsedCommand.name === 'blueprint' && ev.replyToken) {
     const link = await createMemberSuccessBlueprintLink(
       db,
       String(lineRec?.member_id || ''),
@@ -395,6 +395,7 @@ function quickRepliesFor(
     qr('👥 ทีม', 'ทีม'),
     qr('🤝 แนะนำ', 'แนะนำ'),
     qr('🎯 เป้า', 'เป้า'),
+    qr('📋 Blueprint', 'Blueprint'),
     qr('🙋 ลา', 'ลา'),
     qr('🆘 ช่วย', 'ขอความช่วยเหลือ'),
     qr('🧭 ช่วยเหลือ', 'ช่วยเหลือ'),
@@ -443,6 +444,10 @@ function commandPresentation(
     'chapter-pulse': { title: 'CHAPTER PULSE', actions: [{ label: 'ดูทุกทีม', type: 'message', text: 'ทีม' }] },
     'chapter-trend': { title: 'CHAPTER TREND', actions: [{ label: 'ดูทุกทีม', type: 'message', text: 'ทีม' }] },
     tracking: { title: '1-2-1 TRACKER', actions: [{ label: 'ดูคำแนะนำคู่ใหม่', type: 'message', text: 'แนะนำ' }] },
+    blueprint: {
+      title: 'MEMBER SUCCESS BLUEPRINT',
+      actions: [{ label: 'ดูเป้าสั้นใน LINE', type: 'message', text: 'เป้า' }],
+    },
     goals: { title: 'MY GOALS' },
     notifications: { title: 'NOTIFICATIONS' },
     issues: { title: 'MENTOR SUPPORT' },
@@ -634,6 +639,8 @@ async function processCommand(
       return await replyChapterTrend(db);
     case 'tracking':
       return await reply121(db, memberName);
+    case 'blueprint':
+      return 'พิมพ์ “Blueprint” อีกครั้งเพื่อรับลิงก์ Member Success Blueprint ครับ';
     case 'goals':
       return await replyGoals(db, memberName);
     case 'notifications':
@@ -1582,8 +1589,27 @@ async function reply121(db: ReturnType<typeof getServiceClient>, memberName: str
 async function replyGoals(db: ReturnType<typeof getServiceClient>, memberName: string): Promise<string> {
   const { data: m } = await db.from('members').select('id').eq('name', memberName).single();
   const { data: goals } = await db.from('line_goals').select('*').eq('member_id', (m as any)?.id);
-  if (!goals?.length) return '🎯 ยังไม่ได้ตั้งเป้าหมายครับ\nพิมพ์ "เป้า ref 8" = ตั้งเป้า Referral 8 ใบ';
-  const lines = ['🎯 เป้าหมายของคุณ', ''];
+  if (!goals?.length) {
+    return [
+      '🎯 เป้าหมายสั้นใน LINE',
+      '',
+      'ยังไม่ได้ตั้งเป้าสั้นไว้ครับ',
+      'ใช้สำหรับจำเป้าประจำเดือน/สัปดาห์แบบเร็ว ๆ เช่น Referral, Visitor หรือ 1-2-1',
+      '',
+      'ตัวอย่าง:',
+      '• เป้า ref 8',
+      '• เป้า visitor 2',
+      '',
+      'ถ้าต้องการกรอกแผนธุรกิจประจำปี ให้พิมพ์ “Blueprint” ครับ',
+    ].join('\n');
+  }
+  const lines = [
+    '🎯 เป้าหมายสั้นใน LINE',
+    '',
+    'รายการนี้คือเป้าสั้นที่คุณตั้งไว้เอง',
+    'ถ้าต้องการกรอกแผนธุรกิจประจำปี ให้พิมพ์ “Blueprint”',
+    '',
+  ];
   (goals as Record<string, unknown>[]).forEach((g) => lines.push(`· ${g.goal_type}: ${g.target}`));
   return lines.join('\n');
 }
@@ -1592,7 +1618,18 @@ async function setGoal(db: ReturnType<typeof getServiceClient>, memberName: stri
   const parts = text.trim().split(/\s+/);
   const type = parts[0] || '';
   const target = parseFloat(parts[1] || '0');
-  if (!type || !Number.isFinite(target) || target <= 0) return '⚠️ รูปแบบ: เป้า [ประเภท] [ค่า] เช่น "เป้า ref 8"';
+  if (!type || !Number.isFinite(target) || target <= 0) {
+    return [
+      '⚠️ รูปแบบเป้าสั้นใน LINE:',
+      'เป้า [ประเภท] [ค่า]',
+      '',
+      'เช่น:',
+      '• เป้า ref 8',
+      '• เป้า visitor 2',
+      '',
+      'ถ้าต้องการกรอกแผนธุรกิจประจำปี ให้พิมพ์ “Blueprint” ครับ',
+    ].join('\n');
+  }
   const { data: m } = await db.from('members').select('id').eq('name', memberName).single();
   await db.from('line_goals').upsert({ member_id: (m as any)?.id, goal_type: type, target, set_at: new Date().toISOString() });
   return `✅ ตั้งเป้า ${type} = ${target} แล้วครับ 🎯`;
@@ -1743,17 +1780,25 @@ function buildRegistrationPrompt(): string {
 function buildHelpMessage(memberName: string): string {
   const nick = memberName.split(' ')[0];
   return (
-    `🧭 คุณ${nick} พิมพ์ได้แบบนี้ครับ\n\n` +
-    `📊 สถานะ — คะแนนล่าสุด\n` +
-    `📈 ประวัติ — ย้อนหลัง + 5 Key\n` +
-    `🎯 ทำอะไร — action ที่เร็วสุด\n` +
-    `🆘 ปัญหา [เรื่อง] — ให้ทีมช่วยดูแล\n\n` +
+    `🧭 คุณ${nick} ใช้บอทแบบง่าย ๆ ได้ตามนี้ครับ\n\n` +
+    `ดูตัวเอง\n` +
+    `📊 สถานะ — คะแนนล่าสุด + ทางขึ้นสี\n` +
+    `📈 ประวัติ — สี/คะแนนย้อนหลัง + 5 Key\n` +
+    `🎯 ทำอะไร หรือ next — action ที่ควรทำเร็วที่สุด\n\n` +
+    `เป้าหมาย\n` +
+    `🎯 เป้า — ดูเป้าสั้นใน LINE\n` +
+    `✍️ เป้า ref 8 — ตั้งเป้าสั้นเอง\n` +
+    `📋 Blueprint — เปิดฟอร์มแผนธุรกิจประจำปี\n\n` +
+    `1-2-1 และการประชุม\n` +
     `🤝 แนะนำ — หาเพื่อน 1-2-1\n` +
     `📅 นัด [ชื่อ] — บันทึกนัด\n` +
     `✅ เจอแล้ว — ปิดนัดล่าสุด\n` +
     `🙋 ลา [เหตุผล]\n` +
     `👥 ส่ง sub [ชื่อ]\n\n` +
-    `💬 ถาม [คำถาม] — ให้ AI ช่วยคิด\n` +
-    `กด Quick Reply ด้านล่างได้เลยครับ`
+    `ขอความช่วยเหลือ\n` +
+    `🆘 ขอความช่วยเหลือ — ดูวิธีแจ้งเรื่อง\n` +
+    `⚠️ ปัญหา [รายละเอียด] — ส่งเรื่องให้ทีมดูแล\n` +
+    `💬 ถาม [คำถาม] — ให้ AI ช่วยคิด\n\n` +
+    `ถ้าไม่แน่ใจ กด Quick Reply ด้านล่างได้เลยครับ`
   );
 }
