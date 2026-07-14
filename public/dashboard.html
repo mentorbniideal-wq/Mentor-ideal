@@ -1357,15 +1357,15 @@ main{
     <button class="tb" id="mc-ac-tab" onclick="openActionCenter('pq')">⚡ Action Center<span class="nb" id="badge-pq"></span><span class="nb" id="badge-inbox" style="margin-left:2px;background:#f59e0b"></span><span class="nb" id="badge-line-issue" style="margin-left:2px;background:#f59e0b"></span><span class="nb" id="badge-coach" style="margin-left:2px"></span></button>
     <button class="tb" onclick="sw('mc-gw',this,'mc');renderGrowthWatch()">🌱 Growth Watch<span class="nb" id="badge-gw"></span></button>
     <button class="tb" onclick="sw('mc-msb',this,'mc');msbLoad('mc')">🎯 Blueprint</button>
-    <button class="tb" onclick="sw('mc-8w',this,'mc');load8WProgress()">🗓 8W Progress<span class="nb" id="badge-8w"></span></button>
+    <button class="tb" onclick="sw('mc-8w',this,'mc');load8WProgress()" style="display:none">🗓 8W Progress<span class="nb" id="badge-8w"></span></button>
     <button class="tb" onclick="sw('mc-passport',this,'mc');loadPassportBoard()">🛂 Passport<span class="nb" id="badge-passport"></span></button>
     <button class="tb" onclick="sw('mc-vis',this,'mc');loadVisitorLog()">🤝 Visitors</button>
     <button class="tb" onclick="sw('mc-checkin',this,'mc');deskCiLoadHistory()">✅ Check-In</button>
     <button class="tb" onclick="sw('mc-usage',this,'mc');loadUsageLog()">📈 Activity</button>
     <button class="tb" onclick="sw('mc-access',this,'mc');loadAccessMgmt()">🔑 Access</button>
-    <button class="tb" onclick="sw('mc-import',this,'mc')">📥 Import</button>
+    <button class="tb" onclick="sw('mc-import',this,'mc')" style="display:none">📥 Import</button>
     <button class="tb" onclick="sw('mc-copilot',this,'mc')">🤖 AI Copilot</button>
-    <button class="tb" onclick="sw('mc-cal',this,'mc');loadCalendar()">📅 Calendar</button>
+    <button class="tb" onclick="sw('mc-cal',this,'mc');loadCalendar()" style="display:none">📅 Calendar</button>
   </div></div>
 
   <!-- Growth Tabs -->
@@ -1373,7 +1373,7 @@ main{
     <button class="tb-fold" id="gr-fold-btn" onclick="toggleTabFold('gr')" title="พับ/ขยาย Tab Bar">☰</button>
     <span class="tb-fold-label" id="gr-fold-label" style="display:none"></span>
     <button class="tb on" onclick="sw('gr-ov',this,'gr')">🏛 Chapter Overview</button>
-    <button class="tb" onclick="sw('gr-msb',this,'gr');msbLoad('gr')">🎯 Chapter Blueprint</button>
+    <button class="tb" onclick="sw('gr-msb',this,'gr');msbLoad('gr')" style="display:none">🎯 Chapter Blueprint</button>
     <button class="tb" onclick="sw('gr-bal',this,'gr')">⚖️ Referral Balance</button>
     <button class="tb" onclick="sw('gr-task',this,'gr')">📌 Growth Tasks<span class="nb" id="badge-task"></span></button>
     <button class="tb" onclick="sw('gr-nm',this,'gr')">🆕 New Members<span class="nb" id="badge-nm"></span></button>
@@ -1387,7 +1387,7 @@ main{
     <button class="tb" onclick="sw('gr-sprint',this,'gr');sprintLoad()">🏃 Sprint</button>
     <button class="tb" onclick="sw('gr-flow',this,'gr');flowLoad()">🌊 Referral Flow</button>
     <button class="tb" onclick="sw('gr-pt',this,'gr');ptLoad()">⚡ Power Teams</button>
-    <button class="tb" onclick="sw('gr-sheet',this,'gr');gshLoad()">📄 Sheet</button>
+    <button class="tb" onclick="sw('gr-sheet',this,'gr');gshLoad()" style="display:none">📄 Sheet</button>
     <button class="tb" onclick="sw('gr-gw',this,'gr');renderGrowthWatchGR()">🔵 Growth Watch<span class="nb" id="badge-gw-gr"></span></button>
   </div></div>
 
@@ -2139,6 +2139,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
           <div style="font-size:11px;color:var(--sub);margin-top:3px">ภาพรวมความต้องการ Referral และ Power Team จากแผน Advanced MSP ของทั้ง Chapter</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
+          <button class="bsm" onclick="sw('gr-rev',null,'gr');rvLoad()" style="font-size:11px;background:rgba(199,167,106,.14);border-color:rgba(199,167,106,.32);color:var(--ac);font-weight:700">← Growth Plan</button>
           <select id="msb-gr-year" onchange="msbLoad('gr',true)" style="background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:6px 10px;font-size:12px"></select>
           <button class="bsm" onclick="msbLoad('gr',true)" style="font-size:11px">🔄 รีเฟรช</button>
         </div>
@@ -2484,6 +2485,32 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         </div>
       </div>
 
+      <!-- System Tools -->
+      <div style="background:var(--sf2);border-radius:10px;padding:16px;margin-top:18px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+          <span style="font-size:13px;font-weight:700">🧰 System Tools</span>
+          <span style="font-size:11px;color:var(--sub)">เครื่องมือที่ใช้เป็นครั้งคราว ย้ายมาไว้ตรงนี้เพื่อลดความรกของ sidebar</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">
+          <button class="rail-action" onclick="sw('mc-import',null,'mc')" style="margin-top:0">📥 Import Data</button>
+          <button class="rail-action" onclick="sw('mc-cal',null,'mc');loadCalendar()" style="margin-top:0">📅 Calendar</button>
+          <button class="rail-action" onclick="sw('mc-usage',null,'mc');loadUsageLog()" style="margin-top:0">📈 Activity Center</button>
+        </div>
+      </div>
+
+      <!-- System Version / Route Health -->
+      <div style="background:var(--sf2);border-radius:10px;padding:16px;margin-top:18px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+          <span style="font-size:13px;font-weight:700">🧭 System Version & Route Health</span>
+          <span style="font-size:11px;color:var(--sub)">เช็คไฟล์ล่าสุด, API routes และ read-only smoke test ก่อน/หลัง deploy</span>
+          <button onclick="loadSystemHealth()" id="btn-system-health" style="margin-left:auto;background:transparent;border:1px solid var(--bd);color:var(--tx);padding:6px 14px;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit">↺ ตรวจระบบ</button>
+          <button onclick="runSystemSmokeTest()" id="btn-system-smoke" style="background:var(--ac);color:#000;border:none;padding:6px 14px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">🧪 Smoke Test</button>
+        </div>
+        <div id="system-health-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-bottom:12px"></div>
+        <div id="system-health-body" style="color:var(--sub);font-size:12px;text-align:center;padding:16px">กด “ตรวจระบบ” เพื่อดู version และ route health</div>
+        <div id="system-smoke-body" style="display:none;margin-top:10px"></div>
+      </div>
+
       <!-- LINE Health Center -->
       <div style="background:var(--sf2);border-radius:10px;padding:16px;margin-top:18px">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
@@ -2668,6 +2695,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
           <div style="font-size:11px;color:var(--sub);margin-top:4px">ตาราง 8 สัปดาห์สำหรับสมาชิกใหม่ · ประชุมทุกวันศุกร์ · นัดพบ LT แบบเป็นระบบ</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="bsm" onclick="sw('mc-8w',null,'mc');load8WProgress()" style="font-size:11px;background:rgba(96,165,250,.12);border-color:rgba(96,165,250,.32);color:#60a5fa;font-weight:700">🗓 8W Progress</button>
           <button class="bsm" onclick="syncPassportBoard()" style="font-size:11px;background:var(--ac-dim);border-color:var(--bd-hover);color:var(--ac);font-weight:700">↻ Sync สมาชิกใหม่</button>
           <button class="bsm" onclick="loadPassportBoard(true)" style="font-size:11px">รีเฟรช</button>
         </div>
@@ -2792,14 +2820,16 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       <div id="rv-content" style="display:none;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
           <div>
-            <h2 style="font-size:15px;font-weight:800;letter-spacing:-.3px;margin:0">💰 Growth Plan</h2>
-            <div style="font-size:11px;color:var(--sub);margin-top:3px">Legacy Revenue เดิม + MSB Goal ใหม่ รวมเป็น Active Goal สำหรับติดตาม Growth</div>
+            <h2 style="font-size:15px;font-weight:800;letter-spacing:-.3px;margin:0">💰 Growth Plan / Blueprint</h2>
+            <div style="font-size:11px;color:var(--sub);margin-top:3px">หน้าแม่สำหรับ Legacy Revenue + MSB Goal + Blueprint Intelligence</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;">
             <select class="rv-tf" id="rv-tf-team" onchange="rvFilterTeam(this.value)" style="font-size:11px;">
               <option value="">ทุกทีม</option>
             </select>
             <input class="rv-search" id="rv-search" type="text" placeholder="🔍 ค้นหาชื่อ..." oninput="rvSearch(this.value)" style="font-size:12px;width:170px;">
+            <button class="bsm" onclick="sw('gr-msb',null,'gr');msbLoad('gr')" style="font-size:11px;background:rgba(167,139,250,.12);border-color:rgba(167,139,250,.32);color:#a78bfa;font-weight:700">🎯 Blueprint Intel</button>
+            <button class="bsm" onclick="sw('gr-sheet',null,'gr');gshLoad()" style="font-size:11px;background:rgba(96,165,250,.12);border-color:rgba(96,165,250,.32);color:#60a5fa;font-weight:700">📄 Raw Sheet</button>
             <button class="bsm" onclick="_rvLoaded=false;rvLoad()" style="font-size:11px;">🔄</button>
           </div>
         </div>
@@ -3352,6 +3382,13 @@ var SUPABASE_API='https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
 var SUPABASE_ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
 var SUPABASE_URL_AUTH='https://itwyjhlfemxsfbimshby.supabase.co';
 var API_HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_ANON};
+var APP_STATIC_VERSION='2026.07.14-system-health.1';
+try{
+  var _svKey='bni_dashboard_static_version';
+  var _prevSv=localStorage.getItem(_svKey)||'';
+  if(_prevSv&&_prevSv!==APP_STATIC_VERSION)console.info('[BNI Dashboard] static version updated',_prevSv,'→',APP_STATIC_VERSION);
+  localStorage.setItem(_svKey,APP_STATIC_VERSION);
+}catch(e){}
 var _sbAuth=null;
 var DESKTOP_ROLE_TARGET=(function(){
   try{
@@ -4194,7 +4231,7 @@ function renderFocusBar(){
     {ico:'📚',val:missCEU.length,lbl:'Missing CEU',c:cls(missCEU.length,6,1),fn:"sw('mc-mem',null,\'mc\')"},
     {ico:'💡',val:lowRef.length,lbl:'Low Referral',c:cls(lowRef.length,6,1),fn:"sw('mc-mem',null,\'mc\')"},
     {ico:'📆',val:noContact.length,lbl:'Mentor ไม่ได้ติดตาม >2wk',c:cls(noContact.length,3,1),fn:"openActionCenter('pq')"},
-    {ico:'🌱',val:nm.length,lbl:'New Members (8W)',c:'info',fn:"sw('mc-8w',null,\'mc\');load8WProgress()"},
+    {ico:'🌱',val:nm.length,lbl:'New Members / Passport',c:'info',fn:"sw('mc-passport',null,\'mc\');loadPassportBoard()"},
   ];
   var urgent=items.filter(function(it){return it.c==='alert'||it.c==='warn';}).length;
   el.innerHTML='<div class="focus-bar">'
@@ -6118,6 +6155,7 @@ function loadAccessMgmt(){
   });
   loadLineTeamMappings();
   loadLineHealth();
+  loadSystemHealth();
 }
 var ACC_SECTION_LABELS={dashboard:'Dashboard',members:'Members',issues:'Issues',checkin:'Check-in',revenue:'Revenue',broadcast:'Broadcast',settings:'Settings'};
 function renderAccList(){
@@ -6248,6 +6286,113 @@ function accReject(id){
     _accData.requests=(_accData.requests||[]).map(function(req){return req.id===id?Object.assign({},req,{status:'rejected'}):req;});
     renderAccRequests();
   });
+}
+// ── System Version / Route Health ────────────────────────────────
+var _systemHealth=null;
+function systemHealthCard(label,value,color,sub){
+  return '<div style="background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:10px">'
+    +'<div style="font-size:10px;color:var(--sub);margin-bottom:3px">'+escH(label)+'</div>'
+    +'<div style="font-size:16px;font-weight:800;color:'+(color||'var(--tx)')+'">'+escH(value)+'</div>'
+    +(sub?'<div style="font-size:10px;color:var(--sub);margin-top:4px;line-height:1.4">'+escH(sub)+'</div>':'')
+    +'</div>';
+}
+function loadSystemHealth(){
+  var btn=document.getElementById('btn-system-health');
+  var body=document.getElementById('system-health-body');
+  var summary=document.getElementById('system-health-summary');
+  var smoke=document.getElementById('system-smoke-body');
+  if(!body)return;
+  if(btn){btn.disabled=true;btn.textContent='⏳ กำลังตรวจ…';}
+  body.innerHTML='<span style="color:var(--sub)">กำลังตรวจ API route table และ version…</span>';
+  if(smoke){smoke.style.display='none';smoke.innerHTML='';}
+  gsr('getSystemHealth',{role:S.role,staticVersion:APP_STATIC_VERSION},function(r){
+    if(btn){btn.disabled=false;btn.textContent='↺ ตรวจระบบ';}
+    if(!r||!r.ok){
+      body.innerHTML='<span style="color:#ef4444">❌ '+escH(r&&r.error||'ตรวจระบบไม่ได้')+'</span>';
+      return;
+    }
+    _systemHealth=r;
+    var missing=(r.missingHandlers||[]).length;
+    var smokeBad=(r.smokeChecks||[]).filter(function(x){return !x.routeOk||!x.handlerOk;}).length;
+    if(summary)summary.innerHTML=[
+      systemHealthCard('API Version',r.appVersion||'—','var(--ac)','จาก settings.APP_VERSION'),
+      systemHealthCard('Static File',APP_STATIC_VERSION,'var(--tx)','ไฟล์ dashboard ที่ browser โหลดอยู่'),
+      systemHealthCard('Routes',String(r.routeCount||0),missing?'#ef4444':'var(--gr)',missing?missing+' route ไม่มี handler':'handler ครบ'),
+      systemHealthCard('Smoke Routes',((r.smokeChecks||[]).length-smokeBad)+'/'+(r.smokeChecks||[]).length,smokeBad?'#f59e0b':'var(--gr)','ตรวจ route ของ flow สำคัญ')
+    ].join('');
+    var dep=r.deployment||{};
+    var commit=dep.vercelCommit?String(dep.vercelCommit).slice(0,8):'—';
+    var rows=(r.smokeChecks||[]).map(function(x){
+      var ok=x.routeOk&&x.handlerOk;
+      return '<tr style="border-bottom:1px solid var(--bd)">'
+        +'<td style="padding:7px 9px;font-weight:700">'+(ok?'✅':'❌')+' '+escH(x.label||x.action)+'</td>'
+        +'<td style="padding:7px 9px;color:var(--sub);font-family:monospace;font-size:10px">'+escH(x.action)+'</td>'
+        +'<td style="padding:7px 9px;color:var(--sub)">'+escH(x.domain||'—')+'</td>'
+        +'<td style="padding:7px 9px;color:'+(ok?'var(--gr)':'#ef4444')+'">'+(ok?'พร้อม':'route/handler หาย')+'</td>'
+        +'</tr>';
+    }).join('');
+    var missingRows=(r.missingHandlers||[]).map(function(x){return escH(x.action)+' → '+escH(x.domain);}).join(', ');
+    body.innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;font-size:11px;color:var(--sub)">'
+      +'<span>Generated: '+escH(r.generatedAt||'—')+'</span>'
+      +'<span>Commit: '+escH(commit)+'</span>'
+      +(dep.denoDeploymentId?'<span>Deno: '+escH(String(dep.denoDeploymentId).slice(0,12))+'…</span>':'')
+      +'</div>'
+      +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px;min-width:640px">'
+      +'<thead><tr style="border-bottom:1px solid var(--bd)"><th style="padding:6px 9px;text-align:left;color:var(--sub)">Check</th><th style="padding:6px 9px;text-align:left;color:var(--sub)">Action</th><th style="padding:6px 9px;text-align:left;color:var(--sub)">Domain</th><th style="padding:6px 9px;text-align:left;color:var(--sub)">Status</th></tr></thead>'
+      +'<tbody>'+rows+'</tbody></table></div>'
+      +(missingRows?'<div style="color:#ef4444;font-size:11px;margin-top:10px">Missing handler: '+missingRows+'</div>':'<div style="color:var(--gr);font-size:11px;margin-top:10px">✅ API route table และ handler map ดูสมบูรณ์</div>');
+  });
+}
+function systemSmokeRow(label,status,msg){
+  var color=status==='ok'?'var(--gr)':status==='run'?'#f59e0b':'#ef4444';
+  var icon=status==='ok'?'✅':status==='run'?'⏳':'❌';
+  return '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-top:1px solid var(--bd);padding:8px 0;font-size:11px">'
+    +'<div style="font-weight:800">'+icon+' '+escH(label)+'</div>'
+    +'<div style="color:'+color+';text-align:right;max-width:60%;line-height:1.45">'+escH(msg||'')+'</div>'
+    +'</div>';
+}
+function runSystemSmokeTest(){
+  var btn=document.getElementById('btn-system-smoke');
+  var box=document.getElementById('system-smoke-body');
+  if(!box)return;
+  var tests=[
+    {label:'Dashboard data',action:'getDesktopDashboard',payload:{}},
+    {label:'Unified Follow-up Inbox',action:'getUnifiedFollowUpInbox',payload:{}},
+    {label:'MSB Bundle',action:'getMSBDashboardBundle',payload:{blueprintYear:new Date().getFullYear()}},
+    {label:'LINE Activity Timeline',action:'getLineActivityTimeline',payload:{limit:12}},
+    {label:'Traffic Light Summary',action:'getTrafficLightMonthlySummary',payload:{}},
+    {label:'Unread Counters',action:'getUnreadCounts',payload:{}}
+  ];
+  var results={};
+  function draw(){
+    box.style.display='block';
+    box.innerHTML='<div style="background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:12px">'
+      +'<div style="font-size:12px;font-weight:900;margin-bottom:4px">🧪 Read-only Smoke Test</div>'
+      +'<div style="font-size:10px;color:var(--sub);margin-bottom:8px">ทดสอบเฉพาะการอ่านข้อมูล ไม่ส่ง LINE และไม่แก้ฐานข้อมูล</div>'
+      +tests.map(function(t){var r=results[t.action]||{status:'run',msg:'รอคิว'};return systemSmokeRow(t.label,r.status,r.msg);}).join('')
+      +'</div>';
+  }
+  if(btn){btn.disabled=true;btn.textContent='⏳ Testing…';}
+  tests.forEach(function(t){results[t.action]={status:'run',msg:'รอคิว'};});
+  draw();
+  var i=0;
+  function next(){
+    if(i>=tests.length){
+      if(btn){btn.disabled=false;btn.textContent='🧪 Smoke Test';}
+      try{loadSystemHealth();}catch(e){}
+      return;
+    }
+    var t=tests[i++];
+    results[t.action]={status:'run',msg:'กำลังตรวจ'};
+    draw();
+    gsr(t.action,Object.assign({role:S.role},t.payload||{}),function(r){
+      if(r&&r.ok)results[t.action]={status:'ok',msg:'ผ่าน'};
+      else results[t.action]={status:'err',msg:(r&&r.error)||'ไม่ผ่าน'};
+      draw();
+      next();
+    });
+  }
+  next();
 }
 // ── LINE Team Mapping ─────────────────────────────────────────────
 var _lineMembers=[];
@@ -11095,6 +11240,23 @@ function msbFollowUpRender(group){
     return;
   }
   var sm=data.summary||{}, items=data.items||[];
+  var targetLabel=group==='mc'?'Unified Follow-up Inbox':'Growth Tasks';
+  var targetAction=group==='mc'?"openActionCenter('inbox')":"sw('gr-task',null,'gr');renderTasks()";
+  wrap.innerHTML='<div style="background:var(--sf);border:1px solid var(--bd);border-radius:14px;padding:14px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">'
+    +'<div><h3 style="font-size:14px;font-weight:900;margin:0">📌 Follow-up Summary</h3>'
+    +'<div style="font-size:11px;color:var(--sub);margin-top:3px">MSB ไม่แสดง queue ซ้ำแล้ว — งานค้างทั้งหมดให้จัดการที่ '+esc(targetLabel)+' เพื่อไม่ให้ข้อมูลตกหล่นหลายที่</div></div>'
+    +'<button class="bsm" onclick="'+targetAction+'" style="font-size:11px;background:var(--ac);color:#000;border-color:transparent;font-weight:800">เปิด '+esc(targetLabel)+' ▸</button>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">'
+    +'<span style="font-size:11px;background:rgba(255,107,107,.12);color:var(--re);border:1px solid rgba(255,107,107,.28);border-radius:999px;padding:5px 9px;font-weight:800">Overdue '+msbNum(sm.overdue||0,0)+'</span>'
+    +'<span style="font-size:11px;background:rgba(199,167,106,.12);color:var(--ye);border:1px solid rgba(199,167,106,.28);border-radius:999px;padding:5px 9px;font-weight:800">Soon '+msbNum(sm.dueSoon||0,0)+'</span>'
+    +'<span style="font-size:11px;background:rgba(96,165,250,.12);color:var(--bl);border:1px solid rgba(96,165,250,.28);border-radius:999px;padding:5px 9px;font-weight:800">Issues '+msbNum(sm.coreIssues||0,0)+'</span>'
+    +'<span style="font-size:11px;background:rgba(0,212,170,.12);color:var(--gr);border:1px solid rgba(0,212,170,.28);border-radius:999px;padding:5px 9px;font-weight:800">Tasks '+msbNum(sm.growthTasks||0,0)+'</span>'
+    +'</div>'
+    +(items.length?'<div style="font-size:11px;color:var(--sub);line-height:1.6;margin-top:10px">มีรายการค้าง '+msbNum(items.length,0)+' รายการในระบบกลาง แนะนำให้ปิดงานจากที่เดียวเพื่อกันสถานะไม่ตรงกัน</div>':'<div style="font-size:12px;color:var(--sub);margin-top:10px">✅ ไม่มี Follow-up ที่ค้างอยู่ตอนนี้</div>')
+    +'</div>';
+  return;
   function levelMeta(level){
     if(level==='overdue')return ['เลยกำหนด','var(--re)','🚨'];
     if(level==='due_soon')return ['ใกล้ถึงกำหนด','var(--ye)','⏳'];

@@ -74,6 +74,7 @@ const ROUTES: Record<string, string> = {
   'getMyTeam': 'dashboard', 'getLeaderboard': 'dashboard',
   'getChapterTrend': 'dashboard', 'getChapterPulse': 'dashboard',
   'getTrafficLightMonthlySummary': 'dashboard',
+  'getSystemHealth': 'system',
   'getCurrentMonth': 'dashboard', 'setCurrentMonth': 'dashboard',
   'verifyScoring': 'dashboard', 'getMCCoaching': 'dashboard',
   'getMCData': 'dashboard',
@@ -230,7 +231,65 @@ const HANDLERS: Record<string, (p: Record<string, unknown>) => Promise<Response>
   'usage':       handleUsage,
   'copilot':     handleCopilot,
   'member-success-blueprints': handleMemberSuccessBlueprints,
+  'system':      handleSystemHealth,
 };
+
+async function handleSystemHealth(p: Record<string, unknown>): Promise<Response> {
+  const db = getServiceClient();
+  const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+  if (!auth.ok) return errResponse(auth.error || 'Authentication required', 401);
+
+  const { data: settingsRows } = await db
+    .from('settings')
+    .select('key, value')
+    .in('key', ['APP_VERSION']);
+  const appVersion = (settingsRows || []).find((r: { key: string; value: string }) => r.key === 'APP_VERSION')?.value || 'v4.0';
+
+  const smokeActions = [
+    { action: 'getDesktopDashboard', label: 'MC/Growth dashboard data', readOnly: true },
+    { action: 'getUnifiedFollowUpInbox', label: 'Unified Follow-up Inbox', readOnly: true },
+    { action: 'getMSBDashboardBundle', label: 'Member Success Blueprint bundle', readOnly: true },
+    { action: 'getLineActivityTimeline', label: 'LINE Member Activity Timeline', readOnly: true },
+    { action: 'getTrafficLightMonthlySummary', label: 'Traffic Light Monthly Summary', readOnly: true },
+    { action: 'getUnreadCounts', label: 'Unread badges / counters', readOnly: true },
+  ];
+
+  const routeNames = Object.keys(ROUTES).sort();
+  const handlerDomains = Object.keys(HANDLERS).sort();
+  const smokeChecks = smokeActions.map((item) => {
+    const domain = ROUTES[item.action];
+    return {
+      ...item,
+      domain: domain || '',
+      routeOk: Boolean(domain),
+      handlerOk: Boolean(domain && HANDLERS[domain]),
+    };
+  });
+  const missingHandlers = routeNames
+    .map((action) => ({ action, domain: ROUTES[action] }))
+    .filter((r) => !HANDLERS[r.domain]);
+
+  return jsonResponse({
+    ok: true,
+    appVersion,
+    staticVersionHint: String(p.staticVersion || ''),
+    generatedAt: new Date().toISOString(),
+    routeCount: routeNames.length,
+    handlerDomains,
+    missingHandlers,
+    smokeChecks,
+    deployment: {
+      vercelCommit: Deno.env.get('VERCEL_GIT_COMMIT_SHA') || '',
+      vercelCommitMessage: Deno.env.get('VERCEL_GIT_COMMIT_MESSAGE') || '',
+      denoDeploymentId: Deno.env.get('DENO_DEPLOYMENT_ID') || '',
+      supabaseRegion: Deno.env.get('SB_REGION') || '',
+    },
+    notes: [
+      'Health check is read-only and does not send LINE messages.',
+      'Smoke actions listed here are safe to run from the dashboard UI.',
+    ],
+  });
+}
 
 // ── Main entry point ──────────────────────────────────────────
 Deno.serve(async (req: Request) => {
