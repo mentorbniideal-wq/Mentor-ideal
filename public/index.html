@@ -1561,6 +1561,27 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .timeline-title{font-size:.8rem;font-weight:700;}
 .timeline-detail{font-size:.73rem;color:var(--gray2);line-height:1.5;margin-top:2px;}
 .timeline-meta{font-size:.68rem;color:var(--gray2);margin-top:4px;}
+.mobile-command-grid{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-bottom:.75rem;}
+.mobile-command-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:.85rem;text-align:left;color:var(--white);font-family:inherit;cursor:pointer;min-height:92px;box-shadow:var(--sh-card);}
+.mobile-command-card strong{display:block;font-size:.86rem;margin:.28rem 0 .12rem;}
+.mobile-command-card span{display:block;color:var(--gray2);font-size:.72rem;line-height:1.45;}
+.mobile-follow-card{background:var(--bg2);border:1px solid var(--border);border-left:4px solid var(--gray);border-radius:14px;padding:.82rem;margin-bottom:.55rem;box-shadow:var(--sh-card);}
+.mobile-follow-card.critical,.mobile-follow-card.overdue,.mobile-follow-card.urgent{border-left-color:var(--red);background:linear-gradient(90deg,var(--redl),var(--bg2) 42%);}
+.mobile-follow-card.warning{border-left-color:var(--yellow);background:linear-gradient(90deg,var(--yellowl),var(--bg2) 42%);}
+.mobile-follow-card.info{border-left-color:#60A5FA;}
+.mobile-follow-top{display:flex;align-items:flex-start;gap:.55rem;}
+.mobile-follow-icon{width:34px;height:34px;border-radius:11px;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.mobile-follow-title{font-size:.86rem;font-weight:800;line-height:1.35;}
+.mobile-follow-meta{font-size:.68rem;color:var(--gray2);line-height:1.45;margin-top:2px;}
+.mobile-follow-actions{display:flex;gap:.45rem;justify-content:flex-end;margin-top:.7rem;flex-wrap:wrap;}
+.mobile-chip-row{display:flex;gap:.4rem;overflow-x:auto;padding:.1rem 0 .65rem;scrollbar-width:none;}
+.mobile-chip-row::-webkit-scrollbar{display:none}
+.mobile-chip{flex:0 0 auto;border:1px solid var(--border);border-radius:999px;background:var(--bg2);padding:.38rem .62rem;font-size:.72rem;color:var(--gray2);}
+.mobile-metric-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.45rem;margin-top:.55rem;}
+.mobile-metric{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:.55rem;text-align:center;}
+.mobile-metric b{display:block;font-size:.92rem;color:var(--white);font-family:'IBM Plex Mono',monospace;}
+.mobile-metric span{display:block;font-size:.62rem;color:var(--gray2);line-height:1.3;margin-top:2px;}
+.mobile-mini-note{font-size:.72rem;color:var(--gray2);line-height:1.55;margin-top:.5rem;}
 .report-status{display:inline-flex;align-items:center;border-radius:999px;padding:2px 8px;font-size:.68rem;font-weight:700;}
 .report-status.open{background:rgba(245,158,11,.14);color:#FBBF24;}
 .report-status.replied{background:rgba(96,165,250,.14);color:#93C5FD;}
@@ -1805,13 +1826,11 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
     </div>
   </div>
   <div class="tabs">
-    <button class="tb on" onclick="mct('dashboard',this)"><span class="ti">📊</span>Dashboard</button>
-    <button class="tb" onclick="mct('coaching',this)"><span class="ti">🎯</span>Coaching</button>
-    <button class="tb" onclick="mct('mentor',this)"><span class="ti">📈</span>Mentor</button>
+    <button class="tb on" onclick="mct('dashboard',this)"><span class="ti">🏠</span>วันนี้</button>
+    <button class="tb" onclick="mct('followup',this)"><span class="ti">📌</span>ติดตาม<span class="notif-badge-tab" id="mc-followup-badge" style="display:none">0</span></button>
+    <button class="tb" onclick="mct('memberhub',this)"><span class="ti">👥</span>สมาชิก</button>
     <button class="tb" id="mc-rpt-tab" onclick="mct('reports',this)"><span class="ti">📋</span>รายงาน<span class="notif-badge-tab" id="rpt-badge" style="display:none">0</span></button>
-    <button class="tb" onclick="mct('messages',this)"><span class="ti">💬</span>สื่อสาร</button>
-    <button class="tb" onclick="mct('newmembers',this)"><span class="ti">👥</span>สมาชิก</button>
-    <button class="tb" onclick="mct('linesettings',this)"><span class="ti">🔔</span>LINE</button>
+    <button class="tb" onclick="mct('more',this)"><span class="ti">☰</span>More</button>
   </div>
   <div class="content">
     <!-- Dashboard -->
@@ -1824,6 +1843,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
       <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
         <button onclick="openMobMeetPrep()" style="background:rgba(60,120,80,.15);border:1px solid rgba(60,120,80,.3);color:#a78bfa;border-radius:8px;padding:5px 12px;font-size:11px;cursor:pointer">📋 เตรียมประชุม</button>
       </div>
+      <div id="mc-dashboard-member-slot">
       <div class="filter-bar" id="mc-filter">
         <button class="fb on" onclick="setFilter('all',this)">ทั้งหมด</button>
         <button class="fb" onclick="setFilter('none',this)" style="color:#A78BFA;border-color:rgba(167,139,250,.35);">⭐ ใหม่</button>
@@ -1849,6 +1869,26 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
         <button class="fb" id="ms-ab" onclick="setSortMem('absent',this)">ขาด ↓</button>
       </div>
       <div id="mc-members"><div class="lt">⏳ กำลังโหลด...</div></div>
+      </div>
+    </div>
+
+    <!-- Follow-up: Unified Mobile Queue -->
+    <div class="pane" id="mc-followup">
+      <div class="card" style="background:rgba(194,220,0,.06);border-color:rgba(194,220,0,.22);">
+        <div class="ct">📌 Unified Follow-up</div>
+        <div class="mobile-mini-note">รวมงานค้างจาก LINE, Report, Renewal, Passport, MSB และ Growth Task ไว้เป็น queue เดียวสำหรับมือถือ</div>
+      </div>
+      <div id="mc-followup-summary" class="mobile-chip-row"></div>
+      <div id="mc-followup-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+    </div>
+
+    <!-- Members: Mobile Member 360 launcher -->
+    <div class="pane" id="mc-memberhub">
+      <div class="card" style="background:rgba(96,165,250,.06);border-color:rgba(96,165,250,.22);">
+        <div class="ct">👥 Member 360</div>
+        <div class="mobile-mini-note">ค้นหาและเปิดสมาชิกเพื่อดู Traffic Light, PALMS, Timeline, MSB, Passport และ next action ในหน้าเดียว</div>
+      </div>
+      <div id="mc-memberhub-slot"></div>
     </div>
 
     <!-- BNI Coaching Overview (MC cross-team) -->
@@ -1959,6 +1999,18 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
     <!-- สมาชิก: New Members -->
     <div class="pane" id="mc-newmembers">
       <div id="mc-nm-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+    </div>
+
+    <!-- More: Tools moved out of top-level mobile tabs -->
+    <div class="pane" id="mc-more">
+      <div class="sh">MC Tools</div>
+      <div class="mobile-command-grid">
+        <button class="mobile-command-card" onclick="mct('coaching',null)">🎯 <strong>Coaching</strong><span>ภาพรวมการดูแลสมาชิกทุกทีม</span></button>
+        <button class="mobile-command-card" onclick="mct('mentor',null)">📈 <strong>Mentor Performance</strong><span>ดู performance, meeting prep, 90-day review</span></button>
+        <button class="mobile-command-card" onclick="mct('messages',null)">💬 <strong>Messages</strong><span>Broadcast, ข้อความ และงานมอบหมาย</span></button>
+        <button class="mobile-command-card" onclick="mct('newmembers',null)">👶 <strong>New Members</strong><span>สมาชิกใหม่และ checklist</span></button>
+        <button class="mobile-command-card" onclick="mct('linesettings',null)" style="grid-column:1/-1;">⚙️ <strong>System / LINE Settings</strong><span>ตั้งค่าเดือน, PIN, Archive, LINE mapping และตรวจ formula</span></button>
+      </div>
     </div>
 
     <!-- LINE Settings + App Settings -->
@@ -2297,13 +2349,11 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
     </div>
   </div>
   <div class="tabs">
-    <button class="tb on" onclick="gtab('dashboard',this)"><span class="ti">📈</span>Dashboard</button>
-    <button class="tb" onclick="gtab('analytics',this)"><span class="ti">📊</span>Analytics</button>
-    <button class="tb" onclick="gtab('activity',this)"><span class="ti">⚡</span>Activity</button>
-    <button class="tb" onclick="gtab('ops',this)"><span class="ti">🛠</span>Ops</button>
-    <button class="tb" onclick="gtab('powerteam',this)"><span class="ti">⚡</span>Power Team</button>
-    <button class="tb" onclick="gtab('renewal',this);gRenewalLoad()"><span class="ti">🔄</span>Renewal</button>
-    <button class="tb" onclick="gtab('sheet',this)"><span class="ti">💼</span>Sheet</button>
+    <button class="tb on" onclick="gtab('dashboard',this)"><span class="ti">🏠</span>Today</button>
+    <button class="tb" onclick="gtab('powerteam',this)"><span class="ti">🎯</span>Growth Plan</button>
+    <button class="tb" onclick="gtab('ops',this)"><span class="ti">✅</span>Tasks</button>
+    <button class="tb" onclick="gtab('powerteam',this);setTimeout(function(){gptab('synergy',document.querySelector('#g-powerteam .stb:nth-child(2)'));},0)"><span class="ti">🔗</span>Matching</button>
+    <button class="tb" onclick="gtab('more',this)"><span class="ti">☰</span>More</button>
   </div>
   <div class="content">
     <!-- Dashboard -->
@@ -2496,6 +2546,19 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
       <div id="gs-content" style="display:none;">
         <div id="gs-chapter-summary"></div>
         <div id="gs-groups"></div>
+      </div>
+    </div>
+
+    <!-- More: Growth tools moved out of top-level mobile tabs -->
+    <div class="pane" id="g-more">
+      <div class="sh">Growth Tools</div>
+      <div class="mobile-command-grid">
+        <button class="mobile-command-card" onclick="gtab('analytics',null)">📊 <strong>Chapter Pulse</strong><span>Pulse, leaderboard, award, teams และ Growth Watch</span></button>
+        <button class="mobile-command-card" onclick="gtab('activity',null)">⚡ <strong>Activity</strong><span>Visitors และ Chapter action signals</span></button>
+        <button class="mobile-command-card" onclick="gtab('renewal',null);gRenewalLoad()">🔄 <strong>Renewal</strong><span>ติดตามการต่ออายุทั้ง Chapter</span></button>
+        <button class="mobile-command-card" onclick="gtab('sheet',null)">💼 <strong>Growth Sheet</strong><span>ฐานข้อมูล Revenue เดิมและการแก้ไขละเอียด</span></button>
+        <button class="mobile-command-card" onclick="gtab('ops',null);gsub('checkin',null)">📋 <strong>Check-In Import</strong><span>นำเข้าและตรวจประวัติ check-in</span></button>
+        <button class="mobile-command-card" onclick="gtab('ops',null);gsub('gweeksummary',null)" style="grid-column:1/-1;">📱 <strong>Weekly Summary</strong><span>สร้างข้อความสรุปสำหรับ LINE Group Chapter</span></button>
       </div>
     </div>
 
@@ -3124,19 +3187,24 @@ function logout(){
 
 function mct(tab,btn){
   _swTab('#mcApp',tab,btn);
+  if(tab==='dashboard'){mountMcMemberTools('mc-dashboard-member-slot');}
+  if(tab==='memberhub'){mountMcMemberTools('mc-memberhub-slot');renderMembers();}
+  if(tab==='followup'){loadMobileFollowUp(true);}
   if(tab==='coaching'){loadMCCoaching();}
   if(tab==='mentor'){loadMentorPerformance();}
   if(tab==='reports'){loadReports();}
   if(tab==='messages'){loadBroadcasts('mc');loadMessages('mc');loadMcMsgForm();loadMCAssignments();}
   if(tab==='newmembers'){loadNewMembers('mc');}
   if(tab==='linesettings'){loadSettingsPane();}
+  window.scrollTo(0,0);
 }
 function mcsub(sub,btn){
-  var par=btn.parentElement.parentElement;
+  var par=btn?btn.parentElement.parentElement:document.getElementById('mc-reports');
+  if(!par)return;
   par.querySelectorAll('.stb').forEach(function(b){b.classList.remove('on');});
   par.querySelectorAll('.sub-pane').forEach(function(p){p.classList.remove('on');});
-  btn.classList.add('on');
-  document.getElementById('mcs-'+sub).classList.add('on');
+  if(btn)btn.classList.add('on');
+  var el=document.getElementById('mcs-'+sub);if(el)el.classList.add('on');
   if(sub==='mentorperf')loadMentorPerformance();
   if(sub==='meetingprep')loadMeetingPrep();
   if(sub==='scorecard')loadScorecard();
@@ -3185,13 +3253,18 @@ function mentorReturnTo(tab){
 function gtab(tab,btn){
   document.querySelectorAll('#growthApp .tb').forEach(function(b){b.classList.remove('on');});
   document.querySelectorAll('#growthApp .pane').forEach(function(p){p.classList.remove('on');});
-  btn.classList.add('on');
-  document.getElementById('g-'+tab).classList.add('on');
+  if(btn)btn.classList.add('on');
+  else{
+    var top=document.querySelector('#growthApp .tabs .tb[onclick*="'+tab+'"]')||document.querySelector('#growthApp .tabs .tb[onclick*="more"]');
+    if(top)top.classList.add('on');
+  }
+  var el=document.getElementById('g-'+tab);if(el)el.classList.add('on');
   if(tab==='analytics'){loadChapterPulse();}
   if(tab==='activity'){loadVisitorTracker();}
   if(tab==='ops'){loadCheckinHistory();}
   if(tab==='powerteam'){PT_SYN_LOADED=false;loadGrowthPowerTeams();}
   if(tab==='sheet'){loadGrowthSheet();}
+  window.scrollTo(0,0);
 }
 var PT_SYN_LOADED=false;
 var _mobCmdLoaded=false,_mobCrossLoaded=false,_mobSprintLoaded=false;
@@ -3335,11 +3408,12 @@ function mobSprintAdd(){
 }
 function fmtV(v){return v>=1000000000?(v/1000000000).toFixed(1)+'B':v>=1000000?(v/1000000).toFixed(1)+'M':v>=1000?Math.round(v/1000)+'K':String(Math.round(v||0));}
 function gsub(sub,btn){
-  var par=btn.parentElement.parentElement;
+  var par=btn?btn.parentElement.parentElement:document.getElementById('g-ops');
+  if(!par)return;
   par.querySelectorAll('.stb').forEach(function(b){b.classList.remove('on');});
   par.querySelectorAll('.sub-pane').forEach(function(p){p.classList.remove('on');});
-  btn.classList.add('on');
-  document.getElementById('gs-'+sub).classList.add('on');
+  if(btn)btn.classList.add('on');
+  var el=document.getElementById('gs-'+sub);if(el)el.classList.add('on');
   if(sub==='pulse')loadChapterPulse();
   if(sub==='leaderboard')loadLeaderboard();
   if(sub==='visitors')loadVisitorTracker();
@@ -3353,9 +3427,90 @@ function gsub(sub,btn){
 function _swTab(app,tab,btn){
   document.querySelectorAll(app+' .tb').forEach(function(b){b.classList.remove('on');});
   document.querySelectorAll(app+' .pane').forEach(function(p){p.classList.remove('on');});
-  btn.classList.add('on');
-  var prefix=app==='#mcApp'?'mc-':'mentor-';
+  if(btn)btn.classList.add('on');
+  else{
+    var top=document.querySelector(app+' .tabs .tb[onclick*="'+tab+'"]');
+    if(!top&&app==='#mcApp'&&['coaching','mentor','messages','newmembers','linesettings'].indexOf(tab)>=0)top=document.querySelector(app+' .tabs .tb[onclick*="more"]');
+    if(!top&&app==='#growthApp'&&['analytics','renewal','sheet'].indexOf(tab)>=0)top=document.querySelector(app+' .tabs .tb[onclick*="more"]');
+    if(top)top.classList.add('on');
+  }
+  var prefix=app==='#mcApp'?'mc-':app==='#growthApp'?'g-':'mentor-';
   var el=document.getElementById(prefix+tab);if(el)el.classList.add('on');
+}
+
+function mountMcMemberTools(slotId){
+  var slot=document.getElementById(slotId);if(!slot)return;
+  ['mc-filter','mc-mentor-filter','mc-sort-bar','mc-members'].forEach(function(id){
+    var el=document.getElementById(id);if(el)slot.appendChild(el);
+  });
+}
+
+var _mobileFollowLoaded=false,_mobileFollowData=null;
+function mobLevelLabel(level){
+  return level==='critical'?'วิกฤต':level==='overdue'?'เกินกำหนด':level==='urgent'?'ด่วน':level==='warning'?'ควรติดตาม':'ปกติ';
+}
+function mobileFollowIcon(source){
+  source=String(source||'');
+  if(source.indexOf('line')>=0)return'💬';
+  if(source.indexOf('renew')>=0)return'💳';
+  if(source.indexOf('passport')>=0)return'🛂';
+  if(source.indexOf('msb')>=0)return'🎯';
+  if(source.indexOf('growth')>=0)return'🌱';
+  if(source.indexOf('core')>=0||source.indexOf('report')>=0)return'📝';
+  return'📌';
+}
+function mobileFollowCard(x){
+  var level=String(x.level||'info');
+  var source=String(x.source||x.type||'follow');
+  var name=escHtml(x.memberName||x.name||'ไม่ระบุสมาชิก');
+  var title=escHtml(x.title||x.label||'Follow-up');
+  var detail=escHtml(x.detail||x.description||x.reason||'');
+  var next=escHtml(x.nextAction||'ติดตามต่อ');
+  var target=String(x.actionTarget||'');
+  var btn=x.memberName?'<button class="fb" onclick="openDetail(\''+String(x.memberName).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\')">👤 Member</button>':'';
+  return '<article class="mobile-follow-card '+level+'">'
+    +'<div class="mobile-follow-top"><div class="mobile-follow-icon">'+mobileFollowIcon(source)+'</div><div style="flex:1;min-width:0">'
+    +'<div class="mobile-follow-title">'+name+'</div>'
+    +'<div class="mobile-follow-meta">'+title+' · '+mobLevelLabel(level)+'</div>'
+    +(detail?'<div class="mobile-mini-note">'+detail+'</div>':'')
+    +'<div class="mobile-mini-note"><b style="color:var(--white)">Next:</b> '+next+'</div>'
+    +'</div></div>'
+    +'<div class="mobile-follow-actions">'+btn+(target?'<button class="fb" onclick="mobileFollowOpenTarget(\''+target.replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\')">เปิด ▸</button>':'')+'</div>'
+    +'</article>';
+}
+function mobileFollowOpenTarget(target){
+  if(target==='line'){mct('messages',null);return;}
+  if(target==='renewal'){mct('reports',null);mcsub('renewal',document.querySelector('#mc-reports .stb:nth-child(3)'));return;}
+  if(target==='passport'){mct('newmembers',null);return;}
+  if(target==='msb'){window.open('dashboard.html','_blank');return;}
+  mct('followup',document.querySelector('#mcApp .tb:nth-child(2)'));
+}
+function loadMobileFollowUp(force){
+  var list=document.getElementById('mc-followup-list'),sum=document.getElementById('mc-followup-summary');
+  if(_mobileFollowLoaded&&!force){renderMobileFollowUp();return;}
+  if(list)list.innerHTML='<div class="lt">⏳ กำลังรวมงานค้าง...</div>';
+  call('getUnifiedFollowUpInbox',{role:S.role},function(err,r){
+    if(err||!r||!r.ok){if(list)list.innerHTML='<div class="empty">❌ '+escHtml(err?err.message:(r&&r.error||'โหลด Follow-up ไม่สำเร็จ'))+'</div>';return;}
+    _mobileFollowLoaded=true;_mobileFollowData=r.inbox||{};renderMobileFollowUp();
+  });
+}
+function renderMobileFollowUp(){
+  var data=_mobileFollowData||{},items=data.items||[];
+  var sum=document.getElementById('mc-followup-summary'),list=document.getElementById('mc-followup-list');
+  var urgent=items.filter(function(x){return ['critical','overdue','urgent'].indexOf(String(x.level||''))>=0;}).length;
+  var badgeEl=document.getElementById('mc-followup-badge');if(badgeEl){badgeEl.style.display=urgent?'inline-flex':'none';badgeEl.textContent=urgent;}
+  if(sum){
+    var levels=data.levels||{},counts=data.counts||{};
+    sum.innerHTML='<span class="mobile-chip">ทั้งหมด '+(data.total||items.length)+'</span>'
+      +'<span class="mobile-chip">ด่วน '+urgent+'</span>'
+      +'<span class="mobile-chip">LINE '+(counts.line_issue||0)+'</span>'
+      +'<span class="mobile-chip">Renewal '+(counts.renewal||0)+'</span>'
+      +'<span class="mobile-chip">MSB '+(counts.msb||0)+'</span>'
+      +'<span class="mobile-chip">Critical '+(levels.critical||0)+'</span>';
+  }
+  if(!list)return;
+  if(!items.length){list.innerHTML='<div class="empty">✅ ไม่มีงานค้างสำคัญตอนนี้</div>';return;}
+  list.innerHTML=items.slice(0,40).map(mobileFollowCard).join('');
 }
 
 function loadDashboard(){
@@ -4248,6 +4403,66 @@ function loadMemberTimeline(name){
   });
 }
 
+function loadMemberMSBCard(memberId){
+  var el=document.getElementById('dp-msb-section');if(!el)return;
+  if(!memberId){el.innerHTML='';return;}
+  var year=new Date().getFullYear();
+  call('getMSBMemberIntelligence',{memberId:memberId,blueprintYear:year},function(err,r){
+    if(err||!r||!r.ok){el.innerHTML='<div class="card workspace-section"><div class="ct">🎯 MSB Goal</div><div class="mobile-mini-note">ยังไม่พบ Blueprint หรือไม่มีสิทธิ์ดูข้อมูล</div></div>';return;}
+    var ps=r.planSummary||{},as=r.actualSummary||{},gap=r.gapSummary||{};
+    var revPct=gap.revenueProgressPercent==null?'—':gap.revenueProgressPercent+'%';
+    var refPct=gap.referralProgressPercent==null?'—':gap.referralProgressPercent+'%';
+    var look=(r.lookingFor&&r.lookingFor.categories||[]).slice(0,3).join(', ')||'ยังไม่ระบุ';
+    var power=(r.powerTeam&&r.powerTeam.categories||[]).slice(0,3).join(', ')||'ยังไม่ระบุ';
+    var insight=(r.coachingInsights||[])[0]||'ใช้ข้อมูลเป้าหมายนี้ช่วยชวนคุยเรื่องโอกาสและคนที่ควรเจอ';
+    el.innerHTML='<div class="card workspace-section">'
+      +'<div class="ct">🎯 MSB Goal Intelligence</div>'
+      +'<div class="mobile-metric-grid">'
+      +'<div class="mobile-metric"><b>฿'+fmt(ps.msbGoal||0)+'</b><span>BNI Goal</span></div>'
+      +'<div class="mobile-metric"><b>฿'+fmt(as.actualReceived||0)+'</b><span>Actual Received</span></div>'
+      +'<div class="mobile-metric"><b>'+revPct+'</b><span>Revenue Progress</span></div>'
+      +'<div class="mobile-metric"><b>'+Math.round(ps.referralNeeded||0)+'</b><span>Referral Need</span></div>'
+      +'<div class="mobile-metric"><b>'+Math.round(as.rr||0)+'</b><span>Referral Received</span></div>'
+      +'<div class="mobile-metric"><b>'+refPct+'</b><span>Referral Progress</span></div>'
+      +'</div>'
+      +'<div class="mobile-mini-note"><b style="color:var(--white)">Looking for:</b> '+escHtml(look)+'</div>'
+      +'<div class="mobile-mini-note"><b style="color:var(--white)">Power team:</b> '+escHtml(power)+'</div>'
+      +'<div class="mobile-mini-note">💡 '+escHtml(insight)+'</div>'
+      +'</div>';
+  });
+}
+
+var _mobilePassportBoard=null;
+function renderMemberPassportCardFromBoard(el,memberId,name,r){
+  var target=(r.members||[]).filter(function(x){
+    var m=x.members||{};
+    return String(x.member_id||'')===String(memberId||'')||String(m.name||'')===String(name||'');
+  })[0];
+  if(!target){el.innerHTML='';return;}
+  var next=target.nextSession||{};
+  var done=Number(target.done||0),total=Number(target.total||0);
+  var pct=total?Math.round(done/total*100):0;
+  el.innerHTML='<div class="card workspace-section">'
+    +'<div class="ct">🛂 Passport to Success</div>'
+    +'<div class="mobile-metric-grid">'
+    +'<div class="mobile-metric"><b>'+done+'/'+total+'</b><span>Completed</span></div>'
+    +'<div class="mobile-metric"><b>W'+(target.currentWeek||next.weekNo||'-')+'</b><span>Current Week</span></div>'
+    +'<div class="mobile-metric"><b>'+pct+'%</b><span>Progress</span></div>'
+    +'</div>'
+    +(next.title?'<div class="mobile-mini-note"><b style="color:var(--white)">Next:</b> '+escHtml(next.title)+' · '+escHtml(next.scheduled_date||'')+'</div>':'')
+    +(next.assigned_lt_name||next.lt_role?'<div class="mobile-mini-note">ต้องพบ: '+escHtml(next.assigned_lt_name||next.lt_role||'ยังไม่ระบุ')+'</div>':'')
+    +'</div>';
+}
+function loadMemberPassportCard(memberId,name){
+  var el=document.getElementById('dp-passport-section');if(!el)return;
+  if(!S.isMC){el.innerHTML='';return;}
+  if(_mobilePassportBoard){renderMemberPassportCardFromBoard(el,memberId,name,_mobilePassportBoard);return;}
+  call('getPassportBoard',{role:'mc'},function(err,r){
+    if(err||!r||!r.ok){el.innerHTML='';return;}
+    _mobilePassportBoard=r;renderMemberPassportCardFromBoard(el,memberId,name,r);
+  });
+}
+
 var _lastDetail=null;
 var _talkText='';
 function buildDetail(d){
@@ -4447,10 +4662,12 @@ function buildDetail(d){
   var nextAction='<div class="next-action-card"><strong>✨ ขั้นตอนถัดไปที่แนะนำ</strong>'
     +'<div style="font-size:.73rem;color:var(--gray2);margin-top:3px;">'+(d.priorities&&d.priorities.length?escHtml(d.priorities[0].action):'รักษาความต่อเนื่องและบันทึกผลการพูดคุยครั้งถัดไป')+'</div>'
     +'<div class="next-action-buttons"><button onclick="workspaceLog(\''+safeWorkspaceName+'\')">บันทึก Mentor Log</button><button onclick="workspaceReport(\''+safeWorkspaceName+'\')">สร้าง Report</button><button onclick="document.getElementById(\'dp-timeline-section\').scrollIntoView({behavior:\'smooth\'})">ดู Timeline</button></div></div>';
-  setTimeout(function(){loadMemberTimeline(d.name);},0);
+  setTimeout(function(){loadMemberTimeline(d.name);loadMemberMSBCard(d.memberId);loadMemberPassportCard(d.memberId,d.name);},0);
 
   return workspaceActions+heroHTML+nextAction+actBtns+statusHTML+statsHTML+bniHTML+ftHTML+chartHTML+attendCardHTML
     +'<div class="card workspace-section"><div class="ct">5 Keys (6 เดือน)</div>'+keysHTML+'</div>'
+    +'<div id="dp-msb-section" class="workspace-section"><div class="card"><div class="ct">🎯 MSB Goal</div><div class="lt">⏳ กำลังโหลด Blueprint...</div></div></div>'
+    +'<div id="dp-passport-section" class="workspace-section"></div>'
     +'<div class="sh">⚔️ Priority</div>'+prHTML
     +buildConvHistory(d)
     +'<div id="dp-121-section" class="workspace-section"></div>'
