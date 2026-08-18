@@ -43,12 +43,36 @@ export function parseWeekly121Csv(text: string): { rows: CsvRow121[]; dates: str
   return { rows, dates: [...new Set(rows.map(r => r.date).filter(Boolean))], headers };
 }
 
-export type MatchMember = { id: string; name: string };
+export type MatchingStrategy = 'random' | 'checkin_mix' | 'looking_for' | 'cross_team' | 'smart_mix';
+export type MatchMember = { id: string; name: string; checkinOrder?: number; lookingFor?: string; business?: string; mentorTeam?: string };
 export type MatchGroup = { members: MatchMember[]; locked?: boolean };
 const pairKey = (a: string, b: string) => [a, b].sort().join('|');
 
+function matchTokens(value: string | undefined): Set<string> {
+  return new Set(normalize121Name(value || '').replace(/[^\p{L}\p{N}]+/gu, ' ').split(' ').filter(t => t.length >= 2));
+}
+function overlapScore(left: string | undefined, right: string | undefined): number {
+  const a = matchTokens(left), b = matchTokens(right); let score = 0;
+  for (const token of a) if (b.has(token)) score += token.length >= 5 ? 8 : 4;
+  const compactA = normalize121Name(left || '').replace(/\s/g, '');
+  const compactB = normalize121Name(right || '').replace(/\s/g, '');
+  if (compactA.length >= 4 && compactB.length >= 4 && (compactA.includes(compactB) || compactB.includes(compactA))) score += 12;
+  return score;
+}
+export function weekly121PairScore(a: MatchMember, b: MatchMember, strategy: MatchingStrategy): number {
+  const checkinDistance = Math.abs(Number(a.checkinOrder || 0) - Number(b.checkinOrder || 0));
+  const lookingFit = overlapScore(a.lookingFor, b.business) + overlapScore(b.lookingFor, a.business);
+  const crossTeam = a.mentorTeam && b.mentorTeam && normalize121Name(a.mentorTeam) !== normalize121Name(b.mentorTeam) ? 25 : 0;
+  if (strategy === 'checkin_mix') return checkinDistance;
+  if (strategy === 'looking_for') return lookingFit;
+  if (strategy === 'cross_team') return crossTeam;
+  if (strategy === 'smart_mix') return lookingFit * 2 + crossTeam + Math.min(checkinDistance, 15);
+  return 0;
+}
+
 export function createWeekly121Matches(
   members: MatchMember[], blockedKeys: Set<string>, locked: MatchGroup[] = [], random: () => number = Math.random,
+  strategy: MatchingStrategy = 'random',
 ): MatchGroup[] {
   const lockedIds = new Set(locked.flatMap(g => g.members.map(m => m.id)));
   const pool = members.filter(m => !lockedIds.has(m.id));
@@ -67,9 +91,11 @@ export function createWeekly121Matches(
         const ids = new Set(chosen.map(m => m.id));
         return search(remaining.filter(m => !ids.has(m.id)), index + 1, [...made, { members: chosen }]);
       }
-      for (let i = start; i < remaining.length; i++) {
-        if (!compatible(chosen, remaining[i])) continue;
-        const found = choose(i + 1, [...chosen, remaining[i]]); if (found) return found;
+      const ranked = remaining.map((candidate, i) => ({candidate, i, score: chosen.reduce((sum, member) => sum + weekly121PairScore(member, candidate, strategy), 0), tie: random()}))
+        .filter(x => x.i >= start && compatible(chosen, x.candidate))
+        .sort((a, b) => b.score - a.score || a.tie - b.tie);
+      for (const item of ranked) {
+        const found = choose(item.i + 1, [...chosen, item.candidate]); if (found) return found;
       }
       return null;
     };

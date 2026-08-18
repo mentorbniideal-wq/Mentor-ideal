@@ -1,6 +1,6 @@
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
-import { createWeekly121Matches, normalize121Name, parseWeekly121Csv, weekly121Message } from '../../_shared/weekly-121.ts';
+import { createWeekly121Matches, normalize121Name, parseWeekly121Csv, weekly121Message, type MatchingStrategy } from '../../_shared/weekly-121.ts';
 import { linePush } from '../../_shared/line.ts';
 
 const isoDate = (value: string) => { const m = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); return m ? `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}` : value; };
@@ -55,11 +55,13 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
     const roundId=String(p.roundId||''); if(!roundId)return errResponse('roundId required');
     const {data:round}=await db.from('matching_rounds').select('*').eq('id',roundId).single(); if(!round)return errResponse('ไม่พบรอบจับคู่');
     if(String((round as Record<string,unknown>).status)!=='draft')return errResponse('แก้ไขได้เฉพาะร่าง');
-    const {data:rows}=await db.from('matching_import_rows').select('matched_member_id,looking_for,members(id,name,nickname,is_new_member)').eq('round_id',roundId).eq('import_status','ready');
+    const {data:rows}=await db.from('matching_import_rows').select('row_number,matched_member_id,looking_for,members(id,name,nickname,is_new_member,mentor_team,profession,company_name)').eq('round_id',roundId).eq('import_status','ready');
     let eligible=(rows||[]) as Record<string,unknown>[]; const target=String(p.target||'all');
     const selected=new Set(Array.isArray(p.memberIds)?(p.memberIds as unknown[]).map(String):[]);
     if(target==='manual')eligible=eligible.filter(r=>selected.has(String(r.matched_member_id)));
     const memberIds=eligible.map(r=>String(r.matched_member_id));
+    const {data:profiles}=memberIds.length?await db.from('biz_profiles').select('member_id,description').in('member_id',memberIds):{data:[]};
+    const businessById=new Map(((profiles||[]) as Record<string,unknown>[]).map(x=>[String(x.member_id),String(x.description||'')]));
     if(target==='yellow' && memberIds.length){const {data:yellow}=await db.from('v_member_dashboard').select('id').in('id',memberIds).eq('traffic_light','yellow');const set=new Set(((yellow||[]) as Record<string,unknown>[]).map(x=>String(x.id)));eligible=eligible.filter(r=>set.has(String(r.matched_member_id)));}
     if(target==='new')eligible=eligible.filter(r=>Boolean((r.members as Record<string,unknown>|null)?.is_new_member));
     if(eligible.length<2)return errResponse('ต้องมีสมาชิกพร้อมจับคู่อย่างน้อย 2 คน');
@@ -70,13 +72,15 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
       db.from('matching_pairs').select('id,position,member_a_id,member_b_id,optional_member_c_id,is_locked').eq('round_id',roundId).eq('is_locked',true),
     ]);
     const blocked=new Set<string>(); ((history||[]) as Record<string,unknown>[]).forEach(h=>{const a=String(h.member_a_id),b=String(h.member_b_id),c=h.optional_member_c_id?String(h.optional_member_c_id):'';blocked.add(pairKey(a,b));if(c){blocked.add(pairKey(a,c));blocked.add(pairKey(b,c));}}); ((forbidden||[]) as Record<string,unknown>[]).forEach(x=>blocked.add(pairKey(String(x.member_low_id),String(x.member_high_id))));
-    const map=new Map(eligible.map(r=>{const m=r.members as Record<string,unknown>;return[String(r.matched_member_id),{id:String(r.matched_member_id),name:String(m?.name||''),lookingFor:String(r.looking_for||'')}];}));
+    const strategies=new Set(['random','checkin_mix','looking_for','cross_team','smart_mix']);
+    const matchingType=(strategies.has(String(p.matchingType))?String(p.matchingType):'random') as MatchingStrategy;
+    const map=new Map(eligible.map(r=>{const m=r.members as Record<string,unknown>;const id=String(r.matched_member_id);return[id,{id,name:String(m?.name||''),checkinOrder:Number(r.row_number)||0,lookingFor:String(r.looking_for||''),business:businessById.get(id)||String(m?.profession||m?.company_name||''),mentorTeam:String(m?.mentor_team||'')}];}));
     const locked=((lockedRows||[]) as Record<string,unknown>[]).map(x=>({locked:true,members:[x.member_a_id,x.member_b_id,x.optional_member_c_id].filter(Boolean).map(id=>map.get(String(id))).filter(Boolean) as {id:string;name:string}[]})).filter(g=>g.members.length>=2);
-    let groups; try{groups=createWeekly121Matches([...map.values()],blocked,locked);}catch(e){return errResponse(e instanceof Error?e.message:String(e));}
+    let groups; try{groups=createWeekly121Matches([...map.values()],blocked,locked,Math.random,matchingType);}catch(e){return errResponse(e instanceof Error?e.message:String(e));}
     await db.from('matching_pairs').delete().eq('round_id',roundId).eq('is_locked',false);
     const existingLocked=locked.length; const nextPosition=Math.max(0,...((lockedRows||[]) as Record<string,unknown>[]).map(x=>Number(x.position)||0))+1; const inserts=groups.slice(existingLocked).map((g,i)=>({round_id:roundId,position:nextPosition+i,member_a_id:g.members[0].id,member_b_id:g.members[1].id,optional_member_c_id:g.members[2]?.id||null}));
     if(inserts.length){const {error}=await db.from('matching_pairs').insert(inserts);if(error)return errResponse(error.message);}
-    await db.from('matching_rounds').update({version:Number((round as Record<string,unknown>).version||1)+1}).eq('id',roundId);
+    await db.from('matching_rounds').update({version:Number((round as Record<string,unknown>).version||1)+1,matching_type:matchingType}).eq('id',roundId);
     return getRound(db,roundId);
   }
 
