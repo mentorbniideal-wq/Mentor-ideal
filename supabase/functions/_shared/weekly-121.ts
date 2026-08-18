@@ -80,8 +80,32 @@ export function createWeekly121Matches(
   return [...locked, ...result];
 }
 
-export function weekly121Message(recipient: { name: string }, partners: Array<{ name: string; business?: string; lookingFor?: string }>): string {
-  const partnerText = partners.map(p => `คุณ ${p.name}${p.business ? ` — ${p.business}` : ''}`).join('\n');
-  const looking = partners.map(p => p.lookingFor).filter(Boolean).join('\n• ') || 'ไม่ได้ระบุ';
-  return `🤝 คู่ 1-2-1 ประจำสัปดาห์\n\nคุณ ${recipient.name}\nจับคู่กับ\n${partnerText}\n\n🎯 Looking for ของคู่คุณ:\n${looking}\n\nกรุณาติดต่อกันเพื่อนัดหมาย 1-2-1 ภายในสัปดาห์นี้ครับ\n\nขอให้เป็นบทสนทนาดี ๆ ที่นำไปสู่โอกาสใหม่ร่วมกัน\n— Mentor Team, BNI IDEAL`;
+function compact121(value: string | undefined, fallback = ''): string {
+  const clean = String(value || '').trim().replace(/\s+/g, ' ');
+  return clean.length > 180 ? `${clean.slice(0, 177)}…` : clean || fallback;
+}
+
+export function weekly121Message(
+  recipient: { name: string; business?: string; lookingFor?: string },
+  partners: Array<{ name: string; business?: string; lookingFor?: string }>,
+): string {
+  const recipientName = compact121(recipient.name, 'สมาชิก');
+  const partnerText = partners.map(p => `✨ คุณ ${compact121(p.name)}${p.business ? `\n   ${compact121(p.business)}` : ''}`).join('\n\n');
+  const opportunities = partners.map(p => {
+    const name = compact121(p.name);
+    const looking = compact121(p.lookingFor);
+    return looking ? `• ${name} กำลังมองหา: ${looking}` : `• ชวน ${name} เล่าถึงลูกค้าในอุดมคติของเขา`;
+  }).join('\n');
+  const primary = partners[0] || { name: 'คู่ของคุณ' };
+  const primaryName = compact121(primary.name, 'คู่ของคุณ');
+  const primaryBusiness = compact121(primary.business);
+  const openerTopic = primaryBusiness
+    ? `ในธุรกิจ ${primaryBusiness} ตอนนี้ลูกค้าแบบไหนที่คุณอยากพบมากที่สุดครับ/คะ?`
+    : 'ตอนนี้ลูกค้าแบบไหนที่คุณอยากพบมากที่สุดครับ/คะ?';
+  const recipientLooking = compact121(recipient.lookingFor);
+  const sharePrompt = recipientLooking
+    ? `และเล่าให้คู่คุณรู้ว่า คุณกำลังมองหา “${recipientLooking}”`
+    : 'และเล่าให้คู่คุณรู้ว่า ลูกค้าแบบไหนที่คุณอยากให้ช่วยแนะนำ';
+
+  return `🎉 คุณมีคู่ 1-2-1 ประจำสัปดาห์แล้ว!\n\nคุณ ${recipientName}\nสัปดาห์นี้ชวนมารู้จักกันให้ลึกกว่าเดิมกับ\n\n${partnerText}\n\n💡 โอกาสที่น่าชวนคุย\n${opportunities}\n\n🗣️ เริ่มบทสนทนาได้เลย\n“สวัสดีครับ/ค่ะ คุณ ${primaryName} สัปดาห์นี้เราได้คู่ 1-2-1 กัน ยินดีมากครับ/ค่ะ 😊\n${openerTopic}”\n\n🎯 ภารกิจเล็ก ๆ ในการคุยครั้งนี้\n• แลกเปลี่ยนเรื่องธุรกิจคนละ 5 นาที\n• บอกสัญญาณที่ทำให้นึกถึงกันได้ง่าย ๆ\n• ลองมองหาคนที่ช่วยแนะนำให้กันได้คนละ 1 คน\n\n${sharePrompt}\n\nทักหากันวันนี้ แล้วนัดเวลา 1-2-1 ภายในสัปดาห์นี้นะครับ/คะ 🚀\n\n— Mentor Team, BNI IDEAL`;
 }
