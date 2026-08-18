@@ -2778,11 +2778,34 @@ function getSbAuth(){if(!_sbAuth&&window.supabase){_sbAuth=window.supabase.creat
 function getStoredSession(){try{return JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null');}catch{return null;}}
 function storeSession(s){try{sessionStorage.setItem(SESSION_KEY,JSON.stringify(s));}catch{}}
 function clearStoredSession(){try{sessionStorage.removeItem(SESSION_KEY);}catch{}}
+function mobileOAuthRedirectUrl(){return window.location.origin+window.location.pathname;}
+function showMobileLoginError(message){var el=document.getElementById('login-err');if(el)el.textContent=message||'';document.getElementById('loginScreen').style.display='flex';}
+function checkMobileGoogleSession(){
+  var sb=getSbAuth();
+  if(!sb){hideLoad();showMobileLoginError('ไม่สามารถโหลดระบบ Google Login ได้ กรุณารีเฟรชหน้า');return;}
+  sb.auth.getSession().then(function(res){
+    var session=res&&res.data&&res.data.session;
+    if(!session||!session.access_token){hideLoad();showMobileLoginError('');return;}
+    S.token=session.access_token;showLoad();
+    fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'getMyRole',token:S.token})})
+      .then(function(r){return r.json();})
+      .then(function(r){
+        hideLoad();
+        if(r&&r.ok){showMobileLoginError('');enterApp(r);return;}
+        S.token=null;
+        sb.auth.signOut().finally(function(){showMobileLoginError((r&&r.error)||'ไม่สามารถตรวจสอบสิทธิ์อีเมลได้ กรุณาลองใหม่');});
+      })
+      .catch(function(e){hideLoad();showMobileLoginError('ตรวจสอบสิทธิ์อีเมลไม่สำเร็จ: '+(e&&e.message?e.message:'กรุณาลองใหม่'));});
+  }).catch(function(e){hideLoad();showMobileLoginError('ตรวจสอบ Google session ไม่สำเร็จ: '+(e&&e.message?e.message:'กรุณาลองใหม่'));});
+}
 
 // ── Google OAuth Login ─────────────────────────────────────────
 function signInWithGoogle(){
   var sb=getSbAuth();if(!sb)return;
-  sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.href}});
+  showMobileLoginError('กำลังเปิด Google Login...');
+  sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:mobileOAuthRedirectUrl(),queryParams:{prompt:'select_account'}}}).then(function(res){
+    if(res&&res.error)showMobileLoginError('เปิด Google Login ไม่สำเร็จ: '+res.error.message);
+  }).catch(function(e){showMobileLoginError('เปิด Google Login ไม่สำเร็จ: '+(e&&e.message?e.message:'กรุณาลองใหม่'));});
 }
 
 // ── PIN Login UI ──────────────────────────────────────────────
@@ -2844,30 +2867,12 @@ function checkSession(){
       .then(function(r){
         hideLoad();
         if(r.ok){document.getElementById('loginScreen').style.display='none';enterApp(r);}
-        else{clearStoredSession();document.getElementById('loginScreen').style.display='flex';}
+        else{clearStoredSession();checkMobileGoogleSession();}
       })
-      .catch(function(){hideLoad();document.getElementById('loginScreen').style.display='flex';});
+      .catch(function(){clearStoredSession();checkMobileGoogleSession();});
     return;
   }
-  // Fallback: try Google OAuth session (for users already logged in via browser)
-  var sb=getSbAuth();
-  if(sb){
-    sb.auth.getSession().then(function(res){
-      var session=res&&res.data&&res.data.session;
-      if(session&&session.access_token){
-        S.token=session.access_token;
-        showLoad();
-        fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'getMyRole',token:S.token})})
-          .then(function(r){return r.json();})
-          .then(function(r){
-            hideLoad();
-            if(r.ok){enterApp(r);}
-            else{document.getElementById('loginScreen').style.display='flex';}
-          })
-          .catch(function(){hideLoad();document.getElementById('loginScreen').style.display='flex';});
-      }else{document.getElementById('loginScreen').style.display='flex';}
-    }).catch(function(){document.getElementById('loginScreen').style.display='flex';});
-  }else{document.getElementById('loginScreen').style.display='flex';}
+  checkMobileGoogleSession();
 }
 function call(action,params,cb){
   var p=Object.assign({},params||{});

@@ -1361,6 +1361,7 @@ main{
     <button class="tb" onclick="sw('mc-passport',this,'mc');loadPassportBoard()">🛂 Passport<span class="nb" id="badge-passport"></span></button>
     <button class="tb" onclick="sw('mc-vis',this,'mc');loadVisitorLog()">🤝 Visitors</button>
     <button class="tb" onclick="sw('mc-checkin',this,'mc');deskCiLoadHistory()">✅ Check-In</button>
+    <button class="tb" onclick="sw('mc-w121',this,'mc');w121LoadHistory()">🤝 Weekly 1-2-1</button>
     <button class="tb" onclick="sw('mc-usage',this,'mc');loadUsageLog()">📈 Activity</button>
     <button class="tb" onclick="sw('mc-access',this,'mc');loadAccessMgmt()">🔑 Access</button>
     <button class="tb" onclick="sw('mc-import',this,'mc')" style="display:none">📥 Import</button>
@@ -1834,6 +1835,34 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         </div>
         <div id="dci-week-list"></div>
       </div>
+    </div>
+
+    <!-- ════════ WEEKLY 1-2-1 MATCHING ════════ -->
+    <div id="mc-w121" class="sec">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <div style="flex:1"><h2 style="font-size:16px;font-weight:800">🤝 Weekly 1-2-1 Matching</h2><div style="font-size:11px;color:var(--sub);margin-top:3px">นำเข้า ตรวจสอบ สุ่ม Preview และส่ง LINE โดยเริ่มต้นเป็น Dry-run</div></div>
+        <button class="bsm" onclick="w121LoadHistory(true)">↻ ประวัติ</button>
+      </div>
+      <div style="background:var(--sf2);border:1px solid var(--bd);border-radius:12px;padding:16px;margin-bottom:14px">
+        <div style="display:grid;grid-template-columns:minmax(220px,1fr) 150px 160px;gap:10px;align-items:end">
+          <label style="font-size:11px;color:var(--sub)">ไฟล์ Check-in CSV<input id="w121-file" type="file" accept=".csv,text/csv" style="display:block;width:100%;margin-top:6px;color:var(--tx)"></label>
+          <label style="font-size:11px;color:var(--sub)">วันที่ในไฟล์<select id="w121-date" style="display:block;width:100%;margin-top:6px;background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:8px;color:var(--tx)"><option value="">ตรวจอัตโนมัติ</option></select></label>
+          <label style="font-size:11px;color:var(--sub)">ไม่จับคู่ซ้ำ<input id="w121-window" type="number" min="0" max="104" value="12" style="display:block;width:100%;margin-top:6px;background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:8px;color:var(--tx)"></label>
+        </div>
+        <button class="btn" onclick="w121Import()" style="margin-top:12px;max-width:260px">ตรวจสอบและสร้างร่าง</button>
+        <div id="w121-import-status" style="font-size:12px;color:var(--sub);margin-top:10px"></div>
+      </div>
+      <div id="w121-work" style="display:none">
+        <div id="w121-summary" style="margin-bottom:12px"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+          <select id="w121-target" style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:8px;color:var(--tx)"><option value="all">สมาชิกพร้อมจับคู่ทั้งหมด</option><option value="yellow">Traffic Light สีเหลือง</option><option value="new">สมาชิกใหม่</option></select>
+          <button class="btn" onclick="w121Generate()" style="width:auto;padding:8px 18px">🎲 สุ่มคู่</button>
+          <button class="bsm" onclick="w121DryRun()">👁 Preview / Dry-run</button>
+          <button class="bsm" onclick="w121Send()" style="color:#06C755;border-color:rgba(6,199,85,.5)">📲 ยืนยันและส่ง LINE</button>
+        </div>
+        <div id="w121-pairs"></div>
+      </div>
+      <div style="margin-top:18px"><div style="font-size:13px;font-weight:700;margin-bottom:8px">ประวัติรอบจับคู่</div><div id="w121-history" style="color:var(--sub);font-size:12px">ยังไม่ได้โหลด</div></div>
     </div>
 
     <div id="mc-usage" class="sec">
@@ -3402,6 +3431,23 @@ function getSbAuth(){if(!_sbAuth&&window.supabase){_sbAuth=window.supabase.creat
 function getDashSession(){try{return JSON.parse(sessionStorage.getItem(DSH_SESSION_KEY)||'null');}catch{return null;}}
 function storeDashSession(s){try{sessionStorage.setItem(DSH_SESSION_KEY,JSON.stringify(s));}catch{}}
 function clearDashSession(){try{sessionStorage.removeItem(DSH_SESSION_KEY);}catch{}}
+function oauthRedirectUrl(){return window.location.origin+window.location.pathname+(DESKTOP_ROLE_TARGET?'?role='+encodeURIComponent(DESKTOP_ROLE_TARGET):'');}
+function showDesktopLoginError(message){var el=document.getElementById('lerr');if(el)el.textContent=message||'';document.getElementById('login').style.display='flex';}
+function checkDesktopGoogleSession(){
+  var sb=getSbAuth();
+  if(!sb){showDesktopLoginError('ไม่สามารถโหลดระบบ Google Login ได้ กรุณารีเฟรชหน้า');return;}
+  sb.auth.getSession().then(function(res){
+    var session=res&&res.data&&res.data.session;
+    if(!session||!session.access_token){ld(false);showDesktopLoginError('');return;}
+    S.token=session.access_token;ld(true);
+    gsr('getMyRole',{token:S.token},function(r){
+      ld(false);
+      if(r&&r.ok){showDesktopLoginError('');enterApp(r);return;}
+      S.token=null;
+      sb.auth.signOut().finally(function(){showDesktopLoginError((r&&r.error)||'ไม่สามารถตรวจสอบสิทธิ์อีเมลได้ กรุณาลองใหม่');});
+    });
+  }).catch(function(e){ld(false);showDesktopLoginError('ตรวจสอบ Google session ไม่สำเร็จ: '+(e&&e.message?e.message:'กรุณาลองใหม่'));});
+}
 
 function dPinSubmit(){
   var role=document.getElementById('d-role-sel').value;
@@ -3434,21 +3480,11 @@ function checkSession(){
     ld(true);
     fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'login',role:sess.role,pin:sess.pin})})
       .then(function(r){return r.json();})
-      .then(function(r){ld(false);if(r.ok){enterApp(r);}else{clearDashSession();document.getElementById('login').style.display='flex';}})
-      .catch(function(){ld(false);document.getElementById('login').style.display='flex';});
+      .then(function(r){if(r.ok){ld(false);enterApp(r);}else{clearDashSession();checkDesktopGoogleSession();}})
+      .catch(function(){clearDashSession();checkDesktopGoogleSession();});
     return;
   }
-  // Fallback: try Google OAuth session
-  var sb=getSbAuth();
-  if(sb){
-    sb.auth.getSession().then(function(res){
-      var session=res&&res.data&&res.data.session;
-      if(session&&session.access_token){
-        S.token=session.access_token;ld(true);
-        gsr('getMyRole',{token:S.token},function(r){ld(false);if(r.ok){enterApp(r);}else{document.getElementById('login').style.display='flex';}});
-      }else{document.getElementById('login').style.display='flex';}
-    }).catch(function(){document.getElementById('login').style.display='flex';});
-  }else{document.getElementById('login').style.display='flex';}
+  checkDesktopGoogleSession();
 }
 function gsr(a,p,cb){
   var payload=Object.assign({action:a},p||{});
@@ -3528,7 +3564,10 @@ function switchDesktopRole(target){
 }
 function signInWithGoogle(){
   var sb=getSbAuth();if(!sb)return;
-  sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.href}});
+  showDesktopLoginError('กำลังเปิด Google Login...');
+  sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:oauthRedirectUrl(),queryParams:{prompt:'select_account'}}}).then(function(res){
+    if(res&&res.error)showDesktopLoginError('เปิด Google Login ไม่สำเร็จ: '+res.error.message);
+  }).catch(function(e){showDesktopLoginError('เปิด Google Login ไม่สำเร็จ: '+(e&&e.message?e.message:'กรุณาลองใหม่'));});
 }
 function logout(){
   clearDashSession();
@@ -13259,5 +13298,33 @@ function loadCalendar(force) {
   </div>
 </div>
 <div id="sc-export-wrap" style="position:fixed;left:-9999px;top:0;width:840px;pointer-events:none;z-index:-999;overflow:hidden"></div>
+<script>
+// Weekly 1-2-1 Matching — MC only. Real LINE delivery always requires explicit confirmation.
+var W121={roundId:'',csv:'',fileName:'',rows:[],pairs:[],previews:[]};
+function w121Call(action,payload,done){gsr(action,payload||{},function(r){if(!r||!r.ok){toast('❌ '+((r&&r.error)||'เกิดข้อผิดพลาด'),'err');}done&&done(r||{ok:false});});}
+function w121Import(){
+  var file=document.getElementById('w121-file').files[0],status=document.getElementById('w121-import-status');
+  if(!file&&!W121.csv){toast('กรุณาเลือกไฟล์ CSV','warn');return;}
+  function submit(text,name){W121.csv=text;W121.fileName=name;status.textContent='⏳ กำลังตรวจสอบไฟล์และฐานสมาชิก...';w121Call('importWeekly121Csv',{csv:text,fileName:name,meetingDate:document.getElementById('w121-date').value,repeatWindowWeeks:Number(document.getElementById('w121-window').value||12)},function(r){
+    if(!r.ok){status.textContent='❌ '+(r.error||'');return;}
+    if(r.needsDate){var sel=document.getElementById('w121-date');sel.innerHTML='<option value="">เลือกวันที่</option>'+r.dates.map(function(d){return '<option value="'+esc(d)+'">'+esc(d)+'</option>';}).join('');status.textContent='ไฟล์มีหลายวัน กรุณาเลือกวันที่แล้วกดตรวจสอบอีกครั้ง';return;}
+    W121.roundId=r.roundId;W121.rows=r.rows||[];status.textContent='✅ สร้างร่างแล้ว: '+r.meetingDate;w121RenderImport(r);w121LoadHistory(true);
+  });}
+  if(file){if(file.size>2*1024*1024){toast('ไฟล์มีขนาดเกิน 2 MB','warn');return;}var reader=new FileReader();reader.onload=function(e){submit(String(e.target.result||''),file.name);};reader.readAsText(file,'UTF-8');}else submit(W121.csv,W121.fileName);
+}
+function w121RenderImport(r){
+  document.getElementById('w121-work').style.display='';var s=r.summary||{};
+  document.getElementById('w121-summary').innerHTML='<div style="display:flex;gap:7px;flex-wrap:wrap">'+[['พร้อม',s.ready,'#06C755'],['ไม่มี LINE',s.no_line,'#fbbf24'],['ไม่พบ',s.not_found,'#ef4444'],['ซ้ำ',s.duplicate,'#f59e0b'],['ผู้มาแทน',s.substitute,'#818cf8'],['กำกวม',s.ambiguous,'#fb7185']].map(function(x){return '<span style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:7px 10px;color:'+x[2]+'">'+x[0]+' <b>'+Number(x[1]||0)+'</b></span>';}).join('')+'</div>';
+  var abnormal=(r.rows||[]).filter(function(x){return x.status!=='ready';});
+  if(abnormal.length)document.getElementById('w121-pairs').innerHTML='<div style="font-size:12px;font-weight:700;margin-bottom:7px">รายการที่ต้องตรวจสอบ</div>'+abnormal.slice(0,80).map(function(x){return '<div style="padding:7px 10px;border-bottom:1px solid var(--bd);font-size:11px"><b>แถว '+x.rowNumber+' — '+esc(x.fullName||'ไม่ระบุชื่อ')+'</b> · '+esc(x.message||x.status)+'</div>';}).join('');
+}
+function w121Generate(){if(!W121.roundId){toast('กรุณานำเข้าไฟล์ก่อน','warn');return;}w121Call('generateWeekly121Matches',{roundId:W121.roundId,target:document.getElementById('w121-target').value},function(r){if(r.ok)w121RenderRound(r);});}
+function w121Open(id){W121.roundId=id;w121Call('getWeekly121Round',{roundId:id},function(r){if(r.ok){document.getElementById('w121-work').style.display='';w121RenderRound(r);}});}
+function w121RenderRound(r){W121.pairs=r.pairs||[];W121.previews=r.previews||[];var el=document.getElementById('w121-pairs');if(!W121.pairs.length){el.innerHTML='<div style="color:var(--sub);padding:20px;text-align:center">ยังไม่มีผลจับคู่</div>';return;}el.innerHTML=W121.pairs.map(function(p,i){var ms=p.members||[];return '<div style="background:var(--sf2);border:1px solid '+(p.is_locked?'#fbbf24':'var(--bd)')+';border-radius:12px;padding:14px;margin-bottom:9px"><div style="display:flex;gap:8px;align-items:center"><b style="color:var(--ac)">คู่ '+(i+1)+(ms.length===3?' · กลุ่ม 3':'')+'</b><span style="flex:1"></span><button class="bsm" onclick="w121Lock(\''+p.id+'\','+(!p.is_locked)+')">'+(p.is_locked?'🔒 ปลดล็อก':'🔓 ล็อกคู่')+'</button></div>'+ms.map(function(m){return '<div style="padding:8px 0;border-top:1px solid var(--bd);margin-top:8px"><b>'+esc(m.name||'')+'</b>'+(m.nickname?' ('+esc(m.nickname)+')':'')+' · '+esc(m.business||m.profession||'ไม่ระบุธุรกิจ')+' <span style="color:'+(m.lineUserId?'#06C755':'#ef4444')+'">'+(m.lineUserId?'LINE พร้อม':'ไม่มี LINE')+'</span></div>';}).join('')+'</div>';}).join('');}
+function w121Lock(id,locked){w121Call('setWeekly121PairLock',{pairId:id,locked:locked},function(r){if(r.ok)w121Open(W121.roundId);});}
+function w121DryRun(){if(!W121.roundId)return;w121Call('sendWeekly121Round',{roundId:W121.roundId,dryRun:true},function(r){if(!r.ok)return;W121.previews=r.previews||[];var sample=W121.previews[0];alert('DRY-RUN — ไม่มีการส่ง LINE จริง\n\nจำนวนข้อความ: '+r.messageCount+'\nส่งไม่ได้: '+(r.unsendable||[]).length+(sample?'\n\nตัวอย่างข้อความ:\n'+sample.message:''));});}
+function w121Send(){if(!W121.roundId){toast('ยังไม่มีรอบจับคู่','warn');return;}w121Call('sendWeekly121Round',{roundId:W121.roundId,dryRun:true},function(pre){if(!pre.ok)return;var bad=pre.unsendable||[];var pairs=W121.pairs.length;var msg='ยืนยันส่ง LINE จริง?\n\nสมาชิก/ข้อความ: '+pre.messageCount+'\nจำนวนคู่/กลุ่ม: '+pairs+'\nส่งไม่ได้: '+bad.length+(bad.length?' ('+bad.join(', ')+')':'')+'\n\nการส่งข้อความอาจมีค่าใช้จ่ายตามแพ็กเกจ LINE OA';if(!confirm(msg))return;w121Call('sendWeekly121Round',{roundId:W121.roundId,dryRun:false,confirmed:true},function(r){if(r.ok){toast('ส่งสำเร็จ '+r.sent+' · ข้ามรายการเดิม '+r.skipped+' · ล้มเหลว '+r.failed,r.failed?'warn':'ok');w121LoadHistory(true);}});});}
+function w121LoadHistory(force){var el=document.getElementById('w121-history');if(!el)return;if(!force&&el.dataset.loaded)return;el.textContent='⏳ กำลังโหลด...';w121Call('getWeekly121History',{},function(r){if(!r.ok){el.textContent=r.error||'';return;}el.dataset.loaded='1';el.innerHTML=(r.rounds||[]).map(function(x){var count=x.matching_pairs&&x.matching_pairs[0]?x.matching_pairs[0].count:0;return '<button onclick="w121Open(\''+x.id+'\')" style="width:100%;text-align:left;background:var(--sf2);border:1px solid var(--bd);border-radius:9px;padding:9px 11px;color:var(--tx);margin-bottom:6px;cursor:pointer"><b>'+esc(x.meeting_date)+'</b> · '+count+' คู่ · '+esc(x.status)+'<span style="float:right;color:var(--sub)">'+esc(x.source_file_name||'')+'</span></button>';}).join('')||'ยังไม่มีประวัติ';});}
+</script>
 </body>
 </html>

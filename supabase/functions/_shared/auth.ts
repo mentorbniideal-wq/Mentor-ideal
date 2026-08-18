@@ -48,7 +48,7 @@ export async function verifyToken(
     if (error || !user?.email) {
       return { ok: false, error: 'Session ไม่ถูกต้องหรือหมดอายุ กรุณา Login ใหม่' };
     }
-    email = user.email;
+    email = user.email.trim().toLowerCase();
   } catch {
     return { ok: false, error: 'ไม่สามารถตรวจสอบ Session ได้' };
   }
@@ -57,7 +57,7 @@ export async function verifyToken(
   const { data: ra, error: raErr } = await supabase
     .from('role_assignments')
     .select('role, display_name, team_name, is_mc, is_mentor, admin_sections, admin_edit_access')
-    .eq('email', email)
+    .ilike('email', email)
     .maybeSingle();
 
   if (raErr) return { ok: false, error: 'ข้อผิดพลาดในการค้นหาสิทธิ์' };

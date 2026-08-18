@@ -35,6 +35,7 @@ import { handleUsage }         from './handlers/usage.ts';
 import { handleNotifications } from './handlers/notifications.ts';
 import { handleCopilot } from './handlers/copilot.ts';
 import { handleMemberSuccessBlueprints } from './handlers/member-success-blueprints.ts';
+import { handleWeekly121 } from './handlers/weekly-121.ts';
 
 // ── Public actions that require NO PIN ────────────────────────
 const PUBLIC_ACTIONS = new Set([
@@ -186,6 +187,9 @@ const ROUTES: Record<string, string> = {
   'triggerTeamLeaderboard': 'line-admin', 'triggerWeeklyScorePush': 'line-admin',
   'triggerMondayBrief': 'line-admin', 'triggerMonthlyRecap': 'line-admin',
   'trigger121Reminder': 'line-admin', 'getAbsenceLogRecent': 'line-admin',
+  'getLineHealth': 'line-admin', 'testLineCommand': 'line-admin',
+  'getLineCommandGuide': 'line-admin', 'getLineAutomationLibrary': 'line-admin',
+  'getLineMemberJourney': 'line-admin',
 
   // AI Copilot (read-only recommendations; write actions require separate confirmation)
   'askCopilot': 'copilot',
@@ -207,6 +211,11 @@ const ROUTES: Record<string, string> = {
   'getMSBFollowUpQueue': 'member-success-blueprints',
   'getMSBMemberIntelligence': 'member-success-blueprints',
   'getMSBMatchingSuggestions': 'member-success-blueprints',
+
+  // Weekly 1-2-1 Matching (MC only)
+  'importWeekly121Csv': 'weekly-121', 'generateWeekly121Matches': 'weekly-121',
+  'getWeekly121Round': 'weekly-121', 'getWeekly121History': 'weekly-121',
+  'setWeekly121PairLock': 'weekly-121', 'sendWeekly121Round': 'weekly-121',
 
   // Usage
   'logUsage': 'usage', 'getUsageLog': 'usage', 'getLineAnalytics': 'usage',
@@ -231,6 +240,7 @@ const HANDLERS: Record<string, (p: Record<string, unknown>) => Promise<Response>
   'usage':       handleUsage,
   'copilot':     handleCopilot,
   'member-success-blueprints': handleMemberSuccessBlueprints,
+  'weekly-121': handleWeekly121,
   'system':      handleSystemHealth,
 };
 
