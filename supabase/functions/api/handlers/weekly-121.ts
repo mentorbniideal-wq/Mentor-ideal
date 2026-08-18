@@ -1,6 +1,6 @@
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
-import { createWeekly121Matches, normalize121Name, parseWeekly121Csv, weekly121Message, type MatchingStrategy } from '../../_shared/weekly-121.ts';
+import { createWeekly121Matches, normalize121Name, parseWeekly121Csv, weekly121Message, weekly121TestMessage, type MatchingStrategy } from '../../_shared/weekly-121.ts';
 import { linePush } from '../../_shared/line.ts';
 
 const isoDate = (value: string) => { const m = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); return m ? `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}` : value; };
@@ -89,16 +89,17 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
   if (action === 'getWeekly121History') { const {data,error}=await db.from('matching_rounds').select('id,meeting_date,source_file_name,status,repeat_window_weeks,created_by,created_at,confirmed_at,matching_pairs(count)').order('meeting_date',{ascending:false}).limit(30); return error?errResponse(error.message):jsonResponse({ok:true,rounds:data||[]}); }
 
   if (action === 'sendWeekly121Round') {
-    const roundId=String(p.roundId||''); const dryRun=p.dryRun!==false;
+    const roundId=String(p.roundId||''); const dryRun=p.dryRun!==false; const testMode=Boolean(p.testMode);
     const detail=await loadDetail(db,roundId); if(!detail)return errResponse('ไม่พบรอบจับคู่');
     if(!dryRun && !Boolean(p.confirmed))return errResponse('ต้องยืนยันก่อนส่ง LINE');
     const previews=buildPreviews(detail.pairs,detail.looking);
-    if(dryRun)return jsonResponse({ok:true,dryRun:true,previews,messageCount:previews.length,unsendable:previews.filter(x=>!x.lineUserId).map(x=>x.recipient.name)});
-    await db.from('matching_rounds').update({status:'sending',confirmed_by:String(auth.displayName||auth.role),confirmed_at:new Date().toISOString()}).eq('id',roundId).eq('status','draft');
+    if(dryRun)return jsonResponse({ok:true,dryRun:true,testMode,previews,messageCount:previews.length,unsendable:previews.filter(x=>!x.lineUserId).map(x=>x.recipient.name)});
+    if(!testMode)await db.from('matching_rounds').update({status:'sending',confirmed_by:String(auth.displayName||auth.role),confirmed_at:new Date().toISOString()}).eq('id',roundId).eq('status','draft');
     let sent=0,failed=0,skipped=0;
-    for(const item of previews){if(!item.lineUserId){failed++;continue;}try{const key=`weekly-121:${roundId}:${item.recipient.id}`;const result=await linePush(item.lineUserId,item.message,{db,idempotencyKey:key,memberId:item.recipient.id,notificationType:'weekly_121_matching',source:'api/weekly-121'});if(result.skipped)skipped++;else sent++;if(result.deliveryId)await db.from('line_message_deliveries').update({matching_round_id:roundId,matching_pair_id:item.pairId}).eq('id',result.deliveryId);}catch(e){failed++;console.error('[weekly-121-send]',roundId,item.recipient.id,e);}}
+    for(const item of previews){if(!item.lineUserId){failed++;continue;}try{const key=`weekly-121${testMode?'-test':''}:${roundId}:${item.recipient.id}`;const outgoing=testMode?weekly121TestMessage(item.message):item.message;const result=await linePush(item.lineUserId,outgoing,{db,idempotencyKey:key,memberId:item.recipient.id,notificationType:testMode?'weekly_121_test':'weekly_121_matching',source:'api/weekly-121'});if(result.skipped)skipped++;else sent++;if(result.deliveryId)await db.from('line_message_deliveries').update({matching_round_id:roundId,matching_pair_id:item.pairId}).eq('id',result.deliveryId);}catch(e){failed++;console.error('[weekly-121-send]',roundId,item.recipient.id,e);}}
+    if(testMode)return jsonResponse({ok:true,testMode:true,status:failed?'partially_failed':'tested',sent,failed,skipped});
     const status=failed?'partially_failed':'sent';await db.from('matching_rounds').update({status}).eq('id',roundId);
-    return jsonResponse({ok:true,status,sent,failed,skipped});
+    return jsonResponse({ok:true,testMode:false,status,sent,failed,skipped});
   }
   return errResponse(`Unknown weekly 1-2-1 action: ${action}`);
 }

@@ -1,4 +1,4 @@
-import { createWeekly121Matches, normalize121Name, parseWeekly121Csv, weekly121Message, weekly121PairScore } from './weekly-121.ts';
+import { createWeekly121Matches, normalize121Name, parseWeekly121Csv, weekly121Message, weekly121PairScore, weekly121TestMessage } from './weekly-121.ts';
 const eq = (a: unknown, b: unknown) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${JSON.stringify(a)} != ${JSON.stringify(b)}`); };
 Deno.test('CSV รองรับ BOM ไทย quoted comma และ multiline', () => {
   const csv = '\uFEFF"ชื่อผู้เข้าประชุม (ภาษาอังกฤษ)","นามสกุล (ภาษาอังกฤษ)",มาประชุมแทน,"Looking for",date,time,user_role\nMayuree,Issard,,"โรงแรม, ขอนแก่น\nแห่งใหม่",18/08/2026,07:49:02,member';
@@ -37,4 +37,8 @@ Deno.test('โหมด Looking for จับความต้องการ�
 Deno.test('โหมดข้ามทีมให้คะแนนสมาชิกต่างทีม', () => {
   const a={id:'a',name:'A',mentorTeam:'Aof'}, b={id:'b',name:'B',mentorTeam:'Aof'}, c={id:'c',name:'C',mentorTeam:'Draft'};
   if(weekly121PairScore(a,c,'cross_team')<=weekly121PairScore(a,b,'cross_team'))throw new Error('cross-team not preferred');
+});
+Deno.test('ข้อความทดสอบขึ้นต้นชัดเจนและเก็บข้อความจริงไว้', () => {
+  const out=weekly121TestMessage('ข้อความคู่จริง');
+  if(!out.startsWith('🧪 นี่คือการทดลองระบบ')||!out.includes('ข้อความคู่จริง'))throw new Error('invalid test prefix');
 });
