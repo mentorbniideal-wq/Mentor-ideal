@@ -17,11 +17,11 @@ After: the same import, members, authentication, LINE sender, delivery ledger, a
 
 ## Notification rules
 
-No second notification engine is introduced. The existing `linePush` + `line_message_deliveries` idempotency ledger remains central. New budget configuration starts at global 15,000/month and 1-2-1 hard cap 3,000/month, with one proactive message/day, three reminders/week, 24-hour cooldown, and quiet hours 20:00–08:00. Pure policy tests cover quota thresholds. Real sends still require preview and explicit confirmation; development and pilot default to dry-run.
+No second delivery engine is introduced. The existing `linePush` + `line_message_deliveries` idempotency ledger remains central, with a shared notification guard in front of 1-2-1 sends. Budget configuration starts at global 15,000/month and 1-2-1 hard cap 3,000/month, with one proactive message/day, three reminders/week, cooldown, duplicate prevention, member mute/snooze, and quiet hours 20:00–08:00. Suppressed sends are logged once with an explainable reason. Real sends still require preview and explicit confirmation; development and pilot default to dry-run.
 
 ## Rollout
 
-1. Apply migration `20260822000057_one_to_one_system.sql`.
+1. Apply migrations `20260822000057_one_to_one_system.sql` through `20260822000059_notification_orchestrator_and_pilot.sql`.
 2. Deploy Edge API and static dashboard with `FEATURE_ONE_TO_ONE_SYSTEM=false`.
 3. Use a new round with dry-run only and verify that odd attendance creates one waiting-list row and no trio.
 4. Pilot with test users. Do not send to the whole chapter.
@@ -52,9 +52,11 @@ The existing LIFF Action Center now resolves the signed-in LINE member server-si
 
 MC Desktop queue views now load real Active 1-2-1, Waiting List, Follow-up, and Needs Attention data. Completing a follow-up or overriding/resolving an attention item is handled by the authenticated API and creates an event audit record.
 
+The full Member Profile now includes a 1-2-1 History tab with completion KPIs, partner relationship history, round history, schedules, feedback, next actions, waiting-list records, attention items, and readable legacy groups. MC Desktop also includes Pilot Control and Message Control: MC can select pilot members, keep the global feature disabled while piloting, trigger an emergency stop, and inspect monthly usage, forecast, failures, top recipients, and suppression reasons.
+
 ## Known limitations and next increments
 
-- Relationship-history in the full Member Profile and a dedicated Outlook Calendar deep link are not implemented yet; Google Calendar and standards-based `.ics` are available through the authenticated member route.
+- A dedicated Outlook Calendar deep link is not implemented yet; Google Calendar and standards-based `.ics` are available through the authenticated member route.
 - The LIFF UI exposes the primary schedule, handshake, and reflection paths. More polished datetime picker, contact preference editor, and full relationship timeline remain future increments.
-- Notification policy is implemented as a tested decision function, but all existing cron modules still need staged adoption of the shared budget decision before the global orchestrator is complete.
+- The shared notification guard is active for 1-2-1 round sends. Existing non-1-2-1 cron modules still need staged adoption before every LINE notification is governed by the same caps.
 - Future work: Smart Referral Matching, mentor-assisted late opt-in pairing, Outlook deep links, richer completion insights, and retention automation for private feedback.
