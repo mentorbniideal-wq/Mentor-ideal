@@ -392,6 +392,17 @@ function cleanRosterText(parts: string[]): string {
     .trim();
 }
 
+function safeRosterImportText(value: unknown): string | null {
+  const clean = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!clean) return null;
+  // Some BNI PDFs embed Thai company names through a custom font mapping. If
+  // decoding leaves controls, Latin-extended fragments, or PDF glyph markers,
+  // keep the current database value rather than importing corrupted text.
+  if (/[\u0000-\u001f\u007f\ufffd\u00c0-\u024f]/.test(clean)) return null;
+  if (/[\u0e00-\u0e7f]/.test(clean) && /["#*+~\[\]\\^_]/.test(clean)) return null;
+  return clean;
+}
+
 function isNameLine(y: number, anchorY: number): boolean {
   return Math.abs(y - anchorY) <= 2 || Math.abs(y - (anchorY - 10)) <= 2;
 }
@@ -440,7 +451,13 @@ function parseRosterReportFromEntries(entries: Array<{ page?: number; x: number;
   const seen = new Set<string>();
   for (const anchor of phoneAnchors) {
     const y = anchor.y;
-    const near = entries.filter((e) => e.page === anchor.page && e.y <= y + 2 && e.y >= y - 38);
+    // Bound the row by the next phone anchor on the same page. The old fixed
+    // 38-point window could absorb profession/company text from the next row.
+    const nextAnchorY = Math.max(-Infinity, ...phoneAnchors
+      .filter((candidate) => candidate.page === anchor.page && candidate.y < y - 2)
+      .map((candidate) => candidate.y));
+    const rowBottom = Number.isFinite(nextAnchorY) ? nextAnchorY + 2 : y - 45;
+    const near = entries.filter((e) => e.page === anchor.page && e.y <= y + 2 && e.y > rowBottom);
     const name = cleanRosterText(near.filter((e) => e.x >= 25 && e.x < 105 && isNameLine(e.y, y)).sort((a, b) => b.y - a.y || a.x - b.x).map((e) => e.text));
     if (!name || /Member Name|Running User|Parameters|Officers|Regional Leadership/.test(name)) continue;
     const key = normalizeMemberName(name);
@@ -464,7 +481,7 @@ function parseRosterReportFromEntries(entries: Array<{ page?: number; x: number;
   return { runAt: parseRunAt(runAtText), chapter, memberCountLabel, rows };
 }
 
-async function parseRosterPdf(pdfBase64: unknown): Promise<ParsedRosterReport> {
+export async function parseRosterPdf(pdfBase64: unknown): Promise<ParsedRosterReport> {
   const bytes = decodeBase64Pdf(pdfBase64);
   const streams = await extractPdfStreams(bytes);
   if (!streams.length) throw new Error('อ่าน PDF ไม่ได้ หรือไม่พบ compressed stream');
@@ -575,7 +592,7 @@ async function parsePalmsSummaryPdf(pdfBase64: unknown): Promise<ParsedPalmsSumm
   return report;
 }
 
-async function buildRosterPreview(db: ReturnType<typeof getServiceClient>, report: ParsedRosterReport) {
+export async function buildRosterPreview(db: ReturnType<typeof getServiceClient>, report: ParsedRosterReport) {
   const { data, error } = await db
     .from('members')
     .select('id, name, nickname, phone, profession, company_name, is_archived')
@@ -599,6 +616,12 @@ async function buildRosterPreview(db: ReturnType<typeof getServiceClient>, repor
     const matchMethod = matched ? (byName.get(nameKey) ? 'name' : 'phone') : null;
     return {
       ...row,
+      safeProfession: safeRosterImportText(row.profession),
+      safeCompanyName: safeRosterImportText(row.companyName),
+      importWarnings: [
+        row.profession && !safeRosterImportText(row.profession) ? 'profession_decode' : '',
+        row.companyName && !safeRosterImportText(row.companyName) ? 'company_decode' : '',
+      ].filter(Boolean),
       matched: !!matched,
       matchMethod,
       memberId: matched?.id || null,
@@ -1903,8 +1926,8 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       for (const row of matchedRows) {
         const memberId = String(row.memberId);
         const phone = textValue(row.phone) || null;
-        const profession = textValue(row.profession) || null;
-        const companyName = textValue(row.companyName) || null;
+        const profession = safeRosterImportText(row.profession);
+        const companyName = safeRosterImportText(row.companyName);
         const updates: Record<string, unknown> = { roster_synced_at: now };
         if (phone) updates.phone = phone;
         if (profession) updates.profession = profession;
