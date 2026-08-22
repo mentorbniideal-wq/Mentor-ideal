@@ -224,6 +224,8 @@ const ROUTES: Record<string, string> = {
   'getOneToOneMemberHistory': 'weekly-121',
   'getOneToOnePilotSettings': 'weekly-121', 'saveOneToOnePilotSettings': 'weekly-121',
   'getOneToOneMessageControl': 'weekly-121',
+  'getWeekly121MessageTemplates': 'weekly-121', 'setWeekly121MessageTemplate': 'weekly-121',
+  'saveOneToOneBusinessProfile': 'weekly-121',
 
   // Usage
   'logUsage': 'usage', 'getUsageLog': 'usage', 'getLineAnalytics': 'usage',

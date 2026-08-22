@@ -137,6 +137,7 @@ function compact121(value: string | undefined, fallback = ''): string {
 export function weekly121Message(
   recipient: { name: string; business?: string; lookingFor?: string },
   partners: Array<{ name: string; business?: string; lookingFor?: string }>,
+  templateKey = 'growth_opportunity',
 ): string {
   const recipientName = compact121(recipient.name, 'สมาชิก');
   const partnerText = partners.map(p => `✨ คุณ ${compact121(p.name)}${p.business ? `\n   ${compact121(p.business)}` : ''}`).join('\n\n');
@@ -155,6 +156,79 @@ export function weekly121Message(
   const sharePrompt = recipientLooking
     ? `และเล่าให้คู่คุณรู้ว่า คุณกำลังมองหา “${recipientLooking}”`
     : 'และเล่าให้คู่คุณรู้ว่า ลูกค้าแบบไหนที่คุณอยากให้ช่วยแนะนำ';
+
+  if (templateKey === 'warm_connection') return `🤝 คู่สนทนาดี ๆ ประจำสัปดาห์นี้มาแล้ว
+
+สวัสดีคุณ ${recipientName} 😊
+สัปดาห์นี้คุณได้ทำความรู้จักกับ
+
+${partnerText}
+
+🌱 ลองเริ่มจาก 3 เรื่องง่าย ๆ
+• อะไรทำให้คุณเริ่มทำธุรกิจนี้
+• ลูกค้าแบบไหนที่คุณภูมิใจที่สุด
+• คนรอบตัวควรนึกถึงคุณเมื่อเจอสถานการณ์แบบไหน
+
+ไม่ต้องขายของให้กัน แค่ฟังให้เข้าใจ แล้วช่วยกันมองหาโอกาสดี ๆ
+ทักหากันวันนี้และนัด 1-2-1 ภายในสัปดาห์นี้นะครับ/คะ
+
+— Mentor Team, BNI IDEAL`;
+
+  if (templateKey === 'referral_focus') return `🎯 Referral Focus 1-2-1
+
+คุณ ${recipientName} ได้คู่ประจำสัปดาห์นี้แล้ว
+
+${partnerText}
+
+🔍 สิ่งที่แต่ละคนกำลังมองหา
+${opportunities}
+
+ก่อนจบการคุย ลองช่วยกันตอบให้ได้ว่า
+• ลูกค้าในอุดมคติคือใคร
+• มีคำพูดหรือเหตุการณ์อะไรที่เป็น Referral Trigger
+• สัปดาห์นี้จะแนะนำ Connection ใดให้กันได้ 1 คน
+
+${sharePrompt}
+
+นัดคุยกัน 30–45 นาที แล้วเปลี่ยนความรู้จักให้เป็น Referral ที่มีคุณภาพครับ/ค่ะ 🚀
+
+— Mentor Team, BNI IDEAL`;
+
+  if (templateKey === 'story_trust') return `✨ 1-2-1 Story & Trust
+
+สวัสดีคุณ ${recipientName}
+คู่ที่ระบบเลือกให้คุณในสัปดาห์นี้คือ
+
+${partnerText}
+
+💬 คำถามชวนคุย
+• จุดเปลี่ยนสำคัญในชีวิตการทำงานของคุณคืออะไร
+• ลูกค้าคนไหนทำให้คุณรู้สึกว่างานนี้มีความหมาย
+• สมาชิก BNI จะช่วยเปิดประตูให้คุณได้อย่างไร
+
+ฟังเรื่องราวของกันและกันให้จบ แล้วสรุป 1 ประโยคว่า “ฉันจะแนะนำคุณกับคนอื่นว่า…”
+
+เริ่มจากความไว้ใจ แล้วโอกาสทางธุรกิจจะตามมาครับ/ค่ะ 🤍
+
+— Mentor Team, BNI IDEAL`;
+
+  if (templateKey === 'quick_action') return `⚡ คู่ 1-2-1 สัปดาห์นี้
+
+คุณ ${recipientName} ↔ ${partners.map(p=>`คุณ ${compact121(p.name)}`).join(' / ')}
+
+${partnerText}
+
+ภารกิจ 20 นาที
+1) แนะนำธุรกิจคนละ 3 นาที
+2) บอก Looking for ที่ชัดที่สุดคนละ 1 เรื่อง
+3) แลก Referral Trigger
+4) นัด Next Action คนละ 1 ข้อ
+
+${opportunities}
+
+ทักหาคู่ของคุณวันนี้ แล้วล็อกเวลาในปฏิทินได้เลยครับ/ค่ะ ✅
+
+— Mentor Team, BNI IDEAL`;
 
   return `🎉 คุณมีคู่ 1-2-1 ประจำสัปดาห์แล้ว!\n\nคุณ ${recipientName}\nสัปดาห์นี้ชวนมารู้จักกันให้ลึกกว่าเดิมกับ\n\n${partnerText}\n\n💡 โอกาสที่น่าชวนคุย\n${opportunities}\n\n🗣️ เริ่มบทสนทนาได้เลย\n“สวัสดีครับ/ค่ะ คุณ ${primaryName} สัปดาห์นี้เราได้คู่ 1-2-1 กัน ยินดีมากครับ/ค่ะ 😊\n${openerTopic}”\n\n🎯 ภารกิจเล็ก ๆ ในการคุยครั้งนี้\n• แลกเปลี่ยนเรื่องธุรกิจคนละ 5 นาที\n• บอกสัญญาณที่ทำให้นึกถึงกันได้ง่าย ๆ\n• ลองมองหาคนที่ช่วยแนะนำให้กันได้คนละ 1 คน\n\n${sharePrompt}\n\nทักหากันวันนี้ แล้วนัดเวลา 1-2-1 ภายในสัปดาห์นี้นะครับ/คะ 🚀\n\n— Mentor Team, BNI IDEAL`;
 }

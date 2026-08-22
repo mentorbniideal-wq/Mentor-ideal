@@ -54,3 +54,9 @@ Deno.test('ข้อความทดสอบขึ้นต้นชัดเ
   const out=weekly121TestMessage('ข้อความคู่จริง');
   if(!out.startsWith('🧪 นี่คือการทดลองระบบ')||!out.includes('ข้อความคู่จริง'))throw new Error('invalid test prefix');
 });
+Deno.test('Template มาตรฐานทั้งห้าแบบสร้างข้อความเฉพาะและปลอดภัย', () => {
+  const keys=['growth_opportunity','warm_connection','referral_focus','story_trust','quick_action'];
+  const messages=keys.map(key=>weekly121Message({name:'Pete',lookingFor:'เจ้าของโรงแรม'},[{name:'Ideal',business:'สถาปนิก'}],key));
+  if(new Set(messages).size!==keys.length)throw new Error('templates must produce distinct messages');
+  messages.forEach(message=>{if(!message.includes('Pete')||!message.includes('Ideal')||message.includes('undefined')||message.length>5000)throw new Error('unsafe template output');});
+});

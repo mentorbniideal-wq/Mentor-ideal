@@ -54,6 +54,8 @@ MC Desktop queue views now load real Active 1-2-1, Waiting List, Follow-up, and 
 
 The full Member Profile now includes a 1-2-1 History tab with completion KPIs, partner relationship history, round history, schedules, feedback, next actions, waiting-list records, attention items, and readable legacy groups. MC Desktop also includes Pilot Control and Message Control: MC can select pilot members, keep the global feature disabled while piloting, trigger an emergency stop, and inspect monthly usage, forecast, failures, top recipients, and suppression reasons.
 
+Each draft round stores its selected LINE message template. MC can choose from five standard styles—Business Opportunity, Warm Connection, Referral Focus, Story & Trust, and Quick Action—then inspect the recipient-specific dry-run before confirming a send. Pair cards also provide a direct business-profile editor. Matching and copy resolve business context from `biz_profiles.description`, then fall back to `members.profession` and `members.company_name`; the latter two fields are populated by the Chapter Roster PDF sync, not by the weekly Check-in CSV.
+
 ## Known limitations and next increments
 
 - A dedicated Outlook Calendar deep link is not implemented yet; Google Calendar and standards-based `.ics` are available through the authenticated member route.
