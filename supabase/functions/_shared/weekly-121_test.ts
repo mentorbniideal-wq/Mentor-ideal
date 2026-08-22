@@ -1,14 +1,26 @@
-import { createWeekly121Matches, normalize121Name, parseWeekly121Csv, weekly121Message, weekly121PairScore, weekly121TestMessage } from './weekly-121.ts';
+import { createOneToOneMatches, createWeekly121Matches, normalize121Name, parseWeekly121Csv, weekly121Message, weekly121PairScore, weekly121TestMessage } from './weekly-121.ts';
 const eq = (a: unknown, b: unknown) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${JSON.stringify(a)} != ${JSON.stringify(b)}`); };
 Deno.test('CSV รองรับ BOM ไทย quoted comma และ multiline', () => {
   const csv = '\uFEFF"ชื่อผู้เข้าประชุม (ภาษาอังกฤษ)","นามสกุล (ภาษาอังกฤษ)",มาประชุมแทน,"Looking for",date,time,user_role\nMayuree,Issard,,"โรงแรม, ขอนแก่น\nแห่งใหม่",18/08/2026,07:49:02,member';
   const out = parseWeekly121Csv(csv); eq(out.rows.length, 1); eq(out.rows[0].lookingFor, 'โรงแรม, ขอนแก่น\nแห่งใหม่');
 });
 Deno.test('normalize ชื่อ', () => eq(normalize121Name('  MAYUREE   Issard '), 'mayuree issard'));
-Deno.test('จำนวนคู่และเลขคี่เป็นกลุ่มสามโดยสมาชิกไม่ซ้ำ', () => {
+Deno.test('ระบบใหม่สร้างคู่ละ 2 คนและเลขคี่เข้า Waiting List', () => {
   const ms = ['a','b','c','d','e'].map(id => ({ id, name: id }));
-  const groups = createWeekly121Matches(ms, new Set(), [], () => .5);
-  eq(groups.map(g => g.members.length), [3,2]); eq(new Set(groups.flatMap(g => g.members.map(m => m.id))).size, 5);
+  const result = createOneToOneMatches(ms, new Set(), [], () => .5);
+  eq(result.groups.map(g => g.members.length), [2,2]);
+  if (!result.waiting) throw new Error('odd member must wait');
+  eq(new Set([...result.groups.flatMap(g => g.members.map(m => m.id)),result.waiting.id]).size, 5);
+});
+Deno.test('Waiting priority ทำให้คนที่เคยรอได้จับคู่ก่อน', () => {
+  const ms = [{id:'a',name:'A',waitingPriority:4},{id:'b',name:'B',waitingPriority:0},{id:'c',name:'C',waitingPriority:0}];
+  const result=createOneToOneMatches(ms,new Set(),[],()=>.5);
+  if(result.waiting?.id==='a')throw new Error('carry-priority member must not wait again');
+  if(!result.groups[0].members.some(member=>member.id==='a'))throw new Error('priority member must be paired');
+});
+Deno.test('ระบบเดิมที่เรียก matcher ด้วยจำนวนคู่ยังได้เฉพาะคู่', () => {
+  const groups=createWeekly121Matches(['a','b','c','d'].map(id=>({id,name:id})),new Set(),[],()=>.5);
+  if(groups.some(group=>group.members.length!==2))throw new Error('new group of three detected');
 });
 Deno.test('ป้องกันคู่ซ้ำและรักษาคู่ล็อก', () => {
   const ms = ['a','b','c','d'].map(id => ({ id, name: id }));

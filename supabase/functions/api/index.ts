@@ -218,6 +218,7 @@ const ROUTES: Record<string, string> = {
   'setWeekly121PairLock': 'weekly-121', 'sendWeekly121Round': 'weekly-121',
   'resolveWeekly121ImportRow': 'weekly-121', 'removeWeekly121Member': 'weekly-121',
   'swapWeekly121Members': 'weekly-121',
+  'getOneToOneOverview': 'weekly-121',
 
   // Usage
   'logUsage': 'usage', 'getUsageLog': 'usage', 'getLineAnalytics': 'usage',

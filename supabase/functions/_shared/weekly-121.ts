@@ -44,8 +44,9 @@ export function parseWeekly121Csv(text: string): { rows: CsvRow121[]; dates: str
 }
 
 export type MatchingStrategy = 'random' | 'checkin_mix' | 'looking_for' | 'cross_team' | 'smart_mix';
-export type MatchMember = { id: string; name: string; checkinOrder?: number; lookingFor?: string; business?: string; mentorTeam?: string };
+export type MatchMember = { id: string; name: string; checkinOrder?: number; lookingFor?: string; business?: string; mentorTeam?: string; waitingPriority?: number; completionRate?: number };
 export type MatchGroup = { members: MatchMember[]; locked?: boolean };
+export type MatchResult = { groups: MatchGroup[]; waiting: MatchMember | null };
 const pairKey = (a: string, b: string) => [a, b].sort().join('|');
 
 function matchTokens(value: string | undefined): Set<string> {
@@ -77,10 +78,9 @@ export function createWeekly121Matches(
   const lockedIds = new Set(locked.flatMap(g => g.members.map(m => m.id)));
   const pool = members.filter(m => !lockedIds.has(m.id));
   if (new Set(members.map(m => m.id)).size !== members.length) throw new Error('พบสมาชิกซ้ำในรายการจับคู่');
-  if (pool.length === 1) throw new Error('เหลือสมาชิกเพียง 1 คนหลังหักคู่ที่ล็อก');
+  if (pool.length === 1) return [...locked];
   const sizes: number[] = [];
-  if (pool.length % 2) sizes.push(3);
-  for (let n = sizes.reduce((a, b) => a + b, 0); n < pool.length; n += 2) sizes.push(2);
+  for (let n = 0; n < pool.length; n += 2) sizes.push(2);
   const shuffled = pool.slice().sort(() => random() - .5);
   const compatible = (group: MatchMember[], candidate: MatchMember) => group.every(m => m.id !== candidate.id && !blockedKeys.has(pairKey(m.id, candidate.id)));
   const search = (remaining: MatchMember[], index: number, made: MatchGroup[]): MatchGroup[] | null => {
@@ -104,6 +104,29 @@ export function createWeekly121Matches(
   const result = search(shuffled, 0, []);
   if (!result) throw new Error('ไม่สามารถจัดคู่ภายใต้เงื่อนไขคู่ซ้ำ/คู่ห้ามได้ กรุณาลดระยะเวลาหรือปรับรายชื่อ');
   return [...locked, ...result];
+}
+
+/** New-system matcher. It never creates a trio; one fair-rotation member waits. */
+export function createOneToOneMatches(
+  members: MatchMember[], blockedKeys: Set<string>, locked: MatchGroup[] = [], random: () => number = Math.random,
+  strategy: MatchingStrategy = 'random',
+): MatchResult {
+  const lockedIds = new Set(locked.flatMap(group => group.members.map(member => member.id)));
+  const available = members.filter(member => !lockedIds.has(member.id));
+  let waiting: MatchMember | null = null;
+  if (available.length % 2 === 1) {
+    // A higher carry priority means this person waited before and should be paired now.
+    // Choose among the lowest priority first, using check-in order then randomness as ties.
+    waiting = available.slice().sort((a, b) =>
+      Number(a.waitingPriority || 0) - Number(b.waitingPriority || 0)
+      || Number(b.checkinOrder || 0) - Number(a.checkinOrder || 0)
+      || random() - .5
+    )[0];
+  }
+  const pairable = waiting ? members.filter(member => member.id !== waiting!.id) : members;
+  const groups = createWeekly121Matches(pairable, blockedKeys, locked, random, strategy);
+  if (groups.some(group => group.members.length !== 2)) throw new Error('ระบบป้องกันกลุ่มสาม: คู่ใหม่ต้องมีสมาชิก 2 คนเท่านั้น');
+  return { groups, waiting };
 }
 
 function compact121(value: string | undefined, fallback = ''): string {
