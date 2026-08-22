@@ -3438,14 +3438,13 @@ var SUPABASE_API='https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
 var SUPABASE_ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
 var SUPABASE_URL_AUTH='https://itwyjhlfemxsfbimshby.supabase.co';
 var API_HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_ANON};
-var APP_STATIC_VERSION='2026.07.14-system-health.1';
+var APP_STATIC_VERSION='2026.08.22-email-auth-hotfix.1';
 try{
   var _svKey='bni_dashboard_static_version';
   var _prevSv=localStorage.getItem(_svKey)||'';
   if(_prevSv&&_prevSv!==APP_STATIC_VERSION)console.info('[BNI Dashboard] static version updated',_prevSv,'→',APP_STATIC_VERSION);
   localStorage.setItem(_svKey,APP_STATIC_VERSION);
 }catch(e){}
-var _sbAuth=null;
 var DESKTOP_ROLE_TARGET=(function(){
   try{
     var r=(new URLSearchParams(window.location.search).get('role')||'').toLowerCase();
@@ -3454,26 +3453,36 @@ var DESKTOP_ROLE_TARGET=(function(){
 })();
 var _sbAuth=null;
 var DSH_SESSION_KEY='bni_dash_session';
-function getSbAuth(){if(!_sbAuth&&window.supabase){_sbAuth=window.supabase.createClient(SUPABASE_URL_AUTH,SUPABASE_ANON,{auth:{autoRefreshToken:true,persistSession:true}});}return _sbAuth;}
+var _desktopAuthCheckStarted=false;
+function getSbAuth(){if(!_sbAuth&&window.supabase){_sbAuth=window.supabase.createClient(SUPABASE_URL_AUTH,SUPABASE_ANON,{auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true}});}return _sbAuth;}
 function getDashSession(){try{return JSON.parse(sessionStorage.getItem(DSH_SESSION_KEY)||'null');}catch{return null;}}
 function storeDashSession(s){try{sessionStorage.setItem(DSH_SESSION_KEY,JSON.stringify(s));}catch{}}
 function clearDashSession(){try{sessionStorage.removeItem(DSH_SESSION_KEY);}catch{}}
 function oauthRedirectUrl(){return window.location.origin+window.location.pathname+(DESKTOP_ROLE_TARGET?'?role='+encodeURIComponent(DESKTOP_ROLE_TARGET):'');}
 function showDesktopLoginError(message){var el=document.getElementById('lerr');if(el)el.textContent=message||'';document.getElementById('login').style.display='flex';}
+function desktopTimeout(promise,ms,message){return Promise.race([promise,new Promise(function(_,reject){setTimeout(function(){reject(new Error(message||'หมดเวลารอการตอบกลับ'));},ms);})]);}
+function requestDesktopRole(token){var controller=typeof AbortController!=='undefined'?new AbortController():null,timer=controller?setTimeout(function(){controller.abort();},12000):null;return fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'getMyRole',token:token}),signal:controller?controller.signal:undefined}).then(function(res){if(!res.ok)throw new Error('ระบบยืนยันสิทธิ์ตอบกลับ '+res.status);return res.json();}).finally(function(){if(timer)clearTimeout(timer);});}
 function checkDesktopGoogleSession(){
+  if(_desktopAuthCheckStarted)return;
+  _desktopAuthCheckStarted=true;
   var sb=getSbAuth();
-  if(!sb){showDesktopLoginError('ไม่สามารถโหลดระบบ Google Login ได้ กรุณารีเฟรชหน้า');return;}
-  sb.auth.getSession().then(function(res){
+  if(!sb){_desktopAuthCheckStarted=false;ld(false);showDesktopLoginError('ไม่สามารถโหลดระบบ Google Login ได้ กรุณารีเฟรชหน้า');return;}
+  desktopTimeout(sb.auth.getSession(),10000,'หมดเวลาตรวจสอบ Google session').then(function(res){
     var session=res&&res.data&&res.data.session;
-    if(!session||!session.access_token){ld(false);showDesktopLoginError('');return;}
+    if(!session||!session.access_token){_desktopAuthCheckStarted=false;ld(false);showDesktopLoginError('');return;}
     S.token=session.access_token;ld(true);
-    gsr('getMyRole',{token:S.token},function(r){
+    requestDesktopRole(S.token).then(function(r){
+      _desktopAuthCheckStarted=false;
       ld(false);
       if(r&&r.ok){showDesktopLoginError('');enterApp(r);return;}
       S.token=null;
-      sb.auth.signOut().finally(function(){showDesktopLoginError((r&&r.error)||'ไม่สามารถตรวจสอบสิทธิ์อีเมลได้ กรุณาลองใหม่');});
+      showDesktopLoginError((r&&r.error)||'ไม่สามารถตรวจสอบสิทธิ์อีเมลได้ กรุณาลองใหม่');
+      sb.auth.signOut().catch(function(){});
+    }).catch(function(e){
+      _desktopAuthCheckStarted=false;S.token=null;ld(false);
+      showDesktopLoginError(e&&e.name==='AbortError'?'ระบบยืนยันสิทธิ์ใช้เวลานานเกินไป กรุณากด Login อีกครั้ง':'ตรวจสอบสิทธิ์อีเมลไม่สำเร็จ: '+(e&&e.message?e.message:'กรุณาลองใหม่'));
     });
-  }).catch(function(e){ld(false);showDesktopLoginError('ตรวจสอบ Google session ไม่สำเร็จ: '+(e&&e.message?e.message:'กรุณาลองใหม่'));});
+  }).catch(function(e){_desktopAuthCheckStarted=false;ld(false);showDesktopLoginError('ตรวจสอบ Google session ไม่สำเร็จ: '+(e&&e.message?e.message:'กรุณาลองใหม่'));});
 }
 
 function dPinSubmit(){
@@ -13146,7 +13155,7 @@ function deskSetupRichMenu() {
     }
   },500);
 })();
-window.onload=function(){
+function bootDesktop(){
   if(localStorage.getItem('theme')==='dark'){
     document.body.classList.add('dark');
     const btn=document.getElementById('themeBtn');
@@ -13155,7 +13164,9 @@ window.onload=function(){
     if(mc) mc.content='#0E1110';
   }
   checkSession();
-};
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootDesktop,{once:true});
+else bootDesktop();
 
 // ── AI Copilot ─────────────────────────────────────────────────────
 var _copHistory = [];
