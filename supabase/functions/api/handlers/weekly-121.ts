@@ -139,6 +139,21 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
     ]);
     return jsonResponse({ok:true,round:round||null,stats:{active:active||0,waiting:waiting||0,followup:followUp||0,attention:attention||0},featureEnabled:String((round as Record<string,unknown>|null)?.feature_flag||'')==='one_to_one_system'});
   }
+  if(action==='getOneToOneQueues'){
+    const [{data:active},{data:waiting},{data:followUps},{data:attention},{data:budgets}]=await Promise.all([
+      db.from('matching_pairs').select('id,status,created_at,round:matching_rounds(meeting_date,ends_at),member_a:members!matching_pairs_member_a_id_fkey(id,name,nickname,mentor_team),member_b:members!matching_pairs_member_b_id_fkey(id,name,nickname,mentor_team),schedules:one_to_one_schedules(id,starts_at,status,meeting_mode)').is('archived_at',null).neq('status','verified').neq('status','late_verified').order('created_at',{ascending:false}).limit(100),
+      db.from('pairing_waitlist').select('id,status,priority_points,reason,created_at,round:matching_rounds(meeting_date),member:members(id,name,nickname,mentor_team)').eq('status','waiting').order('priority_points',{ascending:false}).limit(100),
+      db.from('one_to_one_follow_up_actions').select('id,action_type,description,due_date,status,outcome,owner:members!one_to_one_follow_up_actions_owner_member_id_fkey(id,name,nickname,mentor_team),related:members!one_to_one_follow_up_actions_related_member_id_fkey(id,name,nickname)').in('status',['pending','in_progress','overdue']).order('due_date',{ascending:true}).limit(100),
+      db.from('one_to_one_attention_items').select('id,level,reason,evidence,positive_context,suggested_action,assigned_role,due_date,status,member:members(id,name,nickname,mentor_team),pair_id').in('status',['open','reviewed','snoozed']).order('created_at',{ascending:false}).limit(100),
+      db.from('notification_budget_config').select('*').order('module'),
+    ]);return jsonResponse({ok:true,active:active||[],waiting:waiting||[],followUps:followUps||[],attention:attention||[],budgets:budgets||[]});
+  }
+  if(action==='updateOneToOneFollowUp'){
+    const id=String(p.id||''),status=String(p.status||'');if(!['pending','in_progress','completed','cancelled','overdue'].includes(status))return errResponse('สถานะ Follow-up ไม่ถูกต้อง');const changes:Record<string,unknown>={status,outcome:String(p.outcome||'').trim()||null};if(status==='completed')changes.completed_at=new Date().toISOString();const {error}=await db.from('one_to_one_follow_up_actions').update(changes).eq('id',id);return error?errResponse(error.message):jsonResponse({ok:true});
+  }
+  if(action==='updateOneToOneAttention'){
+    const id=String(p.id||''),status=String(p.status||'');if(!['open','reviewed','snoozed','resolved','no_action_required'].includes(status))return errResponse('สถานะ Attention ไม่ถูกต้อง');const changes:Record<string,unknown>={status,resolution:String(p.resolution||'').trim()||null,assigned_role:String(p.assignedRole||auth.role||'').trim()||null};if(status==='resolved'||status==='no_action_required')changes.resolved_at=new Date().toISOString();if(status==='snoozed')changes.snoozed_until=String(p.snoozedUntil||new Date(Date.now()+86400000).toISOString());const {error}=await db.from('one_to_one_attention_items').update(changes).eq('id',id);if(!error)await db.from('one_to_one_status_events').insert({event_type:'attention_override',actor_type:'mentor',actor_ref:String(auth.role),metadata:{attentionId:id,status,resolution:changes.resolution}});return error?errResponse(error.message):jsonResponse({ok:true});
+  }
   if (action === 'getWeekly121History') { const {data,error}=await db.from('matching_rounds').select('id,meeting_date,source_file_name,status,repeat_window_weeks,created_by,created_at,confirmed_at,matching_pairs(count)').order('meeting_date',{ascending:false}).limit(30); return error?errResponse(error.message):jsonResponse({ok:true,rounds:data||[]}); }
 
   if (action === 'sendWeekly121Round') {

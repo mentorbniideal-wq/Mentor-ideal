@@ -39,3 +39,27 @@ export function notificationBudgetDecision(input:{monthlyUsed:number;monthlyQuot
   if (usage >= .75 && input.priority === 'informational') return {allowed:false,reason:'quota_75'};
   return {allowed:true,reason:'allowed'};
 }
+
+export function generateHandshakeCode(randomValues?: Uint32Array): string {
+  const values=randomValues || crypto.getRandomValues(new Uint32Array(1));
+  return String(values[0] % 1_000_000).padStart(6,'0');
+}
+
+export async function handshakeCodeHash(pairId:string,ownerMemberId:string,code:string,pepper:string):Promise<string>{
+  if(!/^\d{6}$/.test(code))throw new Error('รหัสต้องเป็นตัวเลข 6 หลัก');
+  const bytes=new TextEncoder().encode(`${pairId}:${ownerMemberId}:${code}:${pepper}`);
+  const digest=await crypto.subtle.digest('SHA-256',bytes);
+  return [...new Uint8Array(digest)].map(value=>value.toString(16).padStart(2,'0')).join('');
+}
+
+export function safeHashEqual(left:string,right:string):boolean{
+  if(left.length!==right.length)return false;let difference=0;
+  for(let index=0;index<left.length;index++)difference|=left.charCodeAt(index)^right.charCodeAt(index);
+  return difference===0;
+}
+
+export function pairStatusFromVerification(memberAVerified:boolean,memberBVerified:boolean,endsAt:string,now=new Date()):string{
+  if(memberAVerified&&memberBVerified)return now>new Date(endsAt)?'late_verified':'verified';
+  if(memberAVerified||memberBVerified)return 'partially_verified';
+  return 'awaiting_verification';
+}

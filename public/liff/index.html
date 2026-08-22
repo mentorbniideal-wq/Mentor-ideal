@@ -35,6 +35,7 @@
     .assign-item p{margin:0 0 8px;font-size:14px}.assign-item small{color:var(--muted);font-size:12px}
     .assign-item button{border:1px solid var(--ink);background:transparent;color:var(--ink);border-radius:10px;padding:6px 14px;font-size:12px;cursor:pointer;margin-top:8px}
     .assign-item button.done{background:var(--ink);color:#fff}
+    .oto-box{background:linear-gradient(145deg,#123c35,#1f5c50);color:#fff;border-radius:18px;padding:18px;margin-bottom:14px;overflow:hidden}.oto-box small{opacity:.7}.oto-box h3{font-size:22px;margin:5px 0}.oto-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}.oto-actions button{min-width:0;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;border-radius:11px;padding:10px 6px;font-family:inherit;font-size:12px;font-weight:700;overflow-wrap:anywhere}.oto-panel{background:#fff;border:1px solid var(--line);border-radius:15px;padding:14px;margin-top:12px}.oto-code{font-size:34px;letter-spacing:.16em;text-align:center;font-weight:800;padding:12px;color:var(--ink)}
   </style>
 </head>
 <body>
@@ -72,11 +73,14 @@
 
     <!-- 1-2-1 -->
     <form class="card" data-card="121">
-      <h2>นัดหมาย 1-2-1</h2><p class="hint">บันทึกนัดเพื่อไม่ให้การติดตามหลุด</p>
+      <h2>1-2-1 ของฉัน</h2><p class="hint">ทักหา นัดหมาย และสร้างโอกาสดี ๆ ไปด้วยกัน</p>
+      <div id="oneToOneSystem"></div>
+      <div id="legacy121Form">
       <div id="pending121" style="margin-bottom:12px"></div>
       <label>ชื่อสมาชิก</label><input name="partnerName" required placeholder="ชื่อหรือชื่อเล่น">
       <label>วันที่นัด</label><input type="date" name="meetingDate" required>
       <button class="submit">บันทึกนัดหมาย</button>
+      </div>
     </form>
 
     <!-- เป้าหมาย -->
@@ -162,7 +166,7 @@ function show(view) {
   $$('.tab,.card').forEach(x => x.classList.remove('active'));
   $(`[data-view="${view}"]`)?.classList.add('active');
   $(`[data-card="${view}"]`)?.classList.add('active');
-  history.replaceState(null, '', `?action=${view}`);
+  const nextQuery=new URLSearchParams(location.search);nextQuery.set('action',view);history.replaceState(null,'',`?${nextQuery}`);
   if (view === 'renewal')     loadRenewal();
   if (view === 'assignments') loadAssignments();
   if (view === 'progress')    loadProgress();
@@ -272,6 +276,10 @@ async function ackAssignment(id, btn) {
 async function loadPending121() {
   const box = $('#pending121');
   if (!box || box._loaded) return;
+  if(new URLSearchParams(location.search).get('preview')==='1'){renderOneToOneSystem({pair:{id:'preview-pair',status:'confirmed_schedule'},partner:{name:'ภาณุวัฒน์',nickname:'พีท',profession:'ที่ปรึกษาธุรกิจ',mentor_team:'TOOMTAM'},schedule:{id:'preview-schedule',starts_at:new Date(Date.now()+86400000).toISOString(),duration_minutes:45,status:'confirmed'},privacyNotice:'Shared Reflection เห็นได้โดยคุณ คู่สนทนา และ Mentor ที่มีสิทธิ์ ส่วน Private Mentor Feedback จะไม่แสดงให้อีกฝ่ายเห็น'});$('#legacy121Form').style.display='none';box._loaded=true;return;}
+  const system=await api({action:'one-to-one-bootstrap'});
+  if(system.ok&&system.pair){renderOneToOneSystem(system);$('#legacy121Form').style.display='none';box._loaded=true;return;}
+  $('#legacy121Form').style.display='';
   const r = await api({ action: 'get-121-pending' });
   if (!r.ok || !r.pending?.length) { box._loaded = true; return; }
   box.innerHTML = `<div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px">นัดที่รอยืนยัน</div>` +
@@ -285,6 +293,16 @@ async function loadPending121() {
       </div>`).join('');
   box._loaded = true;
 }
+
+function renderOneToOneSystem(r){const box=$('#oneToOneSystem'),p=r.partner||{},pair=r.pair||{},s=r.schedule,done=['verified','late_verified'].includes(pair.status);const labels={matched:'ได้คู่แล้ว',scheduled:'รอยืนยันเวลานัด',confirmed_schedule:'นัดหมายยืนยันแล้ว',awaiting_verification:'พร้อมยืนยันหลังจบ',partially_verified:'คุณหรือคู่ยืนยันแล้ว',verified:'สำเร็จแล้ว 🎉',late_verified:'สำเร็จแล้ว · ยืนยันย้อนหลัง'};box.innerHTML=`<div class="oto-box"><small>${labels[pair.status]||pair.status}</small><h3>คุณ ${p.nickname||p.name||'คู่ของคุณ'}</h3><div style="font-size:12px;opacity:.78">${p.profession||p.company_name||'ชวนกันค้นหาโอกาสที่ช่วยแนะนำให้กันได้'}</div>${s?`<div style="margin-top:12px;font-size:13px">📅 ${new Date(s.starts_at).toLocaleString('th-TH')} · ${s.duration_minutes} นาที</div>`:''}<div class="oto-actions"><button type="button" onclick="openSchedule121('${pair.id}')">${s?'เสนอเวลาใหม่':'เลือกเวลานัด'}</button>${s&&s.status==='proposed'?`<button type="button" onclick="confirmSchedule121('${pair.id}','${s.id}')">ยืนยันเวลานี้</button>`:''}${s&&s.status==='confirmed'?`<button type="button" onclick="addCalendar121('${pair.id}','${s.id}')">เพิ่ม Calendar</button>`:''}${done?`<button type="button" onclick="openReflection121('${pair.id}','shared')">บันทึกสิ่งที่ได้</button><button type="button" onclick="openReflection121('${pair.id}','private_mentor')">คุยกับ Mentor</button>`:`<button type="button" onclick="startVerify121('${pair.id}')">ทำเสร็จแล้ว</button>`}</div></div><div id="otoFlow"></div><div style="font-size:11px;color:var(--muted);line-height:1.6;margin-top:10px">${r.privacyNotice||''}</div>`;}
+function openSchedule121(pairId){$('#otoFlow').innerHTML=`<div class="oto-panel"><b>เสนอเวลาที่สะดวก</b><label>วันและเวลา</label><input id="otoStarts" type="datetime-local"><label>รูปแบบ</label><select id="otoMode"><option value="in_person">พบกันจริง</option><option value="phone">โทรศัพท์</option><option value="video">Video Call</option><option value="other">อื่น ๆ</option></select><label>สถานที่หรือลิงก์</label><input id="otoLocation"><button type="button" class="submit" onclick="proposeSchedule121('${pairId}')">ส่งให้อีกฝ่ายยืนยัน</button></div>`;}
+async function proposeSchedule121(pairId){if(!$('#otoStarts').value){alert('กรุณาเลือกวันและเวลา');return;}const r=await api({action:'propose-one-to-one-schedule',pairId,startsAt:new Date($('#otoStarts').value).toISOString(),meetingMode:$('#otoMode').value,locationOrLink:$('#otoLocation').value,durationMinutes:45});alert(r.message||r.error);if(r.ok){$('#pending121')._loaded=false;loadPending121();}}
+async function confirmSchedule121(pairId,scheduleId){const r=await api({action:'confirm-one-to-one-schedule',pairId,scheduleId});alert(r.message||r.error);if(r.ok){$('#pending121')._loaded=false;loadPending121();}}
+async function addCalendar121(pairId,scheduleId){const r=await api({action:'get-one-to-one-calendar',pairId,scheduleId});if(!r.ok){alert(r.error);return;}window.open(r.googleUrl,'_blank');}
+async function startVerify121(pairId){const r=await api({action:'start-one-to-one-verification',pairId});$('#otoFlow').innerHTML=`<div class="oto-panel"><b>Digital Handshake</b>${r.code?`<div class="oto-code">${r.code}</div><div style="font-size:11px;text-align:center;color:var(--muted)">แสดงรหัสนี้ให้คู่ของคุณหลังจบการพูดคุย</div>`:`<p class="hint">${r.message||r.error}</p>`}<label>กรอกรหัส 6 หลักของคู่คุณ</label><input id="otoPartnerCode" inputmode="numeric" maxlength="6" placeholder="000000"><button type="button" class="submit" onclick="submitVerify121('${pairId}')">ยืนยันรหัสของคู่</button></div>`;}
+async function submitVerify121(pairId){const r=await api({action:'submit-one-to-one-code',pairId,code:$('#otoPartnerCode').value});alert(r.message||r.error);if(r.ok){$('#pending121')._loaded=false;loadPending121();}}
+function openReflection121(pairId,visibility){const privateMode=visibility==='private_mentor';$('#otoFlow').innerHTML=`<div class="oto-panel"><b>${privateMode?'ข้อความส่วนตัวถึง Mentor':'สิ่งดี ๆ ที่ได้จาก 1-2-1'}</b><p class="hint">${privateMode?'อีกฝ่ายจะไม่เห็นข้อความนี้':'คุณ คู่สนทนา และ Mentor ที่มีสิทธิ์สามารถเห็นคำตอบนี้'}</p><label>${privateMode?'อยากให้ Mentor ช่วยเรื่องใด':'คุณได้รู้จักคู่หรือธุรกิจมากขึ้นเรื่องใด'}</label><textarea id="otoLearned"></textarea>${privateMode?'':`<label>Next Action</label><select id="otoNext"><option value="none">ยังไม่มี Next Action</option><option value="introduce">แนะนำบุคคลให้</option><option value="send_info">ส่งข้อมูลเพิ่มเติม</option><option value="next_meeting">นัดครั้งถัดไป</option><option value="trial">ทดลองสินค้า/บริการ</option><option value="business_visit">เยี่ยมชมธุรกิจ</option><option value="other">อื่น ๆ</option></select><label>รายละเอียด</label><textarea id="otoNextDetail"></textarea>`}<button type="button" class="submit" onclick="submitReflection121('${pairId}','${visibility}')">${privateMode?'ส่งถึง Mentor':'บันทึก Reflection'}</button></div>`;}
+async function submitReflection121(pairId,visibility){const learned=$('#otoLearned').value.trim();if(!learned){alert('กรุณาเล่าสั้น ๆ ก่อนบันทึก');return;}const r=await api({action:'submit-one-to-one-reflection',pairId,visibility,learned,mentorHelp:visibility==='private_mentor'?learned:'',nextActionType:visibility==='shared'?$('#otoNext').value:'',nextActionDetail:visibility==='shared'?$('#otoNextDetail').value:''});alert(r.message||r.error);if(r.ok)$('#otoFlow').innerHTML='';}
 
 async function confirm121(id, btn) {
   btn.disabled = true; btn.textContent = '…';
@@ -393,7 +411,7 @@ async function init() {
       }
     }
     // Pre-load assignments to decide tab visibility, cache for loadAssignments()
-    const asgn = await api({ action: 'get-assignments' });
+    const asgn = q.get('preview') === '1' ? {ok:true,assignments:[]} : await api({ action: 'get-assignments' });
     window._cachedAssignments = asgn.ok ? asgn.assignments || [] : null;
     if (window._cachedAssignments?.length) {
       $('[data-view="assignments"]')?.classList.remove('hidden');

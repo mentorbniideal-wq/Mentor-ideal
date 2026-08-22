@@ -44,11 +44,17 @@ Deploy in order: database migration, Edge API, then Vercel static site. The migr
 
 ## Environment variables
 
-No new secret is required in this phase. Existing Supabase URL/service role and LINE channel credentials remain in Edge Function secrets and must never be copied into settings or documentation.
+Add `ONE_TO_ONE_CODE_PEPPER` as a long random Edge Function secret. It is used with Pair ID and Member ID when hashing Digital Handshake codes and must not be stored in the database or frontend. Existing Supabase URL/service role and LINE channel credentials remain in Edge Function secrets.
+
+## Implemented member workflow
+
+The existing LIFF Action Center now resolves the signed-in LINE member server-side and only returns pairs containing that member. It supports two-party schedule confirmation, reschedule/cancel events, Google Calendar and `.ics` payloads, Digital Handshake initialization and partner-code verification, Shared Reflection, Private Mentor Feedback, and automatic Follow-up/Attention creation. Verification accepts codes only after the member explicitly starts the flow, limits failures to five attempts, locks for 15 minutes, checks expiry, and stores no plaintext code.
+
+MC Desktop queue views now load real Active 1-2-1, Waiting List, Follow-up, and Needs Attention data. Completing a follow-up or overriding/resolving an attention item is handled by the authenticated API and creates an event audit record.
 
 ## Known limitations and next increments
 
-- Schema and MC workflow foundations are live, while member-side LIFF scheduling, two-party handshake UI, reflection forms, relationship-history profile tab, and automated Mentor Action Queue population remain behind the feature flag.
-- Calendar `.ics` and Google Calendar builders are implemented and tested; exposing download/actions awaits the member-side authenticated route.
+- Relationship-history in the full Member Profile and a dedicated Outlook Calendar deep link are not implemented yet; Google Calendar and standards-based `.ics` are available through the authenticated member route.
+- The LIFF UI exposes the primary schedule, handshake, and reflection paths. More polished datetime picker, contact preference editor, and full relationship timeline remain future increments.
 - Notification policy is implemented as a tested decision function, but all existing cron modules still need staged adoption of the shared budget decision before the global orchestrator is complete.
 - Future work: Smart Referral Matching, mentor-assisted late opt-in pairing, Outlook deep links, richer completion insights, and retention automation for private feedback.
