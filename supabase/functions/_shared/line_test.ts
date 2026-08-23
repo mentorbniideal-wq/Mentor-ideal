@@ -198,7 +198,7 @@ Deno.test('all operational role quick replies stay aligned with member support a
   assertEquals(LINE_QR_GROWTH, LINE_QR_MEMBER);
 });
 
-Deno.test('rich menu personal support actions do not depend on LIFF', () => {
+Deno.test('rich menu keeps support commands and opens MY121 directly in LIFF', () => {
   const menu = buildRichMenu(
     'mentor',
     'https://liff.line.me/test?source=rich-menu',
@@ -208,6 +208,7 @@ Deno.test('rich menu personal support actions do not depend on LIFF', () => {
   assertEquals(menu.areas[3].action, { type: 'message', text: 'ลา / ส่งแทน' });
   assertEquals(menu.areas[4].action, { type: 'message', text: 'เป้าหมาย' });
   assertEquals(menu.areas[5].action, { type: 'message', text: 'ขอความช่วยเหลือ' });
+  assertEquals(menu.areas[6].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=121' });
 });
 
 Deno.test('LINE role-specific menus remain available only as member-equivalent aliases', () => {

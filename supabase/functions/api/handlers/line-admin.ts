@@ -1586,7 +1586,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         }
         const richMenuId = String((JSON.parse(createBody) as Record<string, unknown>).richMenuId || '');
         const assetRole = 'member';
-        const imageUrl = `${appUrl}/assets/line/rich-menu-${assetRole}-v4.jpg`;
+        const imageUrl = `${appUrl}/assets/line/rich-menu-${assetRole}-v5.jpg`;
         const imageRes = await fetch(imageUrl);
         if (!imageRes.ok) {
           results.push({ role, ok: false, richMenuId, error: `image ${imageRes.status}: ${imageUrl}` });
