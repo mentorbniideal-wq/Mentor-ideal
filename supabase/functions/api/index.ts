@@ -226,6 +226,7 @@ const ROUTES: Record<string, string> = {
   'getOneToOneMessageControl': 'weekly-121',
   'getWeekly121MessageTemplates': 'weekly-121', 'setWeekly121MessageTemplate': 'weekly-121',
   'saveOneToOneBusinessProfile': 'weekly-121',
+  'getOneToOneManualCandidates': 'weekly-121', 'createManualOneToOneRound': 'weekly-121',
 
   // Usage
   'logUsage': 'usage', 'getUsageLog': 'usage', 'getLineAnalytics': 'usage',

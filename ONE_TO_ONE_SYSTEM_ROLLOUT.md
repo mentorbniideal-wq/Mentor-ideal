@@ -56,6 +56,8 @@ The full Member Profile now includes a 1-2-1 History tab with completion KPIs, p
 
 Each draft round stores its selected LINE message template. MC can choose from five standard styles—Business Opportunity, Warm Connection, Referral Focus, Story & Trust, and Quick Action—then inspect the recipient-specific dry-run before confirming a send. Pair cards also provide a direct business-profile editor. Matching and copy resolve business context from `biz_profiles.description`, then fall back to `members.profession` and `members.company_name`; the latter two fields are populated by the Chapter Roster PDF sync, not by the weekly Check-in CSV.
 
+For two-person pilots, MC can create a locked manual round without a Check-in CSV: select two distinct active members with linked LINE accounts, choose the start date and message template, then continue through the same dry-run, guarded test send, scheduling, handshake, feedback, and follow-up workflow.
+
 ## Known limitations and next increments
 
 - A dedicated Outlook Calendar deep link is not implemented yet; Google Calendar and standards-based `.ics` are available through the authenticated member route.
