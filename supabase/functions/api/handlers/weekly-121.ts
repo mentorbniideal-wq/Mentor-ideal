@@ -3,6 +3,7 @@ import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts
 import { createOneToOneMatches, normalize121Name, parseWeekly121Csv, weekly121Message, weekly121TestMessage, type MatchingStrategy } from '../../_shared/weekly-121.ts';
 import { linePush } from '../../_shared/line.ts';
 import { evaluateNotificationGuard, logSuppressedNotification } from '../../_shared/notification-orchestrator.ts';
+import { generateHandshakeCode, handshakeCodeHash } from '../../_shared/one-to-one.ts';
 
 const isoDate = (value: string) => { const m = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); return m ? `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}` : value; };
 const pairKey = (a: string, b: string) => [a,b].sort().join('|');
@@ -171,6 +172,28 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
       db.from('one_to_one_attention_items').select('id,level,reason,evidence,positive_context,suggested_action,assigned_role,due_date,status,member:members(id,name,nickname,mentor_team),pair_id').in('status',['open','reviewed','snoozed']).order('created_at',{ascending:false}).limit(100),
       db.from('notification_budget_config').select('*').order('module'),
     ]);return jsonResponse({ok:true,active:active||[],waiting:waiting||[],followUps:followUps||[],attention:attention||[],budgets:budgets||[]});
+  }
+  if(action==='reissueOneToOneVerificationCode'){
+    const pairId=String(p.pairId||''),memberId=String(p.memberId||'');
+    if(!pairId||!memberId)return errResponse('กรุณาเลือกคู่และสมาชิก');
+    const {data:pair,error:pairError}=await db.from('matching_pairs').select('id,round_id,member_a_id,member_b_id,status,archived_at').eq('id',pairId).maybeSingle();
+    if(pairError||!pair)return errResponse(pairError?.message||'ไม่พบคู่ 1-2-1');
+    const pairRow=pair as Record<string,unknown>;
+    if(pairRow.archived_at)return errResponse('คู่นี้ถูก Archive แล้ว');
+    if(![String(pairRow.member_a_id),String(pairRow.member_b_id)].includes(memberId))return errResponse('สมาชิกไม่ได้อยู่ในคู่นี้');
+    if(['verified','late_verified'].includes(String(pairRow.status)))return errResponse('คู่นี้ยืนยันเสร็จแล้ว ไม่สามารถออกโค้ดใหม่ได้');
+    const pepper=Deno.env.get('ONE_TO_ONE_CODE_PEPPER')||'';
+    if(!pepper)return errResponse('ระบบยืนยันยังไม่ได้ตั้งค่า ONE_TO_ONE_CODE_PEPPER',503);
+    const code=generateHandshakeCode(),now=new Date(),expiresAt=new Date(now.getTime()+24*60*60*1000).toISOString();
+    const codeHash=await handshakeCodeHash(pairId,memberId,code,pepper);
+    const {data:verificationRows}=await db.from('one_to_one_verifications').select('member_id,verified_partner_code_at').eq('pair_id',pairId);
+    const existing=((verificationRows||[]) as Record<string,unknown>[]).find(row=>String(row.member_id)===memberId);
+    const {error:verificationError}=await db.from('one_to_one_verifications').upsert({pair_id:pairId,member_id:memberId,code_hash:codeHash,code_expires_at:expiresAt,attempts:0,flow_started_at:now.toISOString(),verified_partner_code_at:existing?.verified_partner_code_at||null,locked_until:null},{onConflict:'pair_id,member_id'});
+    if(verificationError)return errResponse(verificationError.message);
+    const hasPartialVerification=((verificationRows||[]) as Record<string,unknown>[]).some(row=>Boolean(row.verified_partner_code_at));
+    await db.from('matching_pairs').update({status:hasPartialVerification?'partially_verified':'awaiting_verification'}).eq('id',pairId);
+    await db.from('one_to_one_status_events').insert({round_id:String(pairRow.round_id),pair_id:pairId,member_id:memberId,event_type:'verification_code_reissued',actor_type:'mentor',actor_ref:String(auth.displayName||auth.role),metadata:{expiresAt}});
+    return jsonResponse({ok:true,code,expiresAt,message:'ออกโค้ดใหม่แล้ว รหัสเดิมของสมาชิกคนนี้ใช้ไม่ได้ทันที'});
   }
   if(action==='getOneToOneMemberHistory'){
     const memberIdInput=String(p.memberId||''),memberName=String(p.memberName||'').trim();let memberQuery=db.from('members').select('id,name,nickname,mentor_team,is_archived');if(memberIdInput)memberQuery=memberQuery.eq('id',memberIdInput);else memberQuery=memberQuery.eq('name',memberName);const {data:member,error:memberError}=await memberQuery.maybeSingle();if(memberError||!member)return errResponse(memberError?.message||'ไม่พบสมาชิก');const mv=member as Record<string,unknown>,memberId=String(mv.id);

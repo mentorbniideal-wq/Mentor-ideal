@@ -220,6 +220,7 @@ const ROUTES: Record<string, string> = {
   'swapWeekly121Members': 'weekly-121',
   'getOneToOneOverview': 'weekly-121',
   'getOneToOneQueues': 'weekly-121', 'updateOneToOneFollowUp': 'weekly-121',
+  'reissueOneToOneVerificationCode': 'weekly-121',
   'updateOneToOneAttention': 'weekly-121',
   'getOneToOneMemberHistory': 'weekly-121',
   'getOneToOnePilotSettings': 'weekly-121', 'saveOneToOnePilotSettings': 'weekly-121',
