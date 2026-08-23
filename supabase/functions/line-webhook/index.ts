@@ -371,6 +371,10 @@ function qr(label: string, text: string): unknown {
   return { type: 'action', action: { type: 'message', label, text } };
 }
 
+function qrUri(label: string, uri: string): unknown {
+  return { type: 'action', action: { type: 'uri', label, uri } };
+}
+
 function quickRepliesFor(
   role: LineRole | undefined,
   isRegistered: boolean,
@@ -392,6 +396,7 @@ function quickRepliesFor(
       qr('🎯 ทำอะไร', 'ทำอะไร'),
     ];
   const secondary = [
+    qrUri('🤝 MY121', `${(Deno.env.get('LINE_LIFF_URL') || 'https://liff.line.me/2010463406-BiCHsS2X').replace(/\/$/,'')}?action=121`),
     qr('👥 ทีม', 'ทีม'),
     qr('🤝 แนะนำ', 'แนะนำ'),
     qr('🎯 เป้า', 'เป้า'),
