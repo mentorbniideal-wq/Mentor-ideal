@@ -37,7 +37,7 @@ export async function provisionLineExperience(db: Db) {
   });
 
   const roles: RichMenuRole[] = ['member', 'mentor', 'mc', 'growth'];
-  const desiredMenuVersion = 'v12';
+  const desiredMenuVersion = 'v13';
   const menuAssetVersion = 'v5';
   const desiredMenuSource = `${desiredMenuVersion}|my121-uri|${appUrl}`;
   const { data: menuSettings } = await db.from('settings')

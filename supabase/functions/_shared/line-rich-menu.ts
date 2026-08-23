@@ -8,12 +8,12 @@ export interface RichMenuItem {
 }
 
 const PERSONAL_SUPPORT_ITEMS: RichMenuItem[] = [
-  { icon: '◉', label: 'คะแนนของฉัน', sublabel: 'Score & Action', action: { type: 'message', text: 'สถานะ' } },
-  { icon: '↗', label: 'ประวัติ', sublabel: 'My Progress', action: { type: 'message', text: 'ประวัติ' } },
-  { icon: '◇', label: 'นัด 1-2-1', sublabel: 'Connect', action: { type: 'message', text: 'นัด 1-2-1' } },
-  { icon: '○', label: 'ลา / ส่งแทน', sublabel: 'Attendance', action: { type: 'message', text: 'ลา / ส่งแทน' } },
-  { icon: '△', label: 'เป้าหมาย', sublabel: 'My Goal', action: { type: 'message', text: 'เป้าหมาย' } },
-  { icon: '?', label: 'ขอความช่วยเหลือ', sublabel: 'Private Support', action: { type: 'message', text: 'ขอความช่วยเหลือ' } },
+  { icon: '◉', label: 'คะแนนของฉัน', sublabel: 'Score & Action', action: { type: 'uri', uri: 'LIFF_URL?action=progress' } },
+  { icon: '↗', label: 'ประวัติ', sublabel: 'My Progress', action: { type: 'uri', uri: 'LIFF_URL?action=progress' } },
+  { icon: '◇', label: 'นัด 1-2-1', sublabel: 'Connect', action: { type: 'uri', uri: 'LIFF_URL?action=121' } },
+  { icon: '○', label: 'ลา / ส่งแทน', sublabel: 'Attendance', action: { type: 'uri', uri: 'LIFF_URL?action=absence' } },
+  { icon: '△', label: 'เป้าหมาย', sublabel: 'My Goal', action: { type: 'uri', uri: 'LIFF_URL?action=goal' } },
+  { icon: '?', label: 'ขอความช่วยเหลือ', sublabel: 'Private Support', action: { type: 'uri', uri: 'LIFF_URL?action=issue' } },
   { icon: '121', label: 'MY121', sublabel: 'My 1-2-1', action: { type: 'uri', uri: 'LIFF_URL?action=121' } },
 ];
 

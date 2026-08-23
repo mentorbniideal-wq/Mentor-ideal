@@ -4,6 +4,7 @@ import { trackLineEvent } from '../_shared/analytics.ts';
 import { buildIdempotencyKey } from '../_shared/line.ts';
 import { notifyAbsenceStakeholders } from '../_shared/line-absence-notify.ts';
 import { notifyIssueStakeholders } from '../_shared/line-issue-notify.ts';
+import { notifyOneToOneMentorAndMc, notifyOneToOnePartner } from '../_shared/one-to-one-notify.ts';
 import { generateHandshakeCode, handshakeCodeHash, oneToOneGoogleCalendarUrl, oneToOneIcs, pairStatusFromVerification, safeHashEqual } from '../_shared/one-to-one.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
@@ -60,12 +61,15 @@ Deno.serve(async (req: Request) => {
   if(action==='one-to-one-bootstrap'){
     const {pair,error}=await ownPair();if(error)return response({ok:false,error:error.message},400);if(!pair)return response({ok:true,pair:null});
     const partnerId=String(pair.member_a_id)===memberId?String(pair.member_b_id):String(pair.member_a_id);
-    const [{data:partner},{data:schedule},{data:followUps}]=await Promise.all([
+    const [{data:partner},{data:schedules},{data:followUps},{data:history},{data:lookingFor}]=await Promise.all([
       db.from('members').select('id,name,nickname,profession,company_name,mentor_team').eq('id',partnerId).maybeSingle(),
-      db.from('one_to_one_schedules').select('*').eq('pair_id',String(pair.id)).order('created_at',{ascending:false}).limit(1).maybeSingle(),
+      db.from('one_to_one_schedules').select('*').eq('pair_id',String(pair.id)).in('status',['proposed','confirmed']).order('created_at',{ascending:false}).limit(3),
       db.from('one_to_one_follow_up_actions').select('*').eq('pair_id',String(pair.id)).eq('owner_member_id',memberId).order('created_at',{ascending:false}),
+      db.from('matching_pairs').select('id,status,created_at,member_a_id,member_b_id,matching_rounds(meeting_date)').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId}`).order('created_at',{ascending:false}).limit(20),
+      db.from('matching_import_rows').select('looking_for').eq('round_id',String(pair.round_id)).eq('matched_member_id',partnerId).limit(1).maybeSingle(),
     ]);
-    return response({ok:true,pair,partner,schedule:schedule||null,followUps:followUps||[],privacyNotice:'Shared Reflection เห็นได้โดยคุณ คู่สนทนา และ Mentor ที่มีสิทธิ์ ส่วน Private Mentor Feedback จะไม่แสดงให้อีกฝ่ายเห็น'});
+    const scheduleRows=(schedules||[]) as Record<string,unknown>[],schedule=scheduleRows.find(x=>x.status==='confirmed')||scheduleRows[0]||null;
+    return response({ok:true,pair,partner,schedule,scheduleOptions:scheduleRows,followUps:followUps||[],journey:{total:(history||[]).length,completed:((history||[]) as Record<string,unknown>[]).filter(x=>['verified','late_verified'].includes(String(x.status))).length,recent:history||[]},referralCard:{lookingFor:String((lookingFor as Record<string,unknown>|null)?.looking_for||''),profession:String((partner as Record<string,unknown>|null)?.profession||''),companyName:String((partner as Record<string,unknown>|null)?.company_name||'')},privacyNotice:'Shared Reflection เห็นได้โดยคุณ คู่สนทนา และ Mentor ที่มีสิทธิ์ ส่วน Private Mentor Feedback จะไม่แสดงให้อีกฝ่ายเห็น'});
   }
 
   if(action==='propose-one-to-one-schedule'){
@@ -77,7 +81,15 @@ Deno.serve(async (req: Request) => {
     const {data,error}=await db.from('one_to_one_schedules').insert(payload).select('*').single();if(error)return response({ok:false,error:error.message},400);
     await db.from('matching_pairs').update({status:'scheduled'}).eq('id',pairId);
     await db.from('one_to_one_status_events').insert({round_id:String(pair.round_id),pair_id:pairId,member_id:memberId,event_type:'schedule_proposed',actor_type:'member',actor_ref:memberId,metadata:{startsAt:start.toISOString(),mode}});
+    const partnerId=String(pair.member_a_id)===memberId?String(pair.member_b_id):String(pair.member_a_id);await notifyOneToOnePartner(db,{pairId,memberId,partnerId,type:'schedule_proposed',message:`📅 คู่ 1-2-1 ของคุณเสนอเวลานัดแล้ว\n${start.toLocaleString('th-TH',{timeZone:'Asia/Bangkok'})}\n\nเปิด MY121 เพื่อยืนยันหรือเสนอเวลาใหม่`});
     return response({ok:true,schedule:data,message:'ส่งเวลานัดให้อีกฝ่ายยืนยันแล้ว'});
+  }
+
+  if(action==='propose-one-to-one-schedule-options'){
+    const pairId=String(body.pairId||''),mode=String(body.meetingMode||'in_person'),duration=Math.max(15,Math.min(240,Number(body.durationMinutes||45))),raw=Array.isArray(body.startsAtOptions)?body.startsAtOptions:[];
+    const options=[...new Set(raw.map(String).filter(Boolean))].slice(0,3);const {pair}=await ownPair(pairId);if(!pair)return response({ok:false,error:'ไม่พบคู่ 1-2-1 ของคุณ'},403);if(!['in_person','phone','video','other'].includes(mode))return response({ok:false,error:'รูปแบบนัดหมายไม่ถูกต้อง'},400);if(options.length<2)return response({ok:false,error:'กรุณาเสนอเวลาอย่างน้อย 2 ตัวเลือก'},400);
+    const starts=options.map(value=>new Date(value));if(starts.some(start=>Number.isNaN(start.getTime())||start<=new Date()))return response({ok:false,error:'ทุกตัวเลือกต้องเป็นวันและเวลาในอนาคต'},400);const isA=String(pair.member_a_id)===memberId,now=new Date().toISOString();await db.from('one_to_one_schedules').update({status:'rescheduled',updated_at:now}).eq('pair_id',pairId).eq('status','proposed');
+    const rows=starts.map(start=>({pair_id:pairId,proposed_by:memberId,starts_at:start.toISOString(),duration_minutes:duration,timezone:'Asia/Bangkok',meeting_mode:mode,location_or_link:String(body.locationOrLink||'').trim()||null,status:'proposed',stable_event_uid:`${pairId}-${crypto.randomUUID()}@bni-ideal`,confirmed_by_a_at:isA?now:null,confirmed_by_b_at:isA?null:now}));const {data,error}=await db.from('one_to_one_schedules').insert(rows).select('*');if(error)return response({ok:false,error:error.message},400);await db.from('matching_pairs').update({status:'scheduled'}).eq('id',pairId);await db.from('one_to_one_status_events').insert({round_id:String(pair.round_id),pair_id:pairId,member_id:memberId,event_type:'schedule_options_proposed',actor_type:'member',actor_ref:memberId,metadata:{startsAt:starts.map(x=>x.toISOString()),mode}});const partnerId=String(pair.member_a_id)===memberId?String(pair.member_b_id):String(pair.member_a_id);await notifyOneToOnePartner(db,{pairId,memberId,partnerId,type:'schedule_options_proposed',message:`📅 คู่ 1-2-1 ของคุณเสนอเวลา ${starts.length} ตัวเลือกแล้ว\nเปิด MY121 เพื่อเลือกเวลาที่สะดวก`});return response({ok:true,schedules:data||[],message:`ส่งเวลา ${starts.length} ตัวเลือกให้อีกฝ่ายแล้ว`});
   }
 
   if(action==='confirm-one-to-one-schedule'){
@@ -85,7 +97,7 @@ Deno.serve(async (req: Request) => {
     const {data:schedule}=await db.from('one_to_one_schedules').select('*').eq('id',scheduleId).eq('pair_id',pairId).maybeSingle();if(!schedule)return response({ok:false,error:'ไม่พบนัดหมาย'},404);
     const isA=String(pair.member_a_id)===memberId,now=new Date().toISOString();const changes=isA?{confirmed_by_a_at:now}:{confirmed_by_b_at:now};const confirmed=Boolean(isA?now:(schedule as Record<string,unknown>).confirmed_by_a_at)&&Boolean(isA?(schedule as Record<string,unknown>).confirmed_by_b_at:now);
     const {data,error}=await db.from('one_to_one_schedules').update({...changes,status:confirmed?'confirmed':'proposed',updated_at:now}).eq('id',scheduleId).select('*').single();if(error)return response({ok:false,error:error.message},400);
-    if(confirmed){await db.from('matching_pairs').update({status:'confirmed_schedule'}).eq('id',pairId);await db.from('one_to_one_status_events').insert({round_id:String(pair.round_id),pair_id:pairId,member_id:memberId,event_type:'schedule_confirmed',actor_type:'member',actor_ref:memberId});}
+    if(confirmed){await db.from('one_to_one_schedules').update({status:'rescheduled',updated_at:now}).eq('pair_id',pairId).eq('status','proposed').neq('id',scheduleId);await db.from('matching_pairs').update({status:'confirmed_schedule'}).eq('id',pairId);await db.from('one_to_one_status_events').insert({round_id:String(pair.round_id),pair_id:pairId,member_id:memberId,event_type:'schedule_confirmed',actor_type:'member',actor_ref:memberId});const partnerId=String(pair.member_a_id)===memberId?String(pair.member_b_id):String(pair.member_a_id);await notifyOneToOnePartner(db,{pairId,memberId,partnerId,type:'schedule_confirmed',message:'✅ คู่ของคุณยืนยันเวลา 1-2-1 แล้ว\nเปิด MY121 เพื่อเพิ่มนัดลง Calendar'});}
     return response({ok:true,schedule:data,message:confirmed?'ยืนยันนัดเรียบร้อย เพิ่มลงปฏิทินได้เลย':'บันทึกการยืนยันแล้ว รออีกฝ่ายยืนยัน'});
   }
 
@@ -109,7 +121,7 @@ Deno.serve(async (req: Request) => {
     const {data:existing}=await db.from('one_to_one_verifications').select('id').eq('pair_id',pairId).eq('member_id',memberId).maybeSingle();if(existing)return response({ok:true,issued:false,message:'รหัสถูกสร้างแล้ว หากสูญหายกรุณาขอ Mentor ช่วยออกใหม่'});
     const code=generateHandshakeCode();const round=pair.matching_rounds as Record<string,unknown>;const expires=String(round.ends_at||new Date(Date.now()+7*86400000).toISOString());const hash=await handshakeCodeHash(pairId,memberId,code,pepper);
     const {error}=await db.from('one_to_one_verifications').insert({pair_id:pairId,member_id:memberId,code_hash:hash,code_expires_at:expires,flow_started_at:new Date().toISOString()});if(error)return response({ok:false,error:error.message},400);
-    await db.from('matching_pairs').update({status:'awaiting_verification'}).eq('id',pairId);return response({ok:true,issued:true,code,expiresAt:expires,message:'แสดงรหัสนี้ให้คู่ของคุณหลังจบการพูดคุย ห้ามส่งต่อให้ผู้อื่น'});
+    await db.from('matching_pairs').update({status:'awaiting_verification'}).eq('id',pairId);const partnerId=String(pair.member_a_id)===memberId?String(pair.member_b_id):String(pair.member_a_id);await notifyOneToOnePartner(db,{pairId,memberId,partnerId,type:'handshake_started',message:'🤝 คู่ของคุณเริ่ม Digital Handshake แล้ว\nเปิด MY121 เพื่อดูรหัสของคุณและแลกรหัสกันหลังจบการพูดคุย'});return response({ok:true,issued:true,code,expiresAt:expires,message:'แสดงรหัสนี้ให้คู่ของคุณหลังจบการพูดคุย ห้ามส่งต่อให้ผู้อื่น'});
   }
 
   if(action==='submit-one-to-one-code'){
@@ -124,7 +136,7 @@ Deno.serve(async (req: Request) => {
     const pairId=String(body.pairId||''),visibility=String(body.visibility||'shared');const {pair}=await ownPair(pairId);if(!pair)return response({ok:false,error:'ไม่มีสิทธิ์ส่ง Reflection คู่นี้'},403);if(!['verified','late_verified'].includes(String(pair.status)))return response({ok:false,error:'กรุณายืนยัน Digital Handshake ให้ครบก่อนตอบ Reflection'},400);if(!['shared','private_mentor'].includes(visibility))return response({ok:false,error:'ประเภท Reflection ไม่ถูกต้อง'},400);const aboutId=String(pair.member_a_id)===memberId?String(pair.member_b_id):String(pair.member_a_id);
     const feedback={pair_id:pairId,respondent_member_id:memberId,about_member_id:aboutId,visibility,learned:String(body.learned||'').trim()||null,outcomes:Array.isArray(body.outcomes)?body.outcomes:[],next_action_type:String(body.nextActionType||'').trim()||null,next_action_detail:String(body.nextActionDetail||'').trim()||null,usefulness:body.usefulness?Number(body.usefulness):null,cooperation:body.cooperation?Number(body.cooperation):null,mentor_help:String(body.mentorHelp||'').trim()||null};const {data:existing}=await db.from('one_to_one_feedback').select('id').eq('pair_id',pairId).eq('respondent_member_id',memberId).eq('visibility',visibility).is('archived_at',null).maybeSingle();const write=existing?db.from('one_to_one_feedback').update(feedback).eq('id',String((existing as Record<string,unknown>).id)).select('id').single():db.from('one_to_one_feedback').insert(feedback).select('id').single();const {data,error}=await write;if(error)return response({ok:false,error:error.message},400);
     if(visibility==='shared'&&feedback.next_action_type&&feedback.next_action_type!=='none')await db.from('one_to_one_follow_up_actions').insert({pair_id:pairId,action_type:feedback.next_action_type,description:feedback.next_action_detail,owner_member_id:memberId,related_member_id:aboutId,due_date:String(body.dueDate||'')||null});
-    if(visibility==='private_mentor'&&feedback.mentor_help)await db.from('one_to_one_attention_items').insert({member_id:memberId,pair_id:pairId,level:'mentor_review_required',reason:'สมาชิกขอความช่วยเหลือหลัง 1-2-1',evidence:[{feedbackId:String((data as Record<string,unknown>).id)}],positive_context:['สมาชิกเป็นผู้ขอความช่วยเหลือด้วยตนเอง'],suggested_action:'Mentor ติดต่อสมาชิกเพื่อรับฟังและช่วยวาง Next Action'});
+    if(visibility==='private_mentor'&&feedback.mentor_help){const feedbackId=String((data as Record<string,unknown>).id),mentorMessage=String(feedback.mentor_help);await db.from('one_to_one_attention_items').insert({member_id:memberId,pair_id:pairId,level:'mentor_review_required',reason:`สมาชิกขอคุยกับ Mentor: ${mentorMessage.length>240?mentorMessage.slice(0,237)+'...':mentorMessage}`,evidence:[{feedbackId,message:mentorMessage}],positive_context:['สมาชิกเป็นผู้ขอความช่วยเหลือด้วยตนเอง'],suggested_action:'Mentor ติดต่อสมาชิกเพื่อรับฟังและช่วยวาง Next Action'});await notifyOneToOneMentorAndMc(db,{feedbackId,pairId,memberId,memberName:String(member.name||''),nickname:String(member.nickname||''),mentorTeam:String(member.mentor_team||''),message:mentorMessage});}
     return response({ok:true,message:visibility==='shared'?'บันทึก Reflection และ Next Action แล้ว':'ส่งข้อความส่วนตัวถึง Mentor แล้ว อีกฝ่ายจะไม่เห็นข้อความนี้'});
   }
 

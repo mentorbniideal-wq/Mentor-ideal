@@ -198,16 +198,18 @@ Deno.test('all operational role quick replies stay aligned with member support a
   assertEquals(LINE_QR_GROWTH, LINE_QR_MEMBER);
 });
 
-Deno.test('rich menu keeps support commands and opens MY121 directly in LIFF', () => {
+Deno.test('rich menu opens every personal action directly in LIFF', () => {
   const menu = buildRichMenu(
     'mentor',
     'https://liff.line.me/test?source=rich-menu',
     'https://example.com',
   );
-  assertEquals(menu.areas[2].action, { type: 'message', text: 'นัด 1-2-1' });
-  assertEquals(menu.areas[3].action, { type: 'message', text: 'ลา / ส่งแทน' });
-  assertEquals(menu.areas[4].action, { type: 'message', text: 'เป้าหมาย' });
-  assertEquals(menu.areas[5].action, { type: 'message', text: 'ขอความช่วยเหลือ' });
+  assertEquals(menu.areas[0].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=progress' });
+  assertEquals(menu.areas[1].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=progress' });
+  assertEquals(menu.areas[2].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=121' });
+  assertEquals(menu.areas[3].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=absence' });
+  assertEquals(menu.areas[4].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=goal' });
+  assertEquals(menu.areas[5].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=issue' });
   assertEquals(menu.areas[6].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=121' });
 });
 
