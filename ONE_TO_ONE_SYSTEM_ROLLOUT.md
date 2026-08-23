@@ -1,5 +1,39 @@
 # BNI IDEAL 1-2-1 System — Architecture and Rollout
 
+## Guided 1-2-1 Session — 2026-08-23
+
+Guided Session extends the existing `matching_pairs` workflow; it does not replace Pair Matching, Digital Handshake, Reflection, Follow-up, LINE notification control, or status history.
+
+- UI: `public/liff/index.html` inside MY121, using the existing LIFF identity.
+- API: `supabase/functions/liff-api/index.ts`; every action reuses `ownPair()` authorization.
+- Shared rules/tests: `supabase/functions/_shared/guided-one-to-one.ts` and `_test.ts`.
+- Migration: `20260823000061_guided_one_to_one_sessions.sql` adds one idempotent session per pair, owner-only private notes, relational referral triggers, and owner-confirmed profile drafts.
+- Commitments reuse `one_to_one_follow_up_actions`; completion reuses `one_to_one_status_events`; Close opens the existing Handshake and Reflection.
+- Guided actions do not send LINE push messages.
+
+Shared content never stores private notes, private Mentor feedback, or handshake codes. Profile changes are drafts until the owning member confirms them. Auto-save uses optimistic `version`; offline data remains local until sync and the server remains the source of truth.
+
+Same-device conversation and secure multi-device resume are supported. Realtime presence/cursors are intentionally deferred until participant-scoped Realtime authorization and merge behavior are tested; the schema already carries version, current speaker, and timestamps for that future phase.
+
+### Guided deploy and rollback
+
+1. Apply migration `20260823000061_guided_one_to_one_sessions.sql`.
+2. Deploy `liff-api`, then deploy static web.
+3. Pilot with one pair and verify repeated taps resume the same Session.
+
+No new environment variable is required. For rollback, remove the web entry/API handlers first and retain the additive Guided tables so history is not lost. Drop the four new tables in dependency order only after an approved export; no existing 1-2-1 table was destructively changed.
+
+### Guided manual QA
+
+- iPhone/Android 390×844 and iPad 1024×768: seven steps, Thai wrapping, sticky navigation, 48px targets, Notes sheet, keyboard and reduced motion.
+- A/B can open and resume; unrelated members/guessed IDs get 403; repeated entry creates one Session.
+- Refresh restores the current step; a stale second device gets `VERSION_CONFLICT` rather than overwriting.
+- Shared notes are pair-visible, Private Notes remain owner-only, and Profile updates require the owner.
+- Discover/Deepen recommendation follows completed relationship history; Referral Focus remains selectable.
+- Completion requires a Commitment (including explicit no-action), creates Follow-up once, and proceeds to existing Handshake/Reflection.
+- Verify loading, missing pair, denied, cancelled, completed, offline, save error, history incomplete and Handshake-not-ready states.
+- Confirm no Guided action writes LINE delivery/notification records.
+
 ## Architecture before and after
 
 Before: MC Desktop imported check-in CSV into `matching_rounds` / `matching_import_rows`, generated `matching_pairs`, and sent through the shared LINE delivery ledger. Odd pools became a group of three. Historical 1-2-1 notes were stored separately in `one_to_one_logs`.
