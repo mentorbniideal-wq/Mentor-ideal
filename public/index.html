@@ -2134,6 +2134,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
         <button class="mentor-hub-card" onclick="mentorOpenSection('report')">📝 <b id="work-report-count" class="mentor-hub-count" style="display:none">0</b><strong>รายงาน Core Issue</strong><span>ส่งรายงานและติดตามคำตอบจาก MC</span></button>
         <button class="mentor-hub-card" onclick="mentorOpenSection('mcmsg')">💬 <b id="work-msg-count" class="mentor-hub-count" style="display:none">0</b><strong>งานและข้อความจาก MC</strong><span>รับทราบงาน อ่านประกาศ และติดตามคำสั่ง</span></button>
         <button class="mentor-hub-card" onclick="mentorOpenSection('renewal')">💳 <b id="work-renew-count" class="mentor-hub-count" style="display:none">0</b><strong>Renewal</strong><span>ติดตามการติดต่อ การตัดสินใจ และชำระเงิน</span></button>
+        <button class="mentor-hub-card" onclick="mentorOpenSection('121care')">🤝 <b id="work-121-count" class="mentor-hub-count" style="display:none">0</b><strong>1-2-1 Care</strong><span>รับคำขอ ดูคู่ที่ติดขั้นตอน และติดตาม Referral</span></button>
         <button class="mentor-hub-card" onclick="mentorOpenSection('mentorlog')">📓 <strong>Mentor Log</strong><span>บันทึกกิจกรรมและหลักฐานการดูแล Mentee</span></button>
       </div>
     </div>
@@ -2156,6 +2157,13 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
     </div>
     <div class="pane" id="mentor-report"><button class="dp-back" onclick="mentorReturnTo('work')" aria-label="กลับไปศูนย์งาน">← งาน</button><div id="mentor-report-c"><div class="lt">⏳ กำลังโหลด...</div></div></div>
     <div class="pane" id="mentor-renewal"><button class="dp-back" onclick="mentorReturnTo('work')" aria-label="กลับไปศูนย์งาน">← งาน</button><div class="lt">⏳ กำลังโหลด...</div></div>
+    <div class="pane" id="mentor-121care">
+      <button class="dp-back" onclick="mentorReturnTo('work')" aria-label="กลับไปศูนย์งาน">← งาน</button>
+      <div class="sh">🤝 1-2-1 Care — ทีมฉัน</div>
+      <div id="mentor-121-pulse" class="mobile-metric-grid"></div>
+      <div class="mobile-chip-row" style="margin-top:.7rem"><button class="mobile-chip" onclick="mentor121Tab('help')">ต้องช่วย</button><button class="mobile-chip" onclick="mentor121Tab('active')">กำลังดำเนินการ</button><button class="mobile-chip" onclick="mentor121Tab('follow')">ติดตามผล</button><button class="mobile-chip" onclick="mentor121Tab('referral')">Referral</button></div>
+      <div id="mentor-121-care-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+    </div>
     <div class="pane" id="mentor-newmembers">
   <button class="dp-back" onclick="mentorReturnTo('more')" aria-label="กลับไปเมนูเพิ่มเติม">← เพิ่มเติม</button>
   <div id="mentor-nm-list"><div class="lt">⏳ กำลังโหลด...</div></div>
@@ -3223,6 +3231,7 @@ function mnt(tab,btn){
   if(tab==='report')loadReportForm(S._selectedMentee);
   if(tab==='renewal')loadRenewal('mentor');
   if(tab==='mentorlog')mobMlLoad();
+  if(tab==='121care')loadMentor121Care(true);
   if(tab==='mcmsg'){
     loadBroadcasts('mentor');loadMessages('mentor',true);loadMentorAssignments();
   }
@@ -3245,6 +3254,7 @@ function mentorOpenSection(tab){
   if(tab==='report')loadReportForm(S._selectedMentee);
   if(tab==='renewal')loadRenewal('mentor');
   if(tab==='mentorlog')mobMlLoad();
+  if(tab==='121care')loadMentor121Care(true);
   if(tab==='mcmsg'){loadBroadcasts('mentor');loadMessages('mentor',true);loadMentorAssignments();}
   if(tab==='newmembers')loadNewMembers('mentor');
   if(tab==='coaching')loadCoachingGuide();
@@ -3847,10 +3857,8 @@ function load121Section(memberName){
   var el=document.getElementById('dp-121-section');
   if(!el)return;
   el.innerHTML='<div class="lt" style="font-size:.7rem;">⏳ โหลด 1-2-1 log...</div>';
-  call('get121Logs',{memberName:memberName},function(err,r){
-    if(err||!r){el.innerHTML='';return;}
-    el.innerHTML=build121Section(memberName,r.ok&&r.logs?r.logs:[]);
-  });
+  var found=(S.teamMembers||[]).filter(function(m){return m.name===memberName;})[0],memberId=found&&found.id;
+  call('get121Logs',{memberName:memberName},function(err,r){var legacy=build121Section(memberName,!err&&r&&r.ok&&r.logs?r.logs:[]);if(!memberId||S.isMC){el.innerHTML=legacy;return;}call('getMentorOneToOneMemberTimeline',{memberId:memberId},function(e,j){if(e||!j||!j.ok){el.innerHTML=legacy;return;}var s=j.stats||{},journey='<div class="card workspace-section"><div class="ct">🤝 1-2-1 Journey</div><div class="mobile-metric-grid"><div class="mobile-metric"><b>'+Number(s.total||0)+'</b><span>ทั้งหมด</span></div><div class="mobile-metric"><b>'+Number(s.completed||0)+'</b><span>สำเร็จ</span></div><div class="mobile-metric"><b>'+Number(s.pending||0)+'</b><span>กำลังทำ</span></div></div>'+(j.timeline||[]).slice(0,3).map(function(x){return '<div class="mobile-mini-note">'+escHtml((x.round||{}).meeting_date||'')+' · '+mentor121Name(x.partner)+' · '+escHtml(x.status||'')+'</div>';}).join('')+'</div>';el.innerHTML=journey+legacy;});});
 }
 function build121Section(memberName,logs){
   var safeName=memberName.replace(/'/g,"\\'");
@@ -4232,7 +4240,7 @@ function renderMentorDirectory(){
   el.innerHTML=list.map(function(m){return mentorMemberRow(m,"openDetail('"+m.name.replace(/'/g,"\\'")+"')");}).join('');
 }
 function openMentorBell(){
-  mnt('work',document.querySelector('[data-mentor-primary="work"]'));
+  mentorOpenSection('121care');
 }
 function setHubCount(id,n){
   var el=document.getElementById(id);if(!el)return;
@@ -4241,9 +4249,9 @@ function setHubCount(id,n){
 function loadMentorWorkHub(){
   var completion=document.getElementById('mentor-completion');
   if(completion)completion.innerHTML='<div class="lt" style="padding:1rem">⏳ กำลังสรุปงาน...</div>';
-  var state={reports:[],assignments:[],renewals:[],messages:[],read:{}},done=0;
+  var state={reports:[],assignments:[],renewals:[],messages:[],read:{},care:{stats:{}}},done=0;
   function finish(){
-    done++;if(done<5)return;
+    done++;if(done<6)return;
     S._mentorReports=state.reports;S._mentorRenewals=state.renewals;
     var openReports=state.reports.filter(function(x){return x.status!=='done';}).length;
     var pendingAssignments=state.assignments.filter(function(x){return x.status==='pending';}).length;
@@ -4252,7 +4260,9 @@ function loadMentorWorkHub(){
     setHubCount('work-report-count',openReports);
     setHubCount('work-msg-count',pendingAssignments+unread);
     setHubCount('work-renew-count',urgentRenewals);
-    var total=openReports+pendingAssignments+unread+urgentRenewals;
+    var careCount=Number((state.care.stats||{}).attention||0)+Number((state.care.stats||{}).stalled||0);
+    setHubCount('work-121-count',careCount);
+    var total=openReports+pendingAssignments+unread+urgentRenewals+careCount;
     setHubCount('mentor-work-badge',total);
     setHubCount('mentor-bell-badge',total);
     if(!completion)return;
@@ -4261,6 +4271,7 @@ function loadMentorWorkHub(){
       {ok:openReports===0,txt:openReports?'รายงานเปิดอยู่ '+openReports+' รายการ':'ไม่มีรายงานค้าง'},
       {ok:pendingAssignments===0,txt:pendingAssignments?'งานจาก MC รอรับทราบ '+pendingAssignments+' งาน':'รับทราบงานจาก MC ครบ'},
       {ok:urgentRenewals===0,txt:urgentRenewals?'Renewal เร่งด่วน '+urgentRenewals+' คน':'ไม่มี Renewal เร่งด่วน'},
+      {ok:careCount===0,txt:careCount?'1-2-1 ต้องดูแล '+careCount+' รายการ':'ไม่มีเคส 1-2-1 ค้าง'},
       {ok:noContact===0,txt:noContact?'Mentee ยังไม่ได้ติดตามเกิน 14 วัน '+noContact+' คน':'ติดตาม Mentee ครบ'}
     ];
     completion.innerHTML='<div class="card"><div class="ct">ภาพรวมการปิดงานวันนี้</div><div class="completion-list">'+rows.map(function(x){
@@ -4272,7 +4283,25 @@ function loadMentorWorkHub(){
   call('getRenewal',{},function(err,r){state.renewals=r&&r.ok?r.items||[]:[];finish();});
   call('getReadMsgKeys',{},function(err,r){(r&&r.ok?r.keys||[]:[]).forEach(function(k){state.read[k]=true;});finish();});
   call('getMessages',{},function(err,r){state.messages=r&&r.ok?r.messages||[]:[];finish();});
+  call('getMentorOneToOneCare',{},function(err,r){state.care=r&&r.ok?r:{stats:{}};_mentor121Data=state.care;finish();});
 }
+var _mentor121Data=null,_mentor121Tab='help';
+function mentor121Name(m){return escHtml((m&&((m.nickname||m.name)))||'สมาชิก');}
+function loadMentor121Care(force){if(_mentor121Data&&!force){renderMentor121Care();return;}var el=document.getElementById('mentor-121-care-list');if(el)el.innerHTML='<div class="lt">⏳ กำลังโหลด 1-2-1 Care...</div>';call('getMentorOneToOneCare',{},function(err,r){if(err||!r||!r.ok){if(el)el.innerHTML='<div class="empty">ไม่สามารถโหลดข้อมูลได้</div>';return;}_mentor121Data=r;renderMentor121Care();});}
+function mentor121Tab(tab){_mentor121Tab=tab;renderMentor121Care();}
+function mentor121PairMember(pair){var a=pair.member_a||{},b=pair.member_b||{},team=String(S.teamName||'').toLowerCase();return String(a.mentor_team||'').toLowerCase()===team?a:b;}
+function renderMentor121Care(){var d=_mentor121Data||{},s=d.stats||{},pulse=document.getElementById('mentor-121-pulse'),el=document.getElementById('mentor-121-care-list');if(!el)return;if(pulse)pulse.innerHTML=[['ต้องช่วย',s.attention||0],['กำลังทำ',s.active||0],['ติดขั้นตอน',s.stalled||0],['สำเร็จ',s.completed||0],['Follow-up',s.followUp||0],['Referral',s.referrals||0]].map(function(x){return '<div class="mobile-metric"><b>'+x[1]+'</b><span>'+x[0]+'</span></div>';}).join('');var html='';if(_mentor121Tab==='help'){html=(d.attention||[]).map(function(x){var m=x.member||{};return '<article class="mobile-follow-card '+(x.level==='mentor_review_required'?'urgent':'warning')+'"><div class="mobile-follow-title">'+mentor121Name(m)+' · ขอคุยกับ Mentor</div><div class="mobile-mini-note">'+escHtml(x.reason||'')+'</div><div class="mobile-follow-meta">'+new Date(x.created_at).toLocaleString('th-TH')+' · '+escHtml(x.status||'open')+'</div><div class="mobile-follow-actions"><button class="fb" onclick="mentor121CareAction(\''+x.id+'\',\'reviewed\')">รับเรื่อง</button><button class="fb" onclick="mentor121CareAction(\''+x.id+'\',\'snoozed\')">พรุ่งนี้</button><button class="fb" onclick="mentor121Escalate(\''+x.id+'\')">ส่งต่อ MC</button><button class="fb" onclick="mentor121Resolve(\''+x.id+'\')">ปิดเคส</button><button class="fb" onclick="mentor121Timeline(\''+m.id+'\')">Timeline</button></div></article>';}).join('');}
+  if(_mentor121Tab==='active'){var labels={matched:'ได้คู่แล้ว',scheduled:'รอเลือกเวลา',confirmed_schedule:'ยืนยันนัดแล้ว',awaiting_verification:'รอ Digital Handshake',partially_verified:'ยืนยันแล้ว 1 ฝ่าย',overdue:'เกินรอบ',unable_to_contact:'ติดต่อไม่ได้',missed_appointment:'พลาดนัด'};html=(d.pairs||[]).map(function(x){var a=x.member_a||{},b=x.member_b||{},own=mentor121PairMember(x);return '<article class="mobile-follow-card '+(['overdue','unable_to_contact','missed_appointment'].includes(x.status)?'warning':'info')+'"><div class="mobile-follow-title">'+mentor121Name(a)+' ↔ '+mentor121Name(b)+'</div><div class="mobile-mini-note">'+escHtml(labels[x.status]||x.status)+'</div><div class="mobile-follow-actions"><button class="fb" onclick="mentor121Remind(\''+x.id+'\',\''+own.id+'\')">เตือนสมาชิกทีมฉัน</button><button class="fb" onclick="mentor121Reissue(\''+x.id+'\',\''+own.id+'\',\''+String(own.nickname||own.name||'สมาชิก').replace(/'/g,'')+'\')">ออกโค้ดใหม่</button><button class="fb" onclick="mentor121Timeline(\''+own.id+'\')">Timeline</button></div></article>';}).join('');}
+  if(_mentor121Tab==='follow'){html=(d.followUps||[]).map(function(x){return '<article class="mobile-follow-card warning"><div class="mobile-follow-title">'+mentor121Name(x.owner)+' → '+mentor121Name(x.related)+'</div><div class="mobile-mini-note">'+escHtml(x.description||x.action_type||'Next Action')+'</div><div class="mobile-follow-meta">ครบกำหนด '+escHtml(x.due_date||'ยังไม่ระบุ')+'</div></article>';}).join('');}
+  if(_mentor121Tab==='referral'){html='<button class="btn-p" style="margin-bottom:.6rem" onclick="copyMentor121Summary()">📋 Copy Weekly 1-2-1 Summary</button>'+(d.referralOpportunities||[]).map(function(x){return '<article class="mobile-follow-card info"><div class="mobile-follow-title">'+mentor121Name(x.respondent)+' → '+mentor121Name(x.about)+'</div><div class="mobile-mini-note">'+escHtml(x.next_action_detail||x.next_action_type||'Referral Opportunity')+'</div><div class="mobile-follow-meta">Coaching: ช่วยระบุชื่อบุคคลและวันที่จะทำ Next Action</div></article>';}).join('');}
+  el.innerHTML=html||'<div class="empty"><div class="empty-i">✅</div>ไม่มีรายการในหมวดนี้</div>';}
+function mentor121CareAction(id,status){call('updateMentorOneToOneCare',{id:id,status:status,resolution:status==='reviewed'?'Mentor รับเรื่องแล้ว':'นัดติดตามวันถัดไป'},function(err,r){if(!err&&r&&r.ok){toast('อัปเดต 1-2-1 Care แล้ว');_mentor121Data=null;loadMentor121Care(true);loadMentorWorkHub();}});}
+function mentor121Resolve(id){var note=prompt('สรุปการช่วยเหลือและ Next Action');if(note===null)return;call('updateMentorOneToOneCare',{id:id,status:'resolved',resolution:note||'Mentor ติดต่อและดูแลแล้ว'},function(err,r){if(!err&&r&&r.ok){toast('ปิดเคสและบันทึก Mentor Log แล้ว');_mentor121Data=null;loadMentor121Care(true);loadMentorWorkHub();}});}
+function mentor121Escalate(id){var note=prompt('เหตุผลหรือสิ่งที่ต้องการให้ MC ช่วย');if(note===null)return;call('updateMentorOneToOneCare',{id:id,status:'escalated',resolution:note||'ขอให้ MC ร่วมดูแลเคสนี้'},function(err,r){if(!err&&r&&r.ok){toast('ส่งต่อ MC และบันทึก Mentor Log แล้ว');_mentor121Data=null;loadMentor121Care(true);loadMentorWorkHub();}});}
+function mentor121Remind(pairId,memberId){if(!confirm('ส่ง LINE เตือนสมาชิกให้ดำเนินการ 1-2-1 ต่อ?'))return;call('remindMentorOneToOneMember',{pairId:pairId,memberId:memberId},function(err,r){toast(!err&&r&&r.ok?'ส่งคำเตือนแล้ว':'ส่งไม่ได้: '+((r&&r.error)||'error'));});}
+function mentor121Reissue(pairId,memberId,name){if(!confirm('ออกโค้ดใหม่ให้ '+name+'? รหัสเดิมจะใช้ไม่ได้ทันที'))return;call('reissueMentorOneToOneCode',{pairId:pairId,memberId:memberId},function(err,r){if(!err&&r&&r.ok)prompt('โค้ดใหม่ของ '+name+' (กด Copy):',r.code);else toast('ออกโค้ดไม่ได้: '+((r&&r.error)||'error'));});}
+function mentor121Timeline(memberId){var el=document.getElementById('mentor-121-care-list');el.innerHTML='<div class="lt">⏳ กำลังโหลด Timeline...</div>';call('getMentorOneToOneMemberTimeline',{memberId:memberId},function(err,r){if(err||!r||!r.ok){el.innerHTML='<div class="empty">โหลด Timeline ไม่ได้</div>';return;}var m=r.member||{},s=r.stats||{};el.innerHTML='<button class="dp-back" onclick="renderMentor121Care()">← 1-2-1 Care</button><div class="card"><div class="ct">'+mentor121Name(m)+' · 1-2-1 Journey</div><div class="mobile-metric-grid"><div class="mobile-metric"><b>'+Number(s.total||0)+'</b><span>ทั้งหมด</span></div><div class="mobile-metric"><b>'+Number(s.completed||0)+'</b><span>สำเร็จ</span></div><div class="mobile-metric"><b>'+Number(s.pending||0)+'</b><span>ค้าง</span></div></div></div>'+(r.timeline||[]).map(function(x){return '<article class="mobile-follow-card"><div class="mobile-follow-title">กับ '+mentor121Name(x.partner)+'</div><div class="mobile-follow-meta">'+escHtml((x.round||{}).meeting_date||'')+' · '+escHtml(x.status||'')+'</div></article>';}).join('');});}
+function copyMentor121Summary(){var d=_mentor121Data||{},s=d.stats||{};var text=['🤝 1-2-1 Weekly Summary · ทีม '+(d.team||S.teamName||''),'กำลังดำเนินการ '+Number(s.active||0)+' คู่','ต้องช่วย '+Number(s.attention||0)+' รายการ','ติดขั้นตอน '+Number(s.stalled||0)+' คู่','Follow-up '+Number(s.followUp||0)+' รายการ','Referral Opportunity '+Number(s.referrals||0)+' รายการ','','Next: รับเรื่องเร่งด่วนและช่วยกำหนดเจ้าของ/วันที่ของ Next Action'].join('\n');navigator.clipboard.writeText(text).then(function(){toast('Copy Weekly Summary แล้ว');}).catch(function(){prompt('Copy Summary:',text);});}
 function renderMentorMembers(){
   var f=S.curMFilter;
   // Separate GW members from active — GW should NOT appear in regular team list

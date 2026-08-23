@@ -54,6 +54,12 @@ The MY121 experience now also offers 2–3 schedule choices, LINE Share Target P
 
 Rich Menu contract v13 deep-links every personal action directly into the matching LIFF view (`progress`, `121`, `absence`, `goal`, and `issue`) for Member, Mentor, MC, and Growth aliases. Re-run LINE provisioning after deploying v13 so existing per-user menu assignments are replaced as well as the default menu.
 
+## Mentor Mobile 1-2-1 Care
+
+Mentor Mobile includes a team-scoped `1-2-1 Care` workspace under Work. It combines private Mentor requests, active/stalled pairs, pending follow-ups, Referral Opportunities, Team Pulse metrics, and per-member Journey timelines. Mentor actions include acknowledge, snooze, resolve, escalate to MC, send a member reminder, and reissue a verification code. Resolution and escalation automatically create Mentor Log and status-event evidence. Weekly team summaries are copy-ready for LINE/MC reporting.
+
+All Mentor Mobile reads and writes use the dedicated `mentor-121` API handler. Team scope is resolved from the authenticated role on the server; client-supplied team names are never trusted. Mentor roles cannot access matching, templates, chapter sends, pilot settings, budgets, or another team's private feedback.
+
 MC Desktop queue views now load real Active 1-2-1, Waiting List, Follow-up, and Needs Attention data. Completing a follow-up or overriding/resolving an attention item is handled by the authenticated API and creates an event audit record.
 
 The full Member Profile now includes a 1-2-1 History tab with completion KPIs, partner relationship history, round history, schedules, feedback, next actions, waiting-list records, attention items, and readable legacy groups. MC Desktop also includes Pilot Control and Message Control: MC can select pilot members, keep the global feature disabled while piloting, trigger an emergency stop, and inspect monthly usage, forecast, failures, top recipients, and suppression reasons.

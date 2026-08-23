@@ -36,6 +36,7 @@ import { handleNotifications } from './handlers/notifications.ts';
 import { handleCopilot } from './handlers/copilot.ts';
 import { handleMemberSuccessBlueprints } from './handlers/member-success-blueprints.ts';
 import { handleWeekly121 } from './handlers/weekly-121.ts';
+import { handleMentor121 } from './handlers/mentor-121.ts';
 
 // ── Public actions that require NO PIN ────────────────────────
 const PUBLIC_ACTIONS = new Set([
@@ -229,6 +230,11 @@ const ROUTES: Record<string, string> = {
   'saveOneToOneBusinessProfile': 'weekly-121',
   'getOneToOneManualCandidates': 'weekly-121', 'createManualOneToOneRound': 'weekly-121',
 
+  // Mentor Mobile 1-2-1 Care (server-enforced team scope)
+  'getMentorOneToOneCare': 'mentor-121', 'updateMentorOneToOneCare': 'mentor-121',
+  'remindMentorOneToOneMember': 'mentor-121', 'reissueMentorOneToOneCode': 'mentor-121',
+  'getMentorOneToOneMemberTimeline': 'mentor-121',
+
   // Usage
   'logUsage': 'usage', 'getUsageLog': 'usage', 'getLineAnalytics': 'usage',
 };
@@ -253,6 +259,7 @@ const HANDLERS: Record<string, (p: Record<string, unknown>) => Promise<Response>
   'copilot':     handleCopilot,
   'member-success-blueprints': handleMemberSuccessBlueprints,
   'weekly-121': handleWeekly121,
+  'mentor-121': handleMentor121,
   'system':      handleSystemHealth,
 };
 
