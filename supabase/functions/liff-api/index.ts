@@ -10,6 +10,18 @@ import { GUIDED_MODES, canEditOwnedGuidedData, cleanGuidedText, normalizeGuidedC
 
 type Db = ReturnType<typeof getServiceClient>;
 
+function randomUrlToken(byteLength = 24) {
+  const bytes = crypto.getRandomValues(new Uint8Array(byteLength));
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
 function response(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -368,6 +380,98 @@ Deno.serve(async (req: Request) => {
       lineUserId: identity.userId, memberId, source: 'liff',
     });
     return response({ ok: true, message: 'บันทึกแขกพิเศษแล้วครับ' });
+  }
+
+  if (action === 'create-visitor-checkin-token') {
+    const visitorLogId = String(body.visitorLogId || '').trim();
+    if (!visitorLogId) return response({ ok: false, error: 'ไม่พบรายการแขก' }, 400);
+    const { data: visitor } = await db.from('visitor_log')
+      .select('id, visitor_name, visit_date, status')
+      .eq('id', visitorLogId)
+      .eq('invited_by', memberId)
+      .maybeSingle();
+    if (!visitor) return response({ ok: false, error: 'ไม่พบรายการแขก หรือคุณไม่มีสิทธิ์สร้าง QR นี้' }, 403);
+    if (String((visitor as Record<string, unknown>).status) !== 'pending') {
+      return response({ ok: false, error: 'รายการนี้ยืนยันการเข้าร่วมแล้ว จึงไม่ต้องสร้าง QR ใหม่' }, 409);
+    }
+
+    const token = randomUrlToken();
+    const tokenHash = await sha256Hex(token);
+    const visitDate = String((visitor as Record<string, unknown>).visit_date || '');
+    const visitEnd = new Date(`${visitDate}T23:59:59+07:00`);
+    const maximum = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const expiresAt = visitEnd.getTime() > Date.now() && visitEnd < maximum ? visitEnd : maximum;
+
+    await db.from('visitor_checkin_tokens')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('visitor_log_id', visitorLogId)
+      .is('consumed_at', null)
+      .is('revoked_at', null);
+    const { error } = await db.from('visitor_checkin_tokens').insert({
+      visitor_log_id: visitorLogId,
+      token_hash: tokenHash,
+      created_by_member_id: memberId,
+      expires_at: expiresAt.toISOString(),
+    });
+    if (error) return response({ ok: false, error: 'ยังสร้าง QR ไม่สำเร็จ กรุณาลองอีกครั้ง' }, 400);
+    await trackLineEvent(db, 'liff_visitor_qr_created', {
+      lineUserId: identity.userId, memberId, source: 'liff', properties: { visitorLogId },
+    });
+    return response({
+      ok: true,
+      token,
+      visitorName: String((visitor as Record<string, unknown>).visitor_name || ''),
+      visitDate,
+      expiresAt: expiresAt.toISOString(),
+    });
+  }
+
+  if (action === 'consume-visitor-checkin-token') {
+    const token = String(body.token || '').trim();
+    if (!/^[A-Za-z0-9_-]{24,128}$/.test(token)) {
+      return response({ ok: false, error: 'QR นี้ไม่ถูกต้อง กรุณาให้ผู้เชิญสร้างใหม่' }, 400);
+    }
+    const tokenHash = await sha256Hex(token);
+    const { data: credential } = await db.from('visitor_checkin_tokens')
+      .select('id, visitor_log_id, expires_at, consumed_at, revoked_at')
+      .eq('token_hash', tokenHash)
+      .maybeSingle();
+    const cred = credential as Record<string, unknown> | null;
+    if (!cred || cred.revoked_at) return response({ ok: false, error: 'QR นี้ถูกยกเลิกหรือไม่ถูกต้อง กรุณาขอ QR ใหม่' }, 410);
+    if (new Date(String(cred.expires_at)).getTime() <= Date.now()) {
+      return response({ ok: false, error: 'QR นี้หมดอายุแล้ว กรุณาให้ผู้เชิญสร้างใหม่' }, 410);
+    }
+    const visitorLogId = String(cred.visitor_log_id);
+    const { data: visitor } = await db.from('visitor_log')
+      .select('id, visitor_name, visit_date, status, invited_by')
+      .eq('id', visitorLogId)
+      .maybeSingle();
+    if (!visitor) return response({ ok: false, error: 'ไม่พบรายการแขกนี้' }, 404);
+    if (!cred.consumed_at) {
+      const now = new Date().toISOString();
+      const { data: consumed } = await db.from('visitor_checkin_tokens')
+        .update({ consumed_at: now, consumed_by_member_id: memberId })
+        .eq('id', String(cred.id))
+        .is('consumed_at', null)
+        .is('revoked_at', null)
+        .gt('expires_at', now)
+        .select('id')
+        .maybeSingle();
+      if (!consumed) return response({ ok: false, error: 'QR นี้ถูกใช้แล้ว กรุณารีเฟรชรายการแขก' }, 409);
+      await db.from('visitor_log').update({ status: 'attended', updated_at: now }).eq('id', visitorLogId).eq('status', 'pending');
+      await trackLineEvent(db, 'liff_visitor_qr_consumed', {
+        lineUserId: identity.userId, memberId, source: 'liff', properties: { visitorLogId },
+      });
+    }
+    return response({
+      ok: true,
+      alreadyUsed: Boolean(cred.consumed_at),
+      visitor: {
+        visitorName: String((visitor as Record<string, unknown>).visitor_name || ''),
+        visitDate: String((visitor as Record<string, unknown>).visit_date || ''),
+      },
+      message: cred.consumed_at ? 'QR นี้ได้รับการยืนยันแล้ว' : 'ยืนยันการเข้าร่วมของแขกเรียบร้อยแล้ว ✓',
+    });
   }
 
   if (action === 'get-assignments') {

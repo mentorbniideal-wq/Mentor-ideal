@@ -11,6 +11,7 @@ import {
 } from '../../_shared/line.ts';
 import {
   buildRichMenu,
+  buildTabbedRichMenuPage,
   type RichMenuRole,
 } from '../../_shared/line-rich-menu.ts';
 import { trackLineEvent } from '../../_shared/analytics.ts';
@@ -1636,6 +1637,105 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         liffUrl,
         results,
       });
+    }
+
+    // ── OPTIONAL TWO-PAGE MEMBER MENU ────────────────────────
+    // dryRun defaults to true. The existing one-page menu is retained in
+    // LINE_RICH_MENU_MEMBER_LEGACY so activation is immediately reversible.
+    case 'setupRichMenuTabs': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const appUrl = String(p.appUrl || Deno.env.get('PUBLIC_APP_URL') || 'https://bni-mentor-system.vercel.app').replace(/\/$/, '');
+      const liffUrl = String(p.liffUrl || Deno.env.get('LINE_LIFF_URL') || `${appUrl}/liff/`).replace(/\/$/, '');
+      const aliases = { today: 'bni-ideal-today', more: 'bni-ideal-more' };
+      const definitions = {
+        today: buildTabbedRichMenuPage('today', liffUrl, appUrl, aliases),
+        more: buildTabbedRichMenuPage('more', liffUrl, appUrl, aliases),
+      };
+      const dryRun = p.dryRun !== false;
+      if (dryRun) return jsonResponse({ ok: true, dryRun: true, appUrl, liffUrl, aliases, definitions });
+      if (!LINE_TOKEN) return errResponse('LINE_CHANNEL_ACCESS_TOKEN ยังไม่ได้ตั้งค่า');
+
+      const created: Record<'today' | 'more', string> = { today: '', more: '' };
+      for (const page of ['today', 'more'] as const) {
+        const createRes = await fetch('https://api.line.me/v2/bot/richmenu', {
+          method: 'POST', headers: { Authorization: `Bearer ${LINE_TOKEN}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(definitions[page]),
+        });
+        if (!createRes.ok) return errResponse(`สร้าง Rich Menu ${page} ไม่สำเร็จ: ${createRes.status} ${(await createRes.text()).slice(0, 300)}`);
+        created[page] = String(((await createRes.json()) as Record<string, unknown>).richMenuId || '');
+        const imageUrl = `${appUrl}/assets/line/rich-menu-member-tabs-${page}-v1.jpg`;
+        const imageRes = await fetch(imageUrl);
+        if (!imageRes.ok) return errResponse(`ไม่พบภาพ Rich Menu ${page}: ${imageUrl}`);
+        const uploadRes = await fetch(`https://api-data.line.me/v2/bot/richmenu/${created[page]}/content`, {
+          method: 'POST', headers: { Authorization: `Bearer ${LINE_TOKEN}`, 'Content-Type': 'image/jpeg' }, body: await imageRes.arrayBuffer(),
+        });
+        if (!uploadRes.ok) return errResponse(`อัปโหลดภาพ ${page} ไม่สำเร็จ: ${uploadRes.status}`);
+      }
+
+      for (const page of ['today', 'more'] as const) {
+        const updateRes = await fetch(`https://api.line.me/v2/bot/richmenu/alias/${aliases[page]}`, {
+          method: 'POST', headers: { Authorization: `Bearer ${LINE_TOKEN}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ richMenuId: created[page] }),
+        });
+        if (!updateRes.ok) {
+          const createAlias = await fetch('https://api.line.me/v2/bot/richmenu/alias', {
+            method: 'POST', headers: { Authorization: `Bearer ${LINE_TOKEN}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ richMenuAliasId: aliases[page], richMenuId: created[page] }),
+          });
+          if (!createAlias.ok) return errResponse(`ตั้ง Alias ${page} ไม่สำเร็จ: ${createAlias.status} ${(await createAlias.text()).slice(0, 300)}`);
+        }
+      }
+
+      const { data: current } = await db.from('settings').select('value').eq('key', 'LINE_RICH_MENU_MEMBER').maybeSingle();
+      const previousId = String((current as Record<string, unknown> | null)?.value || '');
+      const defaultRes = await fetch(`https://api.line.me/v2/bot/user/all/richmenu/${created.today}`, {
+        method: 'POST', headers: { Authorization: `Bearer ${LINE_TOKEN}` },
+      });
+      if (!defaultRes.ok) return errResponse(`ตั้งเมนูเริ่มต้นไม่สำเร็จ: ${defaultRes.status}`);
+      const { data: linkedUsers } = await db.from('line_members').select('line_user_id').limit(1000);
+      let assignedUsers = 0;
+      for (const row of linkedUsers || []) {
+        const lineUserId = String((row as Record<string, unknown>).line_user_id || '').trim();
+        if (!lineUserId) continue;
+        const assignRes = await fetch(`https://api.line.me/v2/bot/user/${lineUserId}/richmenu/${created.today}`, {
+          method: 'POST', headers: { Authorization: `Bearer ${LINE_TOKEN}` },
+        });
+        if (assignRes.ok) assignedUsers++;
+      }
+      await db.from('settings').upsert([
+        ...(previousId ? [{ key: 'LINE_RICH_MENU_MEMBER_LEGACY', value: previousId }] : []),
+        { key: 'LINE_RICH_MENU_MEMBER', value: created.today },
+        { key: 'LINE_RICH_MENU_MEMBER_TABS_TODAY', value: created.today },
+        { key: 'LINE_RICH_MENU_MEMBER_TABS_MORE', value: created.more },
+        { key: 'LINE_RICH_MENU_TABS_VERSION', value: 'v1' },
+      ], { onConflict: 'key' });
+      return jsonResponse({ ok: true, dryRun: false, menus: created, aliases, assignedUsers, rollbackRichMenuId: previousId || null });
+    }
+
+    case 'rollbackRichMenuTabs': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      if (!LINE_TOKEN) return errResponse('LINE_CHANNEL_ACCESS_TOKEN ยังไม่ได้ตั้งค่า');
+      const { data: legacy } = await db.from('settings').select('value').eq('key', 'LINE_RICH_MENU_MEMBER_LEGACY').maybeSingle();
+      const legacyId = String((legacy as Record<string, unknown> | null)?.value || '');
+      if (!legacyId) return errResponse('ไม่พบ Rich Menu เดิมสำหรับย้อนกลับ');
+      const defaultRes = await fetch(`https://api.line.me/v2/bot/user/all/richmenu/${legacyId}`, {
+        method: 'POST', headers: { Authorization: `Bearer ${LINE_TOKEN}` },
+      });
+      if (!defaultRes.ok) return errResponse(`ย้อนกลับเมนูเริ่มต้นไม่สำเร็จ: ${defaultRes.status}`);
+      const { data: linkedUsers } = await db.from('line_members').select('line_user_id').limit(1000);
+      let assignedUsers = 0;
+      for (const row of linkedUsers || []) {
+        const lineUserId = String((row as Record<string, unknown>).line_user_id || '').trim();
+        if (!lineUserId) continue;
+        const assignRes = await fetch(`https://api.line.me/v2/bot/user/${lineUserId}/richmenu/${legacyId}`, {
+          method: 'POST', headers: { Authorization: `Bearer ${LINE_TOKEN}` },
+        });
+        if (assignRes.ok) assignedUsers++;
+      }
+      await db.from('settings').upsert({ key: 'LINE_RICH_MENU_MEMBER', value: legacyId }, { onConflict: 'key' });
+      return jsonResponse({ ok: true, richMenuId: legacyId, assignedUsers });
     }
 
     case 'assignRichMenu': {

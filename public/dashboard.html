@@ -2579,6 +2579,9 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
           <span style="font-size:13px;font-weight:700">🩺 LINE Health Center</span>
           <span style="font-size:11px;color:var(--sub)">ตรวจ Role, Rich Menu และ LIFF URL จากระบบจริง</span>
           <button onclick="loadLineHealth()" id="btn-line-health" style="margin-left:auto;background:transparent;border:1px solid var(--bd);color:var(--tx);padding:6px 14px;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit">↺ ตรวจระบบ</button>
+          <button onclick="deskSetupRichMenuTabs(true)" style="background:transparent;border:1px solid var(--bd);color:var(--tx);padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit">🧪 ตรวจเมนู 2 หน้า</button>
+          <button onclick="deskSetupRichMenuTabs(false)" style="background:var(--ac);border:0;color:#000;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">เปิดเมนู 2 หน้า</button>
+          <button onclick="deskRollbackRichMenuTabs()" style="background:transparent;border:1px solid #b65245;color:#e98277;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit">ย้อนกลับเมนูเดิม</button>
         </div>
         <div id="line-health-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:12px"></div>
         <div id="line-health-body" style="color:var(--sub);font-size:12px;text-align:center;padding:16px">กด “ตรวจระบบ” เพื่ออ่านสถานะจาก LINE</div>
@@ -13056,6 +13059,24 @@ function deskSetupRichMenu() {
   gsr('setupRichMenu',{role:S.role},function(r){
     if (r&&r.ok) alert('✅ Rich Menu ตั้งค่าแล้ว!\n\n'+r.note);
     else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');
+  });
+}
+
+function deskSetupRichMenuTabs(dryRun) {
+  if (!dryRun && !confirm('เปิด Rich Menu แบบ 2 หน้าให้สมาชิกที่เชื่อม LINE ทุกคนตอนนี้ใช่ไหม?\nระบบจะเก็บเมนูเดิมไว้เพื่อย้อนกลับ')) return;
+  toast(dryRun?'กำลังตรวจ Rich Menu 2 หน้า…':'กำลังเปิด Rich Menu 2 หน้า…','ok');
+  gsr('setupRichMenuTabs',{role:S.role,dryRun:dryRun},function(r){
+    if (!r||!r.ok) { toast((r&&r.error)||'ตั้งค่า Rich Menu ไม่สำเร็จ','err'); return; }
+    if (dryRun) alert('✅ Dry-run ผ่าน\n\nพบเมนู 2 หน้าและ Alias พร้อมใช้งาน\nยังไม่ได้เปลี่ยนเมนูของสมาชิก');
+    else alert('✅ เปิด Rich Menu 2 หน้าแล้ว\n\nอัปเดตสมาชิก '+(r.assignedUsers||0)+' คน\nหากพบปัญหา กด “ย้อนกลับเมนูเดิม” ได้ทันที');
+  });
+}
+
+function deskRollbackRichMenuTabs() {
+  if (!confirm('ย้อนกลับไปใช้ Rich Menu เดิมให้สมาชิกทุกคนใช่ไหม?')) return;
+  gsr('rollbackRichMenuTabs',{role:S.role},function(r){
+    if (r&&r.ok) alert('✅ ย้อนกลับเมนูเดิมแล้ว\nอัปเดตสมาชิก '+(r.assignedUsers||0)+' คน');
+    else toast((r&&r.error)||'ย้อนกลับไม่สำเร็จ','err');
   });
 }
 </script>

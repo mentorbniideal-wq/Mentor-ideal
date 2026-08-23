@@ -13,7 +13,7 @@ import {
   renewalMilestone,
   sha256Hex,
 } from './line.ts';
-import { buildRichMenu } from './line-rich-menu.ts';
+import { buildRichMenu, buildTabbedRichMenuPage } from './line-rich-menu.ts';
 import { commandCardFlex, memberScoreFlex, nextColorAdvice } from './line-flex.ts';
 import { teamCommandMode } from './line-roles.ts';
 import { parseLineCommand } from './line-commands.ts';
@@ -179,6 +179,19 @@ Deno.test('rich menu definitions cover the full 2500x1686 canvas', () => {
   assertEquals(totalArea, 2500 * 1686);
   assertEquals(menu.areas[2].bounds.width, 834);
   assertEquals(menu.areas[3].bounds.width, 625);
+});
+
+Deno.test('two-page rich menu covers the canvas and switches through stable aliases', () => {
+  const today = buildTabbedRichMenuPage('today', 'https://liff.line.me/test', 'https://example.com');
+  const more = buildTabbedRichMenuPage('more', 'https://liff.line.me/test', 'https://example.com');
+  for (const menu of [today, more]) {
+    assertEquals(menu.areas.length, 6);
+    assertEquals(menu.areas.reduce((sum, area) => sum + area.bounds.width * area.bounds.height, 0), 2500 * 1686);
+  }
+  assertEquals(today.areas[5].action.type, 'richmenuswitch');
+  assertEquals(more.areas[5].action.type, 'richmenuswitch');
+  assertEquals((today.areas[5].action as { richMenuAliasId: string }).richMenuAliasId, 'bni-ideal-more');
+  assertEquals((more.areas[5].action as { richMenuAliasId: string }).richMenuAliasId, 'bni-ideal-today');
 });
 
 Deno.test('all operational roles use the same personal LINE menu contract as member', () => {

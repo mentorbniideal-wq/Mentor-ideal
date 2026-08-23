@@ -180,7 +180,7 @@ const ROUTES: Record<string, string> = {
   'enrollOnboarding': 'line-admin', 'removeOnboarding': 'line-admin',
   'sendOnboardingWeek': 'line-admin', 'getOnboardingStatus': 'line-admin',
   'getOnboardingMessages': 'line-admin', 'saveOnboardingMessage': 'line-admin', 'getOnboardingPreview': 'line-admin',
-  'mentorBroadcast': 'line-admin', 'setupRichMenu': 'line-admin', 'assignRichMenu': 'line-admin',
+  'mentorBroadcast': 'line-admin', 'setupRichMenu': 'line-admin', 'setupRichMenuTabs': 'line-admin', 'rollbackRichMenuTabs': 'line-admin', 'assignRichMenu': 'line-admin',
   'setupAllTriggers': 'line-admin', 'testLineConnection': 'line-admin', 'getLineQuota': 'line-admin', 'getLineDeliveryLog': 'line-admin',
   'triggerScoreAlert': 'line-admin', 'triggerAnniversary': 'line-admin',
   'triggerCheckinReminder': 'line-admin', 'triggerChapterPulse': 'line-admin',

@@ -7,6 +7,8 @@ export interface RichMenuItem {
   action: { type: 'message'; text: string } | { type: 'uri'; uri: string };
 }
 
+export type RichMenuSwitchAction = { type: 'richmenuswitch'; richMenuAliasId: string; data: string };
+
 const PERSONAL_SUPPORT_ITEMS: RichMenuItem[] = [
   { icon: '◉', label: 'คะแนนของฉัน', sublabel: 'Score & Action', action: { type: 'uri', uri: 'LIFF_URL?action=progress' } },
   { icon: '↗', label: 'ประวัติ', sublabel: 'My Progress', action: { type: 'uri', uri: 'LIFF_URL?action=progress' } },
@@ -69,5 +71,21 @@ export function buildRichMenu(role: RichMenuRole, liffUrl: string, appUrl: strin
     name: `BNI IDEAL ${role.toUpperCase()} v1`,
     chatBarText: 'MY IDEAL',
     areas,
+  };
+}
+
+export function buildTabbedRichMenuPage(
+  page: 'today' | 'more', liffUrl: string, appUrl: string,
+  aliases = { today: 'bni-ideal-today', more: 'bni-ideal-more' },
+) {
+  const uri = (action: string) => ({ type: 'uri' as const, uri: resolveRichMenuUri(`LIFF_URL?action=${action}`, liffUrl, appUrl) });
+  const switchTo = (target: 'today' | 'more'): RichMenuSwitchAction => ({ type: 'richmenuswitch', richMenuAliasId: aliases[target], data: `tab=${target}` });
+  const actions = page === 'today'
+    ? [uri('121'), uri('progress'), uri('visitor'), uri('absence'), uri('goal'), switchTo('more')]
+    : [uri('renewal'), uri('issue'), uri('assignments'), uri('visitor'), uri('progress'), switchTo('today')];
+  return {
+    size: { width: 2500, height: 1686 }, selected: true,
+    name: `BNI IDEAL MEMBER TABS ${page.toUpperCase()} v1`, chatBarText: page === 'today' ? 'MY IDEAL' : 'เมนูเพิ่มเติม',
+    areas: actions.map((action, index) => { const col = index % 3, row = Math.floor(index / 3); return { bounds: { x: col * 833, y: row * 843, width: col === 2 ? 834 : 833, height: 843 }, action }; }),
   };
 }

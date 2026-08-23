@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#123c35">
   <title>MY IDEAL · Action Center</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <script src="./config.js"></script>
   <style>
     :root{--ink:#123c35;--gold:#b89a64;--paper:#f6f2e9;--muted:#6e7773;--line:#ded7ca;--white:#fff;--red:#b65245;--green:#1f7a64}
@@ -34,6 +35,7 @@
     .assign-item{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px}
     .assign-item p{margin:0 0 8px;font-size:14px}.assign-item small{color:var(--muted);font-size:12px}
     .assign-item button{border:1px solid var(--ink);background:transparent;color:var(--ink);border-radius:10px;padding:6px 14px;font-size:12px;cursor:pointer;margin-top:8px}
+    .visitor-row{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 0;border-top:1px solid rgba(0,0,0,.07)}.visitor-row button,.visitor-scan{border:1px solid var(--ink);background:transparent;color:var(--ink);border-radius:10px;padding:8px 10px;font:600 12px inherit;cursor:pointer}.visitor-qr{margin-top:14px;padding:16px;background:#fff;border:1px solid var(--line);border-radius:16px;text-align:center}.visitor-qr #visitorQrCanvas{display:grid;place-items:center}.visitor-qr canvas,.visitor-qr img{max-width:100%;height:auto}.visitor-qr-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.visitor-qr-actions button{margin-top:10px;border-radius:11px;padding:10px;border:1px solid var(--ink);background:#fff;color:var(--ink);font-weight:700}.visitor-qr-actions button:first-child{background:var(--ink);color:#fff}
     .assign-item button.done{background:var(--ink);color:#fff}
     .oto-box{background:linear-gradient(145deg,#123c35,#1f5c50);color:#fff;border-radius:18px;padding:18px;margin-bottom:14px;overflow:hidden}.oto-box small{opacity:.7}.oto-box h3{font-size:22px;margin:5px 0}.oto-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}.oto-actions button{min-width:0;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;border-radius:11px;padding:10px 6px;font-family:inherit;font-size:12px;font-weight:700;overflow-wrap:anywhere}.oto-panel{background:#fff;border:1px solid var(--line);border-radius:15px;padding:14px;margin-top:12px}.oto-code{font-size:34px;letter-spacing:.16em;text-align:center;font-weight:800;padding:12px;color:var(--ink)}
     .guided-launch{grid-column:1/-1;background:#d4b579!important;color:#102f2a!important;border-color:#ead29f!important;font-size:14px!important;padding:13px!important}
@@ -112,6 +114,8 @@
       <label>วันที่ประชุม</label><input type="date" name="visitDate" required>
       <label>หมายเหตุ (ธุรกิจ ความต้องการ)</label><textarea name="notes" placeholder="ข้อมูลเพิ่มเติม"></textarea>
       <button class="submit">บันทึกแขกพิเศษ</button>
+      <button class="visitor-scan" type="button" style="width:100%;margin-top:10px" onclick="scanVisitorQr()">สแกน QR เช็กอินแขก</button>
+      <div id="visitorQrPanel"></div>
       <div id="pendingVisitors" style="margin-top:16px"></div>
     </form>
 
@@ -151,6 +155,7 @@ const cfg = window.BNI_LIFF_CONFIG || {};
 let accessToken = '', _role = 'member';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
+const escHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 function getRequestedAction() {
   const q = new URLSearchParams(location.search);
@@ -471,14 +476,40 @@ async function loadPendingVisitors() {
   const statusColor = { pending: 'rgba(0,0,0,.08)', attended: 'rgba(0,180,0,.12)', no_show: 'rgba(220,50,50,.12)', joined: 'rgba(0,120,255,.12)' };
   box.innerHTML = `<div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px">แขกที่เคยลงทะเบียน</div>` +
     r.visitors.map(v => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-top:1px solid rgba(0,0,0,.07)">
+      <div class="visitor-row">
         <div>
-          <div style="font-size:13px;font-weight:600">${v.visitor_name}</div>
-          <div style="font-size:11px;color:var(--muted)">${v.visit_date}</div>
+          <div style="font-size:13px;font-weight:600">${escHtml(v.visitor_name)}</div>
+          <div style="font-size:11px;color:var(--muted)">${escHtml(v.visit_date)}</div>
         </div>
-        <span style="font-size:11px;padding:3px 9px;border-radius:10px;background:${statusColor[v.status]||'rgba(0,0,0,.08)'}">${statusLabel[v.status]||v.status}</span>
+        <div style="text-align:right"><span style="display:inline-block;font-size:11px;padding:3px 9px;border-radius:10px;background:${statusColor[v.status]||'rgba(0,0,0,.08)'}">${statusLabel[v.status]||v.status}</span>${v.status==='pending'?`<br><button type="button" onclick="createVisitorQr('${v.id}')">สร้าง QR</button>`:''}</div>
       </div>`).join('');
   box._loaded = true;
+}
+
+function visitorTokenFromValue(value){
+  const raw=String(value||'').trim();
+  try{const u=new URL(raw);return u.searchParams.get('visitor_token')||'';}catch{}
+  return raw.startsWith('BNI-VISITOR:')?raw.slice(12).trim():raw;
+}
+
+async function createVisitorQr(visitorLogId){
+  const panel=$('#visitorQrPanel');panel.innerHTML='<div class="visitor-qr">กำลังสร้าง QR ที่ปลอดภัย…</div>';
+  const r=await api({action:'create-visitor-checkin-token',visitorLogId});
+  if(!r.ok){panel.innerHTML=`<div class="visitor-qr" style="color:var(--red)">${r.error}</div>`;return;}
+  const url=`${location.origin}/liff/?action=visitor&visitor_token=${encodeURIComponent(r.token)}`;
+  panel.innerHTML=`<div class="visitor-qr"><b>QR เช็กอินของ ${escHtml(r.visitorName)}</b><p class="hint" style="margin:5px 0 12px">ส่งภาพนี้ให้แขกแสดงในวันประชุม · QR หมดอายุ ${new Date(r.expiresAt).toLocaleString('th-TH')}</p><div id="visitorQrCanvas"></div><div class="visitor-qr-actions"><button id="copyVisitorLink" type="button">คัดลอกลิงก์</button><button type="button" onclick="this.closest('.visitor-qr').remove()">ปิด</button></div><p class="hint" style="margin:10px 0 0">QR ไม่มีชื่อหรือข้อมูลธุรกิจของแขก และใช้ยืนยันได้ครั้งเดียว</p></div>`;
+  $('#copyVisitorLink').onclick=()=>copyVisitorCheckinLink(url);
+  if(window.QRCode)new QRCode($('#visitorQrCanvas'),{text:url,width:260,height:260,colorDark:'#123c35',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
+  else panel.querySelector('.hint').textContent='สร้างภาพ QR ไม่สำเร็จ แต่ยังคัดลอกลิงก์ได้';
+}
+async function copyVisitorCheckinLink(url){try{await navigator.clipboard.writeText(url);alert('คัดลอกลิงก์เช็กอินแล้ว');}catch{prompt('คัดลอกลิงก์นี้',url);}}
+async function consumeVisitorToken(token){
+  const r=await api({action:'consume-visitor-checkin-token',token:visitorTokenFromValue(token)});
+  alert(r.message||r.error);if(r.ok){const b=$('#pendingVisitors');if(b){b._loaded=false;loadPendingVisitors();}const q=new URLSearchParams(location.search);q.delete('visitor_token');history.replaceState(null,'',`?${q}`);}
+}
+async function scanVisitorQr(){
+  if(!liff.scanCodeV2){alert('เครื่องนี้ยังไม่รองรับการสแกน กรุณาอัปเดต LINE หรือเปิดลิงก์จาก QR โดยตรง');return;}
+  try{const result=await liff.scanCodeV2();const token=visitorTokenFromValue(result?.value);if(!token)throw new Error('ไม่พบรหัสเช็กอิน');await consumeVisitorToken(token);}catch(e){if(!String(e?.message||e).toLowerCase().includes('cancel'))alert('ยังอ่าน QR ไม่สำเร็จ กรุณาลองใหม่');}
 }
 
 async function init() {
@@ -552,6 +583,7 @@ async function init() {
     if(q.get('preview')!=='1')checkLineFriendship();
     const defaultView = getRequestedAction() || 'absence';
     show(defaultView);
+    if(q.get('preview')!=='1'&&q.get('visitor_token'))setTimeout(()=>consumeVisitorToken(q.get('visitor_token')),120);
     if(q.get('preview')==='1'&&q.get('guided')==='1')setTimeout(()=>openGuided121('preview-pair'),50);
     if(q.get('preview')!=='1'&&defaultView==='121'&&q.get('guided')==='1'&&q.get('pair'))setTimeout(()=>openGuided121(q.get('pair')),120);
   } catch (e) {
