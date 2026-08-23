@@ -181,7 +181,17 @@ async function api(payload) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...payload, accessToken }),
   });
-  return r.json();
+  const text = await r.text();
+  let data;
+  try { data = JSON.parse(text); }
+  catch { data = { ok:false, error:`ระบบตอบกลับไม่ถูกต้อง (${r.status})` }; }
+  if (!r.ok && !data.error) data.error = `เรียกข้อมูลไม่สำเร็จ (${r.status})`;
+  return data;
+}
+
+function liffLoginRedirectUrl(){
+  const action=getRequestedAction()||'121';
+  return `${location.origin}/liff/?action=${encodeURIComponent(action)}`;
 }
 
 async function loadRenewal() {
@@ -369,9 +379,20 @@ async function init() {
       r = { ok: true, member: { nickname: 'พีท' }, dashboard: { display_score: 68, traffic_light: 'yellow' }, role: 'mentor', mentorTeamName: 'TOOMTAM' };
     } else {
       if (!cfg.liffId || cfg.liffId.startsWith('REPLACE')) throw new Error('ยังไม่ได้ตั้งค่า LINE LIFF ID');
-      await liff.init({ liffId: cfg.liffId });
-      if (!liff.isLoggedIn()) { liff.login(); return; }
-      accessToken = liff.getAccessToken();
+      await liff.init({ liffId: cfg.liffId, withLoginOnExternalBrowser: true });
+      await liff.ready;
+      if (!liff.isLoggedIn()) { liff.login({redirectUri:liffLoginRedirectUrl()}); return; }
+      accessToken = liff.getAccessToken() || '';
+      if (!accessToken) {
+        if (!liff.isInClient() && sessionStorage.getItem('bni_liff_login_retry')!=='1') {
+          sessionStorage.setItem('bni_liff_login_retry','1');
+          liff.logout();
+          liff.login({redirectUri:liffLoginRedirectUrl()});
+          return;
+        }
+        throw new Error('ไม่พบ LINE session กรุณาปิดหน้านี้ อัปเดต LINE แล้วเปิด MY121 ใหม่');
+      }
+      sessionStorage.removeItem('bni_liff_login_retry');
       r = await api({ action: 'bootstrap' });
     }
     if (!r.ok) {
