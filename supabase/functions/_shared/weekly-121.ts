@@ -44,6 +44,15 @@ export function parseWeekly121Csv(text: string): { rows: CsvRow121[]; dates: str
 }
 
 export type MatchingStrategy = 'random' | 'checkin_mix' | 'looking_for' | 'cross_team' | 'smart_mix';
+export function fullyDeliveredOneToOnePairIds(deliveries: Array<Record<string, unknown>>): string[] {
+  const recipientsByPair = new Map<string, Set<string>>();
+  deliveries.forEach(row => {
+    if (String(row.status || '') !== 'sent' || String(row.notification_type || '') !== 'weekly_121_matching') return;
+    const pairId=String(row.matching_pair_id||''),memberId=String(row.member_id||'');if(!pairId||!memberId)return;
+    if(!recipientsByPair.has(pairId))recipientsByPair.set(pairId,new Set());recipientsByPair.get(pairId)!.add(memberId);
+  });
+  return [...recipientsByPair.entries()].filter(([,recipients])=>recipients.size>=2).map(([pairId])=>pairId);
+}
 export type MatchMember = { id: string; name: string; checkinOrder?: number; lookingFor?: string; business?: string; mentorTeam?: string; waitingPriority?: number; completionRate?: number };
 export type MatchGroup = { members: MatchMember[]; locked?: boolean };
 export type MatchResult = { groups: MatchGroup[]; waiting: MatchMember | null };

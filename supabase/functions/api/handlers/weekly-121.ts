@@ -1,6 +1,6 @@
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
-import { createOneToOneMatches, normalize121Name, parseWeekly121Csv, weekly121Message, weekly121TestMessage, type MatchingStrategy } from '../../_shared/weekly-121.ts';
+import { createOneToOneMatches, fullyDeliveredOneToOnePairIds, normalize121Name, parseWeekly121Csv, weekly121Message, weekly121TestMessage, type MatchingStrategy } from '../../_shared/weekly-121.ts';
 import { linePush } from '../../_shared/line.ts';
 import { evaluateNotificationGuard, logSuppressedNotification } from '../../_shared/notification-orchestrator.ts';
 import { generateHandshakeCode, handshakeCodeHash } from '../../_shared/one-to-one.ts';
@@ -155,23 +155,26 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
   }
   if (action === 'getWeekly121Round') return getRound(db,String(p.roundId||''));
   if (action === 'getOneToOneOverview') {
-    const [{data:round},{count:active},{count:waiting},{count:followUp},{count:attention}]=await Promise.all([
+    const {data:deliveryRows,error:deliveryError}=await db.from('line_message_deliveries').select('matching_pair_id,member_id,status,notification_type').eq('module','one_to_one').eq('status','sent').eq('notification_type','weekly_121_matching').not('matching_pair_id','is',null);if(deliveryError)return errResponse(deliveryError.message);const deliveredPairIds=fullyDeliveredOneToOnePairIds((deliveryRows||[]) as Record<string,unknown>[]);
+    const activePromise=deliveredPairIds.length?db.from('matching_pairs').select('id,status,archived_at').in('id',deliveredPairIds).is('archived_at',null).in('status',['matched','contacted','scheduled','confirmed_schedule','awaiting_verification','partially_verified']):Promise.resolve({data:[],error:null});
+    const [{data:round},{data:activeRows},{count:waiting},{count:followUp},{count:attention}]=await Promise.all([
       db.from('matching_rounds').select('id,meeting_date,status,starts_at,ends_at,feature_flag').order('meeting_date',{ascending:false}).limit(1).maybeSingle(),
-      db.from('matching_pairs').select('id',{count:'exact',head:true}).in('status',['matched','contacted','scheduled','confirmed_schedule','awaiting_verification','partially_verified']),
+      activePromise,
       db.from('pairing_waitlist').select('id',{count:'exact',head:true}).eq('status','waiting'),
       db.from('one_to_one_follow_up_actions').select('id',{count:'exact',head:true}).in('status',['pending','in_progress','overdue']),
       db.from('one_to_one_attention_items').select('id',{count:'exact',head:true}).in('status',['open','reviewed']),
     ]);
-    return jsonResponse({ok:true,round:round||null,stats:{active:active||0,waiting:waiting||0,followup:followUp||0,attention:attention||0},featureEnabled:String((round as Record<string,unknown>|null)?.feature_flag||'')==='one_to_one_system'});
+    return jsonResponse({ok:true,round:round||null,stats:{active:(activeRows||[]).length,waiting:waiting||0,followup:followUp||0,attention:attention||0},activeDefinition:'weekly_121_matching_sent_to_both_members',featureEnabled:String((round as Record<string,unknown>|null)?.feature_flag||'')==='one_to_one_system'});
   }
   if(action==='getOneToOneQueues'){
+    const {data:deliveryRows,error:deliveryError}=await db.from('line_message_deliveries').select('matching_pair_id,member_id,status,notification_type').eq('module','one_to_one').eq('status','sent').eq('notification_type','weekly_121_matching').not('matching_pair_id','is',null);if(deliveryError)return errResponse(deliveryError.message);const deliveredPairIds=fullyDeliveredOneToOnePairIds((deliveryRows||[]) as Record<string,unknown>[]);const activePromise=deliveredPairIds.length?db.from('matching_pairs').select('id,status,created_at,round:matching_rounds(meeting_date,ends_at),member_a:members!matching_pairs_member_a_id_fkey(id,name,nickname,mentor_team),member_b:members!matching_pairs_member_b_id_fkey(id,name,nickname,mentor_team),schedules:one_to_one_schedules(id,starts_at,status,meeting_mode)').in('id',deliveredPairIds).is('archived_at',null).neq('status','verified').neq('status','late_verified').order('created_at',{ascending:false}).limit(100):Promise.resolve({data:[],error:null});
     const [{data:active},{data:waiting},{data:followUps},{data:attention},{data:budgets}]=await Promise.all([
-      db.from('matching_pairs').select('id,status,created_at,round:matching_rounds(meeting_date,ends_at),member_a:members!matching_pairs_member_a_id_fkey(id,name,nickname,mentor_team),member_b:members!matching_pairs_member_b_id_fkey(id,name,nickname,mentor_team),schedules:one_to_one_schedules(id,starts_at,status,meeting_mode)').is('archived_at',null).neq('status','verified').neq('status','late_verified').order('created_at',{ascending:false}).limit(100),
+      activePromise,
       db.from('pairing_waitlist').select('id,status,priority_points,reason,created_at,round:matching_rounds(meeting_date),member:members(id,name,nickname,mentor_team)').eq('status','waiting').order('priority_points',{ascending:false}).limit(100),
       db.from('one_to_one_follow_up_actions').select('id,action_type,description,due_date,status,outcome,owner:members!one_to_one_follow_up_actions_owner_member_id_fkey(id,name,nickname,mentor_team),related:members!one_to_one_follow_up_actions_related_member_id_fkey(id,name,nickname)').in('status',['pending','in_progress','overdue']).order('due_date',{ascending:true}).limit(100),
       db.from('one_to_one_attention_items').select('id,level,reason,evidence,positive_context,suggested_action,assigned_role,due_date,status,member:members(id,name,nickname,mentor_team),pair_id').in('status',['open','reviewed','snoozed']).order('created_at',{ascending:false}).limit(100),
       db.from('notification_budget_config').select('*').order('module'),
-    ]);return jsonResponse({ok:true,active:active||[],waiting:waiting||[],followUps:followUps||[],attention:attention||[],budgets:budgets||[]});
+    ]);return jsonResponse({ok:true,active:active||[],waiting:waiting||[],followUps:followUps||[],attention:attention||[],budgets:budgets||[],activeDefinition:'weekly_121_matching_sent_to_both_members'});
   }
   if(action==='reissueOneToOneVerificationCode'){
     const pairId=String(p.pairId||''),memberId=String(p.memberId||'');
