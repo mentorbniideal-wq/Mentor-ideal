@@ -7,7 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="_auth.js"></script>
 <style>
-  :root{--bg:#0a1628;--card:#0e2040;--mint:#d7fefa;--accent:#3dd6f5;--text:#e8f4f8;--muted:#7a9bb5;--red:#ff6b6b;--yellow:#ffd166;--green:#06d6a0}
+  :root{--bg:#0a1628;--card:#0e2040;--mint:#d7fefa;--accent:#3dd6f5;--text:#e8f4f8;--muted:#7a9bb5;--red:#F87171;--yellow:#FBBF24;--green:#34D399}
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:var(--bg);color:var(--text);font-family:'Poppins',sans-serif;min-height:100vh}
   nav{background:var(--card);border-bottom:1px solid #1a3a5c;padding:12px 24px;display:flex;align-items:center;gap:12px}
@@ -110,7 +110,7 @@ function renderTable() {
   const filtered = q ? allMembers.filter(m => (m.name+m.nick).toLowerCase().includes(q)) : allMembers;
   const CRISIS_COLOR = { normal:'crisis-normal', watch:'crisis-watch', critical:'crisis-critical' };
   document.getElementById('tbody').innerHTML = filtered.map(m => {
-    const barColor = m.pct >= 80 ? '#06d6a0' : m.pct >= 40 ? '#ffd166' : '#ff6b6b';
+    const barColor = m.pct >= 80 ? '#34D399' : m.pct >= 40 ? '#FBBF24' : '#F87171';
     const cls = CRISIS_COLOR[m.crisis] || '';
     return `<tr>
       <td>${m.seqNo||''}</td>
