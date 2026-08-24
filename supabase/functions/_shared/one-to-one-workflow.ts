@@ -23,3 +23,15 @@ export function shouldCreateMentorNotification(existingAttentionId?: string | nu
   return !String(existingAttentionId || '').trim();
 }
 
+export const MEMBER_FOLLOW_UP_OUTCOMES = [
+  'introduced', 'not_ready', 'meeting_booked', 'referral_created',
+  'collaboration', 'information_sent', 'learning_only', '',
+] as const;
+
+export function canMemberUpdateFollowUp(actorMemberId: string, ownerMemberId: string) {
+  return Boolean(actorMemberId) && actorMemberId === ownerMemberId;
+}
+
+export function validMemberFollowUpOutcome(value: string) {
+  return (MEMBER_FOLLOW_UP_OUTCOMES as readonly string[]).includes(value);
+}

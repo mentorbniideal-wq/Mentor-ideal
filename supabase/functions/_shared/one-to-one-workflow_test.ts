@@ -1,4 +1,4 @@
-import { evaluateOneToOneAccess, shouldCreateMentorNotification } from './one-to-one-workflow.ts';
+import { canMemberUpdateFollowUp, evaluateOneToOneAccess, shouldCreateMentorNotification, validMemberFollowUpOutcome } from './one-to-one-workflow.ts';
 const assertEquals=(actual:unknown,expected:unknown)=>{if(JSON.stringify(actual)!==JSON.stringify(expected))throw new Error(`${JSON.stringify(actual)} != ${JSON.stringify(expected)}`);};
 
 Deno.test('pilot access is enforced only when explicitly enabled and chapter rollout is off', () => {
@@ -17,4 +17,16 @@ Deno.test('emergency stop preserves read-only access and blocks writes', () => {
 Deno.test('mentor notification is sent only for a new care item', () => {
   assertEquals(shouldCreateMentorNotification(null), true);
   assertEquals(shouldCreateMentorNotification('attention-1'), false);
+});
+
+Deno.test('a member updates only follow-up work they own', () => {
+  assertEquals(canMemberUpdateFollowUp('M1','M1'), true);
+  assertEquals(canMemberUpdateFollowUp('M1','M2'), false);
+  assertEquals(canMemberUpdateFollowUp('',''), false);
+});
+
+Deno.test('member follow-up outcomes use the closed product vocabulary', () => {
+  assertEquals(validMemberFollowUpOutcome('referral_created'), true);
+  assertEquals(validMemberFollowUpOutcome('learning_only'), true);
+  assertEquals(validMemberFollowUpOutcome('private_note'), false);
 });

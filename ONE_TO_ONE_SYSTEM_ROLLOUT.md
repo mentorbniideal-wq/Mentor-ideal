@@ -118,3 +118,13 @@ For two-person pilots, MC can create a locked manual round without a Check-in CS
 - The LIFF UI exposes the primary schedule, handshake, and reflection paths. More polished datetime picker, contact preference editor, and full relationship timeline remain future increments.
 - The shared notification guard is active for 1-2-1 round sends. Existing non-1-2-1 cron modules still need staged adoption before every LINE notification is governed by the same caps.
 - Future work: Smart Referral Matching, mentor-assisted late opt-in pairing, Outlook deep links, richer completion insights, and retention automation for private feedback.
+
+## Member Relationship Follow-up
+
+MY121 now aggregates member-owned Follow-up actions across all pairs, supports due-date changes and a closed set of completion outcomes, and writes an audit status event for every member update. A member may see shared work related to a pair but may only change actions where they are the owner.
+
+Relationship Profile is derived from existing Pair History, approved Referral Triggers, Shared Reflection, business profile, and Follow-up records. It does not create a second relationship-history store. The “คุยต่อครั้งหน้า” helper is copy-only and does not send a LINE push.
+
+`member_referral_trigger_bookmarks` stores only a member-owned pointer to an existing active, owner-approved Trigger. The API verifies that the Trigger belongs to one of the member's pairs before adding or removing a bookmark. Direct client access is revoked and RLS remains enabled.
+
+Deployment order for this increment is migration `20260824000064_member_referral_trigger_bookmarks.sql`, `liff-api`, then the static LIFF page. Application rollback is to deploy the prior API/UI; keep the additive bookmark table for audit and compatibility. If a database rollback is explicitly required, export the bookmark rows first, then drop only `member_referral_trigger_bookmarks`—never drop Trigger, Pair, Feedback, or Follow-up tables.

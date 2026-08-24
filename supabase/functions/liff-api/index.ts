@@ -7,7 +7,7 @@ import { notifyIssueStakeholders } from '../_shared/line-issue-notify.ts';
 import { notifyOneToOneMentorAndMc, notifyOneToOnePartner } from '../_shared/one-to-one-notify.ts';
 import { generateHandshakeCode, handshakeCodeHash, oneToOneGoogleCalendarUrl, oneToOneIcs, pairStatusFromVerification, safeHashEqual } from '../_shared/one-to-one.ts';
 import { GUIDED_MODES, canEditOwnedGuidedData, cleanGuidedText, normalizeGuidedContent, recommendedGuidedMode, validGuidedStep } from '../_shared/guided-one-to-one.ts';
-import { evaluateOneToOneAccess, shouldCreateMentorNotification } from '../_shared/one-to-one-workflow.ts';
+import { canMemberUpdateFollowUp, evaluateOneToOneAccess, shouldCreateMentorNotification, validMemberFollowUpOutcome } from '../_shared/one-to-one-workflow.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
 
@@ -67,7 +67,7 @@ Deno.serve(async (req: Request) => {
   const memberId = identity.memberId;
 
   const oneToOneActions = new Set([
-    'one-to-one-bootstrap','get-my-one-to-one-history','guided-session-bootstrap','save-guided-session','save-guided-private-note',
+    'one-to-one-bootstrap','get-my-one-to-one-history','update-my-one-to-one-follow-up','toggle-remembered-trigger','guided-session-bootstrap','save-guided-session','save-guided-private-note',
     'save-guided-trigger','approve-guided-trigger','archive-guided-trigger','save-guided-profile-draft',
     'confirm-guided-profile-draft','submit-guided-experience-feedback','complete-guided-session',
     'propose-one-to-one-schedule','propose-one-to-one-schedule-options','confirm-one-to-one-schedule',
@@ -126,8 +126,9 @@ Deno.serve(async (req: Request) => {
     if(pairError)return response({ok:false,error:'ยังเปิดประวัติ 1-2-1 ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'},400);
     const pairRows=(pairs||[]) as Record<string,unknown>[],pairIds=pairRows.map(x=>String(x.id));
     const partnerIds=[...new Set(pairRows.flatMap(x=>[x.member_a_id,x.member_b_id,x.optional_member_c_id].filter(Boolean).map(String)).filter(id=>id!==memberId))];
-    const [{data:partners},{data:feedback},{data:followUps},{data:guidedSessions},{data:legacy}]=await Promise.all([
+    const [{data:partners},{data:businessProfiles},{data:feedback},{data:followUps},{data:guidedSessions},{data:legacy}]=await Promise.all([
       partnerIds.length?db.from('members').select('id,name,nickname,profession,company_name,mentor_team,is_archived').in('id',partnerIds):Promise.resolve({data:[]}),
+      partnerIds.length?db.from('biz_profiles').select('member_id,looking_for,ideal_client,referral_trigger_summary').in('member_id',partnerIds):Promise.resolve({data:[]}),
       pairIds.length?db.from('one_to_one_feedback').select('id,pair_id,respondent_member_id,about_member_id,learned,outcomes,next_action_type,next_action_detail,created_at').in('pair_id',pairIds).eq('visibility','shared').is('archived_at',null).order('created_at',{ascending:false}):Promise.resolve({data:[]}),
       pairIds.length?db.from('one_to_one_follow_up_actions').select('id,pair_id,action_type,description,owner_member_id,related_member_id,due_date,status,completed_at,outcome').in('pair_id',pairIds).or(`owner_member_id.eq.${memberId},related_member_id.eq.${memberId}`).order('created_at',{ascending:false}):Promise.resolve({data:[]}),
       pairIds.length?db.from('guided_one_to_one_sessions').select('id,pair_id,session_mode,status,duration_seconds,completed_at,updated_at,shared_content').in('pair_id',pairIds).is('archived_at',null):Promise.resolve({data:[]}),
@@ -135,8 +136,12 @@ Deno.serve(async (req: Request) => {
     ]);
     const guidedRows=((guidedSessions||[]) as Record<string,unknown>[]).map((g):Record<string,unknown>=>({...g,shared_content:normalizeGuidedContent(g.shared_content)}));
     const sessionIds=guidedRows.map(x=>String(x.id));
-    const {data:triggers}=sessionIds.length?await db.from('guided_referral_triggers').select('id,session_id,owner_member_id,trigger_text,context,priority').in('session_id',sessionIds).eq('owner_approved',true).eq('is_active',true).is('archived_at',null).order('priority',{ascending:false}):{data:[]};
-    const partnerMap=new Map(((partners||[]) as Record<string,unknown>[]).map(x=>[String(x.id),x]));
+    const [{data:triggers},{data:bookmarks}]=await Promise.all([
+      sessionIds.length?db.from('guided_referral_triggers').select('id,session_id,owner_member_id,trigger_text,context,priority').in('session_id',sessionIds).eq('owner_approved',true).eq('is_active',true).is('archived_at',null).order('priority',{ascending:false}):Promise.resolve({data:[]}),
+      db.from('member_referral_trigger_bookmarks').select('trigger_id').eq('member_id',memberId),
+    ]);
+    const businessMap=new Map(((businessProfiles||[]) as Record<string,unknown>[]).map(x=>[String(x.member_id),x]));
+    const partnerMap=new Map(((partners||[]) as Record<string,unknown>[]).map(x=>[String(x.id),{...x,businessProfile:businessMap.get(String(x.id))||null}]));
     const feedbackRows=(feedback||[]) as Record<string,unknown>[],followRows=(followUps||[]) as Record<string,unknown>[],triggerRows=(triggers||[]) as Record<string,unknown>[];
     const history=pairRows.map(pair=>{
       const otherIds=[pair.member_a_id,pair.member_b_id,pair.optional_member_c_id].filter(Boolean).map(String).filter(id=>id!==memberId),round=(pair.round||{}) as Record<string,unknown>,schedules=(pair.schedules||[]) as Record<string,unknown>[],guided=guidedRows.find(x=>String(x.pair_id)===String(pair.id))||null;
@@ -144,7 +149,30 @@ Deno.serve(async (req: Request) => {
     });
     const verified=history.filter(x=>['verified','late_verified'].includes(x.status)).length,pendingActions=followRows.filter(x=>['pending','in_progress','overdue'].includes(String(x.status))).length;
     const safeLegacy=((legacy||[]) as Record<string,unknown>[]).map(row=>{const other=String(row.initiator_id)===memberId?row.partner:row.initiator;return{id:row.id,partnerName:((other||{}) as Record<string,unknown>).nickname||((other||{}) as Record<string,unknown>).name||row.partner_name||'สมาชิก',profession:((other||{}) as Record<string,unknown>).profession||((other||{}) as Record<string,unknown>).company_name||'',notes:row.notes,outcome:row.outcome,metAt:row.met_at,scheduledDate:row.scheduled_date,createdAt:row.created_at};});
-    return response({ok:true,stats:{total:history.length+safeLegacy.length,paired:history.length,verified,pendingActions},history,legacy:safeLegacy,privacyNotice:'แสดงเฉพาะข้อมูลที่บันทึกร่วมกันและงานที่เกี่ยวข้องกับคุณ ไม่แสดงบันทึกส่วนตัวหรือข้อความส่วนตัวถึง Mentor'});
+    return response({ok:true,memberId,stats:{total:history.length+safeLegacy.length,paired:history.length,verified,pendingActions},history,legacy:safeLegacy,rememberedTriggerIds:((bookmarks||[]) as Record<string,unknown>[]).map(x=>String(x.trigger_id)),privacyNotice:'แสดงเฉพาะข้อมูลที่บันทึกร่วมกันและงานที่เกี่ยวข้องกับคุณ ไม่แสดงบันทึกส่วนตัวหรือข้อความส่วนตัวถึง Mentor'});
+  }
+
+  if(action==='update-my-one-to-one-follow-up'){
+    const followUpId=cleanGuidedText(body.followUpId,100),status=cleanGuidedText(body.status,30),allowedStatuses=new Set(['pending','in_progress','completed','cancelled']);
+    if(!followUpId||!allowedStatuses.has(status))return response({ok:false,error:'สถานะรายการติดตามไม่ถูกต้อง'},400);
+    const {data:item}=await db.from('one_to_one_follow_up_actions').select('id,pair_id,owner_member_id,status').eq('id',followUpId).maybeSingle();
+    if(!item||!canMemberUpdateFollowUp(memberId,String((item as Record<string,unknown>).owner_member_id)))return response({ok:false,error:'คุณจัดการได้เฉพาะสิ่งที่คุณรับผิดชอบ'},403);
+    const outcome=cleanGuidedText(body.outcome,40);if(!validMemberFollowUpOutcome(outcome))return response({ok:false,error:'ผลลัพธ์ที่เลือกไม่ถูกต้อง'},400);
+    const dueDate=cleanGuidedText(body.dueDate,10),now=new Date().toISOString(),changes:Record<string,unknown>={status,outcome:outcome||null,updated_at:now,completed_at:status==='completed'?now:null};if(dueDate)changes.due_date=dueDate;
+    const {data,error}=await db.from('one_to_one_follow_up_actions').update(changes).eq('id',followUpId).eq('owner_member_id',memberId).select('id,pair_id,action_type,description,owner_member_id,related_member_id,due_date,status,completed_at,outcome').single();
+    if(error)return response({ok:false,error:'บันทึกสิ่งที่ทำต่อไม่สำเร็จ กรุณาลองใหม่'},400);
+    await db.from('one_to_one_status_events').insert({pair_id:String((item as Record<string,unknown>).pair_id),member_id:memberId,event_type:'member_follow_up_updated',actor_type:'member',actor_ref:memberId,metadata:{followUpId,status,outcome:outcome||null}});
+    return response({ok:true,followUp:data,message:status==='completed'?'บันทึกว่าสำเร็จแล้ว':'อัปเดตรายการแล้ว'});
+  }
+
+  if(action==='toggle-remembered-trigger'){
+    const triggerId=cleanGuidedText(body.triggerId,100),remember=body.remember!==false;if(!triggerId)return response({ok:false,error:'ไม่พบ Referral Trigger'},400);
+    const {data:trigger}=await db.from('guided_referral_triggers').select('id,session_id,owner_approved,is_active,archived_at').eq('id',triggerId).maybeSingle();
+    if(!trigger||!Boolean((trigger as Record<string,unknown>).owner_approved)||!Boolean((trigger as Record<string,unknown>).is_active)||(trigger as Record<string,unknown>).archived_at)return response({ok:false,error:'Trigger นี้ยังไม่พร้อมให้จดจำ'},403);
+    const {data:session}=await db.from('guided_one_to_one_sessions').select('pair_id').eq('id',String((trigger as Record<string,unknown>).session_id)).is('archived_at',null).maybeSingle();const {pair}=session?await ownPair(String((session as Record<string,unknown>).pair_id)):{pair:null};if(!pair)return response({ok:false,error:'คุณจดจำได้เฉพาะ Trigger จากคู่ 1-2-1 ของคุณ'},403);
+    const write=remember?db.from('member_referral_trigger_bookmarks').upsert({member_id:memberId,trigger_id:triggerId,updated_at:new Date().toISOString()},{onConflict:'member_id,trigger_id'}):db.from('member_referral_trigger_bookmarks').delete().eq('member_id',memberId).eq('trigger_id',triggerId);const {error}=await write;if(error)return response({ok:false,error:'ยังบันทึกรายการที่อยากจำไม่สำเร็จ'},400);
+    await db.from('one_to_one_status_events').insert({pair_id:String(pair.id),member_id:memberId,event_type:remember?'referral_trigger_remembered':'referral_trigger_forgotten',actor_type:'member',actor_ref:memberId,metadata:{triggerId}});
+    return response({ok:true,remembered:remember,message:remember?'เก็บไว้ในรายการที่อยากจำแล้ว':'นำออกจากรายการที่อยากจำแล้ว'});
   }
 
   if(action==='guided-session-bootstrap'){
