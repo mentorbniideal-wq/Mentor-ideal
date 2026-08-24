@@ -2,6 +2,8 @@ import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { generateHandshakeCode, handshakeCodeHash } from '../../_shared/one-to-one.ts';
 import { linePush } from '../../_shared/line.ts';
+import { evaluateNotificationGuard, logSuppressedNotification } from '../../_shared/notification-orchestrator.ts';
+import { derivePairNextAction } from '../../_shared/one-to-one-pair-action.ts';
 
 const ROLES=['mc','toomtam','aof','draft','phai','amp'];
 const activeStatuses=['matched','contacted','scheduled','confirmed_schedule','awaiting_verification','partially_verified','overdue','unable_to_contact','missed_appointment'];
@@ -9,6 +11,30 @@ const activeStatuses=['matched','contacted','scheduled','confirmed_schedule','aw
 export async function handleMentor121(p:Record<string,unknown>):Promise<Response>{
   const db=getServiceClient(),action=String(p.action||'');const auth=await requireAuth(db,p,ROLES);if(!auth.ok)return errResponse(auth.error||'ไม่มีสิทธิ์',403);const team=String(auth.teamName||'');
   const inScope=(member:Record<string,unknown>|null|undefined)=>Boolean(auth.isMC)||(Boolean(team)&&String(member?.mentor_team||'').toLowerCase()===team.toLowerCase());
+
+  if(action==='getOneToOnePairAction'){
+    const pairId=String(p.pairId||'');
+    const {data:pair}=await db.from('matching_pairs').select('id,round_id,status,created_at,member_a_id,member_b_id,member_a:members!matching_pairs_member_a_id_fkey(id,name,nickname,profession,company_name,mentor_team),member_b:members!matching_pairs_member_b_id_fkey(id,name,nickname,profession,company_name,mentor_team),round:matching_rounds(meeting_date,ends_at)').eq('id',pairId).is('archived_at',null).maybeSingle();
+    const row=pair as Record<string,unknown>|null;if(!row||(!inScope(row.member_a as Record<string,unknown>)&&!inScope(row.member_b as Record<string,unknown>)))return errResponse('ไม่พบคู่ในขอบเขตที่คุณดูแล',403);
+    const ids=[String(row.member_a_id),String(row.member_b_id)];
+    const [{data:deliveries},{data:schedules},{data:verifications},{data:guided},{data:feedback},{data:followups},{data:attention},{data:events},{data:questions}]=await Promise.all([
+      db.from('line_message_deliveries').select('id,member_id,status,notification_type,sent_at,created_at,suppression_reason,last_error').eq('matching_pair_id',pairId).eq('module','one_to_one').order('created_at',{ascending:false}).limit(50),
+      db.from('one_to_one_schedules').select('id,starts_at,status,proposed_by_member_id,confirmed_by_a_at,confirmed_by_b_at,updated_at').eq('pair_id',pairId).order('updated_at',{ascending:false}).limit(5),
+      db.from('one_to_one_verifications').select('member_id,flow_started_at,verified_partner_code_at,code_expires_at').eq('pair_id',pairId),
+      db.from('guided_one_to_one_sessions').select('id,session_mode,status,current_step,current_speaker_member_id,started_at,paused_at,completed_at,duration_seconds,updated_at').eq('pair_id',pairId).order('updated_at',{ascending:false}).limit(1),
+      db.from('one_to_one_feedback').select('id,respondent_member_id,visibility,mentor_help,created_at').eq('pair_id',pairId).is('archived_at',null),
+      db.from('one_to_one_follow_up_actions').select('id,owner_member_id,related_member_id,action_type,description,due_date,status,created_at').eq('pair_id',pairId).order('created_at',{ascending:false}),
+      db.from('one_to_one_attention_items').select('id,member_id,level,reason,suggested_action,status,due_date,created_at').eq('pair_id',pairId).order('created_at',{ascending:false}),
+      db.from('one_to_one_status_events').select('id,member_id,event_type,actor_type,created_at').eq('pair_id',pairId).order('created_at',{ascending:false}).limit(80),
+      db.from('one_to_one_premeeting_questions').select('id,author_member_id,target_member_id,status,created_at').eq('pair_id',pairId),
+    ]);
+    const ds=(deliveries||[]) as Record<string,unknown>[],latestDelivery=ids.map(memberId=>ds.find(d=>String(d.member_id)===memberId&&String(d.status)==='sent')).filter(Boolean) as Record<string,unknown>[];
+    const ss=(schedules||[]) as Record<string,unknown>[],gs=((guided||[]) as Record<string,unknown>[])[0]||null,fb=(feedback||[]) as Record<string,unknown>[],fu=(followups||[]) as Record<string,unknown>[],at=(attention||[]) as Record<string,unknown>[];
+    const sharedIds=[...new Set(fb.filter(x=>String(x.visibility)==='shared').map(x=>String(x.respondent_member_id)))];
+    const openHelp=fb.filter(x=>String(x.visibility)==='private_mentor'&&Boolean(x.mentor_help)).length+at.filter(x=>['open','reviewed','snoozed'].includes(String(x.status))&&String(x.reason).includes('mentor')).length;
+    const nextAction=derivePairNextAction({participantIds:ids,deliveredMemberIds:latestDelivery.map(x=>String(x.member_id)),scheduleStatus:String(ss[0]?.status||''),guidedStatus:String(gs?.status||''),pairStatus:String(row.status),sharedReflectionMemberIds:sharedIds,openFollowUps:fu.filter(x=>['pending','in_progress','overdue'].includes(String(x.status))).length,openMentorHelp:openHelp});
+    return jsonResponse({ok:true,pair:row,deliveries:ds,schedules:ss,verifications:verifications||[],guided:gs,feedbackSummary:{sharedMemberIds:sharedIds,mentorHelpCount:openHelp},followUps:fu,attention:at,events:events||[],preMeetingQuestionCount:(questions||[]).length,nextAction,permission:{canManage:true,scope:auth.isMC?'chapter':'mentor_team'}});
+  }
 
   if(action==='getMentorOneToOneCare'){
     const [{data:attention},{data:pairs},{data:followUps},{data:feedback}]=await Promise.all([
@@ -31,7 +57,7 @@ export async function handleMentor121(p:Record<string,unknown>):Promise<Response
   }
 
   if(action==='remindMentorOneToOneMember'){
-    const pairId=String(p.pairId||''),memberId=String(p.memberId||'');const {data:member}=await db.from('members').select('id,name,nickname,mentor_team').eq('id',memberId).maybeSingle();if(!member||!inScope(member as Record<string,unknown>))return errResponse('สมาชิกไม่ได้อยู่ในทีมของคุณ',403);const {data:pair}=await db.from('matching_pairs').select('id,member_a_id,member_b_id,status').eq('id',pairId).maybeSingle();if(!pair||![String((pair as Record<string,unknown>).member_a_id),String((pair as Record<string,unknown>).member_b_id)].includes(memberId))return errResponse('ไม่พบคู่ที่เลือก');const {data:link}=await db.from('line_members').select('line_user_id').eq('member_id',memberId).maybeSingle();const lineId=String((link as Record<string,unknown>|null)?.line_user_id||'');if(!lineId)return errResponse('สมาชิกยังไม่เชื่อม LINE');await linePush(lineId,'🤝 Mentor ขอชวนให้คุณดำเนินการ 1-2-1 ต่อครับ\nเปิด MY121 เพื่อดูคู่ เลือกเวลา หรือยืนยันขั้นตอนล่าสุด',{db,idempotencyKey:`121:mentor-remind:${pairId}:${memberId}:${new Date().toISOString().slice(0,10)}`,memberId,notificationType:'one_to_one_mentor_reminder',source:'api/mentor-121'});return jsonResponse({ok:true});
+    const pairId=String(p.pairId||''),memberId=String(p.memberId||'');const {data:member}=await db.from('members').select('id,name,nickname,mentor_team').eq('id',memberId).maybeSingle();if(!member||!inScope(member as Record<string,unknown>))return errResponse('สมาชิกไม่ได้อยู่ในทีมของคุณ',403);const {data:pair}=await db.from('matching_pairs').select('id,member_a_id,member_b_id,status').eq('id',pairId).maybeSingle();if(!pair||![String((pair as Record<string,unknown>).member_a_id),String((pair as Record<string,unknown>).member_b_id)].includes(memberId))return errResponse('ไม่พบคู่ที่เลือก');if(['verified','late_verified','cancelled'].includes(String((pair as Record<string,unknown>).status)))return errResponse('คู่นี้ปิดขั้นตอนแล้ว ไม่จำเป็นต้องส่งเตือน');const {data:link}=await db.from('line_members').select('line_user_id').eq('member_id',memberId).maybeSingle();const lineId=String((link as Record<string,unknown>|null)?.line_user_id||'');if(!lineId)return errResponse('สมาชิกยังไม่เชื่อม LINE');const input={memberId,module:'one_to_one',category:'one_to_one_mentor_reminder',priority:'reminder' as const},guard=await evaluateNotificationGuard(db,input),key=`121:mentor-remind:${pairId}:${memberId}:${new Date().toISOString().slice(0,10)}`;if(!guard.allowed){await logSuppressedNotification(db,input,guard,key,lineId);return jsonResponse({ok:false,suppressed:true,error:'ระบบยังไม่ส่งข้อความ เพื่อป้องกันการรบกวนสมาชิก',reason:guard.reason,guard},429);}const result=await linePush(lineId,'🤝 Mentor ขอชวนให้คุณดำเนินการ 1-2-1 ต่อครับ\nเปิด MY121 เพื่อดูคู่ เลือกเวลา หรือยืนยันขั้นตอนล่าสุด',{db,idempotencyKey:key,memberId,notificationType:'one_to_one_mentor_reminder',source:'api/mentor-121'});await db.from('one_to_one_status_events').insert({pair_id:pairId,member_id:memberId,event_type:'mentor_reminder_sent',actor_type:'mentor',actor_ref:String(auth.role),metadata:{deliveryId:result.deliveryId||null,skipped:Boolean(result.skipped)}});return jsonResponse({ok:true,skipped:Boolean(result.skipped),guard});
   }
 
   if(action==='reissueMentorOneToOneCode'){

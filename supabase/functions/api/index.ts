@@ -234,6 +234,7 @@ const ROUTES: Record<string, string> = {
   'getMentorOneToOneCare': 'mentor-121', 'updateMentorOneToOneCare': 'mentor-121',
   'remindMentorOneToOneMember': 'mentor-121', 'reissueMentorOneToOneCode': 'mentor-121',
   'getMentorOneToOneMemberTimeline': 'mentor-121',
+  'getOneToOnePairAction': 'mentor-121',
 
   // Usage
   'logUsage': 'usage', 'getUsageLog': 'usage', 'getLineAnalytics': 'usage',
