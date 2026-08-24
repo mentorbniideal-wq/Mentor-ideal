@@ -8,6 +8,7 @@ import { notifyOneToOneMentorAndMc, notifyOneToOnePartner } from '../_shared/one
 import { generateHandshakeCode, handshakeCodeHash, oneToOneGoogleCalendarUrl, oneToOneIcs, pairStatusFromVerification, safeHashEqual } from '../_shared/one-to-one.ts';
 import { GUIDED_MODES, canEditOwnedGuidedData, cleanGuidedText, normalizeGuidedContent, recommendedGuidedMode, validGuidedStep } from '../_shared/guided-one-to-one.ts';
 import { canMemberUpdateFollowUp, evaluateOneToOneAccess, shouldCreateMentorNotification, validMemberFollowUpOutcome } from '../_shared/one-to-one-workflow.ts';
+import { canAccessPairProfile, member121ProfileCompleteness, normalizeMember121Profile, publicMember121Profile } from '../_shared/member-121-profile.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
 
@@ -67,7 +68,7 @@ Deno.serve(async (req: Request) => {
   const memberId = identity.memberId;
 
   const oneToOneActions = new Set([
-    'one-to-one-bootstrap','get-my-one-to-one-history','update-my-one-to-one-follow-up','toggle-remembered-trigger','guided-session-bootstrap','save-guided-session','save-guided-private-note',
+    'one-to-one-bootstrap','get-my-121-profile','save-my-121-profile','get-pair-121-profile','save-pair-121-question','answer-pair-121-question','archive-pair-121-question','get-my-one-to-one-history','update-my-one-to-one-follow-up','toggle-remembered-trigger','guided-session-bootstrap','save-guided-session','save-guided-private-note',
     'save-guided-trigger','approve-guided-trigger','archive-guided-trigger','save-guided-profile-draft',
     'confirm-guided-profile-draft','submit-guided-experience-feedback','complete-guided-session',
     'propose-one-to-one-schedule','propose-one-to-one-schedule-options','confirm-one-to-one-schedule',
@@ -81,7 +82,7 @@ Deno.serve(async (req: Request) => {
     const control = new Map(((controls || []) as Record<string, unknown>[]).map(row => [String(row.key), String(row.value)]));
     let pilotIds: string[] = [];
     try { pilotIds = JSON.parse(control.get('ONE_TO_ONE_PILOT_MEMBER_IDS') || '[]'); } catch { pilotIds = []; }
-    const access=evaluateOneToOneAccess({featureEnabled:control.get('FEATURE_ONE_TO_ONE_SYSTEM')==='true',emergencyStop:control.get('ONE_TO_ONE_EMERGENCY_STOP')==='true',enforcePilotAccess:control.get('ONE_TO_ONE_ENFORCE_PILOT_ACCESS')==='true',pilotIds},memberId,new Set(['one-to-one-bootstrap','get-my-one-to-one-history','guided-session-bootstrap','get-one-to-one-calendar']).has(action));
+    const access=evaluateOneToOneAccess({featureEnabled:control.get('FEATURE_ONE_TO_ONE_SYSTEM')==='true',emergencyStop:control.get('ONE_TO_ONE_EMERGENCY_STOP')==='true',enforcePilotAccess:control.get('ONE_TO_ONE_ENFORCE_PILOT_ACCESS')==='true',pilotIds},memberId,new Set(['one-to-one-bootstrap','get-my-121-profile','get-pair-121-profile','get-my-one-to-one-history','guided-session-bootstrap','get-one-to-one-calendar']).has(action));
     if (!access.allowed&&access.reason==='pilot_only') {
       return response({ ok: false, error: 'ระบบ 1-2-1 อยู่ในช่วงทดลองสำหรับสมาชิกที่ได้รับเลือก กรุณาติดต่อ MC' }, 403);
     }
@@ -101,6 +102,52 @@ Deno.serve(async (req: Request) => {
     if(!session)return {session:null,pair:null};
     const {pair}=await ownPair(String((session as Record<string,unknown>).pair_id));
     return {session:pair?session as Record<string,unknown>:null,pair};
+  }
+
+  if(action==='get-my-121-profile'){
+    const [{data:person},{data:business},{data:profile}]=await Promise.all([
+      db.from('members').select('id,name,nickname,profession,company_name,mentor_team').eq('id',memberId).maybeSingle(),
+      db.from('biz_profiles').select('description,looking_for,ideal_client,referral_trigger_summary,updated_at').eq('member_id',memberId).maybeSingle(),
+      db.from('member_one_to_one_profiles').select('*').eq('member_id',memberId).maybeSingle(),
+    ]);
+    return response({ok:true,member:person,profile:profile||null,business:business||null,completeness:member121ProfileCompleteness(profile as Record<string,unknown>|null),privacyNotice:'คุณเป็นเจ้าของข้อมูลและแก้ไขได้ตลอดเวลา คู่ 1-2-1 จะเห็นเฉพาะหัวข้อที่คุณเปิดให้เห็น'});
+  }
+
+  if(action==='save-my-121-profile'){
+    const normalized=normalizeMember121Profile(body.profile),src=(body.profile&&typeof body.profile==='object'?body.profile:{}) as Record<string,unknown>,profession=cleanGuidedText(src.profession,200),companyName=cleanGuidedText(src.company_name,200);
+    const {data:existing}=await db.from('member_one_to_one_profiles').select('profile_version').eq('member_id',memberId).maybeSingle();const version=Number((existing as Record<string,unknown>|null)?.profile_version||0)+1,now=new Date().toISOString();
+    const payload={...normalized,member_id:memberId,profile_version:version,published_at:now,actor_member_id:memberId,updated_at:now};const {data,error}=await db.from('member_one_to_one_profiles').upsert(payload,{onConflict:'member_id'}).select('*').single();if(error)return response({ok:false,error:'บันทึกโปรไฟล์ 1-2-1 ไม่สำเร็จ กรุณาลองใหม่'},400);
+    if(profession||companyName){const changes:Record<string,unknown>={updated_at:now};if(profession)changes.profession=profession;if(companyName)changes.company_name=companyName;await db.from('members').update(changes).eq('id',memberId);}
+    const {data:oldBusiness}=await db.from('biz_profiles').select('description,looking_for,ideal_client,referral_trigger_summary').eq('member_id',memberId).maybeSingle();const oldBiz=(oldBusiness||{}) as Record<string,unknown>,description=String(normalized.business_summary||oldBiz.description||profession||companyName||'ข้อมูลธุรกิจสมาชิก');
+    await db.from('biz_profiles').upsert({member_id:memberId,description,looking_for:normalized.looking_for||oldBiz.looking_for||null,ideal_client:normalized.ideal_client||oldBiz.ideal_client||null,referral_trigger_summary:normalized.referral_trigger||oldBiz.referral_trigger_summary||null,updated_at:now},{onConflict:'member_id'});
+    await db.from('one_to_one_status_events').insert({member_id:memberId,event_type:'member_121_profile_updated',actor_type:'member',actor_ref:memberId,idempotency_key:`member-121-profile:${memberId}:${version}`,metadata:{profileVersion:version,completeness:member121ProfileCompleteness(data as Record<string,unknown>)}});
+    return response({ok:true,profile:data,completeness:member121ProfileCompleteness(data as Record<string,unknown>),message:'บันทึกโปรไฟล์ 1-2-1 ของคุณแล้ว'});
+  }
+
+  if(action==='get-pair-121-profile'){
+    const pairId=cleanGuidedText(body.pairId,100),{pair}=await ownPair(pairId);if(!pair)return response({ok:false,error:'ไม่พบคู่ 1-2-1 หรือคุณไม่มีสิทธิ์ดูโปรไฟล์นี้'},403);const subjectId=String(pair.member_a_id)===memberId?String(pair.member_b_id):String(pair.member_a_id);
+    const [{data:person},{data:profile},{data:business},{data:questions}]=await Promise.all([
+      db.from('members').select('id,name,nickname,profession,company_name,mentor_team').eq('id',subjectId).maybeSingle(),
+      db.from('member_one_to_one_profiles').select('*').eq('member_id',subjectId).maybeSingle(),
+      db.from('biz_profiles').select('description,looking_for,ideal_client,referral_trigger_summary').eq('member_id',subjectId).maybeSingle(),
+      db.from('one_to_one_premeeting_questions').select('id,pair_id,asked_by_member_id,for_member_id,question_text,answer_text,status,created_at,updated_at').eq('pair_id',pairId).is('archived_at',null).order('created_at'),
+    ]);if(!canAccessPairProfile(memberId,pair,subjectId))return response({ok:false,error:'คุณไม่มีสิทธิ์ดูโปรไฟล์นี้'},403);
+    return response({ok:true,pairId,memberId,partner:person,profile:publicMember121Profile(profile as Record<string,unknown>|null),fallbackBusiness:business||null,completeness:member121ProfileCompleteness(profile as Record<string,unknown>|null),questions:questions||[],privacyNotice:'ข้อมูลนี้ใช้เตรียมการพูดคุยกับคู่ของคุณเท่านั้น กรุณาไม่ส่งต่อโดยไม่ได้รับอนุญาต'});
+  }
+
+  if(action==='save-pair-121-question'){
+    const pairId=cleanGuidedText(body.pairId,100),{pair}=await ownPair(pairId);if(!pair)return response({ok:false,error:'ไม่พบคู่ 1-2-1 หรือคุณไม่มีสิทธิ์ตั้งคำถาม'},403);const forMemberId=String(pair.member_a_id)===memberId?String(pair.member_b_id):String(pair.member_a_id),question=cleanGuidedText(body.question,1000),clientActionId=cleanGuidedText(body.clientActionId,120)||null;if(!question)return response({ok:false,error:'กรุณาเขียนคำถามก่อนบันทึก'},400);
+    if(clientActionId){const {data:existing}=await db.from('one_to_one_premeeting_questions').select('id,pair_id,asked_by_member_id,for_member_id,question_text,answer_text,status,created_at,updated_at').eq('pair_id',pairId).eq('asked_by_member_id',memberId).eq('client_action_id',clientActionId).maybeSingle();if(existing)return response({ok:true,question:existing,idempotent:true,message:'เก็บคำถามไว้สำหรับวัน 1-2-1 แล้ว'});}
+    const {count}=await db.from('one_to_one_premeeting_questions').select('id',{count:'exact',head:true}).eq('pair_id',pairId).eq('asked_by_member_id',memberId).is('archived_at',null);if(Number(count||0)>=10)return response({ok:false,error:'เก็บคำถามล่วงหน้าได้สูงสุด 10 ข้อต่อคู่ กรุณานำคำถามที่ไม่ใช้แล้วออกก่อน'},429);
+    const payload={pair_id:pairId,asked_by_member_id:memberId,for_member_id:forMemberId,question_text:question,client_action_id:clientActionId,updated_at:new Date().toISOString()};const write=clientActionId?db.from('one_to_one_premeeting_questions').upsert(payload,{onConflict:'client_action_id'}):db.from('one_to_one_premeeting_questions').insert(payload);const {data,error}=await write.select('id,pair_id,asked_by_member_id,for_member_id,question_text,answer_text,status,created_at,updated_at').single();if(error)return response({ok:false,error:'บันทึกคำถามล่วงหน้าไม่สำเร็จ'},400);await db.from('one_to_one_status_events').insert({pair_id:pairId,member_id:memberId,event_type:'premeeting_question_created',actor_type:'member',actor_ref:memberId,idempotency_key:clientActionId?`premeeting-question:${clientActionId}`:null,metadata:{questionId:String((data as Record<string,unknown>).id),forMemberId}});return response({ok:true,question:data,message:'เก็บคำถามไว้สำหรับวัน 1-2-1 แล้ว'});
+  }
+
+  if(action==='answer-pair-121-question'){
+    const questionId=cleanGuidedText(body.questionId,100),answer=cleanGuidedText(body.answer,1500);if(!answer)return response({ok:false,error:'กรุณาเขียนคำตอบก่อนบันทึก'},400);const {data:item}=await db.from('one_to_one_premeeting_questions').select('id,pair_id,for_member_id').eq('id',questionId).is('archived_at',null).maybeSingle();if(!item||String((item as Record<string,unknown>).for_member_id)!==memberId)return response({ok:false,error:'คำถามนี้ไม่ได้ส่งถึงคุณ'},403);const pairId=String((item as Record<string,unknown>).pair_id),{pair}=await ownPair(pairId);if(!pair)return response({ok:false,error:'คุณไม่มีสิทธิ์ตอบคำถามนี้'},403);const now=new Date().toISOString(),{data,error}=await db.from('one_to_one_premeeting_questions').update({answer_text:answer,status:'answered',answered_at:now,updated_at:now}).eq('id',questionId).select('id,pair_id,asked_by_member_id,for_member_id,question_text,answer_text,status,created_at,updated_at').single();if(!error)await db.from('one_to_one_status_events').insert({pair_id:pairId,member_id:memberId,event_type:'premeeting_question_answered',actor_type:'member',actor_ref:memberId,metadata:{questionId}});return error?response({ok:false,error:'บันทึกคำตอบไม่สำเร็จ'},400):response({ok:true,question:data,message:'บันทึกคำตอบแล้ว'});
+  }
+
+  if(action==='archive-pair-121-question'){
+    const questionId=cleanGuidedText(body.questionId,100),{data:item}=await db.from('one_to_one_premeeting_questions').select('id,pair_id,asked_by_member_id').eq('id',questionId).is('archived_at',null).maybeSingle();if(!item||String((item as Record<string,unknown>).asked_by_member_id)!==memberId)return response({ok:false,error:'คุณนำออกได้เฉพาะคำถามที่ตนเองเขียน'},403);const {pair}=await ownPair(String((item as Record<string,unknown>).pair_id));if(!pair)return response({ok:false,error:'คุณไม่มีสิทธิ์นำคำถามนี้ออก'},403);const now=new Date().toISOString();await db.from('one_to_one_premeeting_questions').update({status:'archived',archived_at:now,updated_at:now}).eq('id',questionId);return response({ok:true,message:'นำคำถามออกแล้ว'});
   }
 
   if(action==='one-to-one-bootstrap'){
@@ -193,15 +240,19 @@ Deno.serve(async (req: Request) => {
       session=created;if(!session)({data:session}=await db.from('guided_one_to_one_sessions').select('*').eq('pair_id',pairId).maybeSingle());
     }
     const sessionId=String((session as Record<string,unknown>).id);
-    const [{data:privateNote},{data:triggers},{data:drafts},{data:previousGuided},{data:followUps}]=await Promise.all([
+    const [{data:privateNote},{data:triggers},{data:drafts},{data:previousGuided},{data:followUps},{data:detailedProfiles},{data:preQuestions}]=await Promise.all([
       db.from('guided_session_private_notes').select('note_text,version,updated_at').eq('session_id',sessionId).eq('member_id',memberId).is('archived_at',null).maybeSingle(),
       db.from('guided_referral_triggers').select('*').eq('session_id',sessionId).is('archived_at',null).order('created_at'),
       db.from('guided_member_profile_drafts').select('*').eq('session_id',sessionId).in('owner_member_id',[aId,bId]),
       completed?db.from('guided_one_to_one_sessions').select('id,session_mode,completed_at,shared_content,duration_seconds,pair_id').in('pair_id',((priorPairs||[]) as Record<string,unknown>[]).map(x=>String(x.id))).eq('status','completed').order('completed_at',{ascending:false}).limit(1).maybeSingle():Promise.resolve({data:null}),
       db.from('one_to_one_follow_up_actions').select('*').or(`owner_member_id.eq.${memberId},related_member_id.eq.${memberId}`).eq('status','pending').order('due_date').limit(10),
+      db.from('member_one_to_one_profiles').select('*').in('member_id',[aId,bId]),
+      db.from('one_to_one_premeeting_questions').select('id,pair_id,asked_by_member_id,for_member_id,question_text,answer_text,status,created_at,updated_at').eq('pair_id',pairId).is('archived_at',null).order('created_at'),
     ]);
+    const profileRows=(detailedProfiles||[]) as Record<string,unknown>[],sharedProfiles=Object.fromEntries([aId,bId].map(id=>{const row=profileRows.find(x=>String(x.member_id)===id)||null;return[id,publicMember121Profile(row)];}));
+    if(String((session as Record<string,unknown>).status)==='draft'&&!(session as Record<string,unknown>).started_at){for(const id of [aId,bId]){const row=profileRows.find(x=>String(x.member_id)===id)||null;if(row)await db.from('one_to_one_profile_snapshots').upsert({pair_id:pairId,member_id:id,profile_version:Number(row.profile_version||1),profile_data:publicMember121Profile(row)||{},captured_at:new Date().toISOString()},{onConflict:'pair_id,member_id'});}}
     const looking=Object.fromEntries(((canonicalLooking||[]) as Record<string,unknown>[]).map(x=>[String(x.member_id),String(x.looking_for||'')]));for(const row of (currentLooking||[]) as Record<string,unknown>[]){if(row.looking_for)looking[String(row.matched_member_id)]=String(row.looking_for);}
-    return response({ok:true,session,pair,memberId,participants:people||[],partnerId,schedule,lookingFor:looking,triggers:triggers||[],profileDrafts:drafts||[],privateNote:privateNote||null,relationship:{completedSessions:completed,previous:previousGuided||null,pendingFollowUps:followUps||[]},recommendedMode:recommendedGuidedMode(completed),sameDeviceSupported:true,realtimeSupported:false});
+    return response({ok:true,session,pair,memberId,participants:people||[],partnerId,schedule,lookingFor:looking,sharedProfiles,preMeetingQuestions:preQuestions||[],triggers:triggers||[],profileDrafts:drafts||[],privateNote:privateNote||null,relationship:{completedSessions:completed,previous:previousGuided||null,pendingFollowUps:followUps||[]},recommendedMode:recommendedGuidedMode(completed),sameDeviceSupported:true,realtimeSupported:false});
   }
 
   if(action==='save-guided-session'){

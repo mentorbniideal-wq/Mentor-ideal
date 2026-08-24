@@ -128,3 +128,13 @@ Relationship Profile is derived from existing Pair History, approved Referral Tr
 `member_referral_trigger_bookmarks` stores only a member-owned pointer to an existing active, owner-approved Trigger. The API verifies that the Trigger belongs to one of the member's pairs before adding or removing a bookmark. Direct client access is revoked and RLS remains enabled.
 
 Deployment order for this increment is migration `20260824000064_member_referral_trigger_bookmarks.sql`, `liff-api`, then the static LIFF page. Application rollback is to deploy the prior API/UI; keep the additive bookmark table for audit and compatibility. If a database rollback is explicitly required, export the bookmark rows first, then drop only `member_referral_trigger_bookmarks`—never drop Trigger, Pair, Feedback, or Follow-up tables.
+
+## Pre-meeting 1-2-1 Profile
+
+MY121 provides a member-owned reusable profile containing a Business Snapshot, Referral/LCD Focus and GAINS. Basic identity stays in `members`, canonical short business fields stay in `biz_profiles`, and only the additional conversation fields live in `member_one_to_one_profiles`. Members can update their own profile at any time. Section-level visibility is enforced by the server before a partner receives data; Networks defaults to hidden.
+
+Only a verified participant in the existing Pair may open the partner profile or use `one_to_one_premeeting_questions`. Each member can keep at most ten active questions per pair. Questions are available in Guided Session without generating an automatic LINE push. The question audit events contain IDs and state only, not question or answer text.
+
+While a Guided Session remains an unstarted draft, `one_to_one_profile_snapshots` is refreshed from the owner's shareable projection. Once the Session starts, the snapshot is no longer replaced, preserving the profile context used for that historical conversation. Private/hidden GAINS fields, contact details, verification codes and Mentor feedback are never copied into the snapshot.
+
+Deploy migration `20260824000065_member_one_to_one_profiles.sql` before `liff-api` and the static LIFF page. For application rollback, deploy the prior API/UI and keep the additive tables. A database rollback, if explicitly required after exporting data, must drop only `one_to_one_profile_snapshots`, `one_to_one_premeeting_questions`, and `member_one_to_one_profiles` in that dependency order.
