@@ -19,12 +19,14 @@ export type LineCommand =
   | 'substitute'
   | 'cancel-absence'
   | 'report-issue'
+  | 'contact-mentor'
   | 'delete-account'
   | 'business-profile'
   | 'set-goal'
   | 'mute-notification'
   | 'unmute-notification'
-  | 'help';
+  | 'help'
+  | 'unknown';
 
 export interface ParsedLineCommand {
   name: LineCommand;
@@ -74,6 +76,8 @@ export function parseLineCommand(input: string): ParsedLineCommand {
   if (normalized.startsWith('ปัญหา ') || normalized.startsWith('issue ')) {
     return command('report-issue', text.replace(/^(?:ปัญหา|issue)\s+/i, '').trim());
   }
+  const mentorPrefix = normalized.match(/^(คุยกับ\s*(?:mentor|เมนทอร์)|ติดต่อ\s*(?:mentor|เมนทอร์))(?:\s+|$)/i);
+  if (mentorPrefix) return command('contact-mentor', text.slice(mentorPrefix[0].length).trim());
   if (normalized.startsWith('ธุรกิจ ')) {
     return command('business-profile', text.slice('ธุรกิจ'.length).trim());
   }
@@ -86,7 +90,7 @@ export function parseLineCommand(input: string): ParsedLineCommand {
   if (normalized.startsWith('เปิด ')) {
     return command('unmute-notification', text.slice('เปิด'.length).trim());
   }
-  return command('help');
+  return command('unknown', text);
 }
 
 function command(name: LineCommand, argument = ''): ParsedLineCommand {

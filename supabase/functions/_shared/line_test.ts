@@ -288,6 +288,8 @@ Deno.test('all documented LINE command aliases resolve to stable command contrac
     ['ส่ง sub Somchai', 'substitute', 'Somchai'],
     ['ยกเลิกลา', 'cancel-absence'],
     ['ปัญหา ติดต่อ Mentor ไม่ได้', 'report-issue', 'ติดต่อ Mentor ไม่ได้'],
+    ['คุยกับ Mentor', 'contact-mentor'],
+    ['คุยกับเมนทอร์ ขอให้ติดต่อกลับ', 'contact-mentor', 'ขอให้ติดต่อกลับ'],
     ['ธุรกิจ ที่ปรึกษาการเงิน', 'business-profile', 'ที่ปรึกษาการเงิน'],
     ['เป้า ref 8', 'set-goal', 'ref 8'],
     ['ปิด nudge', 'mute-notification', 'nudge'],
@@ -301,9 +303,10 @@ Deno.test('all documented LINE command aliases resolve to stable command contrac
   }
 });
 
-Deno.test('generic cancel never unlinks an account', () => {
-  assertEquals(parseLineCommand('ยกเลิก').name, 'help');
-  assertEquals(parseLineCommand('ลบ').name, 'help');
+Deno.test('generic free text is unknown and never unlinks an account', () => {
+  assertEquals(parseLineCommand('ยกเลิก').name, 'unknown');
+  assertEquals(parseLineCommand('ลบ').name, 'unknown');
+  assertEquals(parseLineCommand('สวัสดีครับ Mentor').name, 'unknown');
   assertEquals(parseLineCommand('ลบบัญชี').name, 'delete-account');
 });
 

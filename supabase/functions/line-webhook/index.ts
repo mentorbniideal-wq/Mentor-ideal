@@ -178,8 +178,10 @@ async function handleEvent(
     properties: {
       command: normalized.split(/\s+/)[0].slice(0, 30),
       commandName: parsedCommand.name,
-      textPreview: safeLineTextPreview(text),
-      argumentPreview: safeLineTextPreview(parsedCommand.argument),
+      // Free text is not a Mentor inbox. Keep support/unknown content out of analytics.
+      textPreview: ['unknown', 'contact-mentor'].includes(parsedCommand.name) ? '' : safeLineTextPreview(text),
+      argumentPreview: ['unknown', 'contact-mentor'].includes(parsedCommand.name) ? '' : safeLineTextPreview(parsedCommand.argument),
+      textLength: text.length,
       isRegistered: Boolean(memberName),
     },
   });
@@ -402,7 +404,7 @@ function quickRepliesFor(
     qr('🎯 เป้า', 'เป้า'),
     qr('📋 Blueprint', 'Blueprint'),
     qr('🙋 ลา', 'ลา'),
-    qr('🆘 ช่วย', 'ขอความช่วยเหลือ'),
+    qr('💬 คุยกับ Mentor', 'คุยกับ Mentor'),
     qr('🧭 ช่วยเหลือ', 'ช่วยเหลือ'),
   ];
   // Elevated LINE roles now use the same member-support command set.
@@ -463,6 +465,7 @@ function commandPresentation(
     substitute: { title: 'SUBSTITUTE NOTICE', actions: [{ label: 'ยกเลิกรายการ', type: 'message', text: 'ยกเลิกลา' }] },
     'cancel-absence': { title: 'NOTICE UPDATED' },
     'report-issue': { title: 'MENTOR SUPPORT', actions: [{ label: 'ดูเรื่องที่แจ้ง', type: 'message', text: 'ปัญหา' }] },
+    'contact-mentor': { title: 'TALK TO MENTOR', actions: [{ label: 'ดูเรื่องที่แจ้ง', type: 'message', text: 'ปัญหา' }] },
     'delete-account': { title: 'ACCOUNT UNLINKED' },
     'business-profile': { title: 'BUSINESS PROFILE', actions: [{ label: 'ค้นหาคู่ 1-2-1', type: 'message', text: 'แนะนำ' }] },
     'set-goal': { title: 'GOAL UPDATED', actions: [{ label: 'ดูเป้าหมาย', type: 'message', text: 'เป้า' }] },
@@ -473,6 +476,13 @@ function commandPresentation(
       actions: [
         { label: 'ดูสถานะของฉัน', type: 'message', text: 'สถานะ' },
         { label: 'ขอความช่วยเหลือ', type: 'message', text: 'ขอความช่วยเหลือ' },
+      ],
+    },
+    unknown: {
+      title: 'ผู้ช่วยอัตโนมัติ',
+      actions: [
+        { label: 'คุยกับ Mentor', type: 'message', text: 'คุยกับ Mentor', primary: true },
+        { label: 'ดูคำสั่งบอท', type: 'message', text: 'ช่วยเหลือ' },
       ],
     },
   };
@@ -671,6 +681,16 @@ async function processCommand(
       return await cancelAbsence(db, memberName, userId);
     case 'report-issue':
       return await reportIssue(db, memberName, command.argument);
+    case 'contact-mentor':
+      if (!command.argument.trim()) {
+        return [
+          '🤖 ห้องแชทนี้เป็นผู้ช่วยอัตโนมัติ ไม่ใช่แชทส่วนตัวกับ Mentor', '',
+          'ถ้าต้องการให้ Mentor ติดต่อกลับ พิมพ์ใหม่ว่า:',
+          'คุยกับ Mentor [เรื่องที่อยากให้ช่วย]', '',
+          'ระบบจะส่งเฉพาะข้อความที่คุณยืนยันด้วยคำขึ้นต้นนี้ครับ',
+        ].join('\n');
+      }
+      return await reportIssue(db, memberName, command.argument);
     case 'delete-account':
       return await unregister(db, userId, memberName);
     case 'business-profile':
@@ -683,6 +703,12 @@ async function processCommand(
       return await toggleNotif(db, memberName, command.argument, false);
     case 'help':
       return buildHelpMessage(memberName);
+    case 'unknown':
+      return [
+        '🤖 นี่คือผู้ช่วยอัตโนมัติของ Mentor Co.', '',
+        'ข้อความเมื่อกี้ยังไม่ได้ส่งให้ Mentor และ Mentor ยังมองไม่เห็นครับ', '',
+        'ถ้าอยากให้ Mentor ติดต่อกลับ กด “คุยกับ Mentor” ด้านล่างครับ',
+      ].join('\n');
   }
 }
 
@@ -1465,12 +1491,14 @@ async function cancelAbsence(db: ReturnType<typeof getServiceClient>, memberName
 
 async function reportIssue(db: ReturnType<typeof getServiceClient>, memberName: string, issueText: string): Promise<string> {
   if (!issueText.trim()) return '⚠️ กรุณาพิมพ์รายละเอียด เช่น “ปัญหา นัด Mentor ไม่ได้”';
+  const safeIssueText = issueText.trim().slice(0, 1000);
   const { data: m } = await db.from('members').select('id, nickname, mentor_team').eq('name', memberName).single();
   if (!m) return '⚠️ ไม่พบข้อมูลสมาชิกครับ';
-  const { data: issue } = await db.from('line_issues')
-    .insert({ member_id: (m as any).id, issue_text: issueText })
+  const { data: issue, error: issueError } = await db.from('line_issues')
+    .insert({ member_id: (m as any).id, issue_text: safeIssueText })
     .select('id')
     .single();
+  if (issueError) return '⚠️ ยังส่งเรื่องให้ Mentor ไม่สำเร็จ กรุณาลองใหม่อีกครั้งครับ';
   const nick = (m as any).nickname || memberName.split(' ')[0];
   const issueId = String((issue as Record<string, unknown> | null)?.id || '');
   let notice: Awaited<ReturnType<typeof notifyIssueStakeholders>> | null = null;
@@ -1481,7 +1509,7 @@ async function reportIssue(db: ReturnType<typeof getServiceClient>, memberName: 
       memberName,
       nickname: nick,
       mentorTeam: String((m as any).mentor_team || ''),
-      issueText,
+      issueText: safeIssueText,
       idempotencyKey: `webhook:issue:${issueId}`,
       source: 'line-webhook',
     });
@@ -1801,8 +1829,8 @@ function buildHelpMessage(memberName: string): string {
     `🙋 ลา [เหตุผล]\n` +
     `👥 ส่ง sub [ชื่อ]\n\n` +
     `ขอความช่วยเหลือ\n` +
-    `🆘 ขอความช่วยเหลือ — ดูวิธีแจ้งเรื่อง\n` +
-    `⚠️ ปัญหา [รายละเอียด] — ส่งเรื่องให้ทีมดูแล\n` +
+    `💬 คุยกับ Mentor [รายละเอียด] — ยืนยันส่งเรื่องให้ Mentor/MC\n` +
+    `🆘 ขอความช่วยเหลือ — ดูเรื่องที่เคยแจ้ง\n` +
     `💬 ถาม [คำถาม] — ให้ AI ช่วยคิด\n\n` +
     `ถ้าไม่แน่ใจ กด Quick Reply ด้านล่างได้เลยครับ`
   );

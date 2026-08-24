@@ -1913,9 +1913,14 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         <div style="background:var(--sf2);border-radius:12px;overflow:hidden;margin-bottom:16px;border:1px solid rgba(6,199,85,.14)">
           <div style="padding:12px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <div style="flex:1;min-width:220px">
-              <div style="font-size:13px;font-weight:800;color:var(--tx)">🧭 LINE Member Activity Timeline</div>
-              <div style="font-size:10px;color:var(--sub);line-height:1.5;margin-top:2px">สแกนพฤติกรรมสมาชิกจาก LINE แบบ card — เห็นทันทีว่าใครพิมพ์อะไร ต้อง follow-up จุดไหน</div>
+              <div style="font-size:13px;font-weight:800;color:var(--tx)">📲 LINE Care Center</div>
+              <div style="font-size:10px;color:var(--sub);line-height:1.5;margin-top:2px">เริ่มจากเรื่องที่ต้องดูแล แล้วค่อยเปิดดูประวัติระบบเมื่อจำเป็น</div>
             </div>
+            <select id="line-activity-view" onchange="loadLineActivityTimeline(true)" style="background:var(--sf);border:1px solid var(--bd);border-radius:7px;color:var(--tx);padding:5px 9px;font-size:11px;outline:none">
+              <option value="actionable">⚡ ต้องดูแล</option>
+              <option value="conversation">💬 บทสนทนากับบอท</option>
+              <option value="all">🗃 ประวัติระบบทั้งหมด</option>
+            </select>
             <select id="line-activity-type" onchange="loadLineActivityTimeline(true)" style="background:var(--sf);border:1px solid var(--bd);border-radius:7px;color:var(--tx);padding:5px 9px;font-size:11px;outline:none">
               <option value="">ทุกประเภท</option>
               <option value="command_received">Member พิมพ์</option>
@@ -1932,6 +1937,9 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
             </select>
             <span style="font-size:11px;color:#06C755;font-weight:700" id="line-activity-count">—</span>
             <button class="bsm" onclick="loadLineActivityTimeline(true)" style="font-size:11px">↺</button>
+          </div>
+          <div style="margin:12px 16px 0;padding:12px 14px;border-radius:12px;background:rgba(56,189,248,.07);border:1px solid rgba(56,189,248,.2);display:flex;gap:10px;align-items:flex-start">
+            <span style="font-size:20px">🤖</span><div style="font-size:11px;color:var(--sub);line-height:1.65"><strong style="color:var(--tx)">LINE OA นี้เป็นผู้ช่วยอัตโนมัติ</strong> ไม่ใช่แชทส่วนตัวกับ Mentor<br>ข้อความจะเข้าคิว Mentor/MC เฉพาะเมื่อสมาชิกยืนยันด้วย <code style="color:#38bdf8">คุยกับ Mentor [รายละเอียด]</code></div>
           </div>
           <div id="line-activity-summary" style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--bd);display:none"></div>
           <div id="line-activity-wrap">
@@ -4962,6 +4970,9 @@ function lineActivityMeta(it){
   var type=String(it&&it.type||'');
   var m={
     command_received:{icon:'💬',label:'Member พิมพ์',tone:'#38bdf8',hint:'คำสั่ง/ข้อความจากสมาชิก'},
+    command_replied:{icon:'🤖',label:'Bot ตอบ',tone:'#06C755',hint:'คำตอบอัตโนมัติ'},
+    unrecognized:{icon:'🤖',label:'Bot ไม่เข้าใจ',tone:'#fb923c',hint:'ไม่ได้ส่งต่อให้ Mentor'},
+    liff:{icon:'📱',label:'LIFF',tone:'#06C755',hint:'กิจกรรมใน mini app'},
     absence:{icon:'🙋',label:'แจ้งลา',tone:'var(--ye)',hint:'ต้องดูแผนการเข้าแทน'},
     substitute:{icon:'👥',label:'ส่ง Sub',tone:'var(--ye)',hint:'มีคนมาแทนการประชุม'},
     issue:{icon:'🆘',label:'ขอความช่วยเหลือ',tone:'#f87171',hint:'ควร follow-up'},
@@ -4996,6 +5007,7 @@ function lineActivityCard(it){
   var shortDetail=detail?esc(detail.slice(0,260)):'';
   var rawLine=raw&&raw!==detail?'<div style="font-size:10px;color:var(--sub);margin-top:8px;line-height:1.5">พิมพ์จริง: <code style="background:var(--sf2);border:1px solid var(--bd);border-radius:6px;padding:2px 5px;color:var(--tx)">'+esc(raw.slice(0,120))+'</code></div>':'';
   var status=lineActivityStatusPill(it.status,meta.tone);
+  var action=it.action==='followup'?'<button class="bsm" onclick="openActionCenter(\'inbox\')" style="margin-top:10px;color:#fbbf24;border-color:rgba(251,191,36,.4)">เปิด Follow-up Inbox →</button>':'';
   return '<article style="position:relative;background:var(--sf);border:1px solid var(--bd);border-left:4px solid '+meta.tone+';border-radius:14px;padding:13px 14px;box-shadow:0 10px 26px rgba(0,0,0,.10);overflow:hidden">'
     +'<div style="position:absolute;right:-18px;top:-22px;width:74px;height:74px;border-radius:999px;background:'+meta.tone+'12"></div>'
     +'<div style="position:relative;display:flex;align-items:flex-start;gap:11px">'
@@ -5009,7 +5021,7 @@ function lineActivityCard(it){
         +'<div style="font-size:14px;font-weight:900;color:var(--tx);line-height:1.35;word-break:break-word">'+esc(name)+'</div>'
         +'<div style="font-size:11px;color:var(--sub);line-height:1.5;margin-top:3px">'+esc(title)+'</div>'
         +(shortDetail?'<div style="margin-top:10px;background:var(--sf2);border:1px solid var(--bd);border-radius:11px;padding:9px 10px;font-size:12px;color:var(--tx);line-height:1.6;white-space:pre-wrap;word-break:break-word">'+shortDetail+'</div>':'')
-        +rawLine
+        +rawLine+action
       +'</div>'
       +(status?'<div style="flex:0 0 auto;position:relative">'+status+'</div>':'')
     +'</div>'
@@ -5024,7 +5036,8 @@ function loadLineActivityTimeline(force){
   wrap.innerHTML='<div style="color:var(--sub);font-size:12px;text-align:center;padding:20px">⏳ กำลังโหลด Timeline...</div>';
   var type=(document.getElementById('line-activity-type')||{}).value||'';
   var team=(document.getElementById('line-activity-team')||{}).value||'';
-  gsr('getLineActivityTimeline',{role:S.role,type:type,team:team,limit:90},function(r){
+  var view=(document.getElementById('line-activity-view')||{}).value||'actionable';
+  gsr('getLineActivityTimeline',{role:S.role,type:type,team:team,view:view,limit:90},function(r){
     _lineActivityLoaded=true;
     if(!r||!r.ok){
       wrap.innerHTML='<div style="margin:14px 16px;background:rgba(248,113,113,.10);border:1px solid rgba(248,113,113,.28);border-radius:14px;color:var(--re);padding:16px;font-size:12px">❌ '+esc(r&&r.error||'โหลด Timeline ไม่ได้')+'</div>';
@@ -5037,6 +5050,8 @@ function loadLineActivityTimeline(force){
     if(sumEl){
       var labels=[
         ['command_received','💬 พิมพ์','#38bdf8'],
+        ['command_replied','🤖 Bot','#06C755'],
+        ['unrecognized','🤖 ไม่เข้าใจ','#fb923c'],
         ['absence','🙋 ลา','var(--ye)'],
         ['substitute','👥 Sub','var(--ye)'],
         ['issue','⚠️ Help','#f87171'],
@@ -5052,7 +5067,7 @@ function loadLineActivityTimeline(force){
       return;
     }
     wrap.innerHTML='<div style="padding:14px 16px 16px">'
-      +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:12px">'
+      +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:12px">'
       +items.map(lineActivityCard).join('')
       +'</div>'
     +'</div>';

@@ -76,6 +76,7 @@ function lineActivityTypeMeta(type: string): { icon: string; label: string; tone
   return ({
     command_received: { icon: '💬', label: 'Member พิมพ์', tone: '#38bdf8' },
     command_replied: { icon: '🤖', label: 'Bot ตอบ', tone: '#06C755' },
+    unrecognized: { icon: '🤖', label: 'บอทไม่เข้าใจ', tone: '#fb923c' },
     absence: { icon: '🙋', label: 'แจ้งลา', tone: '#f59e0b' },
     substitute: { icon: '👥', label: 'ส่ง Sub', tone: '#f59e0b' },
     issue: { icon: '⚠️', label: 'ขอความช่วยเหลือ', tone: '#f87171' },
@@ -930,6 +931,9 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       const limit = Math.min(160, Math.max(20, Number(p.limit) || 80));
       const filterType = String(p.type || '').trim();
       const filterTeam = String(p.team || '').trim();
+      const view = ['actionable', 'conversation', 'all'].includes(String(p.view || ''))
+        ? String(p.view)
+        : 'actionable';
       const allowedTeam = auth.isMC || auth.role === 'growth'
         ? filterTeam
         : String(auth.teamName || '');
@@ -996,7 +1000,10 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       for (const row of (eventsRes.data || []) as Record<string, unknown>[]) {
         const props = (row.properties || {}) as Record<string, unknown>;
         const eventName = String(row.event_name || '');
-        const type = eventName === 'line_command_received'
+        const commandName = String(props.commandName || '');
+        const type = eventName === 'line_command_received' && commandName === 'unknown'
+          ? 'unrecognized'
+          : eventName === 'line_command_received'
           ? 'command_received'
           : eventName === 'line_command_replied'
           ? 'command_replied'
@@ -1006,18 +1013,23 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
           ? 'command_replied'
           : 'command_received';
         const member = memberFromJoined(row);
-        const text = String(props.textPreview || props.replyPreview || props.commandName || eventName || '');
+        const text = type === 'unrecognized'
+          ? 'ข้อความนี้ไม่ได้ส่งต่อให้ Mentor และไม่เก็บเนื้อหาใน Activity'
+          : String(props.textPreview || props.replyPreview || props.commandName || eventName || '');
         pushItem({
           id: `evt:${row.id}`,
           type,
           occurredAt: String(row.occurred_at || ''),
           source: String(row.source || 'line'),
-          title: eventName === 'line_command_replied'
+          title: type === 'unrecognized'
+            ? 'สมาชิกพิมพ์ข้อความที่บอทไม่เข้าใจ'
+            : eventName === 'line_command_replied'
             ? `Bot ตอบ: ${props.commandName || 'command'}`
             : `Member พิมพ์: ${props.commandName || props.command || eventName}`,
           detail: text,
-          status: eventName === 'line_command_received' && props.isRegistered === false ? 'ยังไม่เชื่อมบัญชี' : 'บันทึกแล้ว',
-          rawText: String(props.textPreview || ''),
+          status: type === 'unrecognized' ? 'ไม่ได้ส่งถึง Mentor'
+            : eventName === 'line_command_received' && props.isRegistered === false ? 'ยังไม่เชื่อมบัญชี' : 'บันทึกแล้ว',
+          rawText: type === 'unrecognized' ? '' : String(props.textPreview || ''),
           ...member,
         });
       }
@@ -1046,6 +1058,8 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
           title: 'ขอความช่วยเหลือ',
           detail: String(row.mentor_response || row.issue_text || ''),
           status: row.resolved_at ? 'เสร็จสิ้น' : 'รอ Mentor/MC',
+          needsAction: !row.resolved_at,
+          action: !row.resolved_at ? 'followup' : '',
           ...memberFromJoined(row),
         });
       }
@@ -1087,6 +1101,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
           title: `ส่งข้อความ: ${row.notification_type || 'line'}`,
           detail: String(row.message_preview || row.last_error || ''),
           status: String(row.status || ''),
+          needsAction: !['sent', 'delivered'].includes(String(row.status || '').toLowerCase()),
           ...memberFromJoined(row),
         });
       }
@@ -1095,13 +1110,27 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         new Date(String(b.occurredAt || '')).getTime() - new Date(String(a.occurredAt || '')).getTime()
       );
 
-      const sliced = items.slice(0, limit);
+      const visibleItems = items.filter(item => {
+        const type = String(item.type || '');
+        if (view === 'all') return true;
+        if (view === 'conversation') {
+          return ['command_received', 'command_replied', 'unrecognized', 'issue'].includes(type);
+        }
+        if (type === 'issue') return Boolean(item.needsAction);
+        if (type === 'delivery') return Boolean(item.needsAction);
+        if (type === 'absence' || type === 'substitute') {
+          const ageMs = Date.now() - new Date(String(item.occurredAt || '')).getTime();
+          return String(item.status || '') !== 'ยกเลิกแล้ว' && ageMs <= 8 * 86400000;
+        }
+        return false;
+      });
+      const sliced = visibleItems.slice(0, limit);
       const summary = sliced.reduce((acc: Record<string, number>, item) => {
         const type = String(item.type || 'other');
         acc[type] = (acc[type] || 0) + 1;
         return acc;
       }, {});
-      return jsonResponse({ ok: true, items: sliced, summary, teamScope: allowedTeam || 'chapter' });
+      return jsonResponse({ ok: true, items: sliced, summary, view, teamScope: allowedTeam || 'chapter' });
     }
 
     // ── GET: absence log (last 50) ────────────────────────────
