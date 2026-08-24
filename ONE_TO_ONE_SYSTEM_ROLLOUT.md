@@ -82,6 +82,17 @@ No second delivery engine is introduced. The existing `linePush` + `line_message
 - Verify Overview counts and all 1-2-1 navigation items on desktop and narrow screens.
 - Confirm members cannot read private feedback or attention tables directly.
 
+### MY121 launch pilot (new and experienced members)
+
+- Select 3–5 newer members and 3–5 experienced members. Ask them to complete the flow without an explanation first.
+- Confirm each person can identify their partner, the next recommended step, and where to ask for help within 30 seconds.
+- Confirm profile readiness is understandable, optional, and updates after saving Business Profile/GAINS.
+- Confirm the five-step checklist progresses through profile, partner preparation, scheduling, conversation, and joint verification.
+- Test every help reason: cannot contact partner, reschedule, no response, lost verification code, Mentor conversation, and other.
+- Confirm a help request appears once in MC Desktop/Mentor queue, remains private from the partner, and creates no member broadcast.
+- Test Thai copy at 390×844, common Android width, and iPad landscape; verify no clipped text or touch targets below 44 px.
+- Ask one final question: “ถ้าเปิดหน้านี้คนเดียว คุณรู้ไหมว่าต้องทำอะไรต่อ?” Record hesitations and revise copy before chapter-wide launch.
+
 ## Deployment and rollback
 
 Deploy in order: database migration, Edge API, then Vercel static site. The migration is additive. To roll back application behavior, disable `FEATURE_ONE_TO_ONE_SYSTEM` and deploy the previous API/UI; do not drop the new tables. Version 1 history continues to work. If a pilot round must be abandoned, leave it archived/draft for audit rather than deleting history.

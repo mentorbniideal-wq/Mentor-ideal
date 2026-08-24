@@ -28,7 +28,7 @@ export async function notifyOneToOneMentorAndMc(db:Db,input:{feedbackId:string;p
     if(leader){const {data:mentor}=await db.from('members').select('id').or(`name.ilike.%${leader}%,nickname.ilike.%${leader}%`).eq('is_archived',false).limit(1).maybeSingle();if(mentor){const id=await memberLineId(db,String((mentor as Record<string,unknown>).id));if(id)recipients.add(id);}}
   }
   const nickname=input.nickname||input.memberName.split(' ')[0]||input.memberName;
-  await db.from('notifications').insert({type:'one_to_one_mentor_request',severity:'warning',title:`${nickname} ขอคุยกับ Mentor หลัง 1-2-1`,body:input.message,data:{feedbackId:input.feedbackId,pairId:input.pairId,memberId:input.memberId,mentorTeam:team},target_audience:['role:mc',...(team?[`team:${team}`]:[])]});
+  await db.from('notifications').insert({type:'one_to_one_mentor_request',severity:'warning',title:`${nickname} ขอความช่วยเหลือเรื่อง 1-2-1`,body:input.message,data:{feedbackId:input.feedbackId,pairId:input.pairId,memberId:input.memberId,mentorTeam:team},target_audience:['role:mc',...(team?[`team:${team}`]:[])]});
   const text=['🤝 สมาชิกขอคุยกับ Mentor',`${nickname} · ทีม ${team||'ยังไม่ระบุ'}`,`เรื่อง: ${input.message.length>220?input.message.slice(0,217)+'...':input.message}`,'','เปิด MC Desktop → 1-2-1 System → ต้องดูแล'].join('\n');
   let sent=0;for(const recipient of recipients){const result=await linePush(recipient,text,{db,idempotencyKey:`121:mentor-request:${input.feedbackId}:${recipient}`,memberId:input.memberId,notificationType:'one_to_one_mentor_request',source:'liff-api'});if(!result.skipped)sent++;}
   return {sent,recipientCount:recipients.size};
