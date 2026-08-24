@@ -9,6 +9,7 @@ import { generateHandshakeCode, handshakeCodeHash, oneToOneGoogleCalendarUrl, on
 import { GUIDED_MODES, canEditOwnedGuidedData, cleanGuidedText, normalizeGuidedContent, recommendedGuidedMode, validGuidedStep } from '../_shared/guided-one-to-one.ts';
 import { canMemberUpdateFollowUp, evaluateOneToOneAccess, shouldCreateMentorNotification, validMemberFollowUpOutcome } from '../_shared/one-to-one-workflow.ts';
 import { canAccessPairProfile, member121ProfileCompleteness, normalizeMember121Profile, publicMember121Profile } from '../_shared/member-121-profile.ts';
+import { buildGoalCoach } from '../_shared/goal-coach.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
 
@@ -498,10 +499,23 @@ Deno.serve(async (req: Request) => {
     return response({ ok: true, message: 'บันทึกนัด 1-2-1 แล้ว' });
   }
 
+  if (action === 'goal-coach') {
+    const [{data:dash},{data:goals},{data:notif}]=await Promise.all([
+      db.from('v_member_dashboard').select('display_score,traffic_light,palms_detail,rg,visitors,one_to_one,ceu,tyfcb_thb,absent,bni_days').eq('id',memberId).maybeSingle(),
+      db.from('line_goals').select('goal_type,target,set_at').eq('member_id',memberId),
+      db.from('line_notif_settings').select('is_muted').eq('member_id',memberId).eq('notif_type','score').maybeSingle(),
+    ]);const d=(dash||{}) as Record<string,unknown>,goalMap:Record<string,number>={};for(const g of (goals||[]) as Record<string,unknown>[])goalMap[String(g.goal_type)]=Number(g.target);const actuals={referrals:Number(d.rg||0),visitors:Number(d.visitors||0),oneToOne:Number(d.one_to_one||0),ceu:Number(d.ceu||0),tyfbThb:Number(d.tyfcb_thb||0),absent:Number(d.absent||0)},weeks=Math.max(1,Math.floor(Number(d.bni_days||7)/7)),coach=buildGoalCoach({score:Number(d.display_score||0),trafficLight:String(d.traffic_light||'none'),weeks,actuals,palms:(d.palms_detail||{}) as Record<string,number>,goals:goalMap});return response({ok:true,...coach,weeks,actuals,reminderEnabled:!(notif as Record<string,unknown>|null)?.is_muted,reminderDescription:'สรุปคะแนนก่อนประชุมวันพฤหัสบดี และรายงานประจำเดือน โดยระบบเดิมควบคุมโควตาและการส่งซ้ำ'});
+  }
+
+  if (action === 'goal-notification') {
+    const enabled=body.enabled===true;const {error}=await db.from('line_notif_settings').upsert({member_id:memberId,notif_type:'score',is_muted:!enabled,updated_at:new Date().toISOString()},{onConflict:'member_id,notif_type'});if(error)return response({ok:false,error:'ปรับการแจ้งเตือนไม่สำเร็จ กรุณาลองใหม่'},400);await trackLineEvent(db,'liff_goal_notification_updated',{lineUserId:identity.userId,memberId,source:'liff',properties:{enabled}});return response({ok:true,enabled,message:enabled?'เปิดสรุปคะแนนและเป้าหมายแล้ว':'ปิดสรุปคะแนนและเป้าหมายแล้ว'});
+  }
+
   if (action === 'goal') {
     const goalType = String(body.goalType || '').trim();
     const target = Number(body.target);
-    if (!['ref', 'visitor', 'oto', 'ceu', 'tyfb'].includes(goalType) || !Number.isFinite(target) || target <= 0) {
+    const maxTarget=goalType==='tyfb'?1000000000:100;
+    if (!['ref', 'visitor', 'oto', 'ceu', 'tyfb'].includes(goalType) || !Number.isFinite(target) || target <= 0 || target>maxTarget) {
       return response({ ok: false, error: 'เป้าหมายไม่ถูกต้อง' }, 400);
     }
     const { error } = await db.from('line_goals').upsert({

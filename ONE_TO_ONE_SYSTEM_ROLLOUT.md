@@ -144,3 +144,9 @@ Deploy migration `20260824000065_member_one_to_one_profiles.sql` before `liff-ap
 The LIFF `action=121` route is a MY121 hub with five focused subpages: Current Pair (default), My Profile, Prepare, History, and Next Actions. The current randomized pair remains the default entry point from the Rich Menu. History and follow-up data load only when the member opens those sections, reducing first-screen density and unnecessary API work.
 
 Subpages use `section=profile|prepare|history|actions`; the pair page omits the parameter. Browser Back restores the previous MY121 section, and LIFF login preserves the requested section. Guided Session and profile editors remain full-screen focused tools. This change is UI-only: it adds no database object, workflow, notification, environment variable, or LINE push.
+
+## Member Goal Coach
+
+The LIFF Goal page reuses `v_member_dashboard` as the current score/PALMS source of truth, `line_goals` for member-owned short goals, and `line_notif_settings.notif_type = 'score'` for the existing Thursday score summary and monthly report. It does not create a second goal store or a new notification schedule.
+
+Goal recommendations are guidance based on the current PALMS component gaps and official sustainable activity levels. Current values are labelled as cumulative round data, while goal units are explicitly weekly, monthly, or per round. Saving a goal never claims to recalculate the imported score immediately. Members may enable or mute the existing score summaries from the same page; existing cron idempotency, quota, and mute controls remain authoritative.
