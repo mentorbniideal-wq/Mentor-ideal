@@ -67,7 +67,7 @@ Deno.serve(async (req: Request) => {
   const memberId = identity.memberId;
 
   const oneToOneActions = new Set([
-    'one-to-one-bootstrap','guided-session-bootstrap','save-guided-session','save-guided-private-note',
+    'one-to-one-bootstrap','get-my-one-to-one-history','guided-session-bootstrap','save-guided-session','save-guided-private-note',
     'save-guided-trigger','approve-guided-trigger','archive-guided-trigger','save-guided-profile-draft',
     'confirm-guided-profile-draft','submit-guided-experience-feedback','complete-guided-session',
     'propose-one-to-one-schedule','propose-one-to-one-schedule-options','confirm-one-to-one-schedule',
@@ -81,7 +81,7 @@ Deno.serve(async (req: Request) => {
     const control = new Map(((controls || []) as Record<string, unknown>[]).map(row => [String(row.key), String(row.value)]));
     let pilotIds: string[] = [];
     try { pilotIds = JSON.parse(control.get('ONE_TO_ONE_PILOT_MEMBER_IDS') || '[]'); } catch { pilotIds = []; }
-    const access=evaluateOneToOneAccess({featureEnabled:control.get('FEATURE_ONE_TO_ONE_SYSTEM')==='true',emergencyStop:control.get('ONE_TO_ONE_EMERGENCY_STOP')==='true',enforcePilotAccess:control.get('ONE_TO_ONE_ENFORCE_PILOT_ACCESS')==='true',pilotIds},memberId,new Set(['one-to-one-bootstrap','guided-session-bootstrap','get-one-to-one-calendar']).has(action));
+    const access=evaluateOneToOneAccess({featureEnabled:control.get('FEATURE_ONE_TO_ONE_SYSTEM')==='true',emergencyStop:control.get('ONE_TO_ONE_EMERGENCY_STOP')==='true',enforcePilotAccess:control.get('ONE_TO_ONE_ENFORCE_PILOT_ACCESS')==='true',pilotIds},memberId,new Set(['one-to-one-bootstrap','get-my-one-to-one-history','guided-session-bootstrap','get-one-to-one-calendar']).has(action));
     if (!access.allowed&&access.reason==='pilot_only') {
       return response({ ok: false, error: 'ระบบ 1-2-1 อยู่ในช่วงทดลองสำหรับสมาชิกที่ได้รับเลือก กรุณาติดต่อ MC' }, 403);
     }
@@ -119,6 +119,32 @@ Deno.serve(async (req: Request) => {
     const scheduleRows=(schedules||[]) as Record<string,unknown>[],schedule=scheduleRows.find(x=>x.status==='confirmed')||scheduleRows[0]||null;
     const newHistory=(history||[]) as Record<string,unknown>[],legacy=(legacyLogs||[]) as Record<string,unknown>[];
     return response({ok:true,pair,partner,schedule,scheduleOptions:scheduleRows,followUps:followUps||[],guidedHistory:guidedHistory||null,journey:{total:newHistory.length+legacy.length,completed:newHistory.filter(x=>['verified','late_verified'].includes(String(x.status))).length+legacy.filter(x=>x.met_at).length,newSystemTotal:newHistory.length,legacyTotal:legacy.length,recent:newHistory},referralCard:{lookingFor:String((lookingFor as Record<string,unknown>|null)?.looking_for||(businessProfile as Record<string,unknown>|null)?.looking_for||''),idealClient:String((businessProfile as Record<string,unknown>|null)?.ideal_client||''),referralTrigger:String((businessProfile as Record<string,unknown>|null)?.referral_trigger_summary||''),profession:String((partner as Record<string,unknown>|null)?.profession||''),companyName:String((partner as Record<string,unknown>|null)?.company_name||'')},privacyNotice:'Shared Reflection เห็นได้โดยคุณ คู่สนทนา และ Mentor ที่มีสิทธิ์ ส่วน Private Mentor Feedback จะไม่แสดงให้อีกฝ่ายเห็น'});
+  }
+
+  if(action==='get-my-one-to-one-history'){
+    const {data:pairs,error:pairError}=await db.from('matching_pairs').select('id,round_id,status,member_a_id,member_b_id,optional_member_c_id,created_at,round:matching_rounds(meeting_date,system_version),schedules:one_to_one_schedules(id,starts_at,status,meeting_mode,location_or_link)').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId},optional_member_c_id.eq.${memberId}`).is('archived_at',null).order('created_at',{ascending:false}).limit(100);
+    if(pairError)return response({ok:false,error:'ยังเปิดประวัติ 1-2-1 ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'},400);
+    const pairRows=(pairs||[]) as Record<string,unknown>[],pairIds=pairRows.map(x=>String(x.id));
+    const partnerIds=[...new Set(pairRows.flatMap(x=>[x.member_a_id,x.member_b_id,x.optional_member_c_id].filter(Boolean).map(String)).filter(id=>id!==memberId))];
+    const [{data:partners},{data:feedback},{data:followUps},{data:guidedSessions},{data:legacy}]=await Promise.all([
+      partnerIds.length?db.from('members').select('id,name,nickname,profession,company_name,mentor_team,is_archived').in('id',partnerIds):Promise.resolve({data:[]}),
+      pairIds.length?db.from('one_to_one_feedback').select('id,pair_id,respondent_member_id,about_member_id,learned,outcomes,next_action_type,next_action_detail,created_at').in('pair_id',pairIds).eq('visibility','shared').is('archived_at',null).order('created_at',{ascending:false}):Promise.resolve({data:[]}),
+      pairIds.length?db.from('one_to_one_follow_up_actions').select('id,pair_id,action_type,description,owner_member_id,related_member_id,due_date,status,completed_at,outcome').in('pair_id',pairIds).or(`owner_member_id.eq.${memberId},related_member_id.eq.${memberId}`).order('created_at',{ascending:false}):Promise.resolve({data:[]}),
+      pairIds.length?db.from('guided_one_to_one_sessions').select('id,pair_id,session_mode,status,duration_seconds,completed_at,updated_at,shared_content').in('pair_id',pairIds).is('archived_at',null):Promise.resolve({data:[]}),
+      db.from('one_to_one_logs').select('id,initiator_id,partner_id,partner_name,notes,outcome,met_at,scheduled_date,created_at,initiator:members!one_to_one_logs_initiator_id_fkey(id,name,nickname,profession,company_name),partner:members!one_to_one_logs_partner_id_fkey(id,name,nickname,profession,company_name)').or(`initiator_id.eq.${memberId},partner_id.eq.${memberId}`).order('created_at',{ascending:false}).limit(100),
+    ]);
+    const guidedRows=((guidedSessions||[]) as Record<string,unknown>[]).map((g):Record<string,unknown>=>({...g,shared_content:normalizeGuidedContent(g.shared_content)}));
+    const sessionIds=guidedRows.map(x=>String(x.id));
+    const {data:triggers}=sessionIds.length?await db.from('guided_referral_triggers').select('id,session_id,owner_member_id,trigger_text,context,priority').in('session_id',sessionIds).eq('owner_approved',true).eq('is_active',true).is('archived_at',null).order('priority',{ascending:false}):{data:[]};
+    const partnerMap=new Map(((partners||[]) as Record<string,unknown>[]).map(x=>[String(x.id),x]));
+    const feedbackRows=(feedback||[]) as Record<string,unknown>[],followRows=(followUps||[]) as Record<string,unknown>[],triggerRows=(triggers||[]) as Record<string,unknown>[];
+    const history=pairRows.map(pair=>{
+      const otherIds=[pair.member_a_id,pair.member_b_id,pair.optional_member_c_id].filter(Boolean).map(String).filter(id=>id!==memberId),round=(pair.round||{}) as Record<string,unknown>,schedules=(pair.schedules||[]) as Record<string,unknown>[],guided=guidedRows.find(x=>String(x.pair_id)===String(pair.id))||null;
+      return{id:String(pair.id),meetingDate:String(round.meeting_date||''),status:String(pair.status||'matched'),partners:otherIds.map(id=>partnerMap.get(id)||{id,name:'สมาชิกเดิม'}),schedule:schedules.sort((a,b)=>String(b.starts_at).localeCompare(String(a.starts_at)))[0]||null,sharedFeedback:feedbackRows.filter(x=>String(x.pair_id)===String(pair.id)),followUps:followRows.filter(x=>String(x.pair_id)===String(pair.id)),guidedSession:guided?{...guided,referralTriggers:triggerRows.filter(t=>String(t.session_id)===String(guided.id))}:null};
+    });
+    const verified=history.filter(x=>['verified','late_verified'].includes(x.status)).length,pendingActions=followRows.filter(x=>['pending','in_progress','overdue'].includes(String(x.status))).length;
+    const safeLegacy=((legacy||[]) as Record<string,unknown>[]).map(row=>{const other=String(row.initiator_id)===memberId?row.partner:row.initiator;return{id:row.id,partnerName:((other||{}) as Record<string,unknown>).nickname||((other||{}) as Record<string,unknown>).name||row.partner_name||'สมาชิก',profession:((other||{}) as Record<string,unknown>).profession||((other||{}) as Record<string,unknown>).company_name||'',notes:row.notes,outcome:row.outcome,metAt:row.met_at,scheduledDate:row.scheduled_date,createdAt:row.created_at};});
+    return response({ok:true,stats:{total:history.length+safeLegacy.length,paired:history.length,verified,pendingActions},history,legacy:safeLegacy,privacyNotice:'แสดงเฉพาะข้อมูลที่บันทึกร่วมกันและงานที่เกี่ยวข้องกับคุณ ไม่แสดงบันทึกส่วนตัวหรือข้อความส่วนตัวถึง Mentor'});
   }
 
   if(action==='guided-session-bootstrap'){
