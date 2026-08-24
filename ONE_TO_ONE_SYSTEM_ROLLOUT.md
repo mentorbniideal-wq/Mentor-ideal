@@ -138,3 +138,9 @@ Only a verified participant in the existing Pair may open the partner profile or
 While a Guided Session remains an unstarted draft, `one_to_one_profile_snapshots` is refreshed from the owner's shareable projection. Once the Session starts, the snapshot is no longer replaced, preserving the profile context used for that historical conversation. Private/hidden GAINS fields, contact details, verification codes and Mentor feedback are never copied into the snapshot.
 
 Deploy migration `20260824000065_member_one_to_one_profiles.sql` before `liff-api` and the static LIFF page. For application rollback, deploy the prior API/UI and keep the additive tables. A database rollback, if explicitly required after exporting data, must drop only `one_to_one_profile_snapshots`, `one_to_one_premeeting_questions`, and `member_one_to_one_profiles` in that dependency order.
+
+## MY121 Information Architecture
+
+The LIFF `action=121` route is a MY121 hub with five focused subpages: Current Pair (default), My Profile, Prepare, History, and Next Actions. The current randomized pair remains the default entry point from the Rich Menu. History and follow-up data load only when the member opens those sections, reducing first-screen density and unnecessary API work.
+
+Subpages use `section=profile|prepare|history|actions`; the pair page omits the parameter. Browser Back restores the previous MY121 section, and LIFF login preserves the requested section. Guided Session and profile editors remain full-screen focused tools. This change is UI-only: it adds no database object, workflow, notification, environment variable, or LINE push.
