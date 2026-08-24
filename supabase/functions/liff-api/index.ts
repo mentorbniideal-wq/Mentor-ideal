@@ -7,6 +7,7 @@ import { notifyIssueStakeholders } from '../_shared/line-issue-notify.ts';
 import { notifyOneToOneMentorAndMc, notifyOneToOnePartner } from '../_shared/one-to-one-notify.ts';
 import { generateHandshakeCode, handshakeCodeHash, oneToOneGoogleCalendarUrl, oneToOneIcs, pairStatusFromVerification, safeHashEqual } from '../_shared/one-to-one.ts';
 import { GUIDED_MODES, canEditOwnedGuidedData, cleanGuidedText, normalizeGuidedContent, recommendedGuidedMode, validGuidedStep } from '../_shared/guided-one-to-one.ts';
+import { evaluateOneToOneAccess, shouldCreateMentorNotification } from '../_shared/one-to-one-workflow.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
 
@@ -65,6 +66,30 @@ Deno.serve(async (req: Request) => {
   const member = identity.member;
   const memberId = identity.memberId;
 
+  const oneToOneActions = new Set([
+    'one-to-one-bootstrap','guided-session-bootstrap','save-guided-session','save-guided-private-note',
+    'save-guided-trigger','approve-guided-trigger','archive-guided-trigger','save-guided-profile-draft',
+    'confirm-guided-profile-draft','submit-guided-experience-feedback','complete-guided-session',
+    'propose-one-to-one-schedule','propose-one-to-one-schedule-options','confirm-one-to-one-schedule',
+    'cancel-one-to-one-schedule','reschedule-one-to-one','get-one-to-one-calendar',
+    'start-one-to-one-verification','submit-one-to-one-code','submit-one-to-one-reflection',
+  ]);
+  if (oneToOneActions.has(action)) {
+    const { data: controls } = await db.from('settings').select('key,value').in('key', [
+      'FEATURE_ONE_TO_ONE_SYSTEM','ONE_TO_ONE_EMERGENCY_STOP','ONE_TO_ONE_PILOT_MEMBER_IDS','ONE_TO_ONE_ENFORCE_PILOT_ACCESS',
+    ]);
+    const control = new Map(((controls || []) as Record<string, unknown>[]).map(row => [String(row.key), String(row.value)]));
+    let pilotIds: string[] = [];
+    try { pilotIds = JSON.parse(control.get('ONE_TO_ONE_PILOT_MEMBER_IDS') || '[]'); } catch { pilotIds = []; }
+    const access=evaluateOneToOneAccess({featureEnabled:control.get('FEATURE_ONE_TO_ONE_SYSTEM')==='true',emergencyStop:control.get('ONE_TO_ONE_EMERGENCY_STOP')==='true',enforcePilotAccess:control.get('ONE_TO_ONE_ENFORCE_PILOT_ACCESS')==='true',pilotIds},memberId,new Set(['one-to-one-bootstrap','guided-session-bootstrap','get-one-to-one-calendar']).has(action));
+    if (!access.allowed&&access.reason==='pilot_only') {
+      return response({ ok: false, error: 'ระบบ 1-2-1 อยู่ในช่วงทดลองสำหรับสมาชิกที่ได้รับเลือก กรุณาติดต่อ MC' }, 403);
+    }
+    if (!access.allowed&&access.reason==='emergency_stop') {
+      return response({ ok: false, error: 'ระบบหยุดการบันทึกชั่วคราวเพื่อดูแลข้อมูล คุณยังเปิดดูคู่และประวัติได้' }, 503);
+    }
+  }
+
   async function ownPair(pairId?:string){
     let query=db.from('matching_pairs').select('id,round_id,member_a_id,member_b_id,status,matching_rounds!inner(meeting_date,starts_at,ends_at,system_version)').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId}`).is('archived_at',null);
     if(pairId)query=query.eq('id',pairId);else query=query.eq('matching_rounds.system_version',2).order('created_at',{ascending:false}).limit(1);
@@ -81,24 +106,29 @@ Deno.serve(async (req: Request) => {
   if(action==='one-to-one-bootstrap'){
     const {pair,error}=await ownPair();if(error)return response({ok:false,error:error.message},400);if(!pair)return response({ok:true,pair:null});
     const partnerId=String(pair.member_a_id)===memberId?String(pair.member_b_id):String(pair.member_a_id);
-    const [{data:partner},{data:schedules},{data:followUps},{data:history},{data:lookingFor}]=await Promise.all([
+    const [{data:partner},{data:schedules},{data:followUps},{data:history},{data:lookingFor},{data:businessProfile},{data:legacyLogs},{data:guidedHistory}]=await Promise.all([
       db.from('members').select('id,name,nickname,profession,company_name,mentor_team').eq('id',partnerId).maybeSingle(),
       db.from('one_to_one_schedules').select('*').eq('pair_id',String(pair.id)).in('status',['proposed','confirmed']).order('created_at',{ascending:false}).limit(3),
       db.from('one_to_one_follow_up_actions').select('*').eq('pair_id',String(pair.id)).eq('owner_member_id',memberId).order('created_at',{ascending:false}),
       db.from('matching_pairs').select('id,status,created_at,member_a_id,member_b_id,matching_rounds(meeting_date)').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId}`).order('created_at',{ascending:false}).limit(20),
       db.from('matching_import_rows').select('looking_for').eq('round_id',String(pair.round_id)).eq('matched_member_id',partnerId).limit(1).maybeSingle(),
+      db.from('biz_profiles').select('looking_for,ideal_client,referral_trigger_summary').eq('member_id',partnerId).maybeSingle(),
+      db.from('one_to_one_logs').select('id,met_at,scheduled_date').or(`initiator_id.eq.${memberId},partner_id.eq.${memberId}`).order('created_at',{ascending:false}).limit(200),
+      db.from('guided_one_to_one_sessions').select('id,pair_id,session_mode,status,completed_at,duration_seconds,shared_content').eq('pair_id',String(pair.id)).is('archived_at',null).maybeSingle(),
     ]);
     const scheduleRows=(schedules||[]) as Record<string,unknown>[],schedule=scheduleRows.find(x=>x.status==='confirmed')||scheduleRows[0]||null;
-    return response({ok:true,pair,partner,schedule,scheduleOptions:scheduleRows,followUps:followUps||[],journey:{total:(history||[]).length,completed:((history||[]) as Record<string,unknown>[]).filter(x=>['verified','late_verified'].includes(String(x.status))).length,recent:history||[]},referralCard:{lookingFor:String((lookingFor as Record<string,unknown>|null)?.looking_for||''),profession:String((partner as Record<string,unknown>|null)?.profession||''),companyName:String((partner as Record<string,unknown>|null)?.company_name||'')},privacyNotice:'Shared Reflection เห็นได้โดยคุณ คู่สนทนา และ Mentor ที่มีสิทธิ์ ส่วน Private Mentor Feedback จะไม่แสดงให้อีกฝ่ายเห็น'});
+    const newHistory=(history||[]) as Record<string,unknown>[],legacy=(legacyLogs||[]) as Record<string,unknown>[];
+    return response({ok:true,pair,partner,schedule,scheduleOptions:scheduleRows,followUps:followUps||[],guidedHistory:guidedHistory||null,journey:{total:newHistory.length+legacy.length,completed:newHistory.filter(x=>['verified','late_verified'].includes(String(x.status))).length+legacy.filter(x=>x.met_at).length,newSystemTotal:newHistory.length,legacyTotal:legacy.length,recent:newHistory},referralCard:{lookingFor:String((lookingFor as Record<string,unknown>|null)?.looking_for||(businessProfile as Record<string,unknown>|null)?.looking_for||''),idealClient:String((businessProfile as Record<string,unknown>|null)?.ideal_client||''),referralTrigger:String((businessProfile as Record<string,unknown>|null)?.referral_trigger_summary||''),profession:String((partner as Record<string,unknown>|null)?.profession||''),companyName:String((partner as Record<string,unknown>|null)?.company_name||'')},privacyNotice:'Shared Reflection เห็นได้โดยคุณ คู่สนทนา และ Mentor ที่มีสิทธิ์ ส่วน Private Mentor Feedback จะไม่แสดงให้อีกฝ่ายเห็น'});
   }
 
   if(action==='guided-session-bootstrap'){
     const pairId=String(body.pairId||'');const {pair}=await ownPair(pairId);if(!pair)return response({ok:false,error:'ไม่พบคู่ 1-2-1 หรือคุณไม่มีสิทธิ์เปิด Session นี้'},403);
     const aId=String(pair.member_a_id),bId=String(pair.member_b_id),partnerId=aId===memberId?bId:aId;
-    const [{data:people},{data:priorPairs},{data:currentLooking},{data:schedule}]=await Promise.all([
+    const [{data:people},{data:priorPairs},{data:currentLooking},{data:canonicalLooking},{data:schedule}]=await Promise.all([
       db.from('members').select('id,name,nickname,profession,company_name,mentor_team').in('id',[aId,bId]),
       db.from('matching_pairs').select('id,status,member_a_id,member_b_id,created_at').or(`and(member_a_id.eq.${aId},member_b_id.eq.${bId}),and(member_a_id.eq.${bId},member_b_id.eq.${aId})`).neq('id',pairId).order('created_at',{ascending:false}).limit(10),
       db.from('matching_import_rows').select('matched_member_id,looking_for').eq('round_id',String(pair.round_id)).in('matched_member_id',[aId,bId]),
+      db.from('biz_profiles').select('member_id,looking_for').in('member_id',[aId,bId]),
       db.from('one_to_one_schedules').select('*').eq('pair_id',pairId).eq('status','confirmed').order('created_at',{ascending:false}).limit(1).maybeSingle(),
     ]);
     const completed=((priorPairs||[]) as Record<string,unknown>[]).filter(x=>['verified','late_verified'].includes(String(x.status))).length;
@@ -116,7 +146,7 @@ Deno.serve(async (req: Request) => {
       completed?db.from('guided_one_to_one_sessions').select('id,session_mode,completed_at,shared_content,duration_seconds,pair_id').in('pair_id',((priorPairs||[]) as Record<string,unknown>[]).map(x=>String(x.id))).eq('status','completed').order('completed_at',{ascending:false}).limit(1).maybeSingle():Promise.resolve({data:null}),
       db.from('one_to_one_follow_up_actions').select('*').or(`owner_member_id.eq.${memberId},related_member_id.eq.${memberId}`).eq('status','pending').order('due_date').limit(10),
     ]);
-    const looking=Object.fromEntries(((currentLooking||[]) as Record<string,unknown>[]).map(x=>[String(x.matched_member_id),String(x.looking_for||'')]));
+    const looking=Object.fromEntries(((canonicalLooking||[]) as Record<string,unknown>[]).map(x=>[String(x.member_id),String(x.looking_for||'')]));for(const row of (currentLooking||[]) as Record<string,unknown>[]){if(row.looking_for)looking[String(row.matched_member_id)]=String(row.looking_for);}
     return response({ok:true,session,pair,memberId,participants:people||[],partnerId,schedule,lookingFor:looking,triggers:triggers||[],profileDrafts:drafts||[],privateNote:privateNote||null,relationship:{completedSessions:completed,previous:previousGuided||null,pendingFollowUps:followUps||[]},recommendedMode:recommendedGuidedMode(completed),sameDeviceSupported:true,realtimeSupported:false});
   }
 
@@ -132,7 +162,26 @@ Deno.serve(async (req: Request) => {
   }
 
   if(action==='save-guided-trigger'){
-    const sessionId=String(body.sessionId||''),ownerId=String(body.ownerMemberId||'');const {session,pair}=await ownGuidedSession(sessionId);if(!session||!pair)return response({ok:false,error:'ไม่มีสิทธิ์บันทึก Trigger นี้'},403);const pairIds=[String(pair.member_a_id),String(pair.member_b_id)];if(!pairIds.includes(ownerId))return response({ok:false,error:'เจ้าของ Trigger ต้องเป็นสมาชิกในคู่นี้'},400);const trigger=cleanGuidedText(body.triggerText,500);if(!trigger)return response({ok:false,error:'กรุณาระบุ Referral Trigger'},400);const approved=Boolean(body.ownerApproved)&&canEditOwnedGuidedData(memberId,ownerId,pairIds);const payload={session_id:sessionId,owner_member_id:ownerId,trigger_text:trigger,context:cleanGuidedText(body.context,1000)||null,priority:Math.max(1,Math.min(3,Number(body.priority||2))),is_active:body.isActive!==false,owner_approved:approved,actor_member_id:memberId,updated_at:new Date().toISOString()};const {data,error}=await db.from('guided_referral_triggers').insert(payload).select('*').single();if(error)return response({ok:false,error:'บันทึก Referral Trigger ไม่สำเร็จ'},400);return response({ok:true,trigger:data});
+    const sessionId=String(body.sessionId||''),ownerId=String(body.ownerMemberId||'');const {session,pair}=await ownGuidedSession(sessionId);if(!session||!pair)return response({ok:false,error:'ไม่มีสิทธิ์บันทึก Trigger นี้'},403);const pairIds=[String(pair.member_a_id),String(pair.member_b_id)];if(!pairIds.includes(ownerId))return response({ok:false,error:'เจ้าของ Trigger ต้องเป็นสมาชิกในคู่นี้'},400);const trigger=cleanGuidedText(body.triggerText,500);if(!trigger)return response({ok:false,error:'กรุณาระบุ Referral Trigger'},400);const approved=Boolean(body.ownerApproved)&&canEditOwnedGuidedData(memberId,ownerId,pairIds),clientActionId=cleanGuidedText(body.clientActionId,120)||null;const payload={session_id:sessionId,owner_member_id:ownerId,trigger_text:trigger,context:cleanGuidedText(body.context,1000)||null,priority:Math.max(1,Math.min(3,Number(body.priority||2))),is_active:body.isActive!==false,owner_approved:approved,actor_member_id:memberId,client_action_id:clientActionId,updated_at:new Date().toISOString()};const write=clientActionId?db.from('guided_referral_triggers').upsert(payload,{onConflict:'client_action_id'}):db.from('guided_referral_triggers').insert(payload);const {data,error}=await write.select('*').single();if(error)return response({ok:false,error:'บันทึก Referral Trigger ไม่สำเร็จ'},400);return response({ok:true,trigger:data});
+  }
+
+  if(action==='approve-guided-trigger'){
+    const triggerId=String(body.triggerId||'');
+    const {data:trigger}=await db.from('guided_referral_triggers').select('id,session_id,owner_member_id').eq('id',triggerId).is('archived_at',null).maybeSingle();
+    if(!trigger||String((trigger as Record<string,unknown>).owner_member_id)!==memberId)return response({ok:false,error:'คุณอนุมัติได้เฉพาะ Referral Trigger ของตนเอง'},403);
+    const {session}=await ownGuidedSession(String((trigger as Record<string,unknown>).session_id));if(!session)return response({ok:false,error:'ไม่มีสิทธิ์เข้าถึง Session นี้'},403);
+    const {data,error}=await db.from('guided_referral_triggers').update({owner_approved:true,actor_member_id:memberId,updated_at:new Date().toISOString()}).eq('id',triggerId).select('*').single();
+    return error?response({ok:false,error:'อนุมัติ Referral Trigger ไม่สำเร็จ'},400):response({ok:true,trigger:data,message:'อนุมัติ Referral Trigger แล้ว'});
+  }
+
+  if(action==='archive-guided-trigger'){
+    const triggerId=String(body.triggerId||'');
+    const {data:trigger}=await db.from('guided_referral_triggers').select('id,session_id,owner_member_id,actor_member_id').eq('id',triggerId).is('archived_at',null).maybeSingle();
+    if(!trigger)return response({ok:false,error:'ไม่พบ Referral Trigger'},404);const row=trigger as Record<string,unknown>;
+    const {session}=await ownGuidedSession(String(row.session_id));if(!session)return response({ok:false,error:'ไม่มีสิทธิ์เข้าถึง Session นี้'},403);
+    if(String(row.owner_member_id)!==memberId&&String(row.actor_member_id)!==memberId)return response({ok:false,error:'คุณไม่มีสิทธิ์นำ Trigger นี้ออก'},403);
+    await db.from('guided_referral_triggers').update({archived_at:new Date().toISOString(),actor_member_id:memberId,updated_at:new Date().toISOString()}).eq('id',triggerId);
+    return response({ok:true,message:'นำ Referral Trigger ออกจาก Session แล้ว'});
   }
 
   if(action==='save-guided-profile-draft'){
@@ -140,7 +189,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if(action==='confirm-guided-profile-draft'){
-    const sessionId=String(body.sessionId||'');const {session,pair}=await ownGuidedSession(sessionId);if(!session||!pair)return response({ok:false,error:'ไม่มีสิทธิ์ยืนยันข้อมูลนี้'},403);const {data:draft}=await db.from('guided_member_profile_drafts').select('*').eq('session_id',sessionId).eq('owner_member_id',memberId).eq('status','draft').maybeSingle();if(!draft)return response({ok:false,error:'ไม่พบร่างข้อมูลธุรกิจของคุณ'},404);const updates=((draft as Record<string,unknown>).proposed_updates||{}) as Record<string,unknown>,memberChanges:Record<string,unknown>={updated_at:new Date().toISOString()};if(cleanGuidedText(updates.profession,200))memberChanges.profession=cleanGuidedText(updates.profession,200);if(cleanGuidedText(updates.company_name,200))memberChanges.company_name=cleanGuidedText(updates.company_name,200);const {error}=await db.from('members').update(memberChanges).eq('id',memberId);if(error)return response({ok:false,error:'อัปเดตข้อมูลสมาชิกไม่สำเร็จ'},400);const looking=cleanGuidedText(updates.looking_for,1000);if(looking)await db.from('matching_import_rows').update({looking_for:looking}).eq('round_id',String(pair.round_id)).eq('matched_member_id',memberId);const now=new Date().toISOString();await db.from('guided_member_profile_drafts').update({status:'applied',approved_at:now,applied_at:now,actor_member_id:memberId,updated_at:now}).eq('id',String((draft as Record<string,unknown>).id));await db.from('one_to_one_status_events').insert({round_id:String(pair.round_id),pair_id:String(pair.id),member_id:memberId,event_type:'guided_profile_updated',actor_type:'member',actor_ref:memberId,idempotency_key:`guided-profile:${sessionId}:${memberId}`,metadata:{sessionId,fields:Object.keys(memberChanges).filter(x=>x!=='updated_at'),lookingForUpdated:Boolean(looking)}});return response({ok:true,message:'ยืนยันและอัปเดตข้อมูลธุรกิจของคุณแล้ว'});
+    const sessionId=String(body.sessionId||'');const {session,pair}=await ownGuidedSession(sessionId);if(!session||!pair)return response({ok:false,error:'ไม่มีสิทธิ์ยืนยันข้อมูลนี้'},403);const {data:draft}=await db.from('guided_member_profile_drafts').select('*').eq('session_id',sessionId).eq('owner_member_id',memberId).eq('status','draft').maybeSingle();if(!draft)return response({ok:false,error:'ไม่พบร่างข้อมูลธุรกิจของคุณ'},404);const updates=((draft as Record<string,unknown>).proposed_updates||{}) as Record<string,unknown>,memberChanges:Record<string,unknown>={updated_at:new Date().toISOString()};if(cleanGuidedText(updates.profession,200))memberChanges.profession=cleanGuidedText(updates.profession,200);if(cleanGuidedText(updates.company_name,200))memberChanges.company_name=cleanGuidedText(updates.company_name,200);const {error}=await db.from('members').update(memberChanges).eq('id',memberId);if(error)return response({ok:false,error:'อัปเดตข้อมูลสมาชิกไม่สำเร็จ'},400);const looking=cleanGuidedText(updates.looking_for,1000);if(looking){await db.from('matching_import_rows').update({looking_for:looking}).eq('round_id',String(pair.round_id)).eq('matched_member_id',memberId);const {data:biz}=await db.from('biz_profiles').select('description').eq('member_id',memberId).maybeSingle();await db.from('biz_profiles').upsert({member_id:memberId,description:String((biz as Record<string,unknown>|null)?.description||memberChanges.profession||memberChanges.company_name||'ข้อมูลธุรกิจสมาชิก'),looking_for:looking,updated_at:new Date().toISOString()},{onConflict:'member_id'});}const now=new Date().toISOString();await db.from('guided_member_profile_drafts').update({status:'applied',approved_at:now,applied_at:now,actor_member_id:memberId,updated_at:now}).eq('id',String((draft as Record<string,unknown>).id));await db.from('one_to_one_status_events').insert({round_id:String(pair.round_id),pair_id:String(pair.id),member_id:memberId,event_type:'guided_profile_updated',actor_type:'member',actor_ref:memberId,idempotency_key:`guided-profile:${sessionId}:${memberId}`,metadata:{sessionId,fields:Object.keys(memberChanges).filter(x=>x!=='updated_at'),lookingForUpdated:Boolean(looking)}});return response({ok:true,message:'ยืนยันและอัปเดตข้อมูลธุรกิจของคุณแล้ว'});
   }
 
   if(action==='submit-guided-experience-feedback'){
@@ -151,7 +200,7 @@ Deno.serve(async (req: Request) => {
     const sessionId=String(body.sessionId||''),expectedVersion=Number(body.version||0);const {session,pair}=await ownGuidedSession(sessionId);if(!session||!pair)return response({ok:false,error:'ไม่มีสิทธิ์จบ Session นี้'},403);if(session.status==='completed')return response({ok:true,idempotent:true,session});if(expectedVersion!==Number(session.version))return response({ok:false,error:'มีข้อมูลใหม่จากอีกอุปกรณ์ กรุณาโหลดก่อนจบ Session',code:'VERSION_CONFLICT'},409);
     const content=normalizeGuidedContent(body.sharedContent),commitments=Array.isArray(content.commitments)?content.commitments as Record<string,unknown>[]:[];if(!commitments.length)return response({ok:false,error:'กรุณาเลือก Commitment อย่างน้อยหนึ่งข้อ หรือเลือก “ยังไม่มี Action ในตอนนี้”'},400);const pairIds=[String(pair.member_a_id),String(pair.member_b_id)],now=new Date().toISOString(),followUpIds:string[]=[];
     const {data:claimed,error:claimError}=await db.from('guided_one_to_one_sessions').update({status:'completed',current_step:6,shared_content:content,completed_at:now,duration_seconds:Math.max(0,Math.min(86400,Number(body.durationSeconds||session.duration_seconds||0))),updated_by_member_id:memberId,updated_at:now,version:expectedVersion+1}).eq('id',sessionId).eq('version',expectedVersion).neq('status','completed').select('*').maybeSingle();if(claimError||!claimed)return response({ok:false,error:'Session ถูกจบจากอีกอุปกรณ์แล้ว กรุณาเปิด History',code:'VERSION_CONFLICT'},409);
-    for(const item of commitments.slice(0,10)){const type=cleanGuidedText(item.type,80)||'other';if(type==='none')continue;const owner=pairIds.includes(String(item.ownerMemberId))?String(item.ownerMemberId):memberId,related=owner===pairIds[0]?pairIds[1]:pairIds[0];const {data}=await db.from('one_to_one_follow_up_actions').insert({pair_id:String(pair.id),action_type:type,description:cleanGuidedText(item.detail,1200)||null,owner_member_id:owner,related_member_id:related,due_date:cleanGuidedText(item.dueDate,10)||null}).select('id').maybeSingle();if(data)followUpIds.push(String((data as Record<string,unknown>).id));}
+    for(const item of commitments.slice(0,10)){const type=cleanGuidedText(item.type,80)||'other';if(type==='none')continue;const owner=pairIds.includes(String(item.ownerMemberId))?String(item.ownerMemberId):memberId,related=owner===pairIds[0]?pairIds[1]:pairIds[0];const {data}=await db.from('one_to_one_follow_up_actions').insert({pair_id:String(pair.id),action_type:type,description:cleanGuidedText(item.detail,1200)||null,owner_member_id:owner,related_member_id:related,due_date:cleanGuidedText(item.dueDate,10)||null,source_guided_session_id:sessionId}).select('id').maybeSingle();if(data)followUpIds.push(String((data as Record<string,unknown>).id));}
     const finalContent={...content,followUpActionIds:followUpIds};const {data}=await db.from('guided_one_to_one_sessions').update({shared_content:finalContent,version:expectedVersion+2,updated_at:new Date().toISOString()}).eq('id',sessionId).eq('version',expectedVersion+1).select('*').single();
     await db.from('one_to_one_status_events').insert({round_id:String(pair.round_id),pair_id:String(pair.id),member_id:memberId,event_type:'guided_session_completed',actor_type:'member',actor_ref:memberId,idempotency_key:`guided-completed:${sessionId}`,metadata:{sessionId,mode:String(session.session_mode),durationSeconds:Number(body.durationSeconds||0),followUpCount:followUpIds.length}});
     return response({ok:true,session:data,followUpActionIds:followUpIds,message:'บันทึก Guided 1-2-1 แล้ว ขั้นต่อไปคือ Digital Handshake และ Reflection'});
@@ -219,9 +268,23 @@ Deno.serve(async (req: Request) => {
 
   if(action==='submit-one-to-one-reflection'){
     const pairId=String(body.pairId||''),visibility=String(body.visibility||'shared');const {pair}=await ownPair(pairId);if(!pair)return response({ok:false,error:'ไม่มีสิทธิ์ส่ง Reflection คู่นี้'},403);if(!['verified','late_verified'].includes(String(pair.status)))return response({ok:false,error:'กรุณายืนยัน Digital Handshake ให้ครบก่อนตอบ Reflection'},400);if(!['shared','private_mentor'].includes(visibility))return response({ok:false,error:'ประเภท Reflection ไม่ถูกต้อง'},400);const aboutId=String(pair.member_a_id)===memberId?String(pair.member_b_id):String(pair.member_a_id);
-    const feedback={pair_id:pairId,respondent_member_id:memberId,about_member_id:aboutId,visibility,learned:String(body.learned||'').trim()||null,outcomes:Array.isArray(body.outcomes)?body.outcomes:[],next_action_type:String(body.nextActionType||'').trim()||null,next_action_detail:String(body.nextActionDetail||'').trim()||null,usefulness:body.usefulness?Number(body.usefulness):null,cooperation:body.cooperation?Number(body.cooperation):null,mentor_help:String(body.mentorHelp||'').trim()||null};const {data:existing}=await db.from('one_to_one_feedback').select('id').eq('pair_id',pairId).eq('respondent_member_id',memberId).eq('visibility',visibility).is('archived_at',null).maybeSingle();const write=existing?db.from('one_to_one_feedback').update(feedback).eq('id',String((existing as Record<string,unknown>).id)).select('id').single():db.from('one_to_one_feedback').insert(feedback).select('id').single();const {data,error}=await write;if(error)return response({ok:false,error:error.message},400);
-    if(visibility==='shared'&&feedback.next_action_type&&feedback.next_action_type!=='none')await db.from('one_to_one_follow_up_actions').insert({pair_id:pairId,action_type:feedback.next_action_type,description:feedback.next_action_detail,owner_member_id:memberId,related_member_id:aboutId,due_date:String(body.dueDate||'')||null});
-    if(visibility==='private_mentor'&&feedback.mentor_help){const feedbackId=String((data as Record<string,unknown>).id),mentorMessage=String(feedback.mentor_help);await db.from('one_to_one_attention_items').insert({member_id:memberId,pair_id:pairId,level:'mentor_review_required',reason:`สมาชิกขอคุยกับ Mentor: ${mentorMessage.length>240?mentorMessage.slice(0,237)+'...':mentorMessage}`,evidence:[{feedbackId,message:mentorMessage}],positive_context:['สมาชิกเป็นผู้ขอความช่วยเหลือด้วยตนเอง'],suggested_action:'Mentor ติดต่อสมาชิกเพื่อรับฟังและช่วยวาง Next Action'});await notifyOneToOneMentorAndMc(db,{feedbackId,pairId,memberId,memberName:String(member.name||''),nickname:String(member.nickname||''),mentorTeam:String(member.mentor_team||''),message:mentorMessage});}
+    const allowedOutcomes=new Set(['referral_opportunity','collaboration','connection','better_understanding','no_immediate_action']);const feedback={pair_id:pairId,respondent_member_id:memberId,about_member_id:aboutId,visibility,learned:cleanGuidedText(body.learned,2000)||null,outcomes:(Array.isArray(body.outcomes)?body.outcomes:[]).map(String).filter(x=>allowedOutcomes.has(x)).slice(0,10),next_action_type:cleanGuidedText(body.nextActionType,80)||null,next_action_detail:cleanGuidedText(body.nextActionDetail,1200)||null,usefulness:body.usefulness?Math.max(1,Math.min(5,Number(body.usefulness))):null,cooperation:body.cooperation?Math.max(1,Math.min(5,Number(body.cooperation))):null,mentor_help:cleanGuidedText(body.mentorHelp,2000)||null};const {data:existing}=await db.from('one_to_one_feedback').select('id').eq('pair_id',pairId).eq('respondent_member_id',memberId).eq('visibility',visibility).is('archived_at',null).maybeSingle();const write=existing?db.from('one_to_one_feedback').update(feedback).eq('id',String((existing as Record<string,unknown>).id)).select('id').single():db.from('one_to_one_feedback').insert(feedback).select('id').single();const {data,error}=await write;if(error)return response({ok:false,error:error.message},400);
+    const feedbackId=String((data as Record<string,unknown>).id);
+    if(visibility==='shared'){
+      const nextType=String(feedback.next_action_type||'');
+      if(nextType&&nextType!=='none'){
+        const {data:existingFollow}=await db.from('one_to_one_follow_up_actions').select('status,completed_at').eq('source_feedback_id',feedbackId).maybeSingle();const completed=String((existingFollow as Record<string,unknown>|null)?.status||'')==='completed';
+        const {error:followError}=await db.from('one_to_one_follow_up_actions').upsert({pair_id:pairId,action_type:nextType,description:feedback.next_action_detail,owner_member_id:memberId,related_member_id:aboutId,due_date:String(body.dueDate||'')||null,status:completed?'completed':'pending',completed_at:completed?(existingFollow as Record<string,unknown>).completed_at:null,source_feedback_id:feedbackId,updated_at:new Date().toISOString()},{onConflict:'source_feedback_id'});if(followError)return response({ok:false,error:'บันทึก Reflection แล้ว แต่ยังสร้างรายการติดตามไม่สำเร็จ กรุณากดบันทึกอีกครั้ง'},500);
+      }else{
+        await db.from('one_to_one_follow_up_actions').update({status:'cancelled',updated_at:new Date().toISOString()}).eq('source_feedback_id',feedbackId).in('status',['pending','in_progress','overdue']);
+      }
+    }
+    if(visibility==='private_mentor'&&feedback.mentor_help){
+      const mentorMessage=String(feedback.mentor_help),now=new Date().toISOString();
+      const {data:existingCare}=await db.from('one_to_one_attention_items').select('id').eq('source_feedback_id',feedbackId).maybeSingle();
+      const {error:careError}=await db.from('one_to_one_attention_items').upsert({member_id:memberId,pair_id:pairId,level:'mentor_review_required',reason:`สมาชิกขอคุยกับ Mentor: ${mentorMessage.length>240?mentorMessage.slice(0,237)+'...':mentorMessage}`,evidence:[{feedbackId,message:mentorMessage}],positive_context:['สมาชิกเป็นผู้ขอความช่วยเหลือด้วยตนเอง'],suggested_action:'Mentor ติดต่อสมาชิกเพื่อรับฟังและช่วยวาง Next Action',source_feedback_id:feedbackId,status:'open',resolved_at:null,updated_at:now},{onConflict:'source_feedback_id'});if(careError)return response({ok:false,error:'บันทึกข้อความแล้ว แต่ยังส่งเข้าคิว Mentor ไม่สำเร็จ กรุณากดส่งอีกครั้ง'},500);
+      if(shouldCreateMentorNotification(String((existingCare as Record<string,unknown>|null)?.id||'')))await notifyOneToOneMentorAndMc(db,{feedbackId,pairId,memberId,memberName:String(member.name||''),nickname:String(member.nickname||''),mentorTeam:String(member.mentor_team||''),message:mentorMessage});
+    }
     return response({ok:true,message:visibility==='shared'?'บันทึก Reflection และ Next Action แล้ว':'ส่งข้อความส่วนตัวถึง Mentor แล้ว อีกฝ่ายจะไม่เห็นข้อความนี้'});
   }
 

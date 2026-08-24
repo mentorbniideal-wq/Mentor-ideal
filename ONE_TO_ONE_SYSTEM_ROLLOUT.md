@@ -1,5 +1,15 @@
 # BNI IDEAL 1-2-1 System — Architecture and Rollout
 
+## Workflow hardening — 2026-08-24
+
+Migration `20260824000063_one_to_one_workflow_hardening.sql` links Reflection-derived Follow-up and Mentor Attention records back to their source Feedback, so editing a Reflection updates the existing work item instead of creating duplicates. Guided Commitments carry their source Session, Referral Trigger writes accept an idempotent client action ID, and `biz_profiles.looking_for` is the canonical fallback when a weekly import has no current value.
+
+Pilot controls are now explicit: Chapter Rollout controls notification eligibility, Access Gate optionally limits MY121 to selected Pilot Members, and Emergency Stop blocks member writes while preserving read-only access. Access Gate defaults off to avoid locking out existing Production users during migration.
+
+MC Member History and Mentor Mobile Journey include Guided mode, duration, shared content, approved Referral Triggers, and Introduction Scripts. Private Guided Notes are never returned. Members can approve or archive Referral Triggers that belong to them. Legacy `one_to_one_logs` are included in the member Journey totals.
+
+Offline behavior remains intentionally bounded: Shared Guided content, Private Notes, and Referral Trigger drafts can recover/sync after connectivity returns. Completion, Digital Handshake, Profile confirmation, and Reflection still require a live server response because they create verified or permission-sensitive records. Realtime presence remains deferred; optimistic version conflict remains the safe multi-device behavior.
+
 ## Guided 1-2-1 Session — 2026-08-23
 
 Guided Session extends the existing `matching_pairs` workflow; it does not replace Pair Matching, Digital Handshake, Reflection, Follow-up, LINE notification control, or status history.
