@@ -2651,23 +2651,23 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
     <div id="mc-copilot" class="sec">
       <div style="max-width:780px;margin:0 auto;height:calc(100vh - 130px);display:flex;flex-direction:column">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-shrink:0">
-          <h2 style="font-size:14px;font-weight:700;margin:0">🤖 AI Copilot</h2>
-          <span style="font-size:12px;color:var(--sub)">ถามคำถามเกี่ยวกับ Chapter — AI จะตอบโดยอิงข้อมูลจริง</span>
+          <h2 style="font-size:14px;font-weight:700;margin:0">🤖 Mentor Intelligence Copilot</h2>
+          <span style="font-size:12px;color:var(--sub)">ช่วยหาสัญญาณ จัดลำดับ และเตรียมการดูแลจากข้อมูลจริง</span>
           <button onclick="copilotClear()" style="margin-left:auto;background:transparent;border:1px solid var(--bd);color:var(--sub);padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit">🗑 ล้าง</button>
         </div>
         <!-- Chat messages -->
         <div id="cop-msgs" style="flex:1;overflow-y:auto;background:var(--sf2);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px;margin-bottom:10px">
           <div id="cop-empty" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--sub);gap:8px;text-align:center">
             <div style="font-size:2rem">🤖</div>
-            <div style="font-size:13px;font-weight:600">ถามอะไรก็ได้เกี่ยวกับ Chapter</div>
-            <div style="font-size:12px;opacity:.7">เช่น "ใครเสี่ยงสูงสุดเดือนนี้?", "ทีม TOOMTAM เป็นยังไงบ้าง?", "ใครควร Renew แล้ว?"</div>
+            <div style="font-size:13px;font-weight:600">เริ่มจากสิ่งที่ Mentor ต้องตัดสินใจ</div>
+            <div style="font-size:12px;opacity:.7">Copilot จะบอกทั้งหลักฐาน ข้อมูลที่ยังขาด และก้าวต่อไปที่ทำได้จริง</div>
             <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:10px" id="cop-suggestions">
-              <button onclick="copilotSend(this.textContent)" class="bsm" style="font-size:11px">ใครคะแนนต่ำสุด 5 คน?</button>
-              <button onclick="copilotSend(this.textContent)" class="bsm" style="font-size:11px">ทีมไหนแข็งแกร่งที่สุด?</button>
-              <button onclick="copilotSend(this.textContent)" class="bsm" style="font-size:11px">ใครเสี่ยง Renewal ใน 45 วัน?</button>
-              <button onclick="copilotSend(this.textContent)" class="bsm" style="font-size:11px">สรุป Chapter Overview</button>
-              <button onclick="copilotSend(this.textContent)" class="bsm" style="font-size:11px">ใครขาด Visitor มากที่สุด?</button>
-              <button onclick="copilotSend(this.textContent)" class="bsm" style="font-size:11px">ใครไม่มี Core Issue แต่คะแนนตก?</button>
+              <button onclick="copilotSend(this.textContent)" class="bsm" style="font-size:11px">วันนี้ควรดูแลใครก่อน เพราะอะไร?</button>
+              <button onclick="copilotSend(this.textContent)" class="bsm" style="font-size:11px">สรุปงานค้างของทีมและจัดลำดับ</button>
+              <button onclick="copilotSend(this.textContent)" class="bsm" style="font-size:11px">ใครมีสัญญาณเสี่ยงซ้อนกันมากที่สุด?</button>
+              <button onclick="copilotSend(this.textContent)" class="bsm" style="font-size:11px">ช่วยวางแผนคุยกับสมาชิกที่ต้องดูแลที่สุด</button>
+              <button onclick="copilotSend(this.textContent)" class="bsm" style="font-size:11px">ใครเสี่ยง Renewal ใน 45 วัน และควรถามอะไร?</button>
+              <button onclick="copilotSend(this.textContent)" class="bsm" style="font-size:11px">ร่างข้อความติดตามแบบอบอุ่น ห้ามส่งจริง</button>
             </div>
           </div>
         </div>
@@ -2680,7 +2680,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
           <button id="cop-send-btn" onclick="copilotSend()"
             style="background:var(--ac);color:#000;border:none;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;align-self:flex-end">ส่ง</button>
         </div>
-        <div style="font-size:10px;color:var(--sub);text-align:center;margin-top:6px">AI อ้างอิงข้อมูลจริงจาก Chapter — คำตอบเป็นข้อเสนอแนะ ไม่ใช่การสั่งการ</div>
+        <div style="font-size:10px;color:var(--sub);text-align:center;margin-top:6px">Read-only · ไม่ส่ง LINE ไม่แก้ข้อมูล · คำตอบเป็นข้อเสนอแนะที่ต้องใช้วิจารณญาณของ Mentor</div>
       </div>
     </div>
 
@@ -13231,16 +13231,29 @@ function copilotSend(preset) {
   var btn = document.getElementById('cop-send-btn');
   btn.disabled = true;
 
-  gsr('askCopilot', { question: text }, function(r) {
+  var requestHistory=_copHistory.slice(-6);
+  _copHistory.push({role:'user',content:text});
+  gsr('askCopilot', { question: text, history: requestHistory }, function(r) {
     btn.disabled = false;
     var el = document.getElementById(loadId);
     if (el) el.remove();
     if (r.ok && r.answer) {
       copAppendBubble('bot', r.answer);
+      _copHistory.push({role:'assistant',content:r.answer});
+      if(r.grounding) copAppendGrounding(r.grounding);
     } else {
       copAppendBubble('bot', '❌ ' + (r.error || 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง'));
     }
   });
+}
+
+function copAppendGrounding(g){
+  var msgs=document.getElementById('cop-msgs');
+  if(!msgs)return;
+  var el=document.createElement('div');
+  el.style.cssText='align-self:flex-start;margin-left:36px;font-size:10px;color:var(--sub);background:var(--sf2);border:1px solid var(--bd);border-radius:999px;padding:4px 9px';
+  el.textContent='🔎 อิง '+Number(g.memberCount||0)+' สมาชิก · '+(g.teamScope==='chapter'?'Chapter':g.teamScope||'ตามสิทธิ์')+' · Read-only';
+  msgs.appendChild(el);
 }
 
 function copAppendBubble(role, text, id) {
@@ -13268,10 +13281,11 @@ function copAppendBubble(role, text, id) {
 }
 
 function copilotClear() {
+  _copHistory=[];
   var msgs = document.getElementById('cop-msgs');
   msgs.innerHTML = '';
   // Re-add empty state
-  msgs.innerHTML = '<div id="cop-empty" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--sub);gap:8px;text-align:center"><div style="font-size:2rem">🤖</div><div style="font-size:13px;font-weight:600">ถามอะไรก็ได้เกี่ยวกับ Chapter</div><div id="cop-suggestions" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:10px"><button onclick="copilotSend(this.textContent)" class="bsm" style="font-size:11px">ใครคะแนนต่ำสุด 5 คน?</button><button onclick="copilotSend(this.textContent)" class="bsm" style="font-size:11px">ทีมไหนแข็งแกร่งที่สุด?</button><button onclick="copilotSend(this.textContent)" class="bsm" style="font-size:11px">ใครเสี่ยง Renewal ใน 45 วัน?</button><button onclick="copilotSend(this.textContent)" class="bsm" style="font-size:11px">สรุป Chapter Overview</button></div></div>';
+  msgs.innerHTML = '<div id="cop-empty" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--sub);gap:8px;text-align:center"><div style="font-size:2rem">🤖</div><div style="font-size:13px;font-weight:600">เริ่มจากสิ่งที่ Mentor ต้องตัดสินใจ</div><div id="cop-suggestions" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:10px"><button onclick="copilotSend(this.textContent)" class="bsm" style="font-size:11px">วันนี้ควรดูแลใครก่อน เพราะอะไร?</button><button onclick="copilotSend(this.textContent)" class="bsm" style="font-size:11px">สรุปงานค้างและจัดลำดับ</button><button onclick="copilotSend(this.textContent)" class="bsm" style="font-size:11px">ช่วยวางแผนคุยกับสมาชิกที่ต้องดูแลที่สุด</button></div></div>';
 }
 
 // ── BNI Events Calendar ─────────────────────────────────────────────

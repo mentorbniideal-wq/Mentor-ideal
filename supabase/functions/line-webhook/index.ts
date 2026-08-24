@@ -20,6 +20,7 @@ import {
 import { commandCardFlex, memberScoreFlex, nextColorAdvice, type CardAction } from '../_shared/line-flex.ts';
 import { trackLineEvent } from '../_shared/analytics.ts';
 import { runCopilot } from '../_shared/copilot.ts';
+import { buildMemberCopilotContext } from '../_shared/copilot-context.ts';
 import { teamCommandMode, type LineRole } from '../_shared/line-roles.ts';
 import { parseLineCommand, type LineCommand } from '../_shared/line-commands.ts';
 import { notifyAbsenceStakeholders } from '../_shared/line-absence-notify.ts';
@@ -189,20 +190,17 @@ async function handleEvent(
   if (memberName && (normalized.startsWith('ถาม ') || normalized.startsWith('copilot ')) && ev.replyToken) {
     const question = text.replace(/^(ถาม|copilot)\s+/i, '').trim();
     const memberData = await getMemberData(db, memberName);
-    const context: Record<string, unknown> = role === 'member'
-      ? { member: memberData }
-      : {
-          actor: { role, memberName },
-          ownMember: memberData,
-          team: role === 'mentor'
-            ? await getMentorTeamContext(db, String((lineRec as any)?.members?.mentor_team || ''))
-            : undefined,
-          chapter: role && ['mc', 'growth'].includes(role) ? await getChapterContext(db) : undefined,
-        };
+    // LINE intentionally remains personal scope for every account, including Mentors.
+    // Team/chapter analysis belongs to authenticated Desktop Copilot.
+    const context = await buildMemberCopilotContext(
+      db,
+      String(lineRec?.member_id || ''),
+      memberData || {},
+    );
     const answer = await runCopilot({
       db,
       question,
-      actorRole: role || 'member',
+      actorRole: 'member',
       source: 'line',
       context,
       memberId: lineRec?.member_id ? String(lineRec.member_id) : null,
@@ -403,6 +401,7 @@ function quickRepliesFor(
     qr('🤝 แนะนำ', 'แนะนำ'),
     qr('🎯 เป้า', 'เป้า'),
     qr('📋 Blueprint', 'Blueprint'),
+    qr('🤖 ถาม AI', 'ถาม AI ช่วยวางแผนสัปดาห์นี้'),
     qr('🙋 ลา', 'ลา'),
     qr('💬 คุยกับ Mentor', 'คุยกับ Mentor'),
     qr('🧭 ช่วยเหลือ', 'ช่วยเหลือ'),
