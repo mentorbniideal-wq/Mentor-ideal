@@ -17,3 +17,7 @@ export function derivePairNextAction(x:PairActionSnapshot){
   if(x.openFollowUps)return{code:'follow_up',title:'ติดตาม Commitment ที่ตกลงกัน',detail:`มี Follow-up ค้าง ${x.openFollowUps} รายการ`,memberIds:[],tone:'warning'};
   return{code:'complete',title:'คู่นี้ดำเนินการครบแล้ว',detail:'ไม่มี Action ค้างในขณะนี้',memberIds:[],tone:'success'};
 }
+
+export function pairStatusAfterContact(current:string){
+  return ['matched','unable_to_contact','overdue'].includes(current)?'contacted':current;
+}

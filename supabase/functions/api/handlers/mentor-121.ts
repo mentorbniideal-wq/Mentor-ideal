@@ -3,7 +3,7 @@ import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts
 import { generateHandshakeCode, handshakeCodeHash } from '../../_shared/one-to-one.ts';
 import { linePush, linePushMessages } from '../../_shared/line.ts';
 import { evaluateNotificationGuard, logSuppressedNotification } from '../../_shared/notification-orchestrator.ts';
-import { derivePairNextAction } from '../../_shared/one-to-one-pair-action.ts';
+import { derivePairNextAction, pairStatusAfterContact } from '../../_shared/one-to-one-pair-action.ts';
 
 const ROLES=['mc','toomtam','aof','draft','phai','amp'];
 const activeStatuses=['matched','contacted','scheduled','confirmed_schedule','awaiting_verification','partially_verified','overdue','unable_to_contact','missed_appointment'];
@@ -19,7 +19,7 @@ export async function handleMentor121(p:Record<string,unknown>):Promise<Response
     const ids=[String(row.member_a_id),String(row.member_b_id)];
     const [{data:deliveries},{data:schedules},{data:verifications},{data:guided},{data:feedback},{data:followups},{data:attention},{data:events},{data:questions}]=await Promise.all([
       db.from('line_message_deliveries').select('id,member_id,status,notification_type,sent_at,created_at,suppression_reason,last_error').eq('matching_pair_id',pairId).eq('module','one_to_one').order('created_at',{ascending:false}).limit(50),
-      db.from('one_to_one_schedules').select('id,starts_at,status,proposed_by_member_id,confirmed_by_a_at,confirmed_by_b_at,updated_at').eq('pair_id',pairId).order('updated_at',{ascending:false}).limit(5),
+      db.from('one_to_one_schedules').select('id,starts_at,status,proposed_by,confirmed_by_a_at,confirmed_by_b_at,updated_at').eq('pair_id',pairId).order('updated_at',{ascending:false}).limit(5),
       db.from('one_to_one_verifications').select('member_id,flow_started_at,verified_partner_code_at,code_expires_at').eq('pair_id',pairId),
       db.from('guided_one_to_one_sessions').select('id,session_mode,status,current_step,current_speaker_member_id,started_at,paused_at,completed_at,duration_seconds,updated_at').eq('pair_id',pairId).order('updated_at',{ascending:false}).limit(1),
       db.from('one_to_one_feedback').select('id,respondent_member_id,visibility,mentor_help,created_at').eq('pair_id',pairId).is('archived_at',null),
@@ -41,7 +41,7 @@ export async function handleMentor121(p:Record<string,unknown>):Promise<Response
     const {data:pair}=await db.from('matching_pairs').select('id,round_id,status,member_a_id,member_b_id,member_a:members!matching_pairs_member_a_id_fkey(id,mentor_team),member_b:members!matching_pairs_member_b_id_fkey(id,mentor_team)').eq('id',pairId).is('archived_at',null).maybeSingle();const row=pair as Record<string,unknown>|null;
     if(!row||(!inScope(row.member_a as Record<string,unknown>)&&!inScope(row.member_b as Record<string,unknown>)))return errResponse('ไม่พบคู่ในขอบเขตที่คุณดูแล',403);
     const changes:Record<string,unknown>={};let eventType='pair_operation_updated';
-    if(operation==='contacted'){changes.status='contacted';changes.last_contacted_at=new Date().toISOString();changes.last_contacted_by=String(auth.role);eventType='pair_contacted';}
+    if(operation==='contacted'){const nextStatus=pairStatusAfterContact(String(row.status));if(nextStatus!==String(row.status))changes.status=nextStatus;changes.last_contacted_at=new Date().toISOString();changes.last_contacted_by=String(auth.role);eventType='pair_contacted';}
     else if(operation==='unable_to_contact'){changes.status='unable_to_contact';changes.last_contacted_at=new Date().toISOString();changes.last_contacted_by=String(auth.role);eventType='pair_unable_to_contact';}
     else if(operation==='assign'){changes.care_owner_role=ownerRole;eventType='pair_care_assigned';}
     else if(operation==='snooze'){const until=new Date(String(p.snoozedUntil||''));if(!Number.isFinite(until.getTime())||until<=new Date())return errResponse('กรุณาเลือกเวลาติดตามที่อยู่ในอนาคต');changes.care_snoozed_until=until.toISOString();eventType='pair_care_snoozed';}
@@ -56,10 +56,10 @@ export async function handleMentor121(p:Record<string,unknown>):Promise<Response
     const pairId=String(p.pairId||''),scheduleId=String(p.scheduleId||''),operation=String(p.operation||''),reason=String(p.reason||'').trim().slice(0,500);const startsAt=new Date(String(p.startsAt||''));
     const {data:pair}=await db.from('matching_pairs').select('id,member_a:members!matching_pairs_member_a_id_fkey(id,mentor_team),member_b:members!matching_pairs_member_b_id_fkey(id,mentor_team)').eq('id',pairId).maybeSingle();const row=pair as Record<string,unknown>|null;if(!row||(!inScope(row.member_a as Record<string,unknown>)&&!inScope(row.member_b as Record<string,unknown>)))return errResponse('ไม่พบคู่ในขอบเขตที่คุณดูแล',403);
     const changes:Record<string,unknown>={change_reason:reason||null,changed_by:String(auth.role),updated_at:new Date().toISOString()};
-    if(operation==='reschedule'){if(!Number.isFinite(startsAt.getTime())||startsAt<=new Date())return errResponse('กรุณาเลือกวันนัดใหม่ในอนาคต');changes.starts_at=startsAt.toISOString();changes.status='rescheduled';}
+    if(operation==='reschedule'){if(!Number.isFinite(startsAt.getTime())||startsAt<=new Date())return errResponse('กรุณาเลือกวันนัดใหม่ในอนาคต');changes.starts_at=startsAt.toISOString();changes.status='proposed';changes.confirmed_by_a_at=null;changes.confirmed_by_b_at=null;}
     else if(operation==='missed'){changes.status='missed';}
     else if(operation==='cancel'){changes.status='cancelled';}else return errResponse('คำสั่งนัดหมายไม่ถูกต้อง');
-    const {error}=await db.from('one_to_one_schedules').update(changes).eq('id',scheduleId).eq('pair_id',pairId);if(error)return errResponse(error.message);await db.from('one_to_one_status_events').insert({pair_id:pairId,event_type:`schedule_${operation}`,actor_type:auth.isMC?'mc':'mentor',actor_ref:String(auth.role),metadata:{scheduleId,reason:reason||null,startsAt:changes.starts_at||null}});return jsonResponse({ok:true,operation});
+    const {error}=await db.from('one_to_one_schedules').update(changes).eq('id',scheduleId).eq('pair_id',pairId);if(error)return errResponse(error.message);const pairStatus=operation==='reschedule'?'scheduled':operation==='missed'?'missed_appointment':'matched';const {error:pairError}=await db.from('matching_pairs').update({status:pairStatus}).eq('id',pairId);if(pairError)return errResponse('อัปเดตนัดแล้ว แต่สถานะคู่ไม่สำเร็จ กรุณารีเฟรชและลองอีกครั้ง');await db.from('one_to_one_status_events').insert({pair_id:pairId,event_type:`schedule_${operation}`,actor_type:auth.isMC?'mc':'mentor',actor_ref:String(auth.role),metadata:{scheduleId,reason:reason||null,startsAt:changes.starts_at||null,pairStatus}});return jsonResponse({ok:true,operation,pairStatus});
   }
 
   if(action==='updateOneToOneReferralOutcome'){
@@ -90,7 +90,7 @@ export async function handleMentor121(p:Record<string,unknown>):Promise<Response
 
   if(action==='getMentorOneToOneCare'){
     const [{data:attention},{data:pairs},{data:followUps},{data:feedback}]=await Promise.all([
-      db.from('one_to_one_attention_items').select('id,pair_id,member_id,level,reason,evidence,suggested_action,status,due_date,created_at,assigned_role,member:members(id,name,nickname,mentor_team)').in('status',['open','reviewed','snoozed']).order('created_at',{ascending:false}).limit(200),
+      db.from('one_to_one_attention_items').select('id,pair_id,member_id,level,reason,evidence,suggested_action,status,due_date,created_at,assigned_role,member:members(id,name,nickname,mentor_team)').in('status',['open','reviewed','in_progress','waiting_member','snoozed']).order('created_at',{ascending:false}).limit(200),
       db.from('matching_pairs').select('id,status,created_at,member_a_id,member_b_id,round:matching_rounds(meeting_date,ends_at),member_a:members!matching_pairs_member_a_id_fkey(id,name,nickname,mentor_team),member_b:members!matching_pairs_member_b_id_fkey(id,name,nickname,mentor_team),schedules:one_to_one_schedules(id,starts_at,status)').in('status',[...activeStatuses,'verified','late_verified']).is('archived_at',null).order('created_at',{ascending:false}).limit(200),
       db.from('one_to_one_follow_up_actions').select('id,pair_id,action_type,description,due_date,status,owner:members!one_to_one_follow_up_actions_owner_member_id_fkey(id,name,nickname,mentor_team),related:members!one_to_one_follow_up_actions_related_member_id_fkey(id,name,nickname)').in('status',['pending','in_progress','overdue']).order('due_date',{ascending:true}).limit(200),
       db.from('one_to_one_feedback').select('id,pair_id,respondent_member_id,outcomes,next_action_type,next_action_detail,created_at,respondent:members!one_to_one_feedback_respondent_member_id_fkey(id,name,nickname,mentor_team),about:members!one_to_one_feedback_about_member_id_fkey(id,name,nickname,profession,company_name)').eq('visibility','shared').is('archived_at',null).order('created_at',{ascending:false}).limit(200),
