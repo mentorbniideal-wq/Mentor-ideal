@@ -1244,6 +1244,7 @@ function moveMemberTeamDlg(name,currentTeam,memberId){
       if(r2.ok){D.mem=r2.members||[];D.sm=r2.summary||{};D.teams=r2.teams||[];D.ren=r2.renewal||[];buildMCFilters();}
       renderMem();renderKPI();renderDonut();renderMTTeams();renderCoach();renderRisk();
     });
+    if(MTM&&MTM.loaded){MTM.selected={};MTM.loaded=false;loadMentorTeamManager(true);}
   });
 }
 function cb(pts,max,color){var f=Math.min(100,Math.round((pts||0)/max*100));return'<div style="display:flex;align-items:center;gap:3px"><span style="font-size:10px;font-weight:600;width:16px;text-align:right">'+(pts||0)+'</span><div class="cb"><div class="cf" style="width:'+f+'%;background:'+color+'"></div></div></div>';}
@@ -1380,6 +1381,114 @@ function renderMTTeams(){
 // ── App Activity Log ────────────────────────────────────────────
 var _usageData=null,_usageLoaded=false;
 var MENTOR_TEAMS=['TOOMTAM','Aof','Draft','PHAI','AMP'];
+
+// ── Mentor Team Manager ───────────────────────────────────────
+// members.mentor_team remains the source of truth. This view never deletes a
+// member; "ถอนออก" only clears the team assignment and preserves all history.
+var MTM={loaded:false,loading:false,teams:{},history:[],selected:{}};
+function mtmAllMembers(){
+  var keys=MENTOR_TEAMS.concat(['unassigned']),seen={};
+  return keys.reduce(function(out,key){
+    return out.concat((MTM.teams[key]||[]).filter(function(m){
+      var id=String(m.id||'');if(!id||seen[id])return false;seen[id]=true;
+      m._team=key==='unassigned'?'':key;return true;
+    }));
+  },[]);
+}
+function loadMentorTeamManager(force){
+  var board=document.getElementById('team-manager-board');
+  if(!board)return;
+  if(MTM.loading)return;
+  if(MTM.loaded&&!force){renderMentorTeamManager();return;}
+  MTM.loading=true;
+  board.innerHTML='<div class="team-manager-loading">กำลังโหลดสมาชิก…</div>';
+  gsr('getMembersByTeam',{role:'mc'},function(r){
+    MTM.loading=false;
+    if(!r||!r.ok){board.innerHTML='<div class="team-manager-loading" style="color:var(--re)">โหลดรายชื่อไม่สำเร็จ · '+esc(r&&r.error||'กรุณาลองใหม่')+'</div>';return;}
+    MTM.teams=r.teams||{};MTM.loaded=true;
+    renderMentorTeamManager();
+  });
+  gsr('getTeamMoveHistory',{role:'mc'},function(r){
+    if(r&&r.ok){MTM.history=r.history||[];renderMentorTeamHistory();}
+  });
+}
+function mtmTeamLabel(team){return team||'ยังไม่มีทีม';}
+function mtmMoveOptions(current){
+  var html='<option value="">ย้าย…</option>';
+  MENTOR_TEAMS.forEach(function(team){if(team!==current)html+='<option value="'+team+'">'+team+'</option>';});
+  if(current)html+='<option value="__NONE__">ถอนออกจากทีม</option>';
+  return html;
+}
+function renderMentorTeamManager(){
+  var board=document.getElementById('team-manager-board');if(!board||!MTM.loaded)return;
+  var query=((document.getElementById('team-manager-search')||{}).value||'').trim().toLowerCase();
+  var filter=((document.getElementById('team-manager-filter')||{}).value||'all');
+  var all=mtmAllMembers(),unassigned=all.filter(function(m){return !m._team;}).length;
+  var stats=document.getElementById('team-manager-stats');
+  if(stats)stats.innerHTML='<div><b>'+all.length+'</b><span>สมาชิกทั้งหมด</span></div><div><b>'+MENTOR_TEAMS.length+'</b><span>ทีมที่ใช้งาน</span></div><div class="'+(unassigned?'warn':'')+'"><b>'+unassigned+'</b><span>ยังไม่มีทีม</span></div><div><b>'+Object.keys(MTM.selected).length+'</b><span>เลือกไว้</span></div>';
+  var keys=filter==='all'?MENTOR_TEAMS.concat(['unassigned']):[filter];
+  board.innerHTML=keys.map(function(key){
+    var team=key==='unassigned'?'':key;
+    var list=(MTM.teams[key]||[]).filter(function(m){
+      var hay=((m.name||'')+' '+(m.nickname||m.nick||'')).toLowerCase();return !query||hay.indexOf(query)>=0;
+    }).sort(function(a,b){return String(a.name||'').localeCompare(String(b.name||''),'th');});
+    var rows=list.length?list.map(function(m){
+      var id=String(m.id||''),checked=MTM.selected[id]?' checked':'';
+      return '<div class="team-manager-member">'+
+        '<label><input type="checkbox"'+checked+' onchange="toggleMentorTeamMember(\''+id+'\',this.checked)"><span><strong>'+esc(m.nickname||m.nick||m.name||'ไม่ระบุชื่อ')+'</strong><small>'+esc(m.name||'')+(m.latest_score!=null?' · '+esc(m.latest_score)+' คะแนน':'')+'</small></span></label>'+
+        '<select aria-label="ย้าย '+esc(m.nickname||m.name||'สมาชิก')+'" onchange="quickMoveMentorTeam(\''+id+'\',this.value);this.value=\'\'">'+mtmMoveOptions(team)+'</select>'+
+      '</div>';
+    }).join(''):'<div class="team-manager-empty">'+(query?'ไม่พบสมาชิกที่ค้นหา':'ยังไม่มีสมาชิก')+'</div>';
+    return '<section class="team-manager-column"><header><div><b>'+esc(mtmTeamLabel(team))+'</b><span>'+list.length+' คน</span></div>'+(list.length?'<button type="button" onclick="selectMentorTeamColumn(\''+key+'\')">เลือกทั้งหมด</button>':'')+'</header>'+rows+'</section>';
+  }).join('');
+  updateMentorTeamSelection();
+}
+function toggleMentorTeamMember(id,checked){
+  if(checked)MTM.selected[id]=true;else delete MTM.selected[id];updateMentorTeamSelection();
+}
+function selectMentorTeamColumn(key){
+  (MTM.teams[key]||[]).forEach(function(m){if(m.id)MTM.selected[String(m.id)]=true;});renderMentorTeamManager();
+}
+function updateMentorTeamSelection(){
+  var n=Object.keys(MTM.selected).length,count=document.getElementById('team-manager-selected'),btn=document.getElementById('team-manager-move');
+  if(count)count.textContent=n;if(btn)btn.disabled=!n;
+}
+function mtmMember(id){return mtmAllMembers().find(function(m){return String(m.id)===String(id);});}
+function quickMoveMentorTeam(id,value){
+  if(!value)return;var member=mtmMember(id),target=value==='__NONE__'?'':value;
+  var name=member&&(member.nickname||member.name)||'สมาชิก';
+  if(!confirm((target?'ย้าย ':'ถอน ')+name+(target?' ไปทีม '+target+'?':' ออกจากทีม?')+'\n\nคะแนน ประวัติ และข้อมูลเดิมจะไม่ถูกลบ'))return;
+  gsr('moveMemberToTeam',{role:'mc',memberId:id,memberName:member&&member.name||'',targetTeam:target,note:'Mentor Team Manager · single move'},function(r){
+    if(!r||!r.ok){toast('❌ '+(r&&r.error||'เปลี่ยนทีมไม่สำเร็จ'),'err');return;}
+    toast('✅ อัปเดตทีมของ '+name+' แล้ว','ok');delete MTM.selected[id];refreshMentorTeamManager();
+  });
+}
+function bulkMoveMentorTeam(){
+  var ids=Object.keys(MTM.selected);if(!ids.length)return;
+  var target=(document.getElementById('team-manager-target')||{}).value||'';
+  var action=target?'ย้ายไปทีม '+target:'ถอนออกจากทีม';
+  if(!confirm(action+' จำนวน '+ids.length+' คน?\n\nระบบจะเก็บประวัติเดิมทั้งหมด และข้ามคนที่อยู่ทีมปลายทางแล้ว'))return;
+  var btn=document.getElementById('team-manager-move');if(btn)btn.disabled=true;
+  gsr('bulkMoveMembersToTeam',{role:'mc',memberIds:ids,targetTeam:target,note:'Mentor Team Manager · bulk move'},function(r){
+    if(!r||!r.ok){toast('❌ '+(r&&r.error||'ย้ายทีมไม่สำเร็จ'),'err');updateMentorTeamSelection();return;}
+    toast('✅ อัปเดตทีมแล้ว '+(r.moved_count||0)+' คน'+(r.unchanged_count?' · อยู่ทีมเดิม '+r.unchanged_count+' คน':''),'ok');
+    MTM.selected={};refreshMentorTeamManager();
+  });
+}
+function refreshMentorTeamManager(){
+  MTM.loaded=false;loadMentorTeamManager(true);
+  gsr('getDesktopDashboard',{role:'mc'},function(r){
+    if(!r||!r.ok)return;D.mem=r.members||[];D.sm=r.summary||{};D.teams=r.teams||[];D.ren=r.renewal||[];
+    buildMCFilters();renderMem();renderKPI();renderDonut();renderMTTeams();renderCoach();renderRisk();
+  });
+}
+function renderMentorTeamHistory(){
+  var el=document.getElementById('team-manager-history');if(!el)return;
+  el.innerHTML=MTM.history.length?MTM.history.slice(0,30).map(function(h){
+    var member=h.members||{},when=h.moved_at?new Date(h.moved_at).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'}):'';
+    return '<div class="team-manager-history-row"><div><b>'+esc(member.nickname||member.name||'สมาชิก')+'</b><span>'+esc(h.from_team||'ไม่มีทีม')+' → '+esc(h.to_team||'ไม่มีทีม')+'</span></div><small>'+esc(when)+' · '+esc(h.moved_by_role||'ผู้ดูแล')+'</small></div>';
+  }).join(''):'<div class="team-manager-empty">ยังไม่มีประวัติการย้ายทีม</div>';
+}
 
 function nmTestLog(){
   gsr('logUsage',{role:S.role,team:S.role,platform:'desktop-test',logAction:'test',detail:'Manual test from Activity tab'},function(r){

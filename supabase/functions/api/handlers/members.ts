@@ -1102,6 +1102,24 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       return jsonResponse({ ...result, warnings: [] });
     }
 
+    case 'bulkMoveMembersToTeam': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const memberIds = [...new Set((Array.isArray(p.memberIds) ? p.memberIds : []).map(String).filter(id => /^[0-9a-f-]{36}$/i.test(id)))];
+      if (!memberIds.length || memberIds.length > 100) return errResponse('กรุณาเลือกสมาชิก 1–100 คน');
+      const targetTeam = normalizeTeam(p.targetTeam);
+      if (targetTeam !== null && !VALID_TEAMS.has(targetTeam)) return errResponse('ทีมปลายทางไม่ถูกต้อง');
+      const note = textValue(p.note).slice(0, 500) || `Bulk team move via Mentor Team Manager`;
+      const { data, error } = await db.rpc('fn_bulk_move_members_team', {
+        p_member_ids: memberIds,
+        p_target_team: targetTeam,
+        p_moved_by: String(auth.displayName || auth.role || 'mc'),
+        p_note: note,
+      });
+      if (error) return errResponse(error.message);
+      return jsonResponse(data as Record<string, unknown>);
+    }
+
     // ── GET: team move history for a member ──────────────────
     case 'getTeamHistory': {
       const auth = await requireAuth(db, p, ['mc']);
@@ -1118,6 +1136,16 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
         .limit(20);
       if (error) return errResponse(error.message);
       return jsonResponse({ ok: true, history: data });
+    }
+
+    case 'getTeamMoveHistory': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const { data, error } = await db.from('member_team_history')
+        .select('id,member_id,from_team,to_team,moved_by_role,note,moved_at,members(name,nickname)')
+        .order('moved_at', { ascending: false }).limit(100);
+      if (error) return errResponse(error.message);
+      return jsonResponse({ ok: true, history: data || [] });
     }
 
     // ── ARCHIVE member ────────────────────────────────────────

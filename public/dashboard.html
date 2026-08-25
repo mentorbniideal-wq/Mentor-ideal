@@ -89,7 +89,7 @@
     <span class="tb-fold-label" id="mc-fold-label" style="display:none"></span>
     <button class="tb on" onclick="sw('mc-ov',this,'mc')">📊 Overview</button>
     <button class="tb" onclick="sw('mc-mem',this,'mc')">👥 สมาชิก</button>
-    <button class="tb" onclick="sw('mc-team',this,'mc');loadDesktopScorecard()">🏆 Mentor Teams</button>
+    <button class="tb" onclick="sw('mc-team',this,'mc');loadMentorTeamManager();loadDesktopScorecard()">🏆 Mentor Teams</button>
     <button class="tb" onclick="sw('mc-lt-team',this,'mc');loadLtTeam()">🏛 LT TEAM<span class="nb" id="badge-lt-team"></span></button>
     <button class="tb" onclick="sw('mc-ren',this,'mc')">🔄 Renewal<span class="nb" id="badge-ren"></span></button>
     <button class="tb" onclick="sw('mc-risk',this,'mc')">⚠️ Risk<span class="nb" id="badge-risk"></span></button>
@@ -262,6 +262,21 @@
 
     <!-- MC Mentor Teams + Scorecard -->
     <div id="mc-team" class="sec">
+      <section class="team-manager" aria-labelledby="team-manager-title">
+        <div class="team-manager-head">
+          <div><div class="eyebrow">TEAM OPERATIONS</div><h2 id="team-manager-title">👥 จัดสมาชิก Mentor Team</h2><p>เพิ่ม ย้าย หรือถอนสมาชิกออกจากทีม โดยคะแนน ประวัติ และข้อมูล 1-2-1 ยังคงอยู่ครบ</p></div>
+          <button class="bsm" onclick="loadMentorTeamManager(true)">↻ รีเฟรช</button>
+        </div>
+        <div class="team-manager-stats" id="team-manager-stats"></div>
+        <div class="team-manager-tools">
+          <input id="team-manager-search" type="search" placeholder="ค้นหาชื่อหรือนิคเนม…" oninput="renderMentorTeamManager()">
+          <select id="team-manager-filter" onchange="renderMentorTeamManager()"><option value="all">ทุกทีม</option><option value="unassigned">ยังไม่มีทีม</option><option value="TOOMTAM">TOOMTAM</option><option value="Aof">Aof</option><option value="Draft">Draft</option><option value="PHAI">PHAI</option><option value="AMP">AMP</option></select>
+          <select id="team-manager-target"><option value="">ถอนออกจากทีม</option><option value="TOOMTAM">ย้ายไป TOOMTAM</option><option value="Aof">ย้ายไป Aof</option><option value="Draft">ย้ายไป Draft</option><option value="PHAI">ย้ายไป PHAI</option><option value="AMP">ย้ายไป AMP</option></select>
+          <button class="bsm" id="team-manager-move" onclick="bulkMoveMentorTeam()" disabled>ย้ายที่เลือก <span id="team-manager-selected">0</span> คน</button>
+        </div>
+        <div id="team-manager-board" class="team-manager-board"><div class="team-manager-loading">กำลังโหลดสมาชิก…</div></div>
+        <details class="team-manager-history"><summary>ดูประวัติการย้ายทีมล่าสุด</summary><div id="team-manager-history"></div></details>
+      </section>
       <div id="mt-cards-container" class="mt-cards"></div>
       <div style="display:none"><table><tbody id="mttb"></tbody></table></div>
       <div style="border-top:1px solid var(--bd);margin-top:18px;padding-top:18px">
