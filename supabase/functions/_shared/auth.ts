@@ -24,6 +24,7 @@ const ROLE_INFO: Record<string, { displayName: string; teamName: string | null; 
   draft:   { displayName: 'Draft',   teamName: 'Draft',   isMC: false, isMentor: true  },
   phai:    { displayName: 'PHAI',    teamName: 'PHAI',    isMC: false, isMentor: true  },
   amp:     { displayName: 'AMP',     teamName: 'AMP',     isMC: false, isMentor: true  },
+  mentor_support: { displayName: 'Mentor Support', teamName: null, isMC: false, isMentor: true },
   growth:  { displayName: 'Growth',  teamName: null,      isMC: false, isMentor: false },
 };
 

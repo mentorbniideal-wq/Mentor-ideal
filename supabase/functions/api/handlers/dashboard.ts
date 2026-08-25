@@ -194,7 +194,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     case 'getDashboard':
     case 'getMCData':
     case 'getDesktopDashboard': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'mentor_support', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
       let dashboardQuery = db
         .from('v_member_dashboard')
@@ -662,22 +662,24 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     }
 
     case 'getMyTeam': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'mentor_support', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
       const requestedRole = String(p.role || '').toLowerCase();
       const role = auth.isMC && requestedRole
         ? requestedRole
         : String(auth.role || '').toLowerCase();
-      const teamName = auth.isMC || role === 'growth'
+      const isSupport = role === 'mentor_support';
+      const teamName = isSupport ? 'ทุกทีม' : auth.isMC || role === 'growth'
         ? String(p.teamName || TEAM_ROLE[role] || '')
         : String(auth.teamName || '');
       if (!teamName) return errResponse('ไม่พบทีม');
 
-      const { data: members, error } = await db
+      let memberQuery = db
         .from('v_member_dashboard')
-        .select('id, name, nickname, display_score, traffic_light, absent, tyfcb_thb, open_core_issue, given_thb, received_thb, palms_detail, days_to_expiry')
-        .eq('mentor_team', teamName).eq('is_archived', false)
-        .order('display_score', { ascending: false, nullsFirst: false });
+        .select('id, name, nickname, mentor_team, display_score, traffic_light, absent, tyfcb_thb, open_core_issue, given_thb, received_thb, palms_detail, days_to_expiry')
+        .eq('is_archived', false);
+      if (!isSupport) memberQuery = memberQuery.eq('mentor_team', teamName);
+      const { data: members, error } = await memberQuery.order('display_score', { ascending: false, nullsFirst: false });
       if (error) return errResponse(error.message);
 
       const memberIds = (members || []).map((m: Record<string, unknown>) => String(m.id));
@@ -719,7 +721,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         const renewal = renewalMap[mid] || {};
         return {
           row: idx + 1,   // 1-based numeric row — used by saveMCMessage
-          id: mid, name: m.name, nick: m.nickname, mentor: teamName,
+          id: mid, name: m.name, nick: m.nickname, mentor: isSupport ? String(m.mentor_team || '') : teamName,
           score: Number(m.display_score) || 0, tl: String(m.traffic_light || 'none'),
           absent: Number(m.absent) || 0, tyfcb: Number(m.tyfcb_thb) || 0,
           given: Number(m.given_thb) || 0, recv: Number(m.received_thb) || 0,

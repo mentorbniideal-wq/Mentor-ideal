@@ -19,6 +19,13 @@ const LT_ROLE_CATALOG = [
   { role: 'Growth Coordinator', label: 'Growth Coordinator', scopes: ['goal'] },
   { role: 'Web Master', label: 'Web Master', scopes: [] },
   { role: 'Network Education Coordinator', label: 'NEC · Network Education Coordinator', scopes: ['training'] },
+  { role: 'Mentor Co.', label: 'Mentor Co. · ผู้ดูแลหลัก', scopes: ['member_help', 'new_member'] },
+  { role: 'Mentor Team · TOOMTAM', label: 'Mentor หลัก · TOOMTAM', scopes: ['member_help'] },
+  { role: 'Mentor Team · Aof', label: 'Mentor หลัก · Aof', scopes: ['member_help'] },
+  { role: 'Mentor Team · Draft', label: 'Mentor หลัก · Draft', scopes: ['member_help'] },
+  { role: 'Mentor Team · PHAI', label: 'Mentor หลัก · PHAI', scopes: ['member_help'] },
+  { role: 'Mentor Team · AMP', label: 'Mentor หลัก · AMP', scopes: ['member_help'] },
+  { role: 'Mentor Support', label: 'Mentor Support · ช่วยดูแลทุกทีม', scopes: ['member_help'] },
 ] as const;
 
 type MemberRef = {

@@ -2609,6 +2609,7 @@ function loadLtTeam(force){
   });
 }
 function ltMemberOption(m){return esc(m.nickname||m.name||'—')+(m.nickname&&m.name?' · '+esc(m.name):'')+(m.lineLinked?' · LINE ✓':' · ยังไม่เชื่อม LINE');}
+function ltMentorAccess(role){return({'Mentor Co.':{role:'mc',team:'Mentor Co.'},'Mentor Team · TOOMTAM':{role:'toomtam',team:'TOOMTAM'},'Mentor Team · Aof':{role:'aof',team:'Aof'},'Mentor Team · Draft':{role:'draft',team:'Draft'},'Mentor Team · PHAI':{role:'phai',team:'PHAI'},'Mentor Team · AMP':{role:'amp',team:'AMP'},'Mentor Support':{role:'mentor_support',team:'Mentor Support'}})[role]||null;}
 function renderLtTeam(){
   var d=_ltTeamData||{},terms=d.terms||[],assignments=d.assignments||[],members=d.members||[],roles=d.roles||[];
   var term=terms.find(function(t){return t.status==='active';})||null;
@@ -2624,7 +2625,7 @@ function renderLtTeam(){
   var sum=document.getElementById('lt-team-summary');if(sum)sum.innerHTML=[['ตำแหน่งทั้งหมด',roles.length,'var(--ac)'],['กำหนดคนแล้ว',filled,'var(--gr)'],['LINE พร้อมรับ',ready,'#60a5fa'],['มีงานอัตโนมัติ',routed,'var(--ye)']].map(function(x){return'<div class="kcard"><div style="font-size:22px;font-weight:900;color:'+x[2]+'">'+x[1]+'</div><div style="font-size:10px;color:var(--sub);font-weight:800">'+x[0]+'</div></div>';}).join('');
   var opts='<option value="">— ยังไม่เลือก —</option>'+members.map(function(m){return'<option value="'+esc(m.id)+'">'+ltMemberOption(m)+'</option>';}).join('');
   var roleEl=document.getElementById('lt-team-roles');if(roleEl)roleEl.innerHTML=roles.map(function(item,i){var a=byRole[item.role]||{},main=a.assigned_member_id||'',fallback=a.fallback_member_id||'',mainReady=main&&linked[main],scopes=(item.scopes||[]).map(function(s){return({absence:'แจ้งลา',visitor:'Visitor',renewal:'Renewal',training:'การอบรม',goal:'เป้าหมาย',member_help:'ขอ Mentor',new_member:'สมาชิกใหม่'})[s]||s;});return'<div style="border:1px solid var(--bd);border-radius:13px;padding:12px;background:var(--sf2)"><div style="display:flex;justify-content:space-between;gap:8px"><div><div style="font-size:12px;font-weight:900">'+esc(item.label||item.role)+'</div><div style="font-size:9px;color:var(--sub);margin-top:2px">'+(scopes.length?'รับ: '+esc(scopes.join(' · ')):'ตำแหน่งบริหาร')+'</div></div><span style="font-size:9px;font-weight:800;color:'+(mainReady?'var(--gr)':'var(--ye)')+'">'+(mainReady?'LINE พร้อม':'ต้องตรวจ LINE')+'</span></div><label style="font-size:9px;margin-top:9px">ผู้รับผิดชอบหลัก</label><select id="lt-main-'+i+'" '+(S.isAdmin?'':'disabled')+' style="font-size:11px;padding:7px">'+opts+'</select><label style="font-size:9px;margin-top:7px">ผู้สำรอง</label><select id="lt-fallback-'+i+'" '+(S.isAdmin?'':'disabled')+' style="font-size:11px;padding:7px">'+opts+'</select>'+(S.isAdmin?'<button class="bsm" onclick="saveLtRole('+i+')" style="width:100%;margin-top:9px;background:var(--ac-dim);color:var(--ac);border-color:var(--bd-hover);font-weight:800">บันทึกตำแหน่ง</button>':'<div style="font-size:9px;color:var(--sub);margin-top:9px">MC เปิดดูได้ · Chapter Admin เป็นผู้แก้ไข</div>')+'</div>';}).join('');
-  setTimeout(function(){roles.forEach(function(item,i){var a=byRole[item.role]||{},m=document.getElementById('lt-main-'+i),f=document.getElementById('lt-fallback-'+i);if(m)m.value=a.assigned_member_id||'';if(f)f.value=a.fallback_member_id||'';});},0);
+  setTimeout(function(){roles.forEach(function(item,i){var a=byRole[item.role]||{},m=document.getElementById('lt-main-'+i),f=document.getElementById('lt-fallback-'+i);if(m)m.value=a.assigned_member_id||'';if(f)f.value=a.fallback_member_id||'';if(S.isAdmin&&m&&ltMentorAccess(item.role)){var btn=document.createElement('button');btn.className='bsm';btn.style.cssText='width:100%;margin-top:6px;border-color:#d2b779;color:#d2b779;font-weight:800';btn.textContent='🔐 เชิญเข้า Mentor Mobile';btn.onclick=function(){inviteLtMentor(i);};m.parentElement.appendChild(btn);}});},0);
   var routeEl=document.getElementById('lt-team-routing');if(routeEl)routeEl.innerHTML=[['🎯 ตั้งเป้าหมาย','Growth Coordinator','goal'],['👋 มี Visitor มา','Visitor Host · Event Coordinator','visitor'],['🔄 สนใจต่ออายุ','Membership Committee · Secretary/Treasurer','renewal'],['🎓 สนใจอบรม','Secretary/Treasurer · NEC','training'],['🆘 ขอความช่วยเหลือ','Mentor Coordinator','member_help']].map(function(x){var configured=roles.filter(function(r){return(r.scopes||[]).indexOf(x[2])>=0;}).some(function(r){var a=byRole[r.role];return a&&a.assigned_member_id&&linked[a.assigned_member_id];});return'<div style="border:1px solid var(--bd);border-radius:12px;padding:12px;background:var(--sf2)"><div style="font-size:12px;font-weight:900">'+x[0]+'</div><div style="font-size:10px;color:var(--sub);margin:4px 0 8px">ส่งหา '+x[1]+'</div><span style="font-size:9px;font-weight:900;color:'+(configured?'var(--gr)':'var(--ye)')+'">'+(configured?'● พร้อมรับงาน':'● รอกำหนดผู้รับ')+'</span></div>';}).join('');
 }
 
@@ -2635,6 +2636,18 @@ function saveLtRole(index){
   var main=(document.getElementById('lt-main-'+index)||{}).value||'',fallback=(document.getElementById('lt-fallback-'+index)||{}).value||'';
   if(main&&main===fallback){toast('❌ ผู้รับผิดชอบหลักและผู้สำรองต้องเป็นคนละคน','err');return;}
   ld(true);gsr('saveLtTeamAssignment',{role:'mc',ltRole:item.role,assignedMemberId:main,fallbackMemberId:fallback},function(r){ld(false);if(!r||!r.ok){toast('❌ '+(r&&r.error||'บันทึกไม่ได้'),'err');return;}toast('✅ บันทึก '+item.label+' แล้ว','ok');_ltTeamLoaded=false;_passportLoaded=false;loadLtTeam(true);});
+}
+function inviteLtMentor(index){
+  var d=_ltTeamData||{},item=(d.roles||[])[index],access=item&&ltMentorAccess(item.role),memberId=(document.getElementById('lt-main-'+index)||{}).value||'';
+  if(!access||!memberId){toast('❌ กรุณาเลือกและบันทึกผู้รับผิดชอบหลักก่อน','err');return;}
+  var member=(d.members||[]).find(function(m){return m.id===memberId;})||{};
+  if(!member.lineLinked){toast('❌ สมาชิกคนนี้ยังไม่ได้เชื่อม LINE','err');return;}
+  if(!confirm('สร้างคำเชิญ Mentor Mobile ให้ '+(member.nickname||member.name)+'\nตำแหน่ง '+item.label+' ?'))return;
+  ld(true);adminCall({action:'createMobileAccessInvite',memberId:memberId,approvedRole:access.role,teamName:access.team},function(r){
+    ld(false);if(!r||!r.ok){toast('❌ '+(r&&r.error||'สร้างคำเชิญไม่ได้'),'err');return;}
+    if(!confirm('ตรวจสอบก่อนส่ง\n\nผู้รับ: '+(member.nickname||member.name)+'\nสิทธิ์: '+access.team+'\nหมดอายุ: '+new Date(r.expiresAt).toLocaleString('th-TH')+'\n\nกด OK เพื่อส่งผ่าน LINE'))return;
+    ld(true);adminCall({action:'sendMobileAccessInvite',inviteId:r.inviteId,inviteToken:r.inviteToken},function(sent){ld(false);toast(sent&&sent.ok?'✅ ส่งคำเชิญ Mentor Mobile แล้ว':'❌ '+(sent&&sent.error||'ส่งไม่ได้'),sent&&sent.ok?'ok':'err');});
+  });
 }
 function createLtTerm(){
   var name=prompt('ชื่อวาระ เช่น วาระ ต.ค. 2569 – มี.ค. 2570');if(!name)return;

@@ -6,7 +6,7 @@ import { linePushMessages } from '../../_shared/line.ts';
 
 const ADMIN_SECTIONS = ['dashboard','members','issues','checkin','revenue','broadcast'] as const;
 type LineMenuRole = 'member' | 'mentor' | 'mc' | 'growth';
-const MOBILE_ACCESS_ROLES = ['mc','toomtam','aof','draft','phai','amp','growth'] as const;
+const MOBILE_ACCESS_ROLES = ['mc','toomtam','aof','draft','phai','amp','mentor_support','growth'] as const;
 
 async function sha256(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value);
@@ -165,7 +165,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     if (!MOBILE_ACCESS_ROLES.includes(role as typeof MOBILE_ACCESS_ROLES[number])) return errResponse('บทบาทในลิงก์ไม่ถูกต้อง');
     const member = (row.members || {}) as Record<string, unknown>;
     const displayName = String(member.nickname || member.name || googleUser.name).slice(0, 120);
-    const isMentor = ['toomtam','aof','draft','phai','amp'].includes(role);
+    const isMentor = ['toomtam','aof','draft','phai','amp','mentor_support'].includes(role);
 
     const { data: existingAssignment } = await db.from('role_assignments').select('email, role')
       .eq('email', googleUser.email).maybeSingle();
@@ -319,7 +319,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
       .filter(s => ADMIN_SECTIONS.includes(s as typeof ADMIN_SECTIONS[number]));
 
     if (!email || !role) return errResponse('email and role required');
-    const validRoles = ['mc','toomtam','aof','draft','phai','amp','growth'];
+    const validRoles = ['mc','toomtam','aof','draft','phai','amp','mentor_support','growth'];
     if (!validRoles.includes(role)) return errResponse(`Invalid role. Must be one of: ${validRoles.join(', ')}`);
 
     const assignment: Record<string, unknown> = {
@@ -365,7 +365,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
       .filter(s => ADMIN_SECTIONS.includes(s as typeof ADMIN_SECTIONS[number]));
     const editAccess = Boolean(p.editAccess);
     if (!id || !role) return errResponse('id and role required');
-    const validRoles = ['mc','toomtam','aof','draft','phai','amp','growth'];
+    const validRoles = ['mc','toomtam','aof','draft','phai','amp','mentor_support','growth'];
     if (!validRoles.includes(role)) return errResponse('Invalid role');
 
     const { data: req, error: fetchErr } = await db

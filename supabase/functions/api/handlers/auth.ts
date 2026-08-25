@@ -43,7 +43,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
     const explicitRole = String(p.targetRole || p.role || '').toLowerCase();
     const roles = explicitRole
       ? [explicitRole]
-      : ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth'];
+      : ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'mentor_support', 'growth'];
 
     for (const role of roles) {
       const auth = await verifyPin(db, role, pin);
@@ -93,6 +93,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
       draft:   { displayName: 'Draft',   teamName: 'Draft',   isMC: false, isMentor: true  },
       phai:    { displayName: 'PHAI',    teamName: 'PHAI',    isMC: false, isMentor: true  },
       amp:     { displayName: 'AMP',     teamName: 'AMP',     isMC: false, isMentor: true  },
+      mentor_support: { displayName: 'Mentor Support', teamName: null, isMC: false, isMentor: true },
       growth:  { displayName: 'Growth',  teamName: null,      isMC: false, isMentor: false },
     };
     const info = RINFO[targetRole];
