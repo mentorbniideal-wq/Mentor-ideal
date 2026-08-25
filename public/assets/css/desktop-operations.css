@@ -1197,11 +1197,13 @@ header.command-top{
 main{
   grid-column:2;
   grid-row:2;
+  min-width:0;
   max-width:none;
   width:100%;
   margin:0;
   padding:24px;
-  overflow:auto;
+  overflow-y:auto;
+  overflow-x:hidden;
 }
 /* KPI Hero — Option 4 card grid */
 .kpi-hero-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:14px;margin-bottom:14px}
@@ -1242,7 +1244,14 @@ main{
 .rail-signal{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd);font-size:12px}
 .rail-signal:last-child{border-bottom:none}
 .rail-num{font-weight:900;color:var(--tx);font-variant-numeric:tabular-nums}
-.sec:not(#mc-ov){max-width:1560px}
+.sec:not(#mc-ov){max-width:1560px;width:100%;min-width:0}
+.lt-team-role-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;width:100%;min-width:0}
+.lt-team-role-grid>*{min-width:0;max-width:100%;overflow:hidden}
+.lt-team-role-grid select{display:block;width:100%;max-width:100%;min-width:0}
+.lt-team-routing-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;width:100%;min-width:0}
+.lt-team-routing-grid>*{min-width:0}
+@media(max-width:1680px){.lt-team-role-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.lt-team-routing-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:1320px){.lt-team-role-grid,.lt-team-routing-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .w121-shell{--w121-glow:rgba(61,214,245,.13);display:grid;gap:16px}
 .w121-hero{position:relative;overflow:hidden;background:linear-gradient(135deg,rgba(61,214,245,.14),rgba(99,102,241,.1) 55%,rgba(6,199,85,.08));border:1px solid rgba(61,214,245,.24);border-radius:20px;padding:22px;display:flex;gap:18px;align-items:center;box-shadow:0 18px 48px rgba(0,0,0,.18)}
 .w121-hero:after{content:"";position:absolute;width:220px;height:220px;border-radius:50%;right:-75px;top:-120px;background:radial-gradient(circle,rgba(61,214,245,.25),transparent 68%);pointer-events:none}
@@ -1277,4 +1286,6 @@ main{
   main{grid-column:1;grid-row:3;padding:16px}
   #mc-ov.sec.on{display:block}
   .command-rail{position:static;margin-bottom:18px}
+  .lt-team-role-grid,.lt-team-routing-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+@media(max-width:680px){.lt-team-role-grid,.lt-team-routing-grid{grid-template-columns:minmax(0,1fr)}}

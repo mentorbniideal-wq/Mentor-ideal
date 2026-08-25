@@ -64,7 +64,7 @@
       + '<div style="font-size:20px;font-weight:700;color:#d7fefa;margin-bottom:4px">BNI Admin</div>'
       + '<div style="font-size:12px;color:#7a9bb5;margin-bottom:24px">ใส่ Role และ PIN เพื่อเข้าใช้งาน</div>'
       + '<select id="_aRole" style="width:100%;padding:10px 12px;margin-bottom:12px;border-radius:8px;border:1px solid #1a3a5c;background:#0a1628;color:#e8f4f8;font-size:13px">'
-      + '<option value="mc">MC (พีท)</option>'
+      + '<option value="mc">Mentor Co.</option>'
       + '<option value="toomtam">Mentor: TOOMTAM</option>'
       + '<option value="aof">Mentor: Aof</option>'
       + '<option value="draft">Mentor: Draft</option>'
