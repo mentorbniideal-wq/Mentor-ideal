@@ -54,6 +54,11 @@
   .hist-row:last-child{border-bottom:none}
   .badge-ok{background:var(--green);color:#000;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700}
   .badge-no{background:var(--red);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700}
+  .invite-form{display:grid;grid-template-columns:2fr 1fr 1.3fr auto;gap:8px;align-items:end}
+  .invite-form label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
+  .invite-form select,.invite-form input{width:100%;background:#1a3a5c;border:1px solid #2a4a6c;color:var(--text);padding:8px;border-radius:6px;font-size:12px}
+  .invite-row{display:grid;grid-template-columns:1.5fr 1fr 1fr auto;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid #1a3a5c;font-size:12px}
+  @media(max-width:680px){main{padding:14px}.invite-form{grid-template-columns:1fr}.invite-row{grid-template-columns:1fr}.invite-row .actions{justify-content:flex-start}.section{padding:14px}table{display:block;overflow-x:auto}}
 </style>
 </head>
 <body>
@@ -84,6 +89,23 @@
       <div id="req-history-list" class="loading">กำลังโหลด...</div>
     </div>
   </details>
+
+  <div class="section" id="mobileInviteSection" style="border:1px solid #d2b77955">
+    <h3 style="color:#d2b779">📱 เชิญสมาชิกเข้า Mentor Mobile</h3>
+    <p style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:14px">Chapter Admin เป็นผู้เลือกตัวตนและสิทธิ์ก่อน ระบบจะสร้างลิงก์ใช้ครั้งเดียวให้ตรวจสอบ แล้วจึงกดส่งผ่าน LINE ผู้รับผูก Gmail และตั้ง PIN 4 ตัวของเครื่องตนเอง</p>
+    <div class="invite-form">
+      <div><label>สมาชิกที่ผูก LINE แล้ว</label><select id="maiMember"><option value="">กำลังโหลด…</option></select></div>
+      <div><label>สิทธิ์ระบบ</label><select id="maiRole"><option value="toomtam">Mentor · TOOMTAM</option><option value="aof">Mentor · Aof</option><option value="draft">Mentor · Draft</option><option value="phai">Mentor · PHAI</option><option value="amp">Mentor · AMP</option><option value="growth">Growth Team</option><option value="mc">Mentor Co.</option></select></div>
+      <div><label>ชื่อทีม/หน้าที่ (แสดงให้ผู้รับเห็น)</label><input id="maiTeam" placeholder="เช่น Mentor Team Aof"></div>
+      <button class="btn-add" id="maiCreate" onclick="createMobileInvite()">สร้างลิงก์</button>
+    </div>
+    <div id="maiPreview" style="display:none;margin-top:14px;padding:12px;border:1px solid #d2b77955;border-radius:8px;background:#d2b7790d">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">ตรวจสอบก่อนส่ง LINE</div><div id="maiPreviewText" style="font-size:12px;line-height:1.6;word-break:break-word"></div>
+      <button class="btn-add" id="maiSend" onclick="sendMobileInvite()" style="margin-top:10px;background:var(--green)">ส่งลิงก์ผ่าน LINE</button>
+    </div>
+    <div id="maiMsg" class="form-msg" style="margin-top:10px"></div>
+    <div id="maiHistory" style="margin-top:14px"></div>
+  </div>
 
   <!-- LINE Team Mapping -->
   <div class="section" id="lineTeamSection">
@@ -214,6 +236,46 @@ function setRAMsg(txt, color) {
 }
 
 let _allRequests = [];
+let _mobileInviteDraft = null;
+let _mobileInviteMembers = [];
+
+function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function loadMobileInvites() {
+  const r = await adminCall({ action:'getMobileAccessInvites' });
+  if (!r?.ok) { document.getElementById('maiMsg').textContent = '⚠️ โหลดคำเชิญไม่ได้: '+(r?.error||'unknown'); return; }
+  _mobileInviteMembers = r.members || [];
+  document.getElementById('maiMember').innerHTML = '<option value="">— เลือกสมาชิก —</option>' + _mobileInviteMembers
+    .sort((a,b)=>(a.nickname||a.name).localeCompare(b.nickname||b.name,'th'))
+    .map(m=>`<option value="${esc(m.memberId)}">${esc(m.nickname||m.name)} · LINE พร้อม</option>`).join('');
+  const labels={pending:'รอเปิด',claimed:'ใช้งานแล้ว',revoked:'ยกเลิก',expired:'หมดอายุ'};
+  document.getElementById('maiHistory').innerHTML = (r.invites||[]).slice(0,12).map(i=>{
+    const m=i.members||{}; const active=i.status==='pending';
+    return `<div class="invite-row"><div><strong>${esc(m.nickname||m.name)}</strong><div style="color:var(--muted);font-size:11px">${esc(i.approved_team_name||i.approved_role)}</div></div><span>${labels[i.status]||esc(i.status)}${i.sent_at?' · ส่งแล้ว':''}</span><span style="color:var(--muted)">${new Date(i.created_at).toLocaleDateString('th-TH')}</span><div class="actions" style="display:flex;gap:6px">${active?`<button class="btn-reject" onclick="revokeMobileInvite('${esc(i.id)}')">ยกเลิก</button>`:''}</div></div>`;
+  }).join('') || '<p style="color:var(--muted);font-size:12px">ยังไม่มีคำเชิญ</p>';
+}
+
+async function createMobileInvite() {
+  const memberId=document.getElementById('maiMember').value, approvedRole=document.getElementById('maiRole').value, teamName=document.getElementById('maiTeam').value.trim();
+  if(!memberId){document.getElementById('maiMsg').textContent='กรุณาเลือกสมาชิก';return;}
+  const btn=document.getElementById('maiCreate');btn.disabled=true;document.getElementById('maiMsg').textContent='กำลังสร้างลิงก์…';
+  const r=await adminCall({action:'createMobileAccessInvite',memberId,approvedRole,teamName});btn.disabled=false;
+  if(!r?.ok){document.getElementById('maiMsg').textContent='❌ '+(r?.error||'สร้างไม่ได้');return;}
+  _mobileInviteDraft=r;const member=_mobileInviteMembers.find(m=>m.memberId===memberId)||{};
+  document.getElementById('maiPreviewText').innerHTML=`ผู้รับ: <strong>${esc(member.nickname||member.name)}</strong><br>สิทธิ์: <strong>${esc(teamName||approvedRole)}</strong><br>หมดอายุ: ${new Date(r.expiresAt).toLocaleString('th-TH')}<br><span style="color:var(--muted)">${esc(r.inviteUrl)}</span>`;
+  document.getElementById('maiPreview').style.display='';document.getElementById('maiMsg').textContent='✅ สร้างลิงก์แล้ว กรุณาตรวจสอบก่อนส่ง';loadMobileInvites();
+}
+
+async function sendMobileInvite(){
+  if(!_mobileInviteDraft)return; if(!confirm('ยืนยันส่งลิงก์ตั้งค่า Mentor Mobile ผ่าน LINE ให้สมาชิกคนนี้?'))return;
+  const btn=document.getElementById('maiSend');btn.disabled=true;btn.textContent='กำลังส่ง…';
+  const r=await adminCall({action:'sendMobileAccessInvite',inviteId:_mobileInviteDraft.inviteId,inviteToken:_mobileInviteDraft.inviteToken});
+  btn.disabled=false;btn.textContent='ส่งลิงก์ผ่าน LINE';
+  if(!r?.ok){document.getElementById('maiMsg').textContent='❌ '+(r?.error||'ส่งไม่ได้');return;}
+  document.getElementById('maiPreview').style.display='none';_mobileInviteDraft=null;document.getElementById('maiMsg').textContent='✅ ส่งคำเชิญผ่าน LINE แล้ว';loadMobileInvites();
+}
+
+async function revokeMobileInvite(inviteId){if(!confirm('ยกเลิกลิงก์นี้? ผู้รับจะเปิดใช้งานต่อไม่ได้'))return;const r=await adminCall({action:'revokeMobileAccessInvite',inviteId});if(r?.ok)loadMobileInvites();}
 
 async function loadRequests() {
   const r = await adminCall({ action: 'getAccessRequests' });
@@ -368,6 +430,7 @@ async function provisionMenus() {
 async function init() {
   await checkAdminAuth();
   loadRequests();
+  loadMobileInvites();
   loadLineTeamMappings();
   loadStatus();
   loadRA();

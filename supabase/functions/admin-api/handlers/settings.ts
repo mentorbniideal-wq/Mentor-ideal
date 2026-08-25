@@ -6,6 +6,31 @@ import { linePushMessages } from '../../_shared/line.ts';
 
 const ADMIN_SECTIONS = ['dashboard','members','issues','checkin','revenue','broadcast'] as const;
 type LineMenuRole = 'member' | 'mentor' | 'mc' | 'growth';
+const MOBILE_ACCESS_ROLES = ['mc','toomtam','aof','draft','phai','amp','growth'] as const;
+
+async function sha256(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function randomInviteToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function googleUserFromToken(token: string): Promise<{ email: string; name: string } | null> {
+  if (!token) return null;
+  const anonClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
+    auth: { persistSession: false },
+  });
+  const { data: { user }, error } = await anonClient.auth.getUser(token);
+  if (error || !user?.email) return null;
+  return {
+    email: user.email.trim().toLowerCase(),
+    name: String(user.user_metadata?.full_name || user.email.split('@')[0]).slice(0, 120),
+  };
+}
 
 function expectedMenuRole(settingKey: string): LineMenuRole {
   if (settingKey === 'LINE_ID_MC') return 'member';
@@ -97,6 +122,75 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     return jsonResponse({ ok: true });
   }
 
+  // Public invite lookup. Only a high-entropy, expiring token is accepted.
+  if (action === 'getMobileAccessInvite') {
+    const rawToken = String(p.inviteToken || '');
+    if (rawToken.length < 32) return errResponse('ลิงก์เชิญไม่ถูกต้อง');
+    const { data: invite, error } = await db
+      .from('mobile_access_invitations')
+      .select('id, approved_role, approved_team_name, status, expires_at, members(name, nickname)')
+      .eq('token_hash', await sha256(rawToken)).maybeSingle();
+    if (error || !invite) return errResponse('ไม่พบลิงก์เชิญ หรือมีการออกลิงก์ใหม่แล้ว', 404);
+    const row = invite as Record<string, unknown>;
+    if (String(row.status) !== 'pending') return errResponse('ลิงก์นี้ถูกใช้หรือยกเลิกแล้ว');
+    if (new Date(String(row.expires_at)).getTime() <= Date.now()) return errResponse('ลิงก์นี้หมดอายุแล้ว กรุณาขอ Chapter Admin ออกใหม่');
+    const member = (row.members || {}) as Record<string, unknown>;
+    return jsonResponse({
+      ok: true,
+      invite: {
+        memberName: String(member.nickname || member.name || ''),
+        approvedRole: String(row.approved_role),
+        teamName: row.approved_team_name ? String(row.approved_team_name) : null,
+        expiresAt: String(row.expires_at),
+      },
+    });
+  }
+
+  // Claim requires both the one-time invitation and a verified Google session.
+  if (action === 'claimMobileAccessInvite') {
+    const rawToken = String(p.inviteToken || '');
+    const googleUser = await googleUserFromToken(String(p.token || ''));
+    if (!googleUser) return errResponse('กรุณาเข้าสู่ระบบด้วย Google ก่อน');
+    if (rawToken.length < 32) return errResponse('ลิงก์เชิญไม่ถูกต้อง');
+    const tokenHash = await sha256(rawToken);
+    const { data: invite, error } = await db
+      .from('mobile_access_invitations')
+      .select('id, member_id, approved_role, approved_team_name, status, expires_at, members(name, nickname)')
+      .eq('token_hash', tokenHash).maybeSingle();
+    if (error || !invite) return errResponse('ไม่พบลิงก์เชิญ', 404);
+    const row = invite as Record<string, unknown>;
+    if (String(row.status) !== 'pending') return errResponse('ลิงก์นี้ถูกใช้หรือยกเลิกแล้ว');
+    if (new Date(String(row.expires_at)).getTime() <= Date.now()) return errResponse('ลิงก์นี้หมดอายุแล้ว');
+    const role = String(row.approved_role || '');
+    if (!MOBILE_ACCESS_ROLES.includes(role as typeof MOBILE_ACCESS_ROLES[number])) return errResponse('บทบาทในลิงก์ไม่ถูกต้อง');
+    const member = (row.members || {}) as Record<string, unknown>;
+    const displayName = String(member.nickname || member.name || googleUser.name).slice(0, 120);
+    const isMentor = ['toomtam','aof','draft','phai','amp'].includes(role);
+
+    const { data: existingAssignment } = await db.from('role_assignments').select('email, role')
+      .eq('email', googleUser.email).maybeSingle();
+    if (existingAssignment) return errResponse('Gmail นี้มีสิทธิ์ในระบบอยู่แล้ว กรุณาให้ Chapter Admin ตรวจสอบก่อน');
+    const { error: assignError } = await db.from('role_assignments').insert({
+      email: googleUser.email,
+      role,
+      display_name: displayName,
+      team_name: row.approved_team_name || null,
+      is_mc: role === 'mc',
+      is_mentor: isMentor,
+    });
+    if (assignError) return errResponse(assignError.message);
+
+    const { data: claimed, error: claimError } = await db.from('mobile_access_invitations').update({
+      status: 'claimed', claimed_email: googleUser.email,
+      claimed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    }).eq('id', String(row.id)).eq('status', 'pending').select('id').maybeSingle();
+    if (claimError || !claimed) {
+      await db.from('role_assignments').delete().eq('email', googleUser.email).eq('role', role);
+      return errResponse('ลิงก์ถูกใช้งานพร้อมกัน กรุณาติดต่อ Chapter Admin');
+    }
+    return jsonResponse({ ok: true, email: googleUser.email, role, displayName });
+  }
+
   // ── PIN session verification (open to all authenticated roles) ──────────────
   if (action === 'getAdminSessionInfo') {
     const auth = await requireAuth(db, p);
@@ -133,6 +227,84 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
       .order('role');
     if (error) return errResponse(error.message);
     return jsonResponse({ ok: true, assignments: data || [] });
+  }
+
+  if (action === 'getMobileAccessInvites') {
+    await db.from('mobile_access_invitations').update({ status: 'expired', updated_at: new Date().toISOString() })
+      .eq('status', 'pending').lte('expires_at', new Date().toISOString());
+    const [{ data: invites, error }, { data: linked }] = await Promise.all([
+      db.from('mobile_access_invitations')
+        .select('id, member_id, approved_role, approved_team_name, status, claimed_email, expires_at, created_at, sent_at, claimed_at, members(name, nickname)')
+        .order('created_at', { ascending: false }).limit(100),
+      db.from('line_members').select('member_id, line_user_id, members(name, nickname)').limit(300),
+    ]);
+    if (error) return errResponse(error.message);
+    const members = ((linked || []) as Record<string, unknown>[]).map(item => {
+      const member = (item.members || {}) as Record<string, unknown>;
+      return {
+        memberId: String(item.member_id || ''), lineUserId: String(item.line_user_id || ''),
+        name: String(member.name || ''), nickname: String(member.nickname || ''),
+      };
+    }).filter(item => item.memberId && item.lineUserId);
+    return jsonResponse({ ok: true, invites: invites || [], members });
+  }
+
+  if (action === 'createMobileAccessInvite') {
+    const memberId = String(p.memberId || '');
+    const role = String(p.approvedRole || '').toLowerCase();
+    const teamName = String(p.teamName || '').trim().slice(0, 80) || null;
+    if (!memberId || !MOBILE_ACCESS_ROLES.includes(role as typeof MOBILE_ACCESS_ROLES[number])) {
+      return errResponse('กรุณาเลือกสมาชิกและบทบาทที่ถูกต้อง');
+    }
+    const { data: linked } = await db.from('line_members').select('line_user_id, members(name, nickname)')
+      .eq('member_id', memberId).maybeSingle();
+    if (!linked?.line_user_id) return errResponse('สมาชิกคนนี้ยังไม่ได้ผูก LINE จึงยังส่งลิงก์ไม่ได้');
+    await db.from('mobile_access_invitations').update({ status: 'revoked', updated_at: new Date().toISOString() })
+      .eq('member_id', memberId).eq('status', 'pending');
+    const rawToken = randomInviteToken();
+    const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString();
+    const { data: created, error } = await db.from('mobile_access_invitations').insert({
+      token_hash: await sha256(rawToken), member_id: memberId,
+      line_user_id: String(linked.line_user_id), approved_role: role,
+      approved_team_name: teamName, expires_at: expiresAt,
+      created_by: auth.displayName || auth.role || 'Chapter Admin',
+    }).select('id').single();
+    if (error) return errResponse(error.message);
+    const appUrl = String(Deno.env.get('PUBLIC_APP_URL') || 'https://bni-mentor-system.vercel.app').replace(/\/$/, '');
+    return jsonResponse({ ok: true, inviteId: created.id, inviteToken: rawToken,
+      inviteUrl: `${appUrl}/mobile-access.html?invite=${encodeURIComponent(rawToken)}`, expiresAt });
+  }
+
+  if (action === 'sendMobileAccessInvite') {
+    const inviteId = String(p.inviteId || '');
+    const rawToken = String(p.inviteToken || '');
+    const { data: invite } = await db.from('mobile_access_invitations')
+      .select('id, member_id, line_user_id, approved_role, approved_team_name, status, expires_at, token_hash, members(name, nickname)')
+      .eq('id', inviteId).maybeSingle();
+    if (!invite || String(invite.status) !== 'pending' || String(invite.token_hash) !== await sha256(rawToken)) {
+      return errResponse('ลิงก์เชิญไม่ถูกต้องหรือใช้งานไม่ได้แล้ว');
+    }
+    if (new Date(String(invite.expires_at)).getTime() <= Date.now()) return errResponse('ลิงก์หมดอายุแล้ว');
+    const member = (invite.members || {}) as unknown as Record<string, unknown>;
+    const name = String(member.nickname || member.name || 'สมาชิก');
+    const appUrl = String(Deno.env.get('PUBLIC_APP_URL') || 'https://bni-mentor-system.vercel.app').replace(/\/$/, '');
+    const inviteUrl = `${appUrl}/mobile-access.html?invite=${encodeURIComponent(rawToken)}`;
+    const message = `🔐 คำเชิญเข้า Mentor Mobile\n\nสวัสดีครับคุณ${name}\nChapter Admin ได้เตรียมสิทธิ์ ${String(invite.approved_team_name || invite.approved_role)} ให้แล้ว\n\nกดลิงก์เพื่อผูก Gmail และตั้ง PIN 4 ตัวสำหรับเครื่องนี้:\n${inviteUrl}\n\nลิงก์ใช้ได้ครั้งเดียวและหมดอายุภายใน 7 วัน หากไม่ได้ร้องขอ ไม่ต้องกดลิงก์นี้ครับ`;
+    const result = await linePushMessages(String(invite.line_user_id), [{ type: 'text', text: message }], {
+      db, memberId: String(invite.member_id), notificationType: 'mobile_access_invite',
+      source: 'admin-api/mobile-access', idempotencyKey: `mobile-access:${inviteId}`,
+    });
+    if (!result.sent) return errResponse(result.skipped ? 'ระบบป้องกันข้อความซ้ำ จึงไม่ได้ส่งซ้ำ' : 'LINE ไม่อนุญาตให้ส่งข้อความนี้ในขณะนี้');
+    await db.from('mobile_access_invitations').update({ sent_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', inviteId);
+    return jsonResponse({ ok: true });
+  }
+
+  if (action === 'revokeMobileAccessInvite') {
+    const inviteId = String(p.inviteId || '');
+    const { error } = await db.from('mobile_access_invitations').update({ status: 'revoked', updated_at: new Date().toISOString() })
+      .eq('id', inviteId).eq('status', 'pending');
+    if (error) return errResponse(error.message);
+    return jsonResponse({ ok: true });
   }
 
   if (action === 'addRoleAssignment') {

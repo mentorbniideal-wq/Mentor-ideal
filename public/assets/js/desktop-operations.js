@@ -196,7 +196,6 @@ function enterApp(r){
   restoreTabFold(S.role==='mc'?'mc':'gr');
   var meetingBtn=document.getElementById('btn-meeting');if(meetingBtn)meetingBtn.style.display=S.role==='mc'?'':'none';
   document.getElementById('btn-monthly-sync').style.display=S.isAdmin?'':'none';
-  document.getElementById('btn-line-sim').style.display=S.isAdmin?'':'none';
   document.getElementById('btn-admin-settings').style.display=S.isAdmin?'':'none';
   document.querySelectorAll('[data-admin-only="1"]').forEach(function(el){el.style.display=S.isAdmin?'':'none';});
   document.getElementById('btn-role-growth').style.display=(S.canRoleSwitch&&S.role==='mc')?'':'none';

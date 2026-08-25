@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0e0d">
+<title>ตั้งค่า Mentor Mobile — BNI IDEAL</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+:root{--bg:#0b0e0d;--card:#151a17;--line:#303a32;--gold:#d2b779;--text:#f3f0e8;--muted:#aaa99f;--green:#34d399;--red:#fb7185}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Sarabun,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh;padding:max(20px,env(safe-area-inset-top)) 18px max(24px,env(safe-area-inset-bottom));display:grid;place-items:center}.card{width:min(100%,480px);background:var(--card);border:1px solid var(--line);border-radius:22px;padding:24px;box-shadow:0 24px 80px #0008}.mark{width:54px;height:54px;border-radius:16px;background:#d2b7791d;border:1px solid #d2b77955;display:grid;place-items:center;font-size:25px}h1{font-size:24px;margin:16px 0 6px}.sub{color:var(--muted);font-size:14px;line-height:1.65;margin:0 0 20px}.summary{border:1px solid var(--line);border-radius:15px;padding:14px;margin:16px 0}.row{display:flex;justify-content:space-between;gap:16px;padding:7px 0;font-size:14px}.row span:first-child{color:var(--muted)}.row strong{text-align:right}.notice{background:#d2b77912;border:1px solid #d2b77944;color:#e6d4aa;padding:12px;border-radius:12px;font-size:13px;line-height:1.55;margin:14px 0}.btn{width:100%;min-height:50px;border:0;border-radius:12px;background:var(--gold);color:#14130f;font:700 15px inherit;cursor:pointer;margin-top:10px}.btn:disabled{opacity:.45}.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}label{display:block;color:var(--muted);font-size:13px;margin:13px 0 6px}input{width:100%;height:50px;border-radius:12px;border:1px solid var(--line);background:#0e1210;color:var(--text);font-size:22px;letter-spacing:8px;text-align:center}.email{font-size:14px;letter-spacing:0;text-align:left;padding:0 14px}.msg{min-height:22px;margin-top:12px;font-size:13px;line-height:1.5}.ok{color:var(--green)}.err{color:var(--red)}[hidden]{display:none!important}
+</style>
+</head>
+<body><main class="card">
+  <div class="mark">🔐</div><h1>ตั้งค่า Mentor Mobile</h1>
+  <p class="sub">ลิงก์ส่วนตัวสำหรับผูกสมาชิกกับ Gmail และสิทธิ์ที่ Chapter Admin เตรียมไว้</p>
+  <div id="loading" class="sub">กำลังตรวจสอบลิงก์เชิญ…</div>
+  <section id="content" hidden>
+    <div class="summary"><div class="row"><span>สมาชิก</span><strong id="memberName">—</strong></div><div class="row"><span>สิทธิ์</span><strong id="roleName">—</strong></div><div class="row"><span>ลิงก์หมดอายุ</span><strong id="expiry">—</strong></div></div>
+    <div id="loginStep"><div class="notice">กรุณาเลือก Gmail ของคุณเอง บัญชีนี้จะเป็นชื่อผู้ใช้หลัก และไม่ควรใช้ Gmail ร่วมกับคนอื่น</div><button class="btn" onclick="signInGoogle()">เข้าสู่ระบบด้วย Google</button></div>
+    <div id="pinStep" hidden>
+      <label>Gmail ที่กำลังผูก</label><input class="email" id="email" readonly>
+      <label>ตั้ง PIN 4 ตัวสำหรับปลดล็อกบนเครื่องนี้</label><input id="pin1" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••">
+      <label>ยืนยัน PIN อีกครั้ง</label><input id="pin2" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••">
+      <div class="notice">PIN นี้ใช้ปลดล็อกบนอุปกรณ์นี้เท่านั้น สิทธิ์ของระบบยังตรวจด้วย Gmail ทุกครั้ง จึงไม่กระทบ PIN ของ Mentor คนอื่น</div>
+      <button id="claimBtn" class="btn" onclick="claimInvite()">ยืนยันและเริ่มใช้งาน</button><button class="btn ghost" onclick="changeGoogle()">ใช้ Gmail อื่น</button>
+    </div>
+  </section>
+  <section id="done" hidden><div class="notice ok">✅ ตั้งค่าเรียบร้อยแล้ว Gmail และสิทธิ์ Mentor Mobile ถูกผูกเข้าด้วยกันแล้ว</div><button class="btn" onclick="location.href='/'">เปิด Mentor Mobile</button></section>
+  <div id="msg" class="msg"></div>
+</main>
+<script>
+const SB_URL='https://itwyjhlfemxsfbimshby.supabase.co',SB_ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j',API=SB_URL+'/functions/v1/admin-api';
+const sb=window.supabase.createClient(SB_URL,SB_ANON),inviteToken=new URLSearchParams(location.search).get('invite')||'';let session=null;
+const post=body=>fetch(API,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+SB_ANON},body:JSON.stringify(body)}).then(r=>r.json());
+const roleLabel=r=>({mc:'Mentor Co.',toomtam:'Mentor · TOOMTAM',aof:'Mentor · Aof',draft:'Mentor · Draft',phai:'Mentor · PHAI',amp:'Mentor · AMP',growth:'Growth Team'}[r]||r);
+function message(t,bad=false){const el=document.getElementById('msg');el.textContent=t||'';el.className='msg '+(bad?'err':'');}
+async function init(){
+  const info=await post({action:'getMobileAccessInvite',inviteToken});document.getElementById('loading').hidden=true;
+  if(!info.ok){message(info.error||'เปิดลิงก์ไม่ได้',true);return;}
+  document.getElementById('memberName').textContent=info.invite.memberName;document.getElementById('roleName').textContent=info.invite.teamName||roleLabel(info.invite.approvedRole);document.getElementById('expiry').textContent=new Date(info.invite.expiresAt).toLocaleDateString('th-TH',{dateStyle:'medium'});document.getElementById('content').hidden=false;
+  const result=await sb.auth.getSession();session=result.data.session;
+  if(session){document.getElementById('loginStep').hidden=true;document.getElementById('pinStep').hidden=false;document.getElementById('email').value=session.user.email||'';}
+}
+async function signInGoogle(){message('กำลังเปิด Google…');await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.href}});}
+async function changeGoogle(){await sb.auth.signOut();location.reload();}
+async function hashPin(email,pin){const data=new TextEncoder().encode(email.toLowerCase()+':'+pin);const digest=await crypto.subtle.digest('SHA-256',data);return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('');}
+async function claimInvite(){
+  const p1=document.getElementById('pin1').value,p2=document.getElementById('pin2').value;if(!/^\d{4}$/.test(p1)){message('กรุณาตั้ง PIN เป็นตัวเลข 4 ตัว',true);return;}if(p1!==p2){message('PIN สองช่องไม่ตรงกัน',true);return;}
+  const btn=document.getElementById('claimBtn');btn.disabled=true;message('กำลังผูกบัญชี…');const r=await post({action:'claimMobileAccessInvite',inviteToken,token:session.access_token});
+  if(!r.ok){btn.disabled=false;message(r.error||'ตั้งค่าไม่สำเร็จ',true);return;}
+  localStorage.setItem('bni_mobile_pin_email',r.email);localStorage.setItem('bni_mobile_pin_hash',await hashPin(r.email,p1));sessionStorage.setItem('bni_mobile_pin_unlocked','1');document.getElementById('content').hidden=true;document.getElementById('done').hidden=false;message('');
+}
+init().catch(e=>{document.getElementById('loading').hidden=true;message(e.message||'เกิดข้อผิดพลาด',true)});
+</script></body></html>

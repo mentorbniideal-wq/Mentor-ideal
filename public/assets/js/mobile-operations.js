@@ -56,6 +56,28 @@ function storeSession(s){try{sessionStorage.setItem(SESSION_KEY,JSON.stringify(s
 function clearStoredSession(){try{sessionStorage.removeItem(SESSION_KEY);}catch{}}
 function mobileOAuthRedirectUrl(){return window.location.origin+window.location.pathname;}
 function showMobileLoginError(message){var el=document.getElementById('login-err');if(el)el.textContent=message||'';document.getElementById('loginScreen').style.display='flex';}
+function mobilePinHash(email,pin){
+  return crypto.subtle.digest('SHA-256',new TextEncoder().encode(String(email||'').toLowerCase()+':'+pin)).then(function(buf){
+    return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
+  });
+}
+function unlockMobileForUser(email){
+  var savedEmail='',savedHash='';try{savedEmail=localStorage.getItem('bni_mobile_pin_email')||'';savedHash=localStorage.getItem('bni_mobile_pin_hash')||'';}catch(e){}
+  if(!savedHash||savedEmail.toLowerCase()!==String(email||'').toLowerCase())return Promise.resolve(true);
+  try{if(sessionStorage.getItem('bni_mobile_pin_unlocked')==='1')return Promise.resolve(true);}catch(e){}
+  var attempt=0;
+  function ask(){
+    var pin=window.prompt('ใส่ PIN 4 ตัวเพื่อปลดล็อก Mentor Mobile');
+    if(pin===null)return Promise.resolve(false);
+    if(!/^\d{4}$/.test(pin)){alert('PIN ต้องเป็นตัวเลข 4 ตัว');return ask();}
+    return mobilePinHash(email,pin).then(function(hash){
+      if(hash===savedHash){try{sessionStorage.setItem('bni_mobile_pin_unlocked','1');}catch(e){}return true;}
+      attempt++;if(attempt>=3){alert('PIN ไม่ถูกต้อง 3 ครั้ง กรุณาเข้าสู่ระบบด้วย Google ใหม่');return false;}
+      alert('PIN ไม่ถูกต้อง กรุณาลองใหม่');return ask();
+    });
+  }
+  return ask();
+}
 function checkMobileGoogleSession(){
   var sb=getSbAuth();
   if(!sb){hideLoad();showMobileLoginError('ไม่สามารถโหลดระบบ Google Login ได้ กรุณารีเฟรชหน้า');return;}
@@ -67,7 +89,12 @@ function checkMobileGoogleSession(){
       .then(function(r){return r.json();})
       .then(function(r){
         hideLoad();
-        if(r&&r.ok){showMobileLoginError('');enterApp(r);return;}
+        if(r&&r.ok){
+          return unlockMobileForUser(session.user&&session.user.email).then(function(unlocked){
+            if(unlocked){showMobileLoginError('');enterApp(r);return;}
+            S.token=null;return sb.auth.signOut().finally(function(){showMobileLoginError('ยกเลิกการปลดล็อก กรุณาเข้าสู่ระบบใหม่');});
+          });
+        }
         S.token=null;
         sb.auth.signOut().finally(function(){showMobileLoginError((r&&r.error)||'ไม่สามารถตรวจสอบสิทธิ์อีเมลได้ กรุณาลองใหม่');});
       })

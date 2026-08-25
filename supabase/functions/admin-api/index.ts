@@ -32,6 +32,9 @@ const ROUTES: Record<string, string> = {
   'reassignLineMenu': 'settings', 'simulateLineMessage': 'settings',
   'getAdminSessionInfo': 'settings', 'getLineQuota': 'settings', 'getLineDeliveryLog': 'settings',
   'retryLineDelivery': 'settings',
+  'getMobileAccessInvite': 'settings', 'claimMobileAccessInvite': 'settings',
+  'getMobileAccessInvites': 'settings', 'createMobileAccessInvite': 'settings',
+  'sendMobileAccessInvite': 'settings', 'revokeMobileAccessInvite': 'settings',
 };
 
 const HANDLERS: Record<string, (p: Record<string, unknown>) => Promise<Response>> = {
