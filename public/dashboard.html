@@ -104,8 +104,8 @@
     <button class="tb" onclick="sw('mc-vis',this,'mc');loadVisitorLog()">👋 Visitors</button>
     <button class="tb" onclick="sw('mc-checkin',this,'mc');deskCiLoadHistory()">✅ Check-In</button>
     <button class="tb" onclick="sw('mc-w121',this,'mc');w121OpenSystem()">🤝 1-2-1 System</button>
-    <button class="tb" onclick="sw('mc-usage',this,'mc');loadUsageLog()">📈 Activity</button>
-    <button class="tb" onclick="sw('mc-access',this,'mc');loadAccessMgmt()">🔑 Access</button>
+    <button class="tb" data-admin-only="1" onclick="sw('mc-usage',this,'mc');loadUsageLog()">📈 Activity</button>
+    <button class="tb" data-admin-only="1" onclick="sw('mc-access',this,'mc');loadAccessMgmt()">🔑 Access</button>
     <button class="tb" onclick="sw('mc-import',this,'mc')" style="display:none">📥 Import</button>
     <button class="tb" onclick="sw('mc-copilot',this,'mc')">🤖 AI Copilot</button>
     <button class="tb" onclick="sw('mc-cal',this,'mc');loadCalendar()" style="display:none">📅 Calendar</button>
@@ -1491,7 +1491,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
           <div style="font-size:11px;color:var(--sub)">กำหนดผู้รับผิดชอบตามวาระ และส่งงานไปหาตำแหน่งที่ถูกต้องอัตโนมัติ</div>
         </div>
         <div style="display:flex;gap:7px;flex-wrap:wrap">
-          <button class="bsm" onclick="createLtTerm()" style="background:var(--ac-dim);border-color:var(--bd-hover);color:var(--ac);font-weight:800">+ สร้างวาระถัดไป</button>
+          <button class="bsm" data-admin-only="1" onclick="createLtTerm()" style="background:var(--ac-dim);border-color:var(--bd-hover);color:var(--ac);font-weight:800">+ สร้างวาระถัดไป</button>
           <button class="bsm" onclick="loadLtTeam(true)">↻ รีเฟรช</button>
         </div>
       </div>
@@ -1505,6 +1505,11 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       <div class="card">
         <div style="font-size:13px;font-weight:900;margin-bottom:10px">เส้นทางแจ้งเตือนตามตำแหน่ง</div>
         <div id="lt-team-routing" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:9px"></div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <div style="font-size:13px;font-weight:900">📥 งานและความสนใจจากสมาชิก</div>
+        <div style="font-size:10px;color:var(--sub);margin:3px 0 12px">รวมเป้าหมาย แขก การต่ออายุ และการอบรม เพื่อให้ทีมที่รับผิดชอบติดตามต่อ</div>
+        <div id="lt-signal-inbox" style="display:grid;gap:8px"></div>
       </div>
     </div>
 

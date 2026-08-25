@@ -8,6 +8,7 @@ export interface AuthResult {
   teamName?: string | null;
   isMC?: boolean;
   isMentor?: boolean;
+  isAdmin?: boolean;
   adminSections?: string[];
   adminEditAccess?: boolean;
   error?: string;
@@ -15,7 +16,8 @@ export interface AuthResult {
 
 const DEV_MODE = String(Deno.env.get('DEV_MODE') || 'false').toLowerCase() === 'true';
 
-const ROLE_INFO: Record<string, { displayName: string; teamName: string | null; isMC: boolean; isMentor: boolean }> = {
+const ROLE_INFO: Record<string, { displayName: string; teamName: string | null; isMC: boolean; isMentor: boolean; isAdmin?: boolean }> = {
+  admin:   { displayName: 'Chapter Admin', teamName: null, isMC: true, isMentor: false, isAdmin: true },
   mc:      { displayName: 'MC',      teamName: null,      isMC: true,  isMentor: false },
   toomtam: { displayName: 'TOOMTAM', teamName: 'TOOMTAM', isMC: false, isMentor: true  },
   aof:     { displayName: 'Aof',     teamName: 'Aof',     isMC: false, isMentor: true  },
@@ -56,7 +58,7 @@ export async function verifyToken(
   // Look up role_assignments by email (service client can read this)
   const { data: ra, error: raErr } = await supabase
     .from('role_assignments')
-    .select('role, display_name, team_name, is_mc, is_mentor, admin_sections, admin_edit_access')
+    .select('role, display_name, team_name, is_mc, is_mentor, is_admin, admin_sections, admin_edit_access')
     .ilike('email', email)
     .maybeSingle();
 
@@ -71,6 +73,7 @@ export async function verifyToken(
     teamName:    r.team_name != null ? String(r.team_name) : null,
     isMC:        Boolean(r.is_mc),
     isMentor:    Boolean(r.is_mentor),
+    isAdmin:     Boolean(r.is_admin) || String(r.role) === 'admin',
     adminSections: Array.isArray(r.admin_sections) ? r.admin_sections.map(String) : [],
     adminEditAccess: Boolean(r.admin_edit_access),
   };
@@ -113,6 +116,7 @@ export async function verifyPin(
     teamName: row.team_name != null ? String(row.team_name) : info.teamName,
     isMC: Boolean(row.is_mc ?? info.isMC),
     isMentor: Boolean(row.is_mentor ?? info.isMentor),
+    isAdmin: Boolean(row.is_admin ?? info.isAdmin),
   };
 }
 
@@ -134,7 +138,7 @@ export async function requireAuth(
   if (token) {
     const result = await verifyToken(supabase, token);
     if (!result.ok) return result;
-    if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(result.role!)) {
+    if (allowedRoles && allowedRoles.length > 0 && !result.isAdmin && !allowedRoles.includes(result.role!)) {
       return { ok: false, error: 'ไม่มีสิทธิ์ใช้งาน action นี้' };
     }
     return result;
@@ -149,7 +153,7 @@ export async function requireAuth(
   const result = await verifyPin(supabase, role, pin);
   if (!result.ok) return result;
 
-  if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(result.role!)) {
+  if (allowedRoles && allowedRoles.length > 0 && !result.isAdmin && !allowedRoles.includes(result.role!)) {
     return { ok: false, error: 'ไม่มีสิทธิ์ใช้งาน action นี้' };
   }
 

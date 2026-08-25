@@ -11,6 +11,7 @@ import { GUIDED_MODES, canEditOwnedGuidedData, cleanGuidedText, normalizeGuidedC
 import { canMemberUpdateFollowUp, evaluateOneToOneAccess, shouldCreateMentorNotification, validMemberFollowUpOutcome } from '../_shared/one-to-one-workflow.ts';
 import { canAccessPairProfile, member121ProfileCompleteness, normalizeMember121Profile, publicMember121Profile } from '../_shared/member-121-profile.ts';
 import { buildGoalCoach } from '../_shared/goal-coach.ts';
+import { upsertMemberSignal } from '../_shared/member-signals.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
 
@@ -109,11 +110,11 @@ Deno.serve(async (req: Request) => {
   if(action==='training-calendar'){
     const from=new Date().toISOString().slice(0,10),until=new Date(Date.now()+180*86400000).toISOString().slice(0,10);
     const {data,error}=await db.from('bni_events')
-      .select('event_no,name,event_date,time_start,time_end,ceu,category,audience,is_online,location,price_thb,note_th,venue_region')
+      .select('id,event_no,name,event_date,time_start,time_end,ceu,category,audience,is_online,location,price_thb,note_th,venue_region')
       .gte('event_date',from).lte('event_date',until).order('event_date',{ascending:true}).limit(100);
     if(error)return response({ok:false,error:'โหลดปฏิทิน CEU ไม่สำเร็จ'},500);
     const events=((data||[]) as Record<string,unknown>[]).filter(row=>Number(row.ceu||0)>0||/ceu|training|msp|skill/i.test(`${row.category||''} ${row.name||''}`)).map(row=>({
-      id:String(row.event_no||''),name:String(row.name||'CEU Training'),eventDate:String(row.event_date||''),
+      id:String(row.id||''),eventNo:String(row.event_no||''),name:String(row.name||'CEU Training'),eventDate:String(row.event_date||''),
       timeStart:String(row.time_start||'').slice(0,5),timeEnd:String(row.time_end||'').slice(0,5),ceu:Number(row.ceu||0),
       category:String(row.category||''),audience:String(row.audience||''),isOnline:Boolean(row.is_online),
       location:String(row.location||''),priceThb:Number(row.price_thb||0),note:String(row.note_th||''),venueRegion:String(row.venue_region||''),
@@ -547,6 +548,8 @@ Deno.serve(async (req: Request) => {
       member_id: memberId, goal_type: goalType, target, set_at: new Date().toISOString(),
     }, { onConflict: 'member_id,goal_type' });
     if (error) return response({ ok: false, error: error.message }, 400);
+    const month = new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit'}).format(new Date());
+    await upsertMemberSignal(db,{memberId,signalType:'goal',subjectType:'line_goal',subjectId:goalType,title:'สมาชิกตั้งเป้าหมายใหม่',detail:`${goalType}: ${target}`,payload:{goalType,target},priority:'low',idempotencyKey:`goal:${memberId}:${goalType}:${month}`});
     await trackLineEvent(db, 'liff_goal_saved', {
       lineUserId: identity.userId, memberId, source: 'liff', properties: { goalType },
     });
@@ -569,6 +572,27 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  if (action === 'renewal-intent') {
+    const intent=String(body.intent||''),allowed=new Set(['renew_now','need_details','talk_mentor','unsure','not_now']);
+    if(!allowed.has(intent))return response({ok:false,error:'กรุณาเลือกสิ่งที่ต้องการ'},400);
+    const labels:Record<string,string>={renew_now:'พร้อมต่ออายุ',need_details:'ขอรายละเอียดการต่ออายุ',talk_mentor:'อยากคุยกับ Mentor ก่อน',unsure:'ยังไม่แน่ใจและอยากให้ช่วย',not_now:'ยังไม่ดำเนินการตอนนี้'};
+    const {error}=await upsertMemberSignal(db,{memberId,signalType:'renewal',subjectType:'renewal_intent',subjectId:intent,title:labels[intent],detail:'สมาชิกแจ้งความต้องการผ่าน MY IDEAL',payload:{intent},priority:intent==='talk_mentor'||intent==='unsure'?'high':'normal',consent:intent!=='not_now',idempotencyKey:`renewal:${memberId}:${intent}`});
+    if(error)return response({ok:false,error:'บันทึกความต้องการไม่สำเร็จ กรุณาลองใหม่'},400);
+    return response({ok:true,message:intent==='not_now'?'บันทึกไว้แล้ว คุณกลับมาแจ้งใหม่ได้ทุกเมื่อ':'ส่งความต้องการให้ทีมที่รับผิดชอบแล้ว'});
+  }
+
+  if (action === 'training-interest') {
+    const eventId=String(body.eventId||''),intent=String(body.intent||''),allowed=new Set(['interested','need_details','registered','cancelled']);
+    if(!eventId||!allowed.has(intent))return response({ok:false,error:'ข้อมูลหลักสูตรหรือสถานะไม่ถูกต้อง'},400);
+    const {data:event}=await db.from('bni_events').select('id,name,event_date').eq('id',eventId).maybeSingle();
+    if(!event)return response({ok:false,error:'ไม่พบหลักสูตรนี้ กรุณารีเฟรชปฏิทิน'},404);
+    const labels:Record<string,string>={interested:'สนใจเข้าร่วมอบรม',need_details:'ขอรายละเอียดหลักสูตร',registered:'ลงทะเบียนแล้ว',cancelled:'ยกเลิกความสนใจ'};
+    const {error}=await upsertMemberSignal(db,{memberId,signalType:'training',subjectType:'bni_event',subjectId:eventId,title:`${labels[intent]} · ${String((event as Record<string,unknown>).name||'')}`,detail:String((event as Record<string,unknown>).event_date||''),payload:{intent,eventId},priority:intent==='need_details'?'high':'normal',consent:intent!=='cancelled',idempotencyKey:`training:${memberId}:${eventId}`});
+    if(error)return response({ok:false,error:'บันทึกความสนใจไม่สำเร็จ กรุณาลองใหม่'},400);
+    if(intent==='cancelled')await db.from('member_signals').update({status:'cancelled',resolved_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('idempotency_key',`training:${memberId}:${eventId}`);
+    return response({ok:true,message:intent==='cancelled'?'ยกเลิกความสนใจแล้ว':'ส่งข้อมูลให้ทีม ST / NEC แล้ว'});
+  }
+
   if (action === 'visitor') {
     const visitorName = String(body.visitorName || '').trim();
     const visitDate = String(body.visitDate || '').trim();
@@ -583,6 +607,7 @@ Deno.serve(async (req: Request) => {
       status: 'pending',
     }).select('id').single();
     if (error) return response({ ok: false, error: error.message }, 400);
+    await upsertMemberSignal(db,{memberId,signalType:'visitor',subjectType:'visitor_log',subjectId:String((visitor as Record<string,unknown>).id),title:`มีแขกพิเศษ: ${visitorName}`,detail:visitDate,payload:{visitorName,visitDate},priority:'normal',consent:true,idempotencyKey:`visitor:${String((visitor as Record<string,unknown>).id)}`});
     await notifyVisitorStakeholders(db, {
       visitorLogId: String((visitor as Record<string, unknown>).id), visitorName, visitDate,
       invitedByMemberId: memberId,

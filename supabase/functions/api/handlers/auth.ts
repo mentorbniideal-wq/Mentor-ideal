@@ -28,6 +28,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
       ok:          true,
       role:        auth.role,
       isMC:        auth.isMC,
+      isAdmin:     auth.isAdmin,
       teamName:    auth.teamName,
       displayName: auth.displayName,
       version,
@@ -84,7 +85,8 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
       return jsonResponse({ ok: false, error: 'ต้องเป็น MC หรือ TOOMTAM จึงจะสลับ Role ได้โดยไม่ใช้ PIN' });
     }
 
-    const RINFO: Record<string, { displayName: string; teamName: string | null; isMC: boolean; isMentor: boolean }> = {
+    const RINFO: Record<string, { displayName: string; teamName: string | null; isMC: boolean; isMentor: boolean; isAdmin?: boolean }> = {
+      admin:   { displayName: 'Chapter Admin', teamName: null, isMC: true, isMentor: false, isAdmin: true },
       mc:      { displayName: 'MC',      teamName: null,      isMC: true,  isMentor: false },
       toomtam: { displayName: 'TOOMTAM', teamName: 'TOOMTAM', isMC: false, isMentor: true  },
       aof:     { displayName: 'Aof',     teamName: 'Aof',     isMC: false, isMentor: true  },
@@ -99,7 +101,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
     const { data: ver } = await db.from('settings').select('key, value').in('key', ['APP_VERSION']);
     const version = ver?.find((r: { key: string }) => r.key === 'APP_VERSION')?.value || 'v4.0';
 
-    return jsonResponse({ ok: true, role: targetRole, ...info, version });
+    return jsonResponse({ ok: true, role: targetRole, ...info, isAdmin: Boolean(result.isAdmin), version });
   }
 
   // ── changePIN ────────────────────────────────────────────────
@@ -119,8 +121,8 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
 
     // Verify caller is MC via PIN or OAuth token — never trust raw p.role
     const authResult = await requireAuth(db, p, ['mc']);
-    if (!authResult.ok || !authResult.isMC) {
-      return jsonResponse({ ok: false, error: 'เฉพาะ MC เท่านั้นที่เปลี่ยน PIN ได้' });
+    if (!authResult.ok || !authResult.isAdmin) {
+      return jsonResponse({ ok: false, error: 'เฉพาะ Chapter Admin เท่านั้นที่เปลี่ยน PIN ได้' });
     }
 
     // Update with new bcrypt hash via DB function
@@ -153,6 +155,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
       role:        result.role,
       isMC:        result.isMC,
       isMentor:    result.isMentor,
+      isAdmin:     result.isAdmin,
       teamName:    result.teamName,
       displayName: result.displayName,
       adminSections: result.adminSections || [],

@@ -106,6 +106,7 @@ const ROUTES: Record<string, string> = {
   'getPassportCalendar': 'members',
   'getLtTeam': 'members', 'saveLtTeamAssignment': 'members',
   'createLtTerm': 'members',
+  'getMemberSignals': 'members', 'updateMemberSignal': 'members',
 
   // Coaching / Core Issue
   'saveCoreIssue': 'coaching', 'getCoachingGuide': 'coaching',

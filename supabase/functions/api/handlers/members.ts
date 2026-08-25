@@ -11,15 +11,15 @@ const GROWTH_WATCH_MIN_SCORE = 65;
 const LT_ROLE_CATALOG = [
   { role: 'President', label: 'President', scopes: [] },
   { role: 'Vice President', label: 'Vice President', scopes: [] },
-  { role: 'Secretary/Treasurer', label: 'Secretary / Treasurer', scopes: ['absence'] },
+  { role: 'Secretary/Treasurer', label: 'Secretary / Treasurer', scopes: ['absence', 'renewal', 'training'] },
   { role: 'Membership Committee', label: 'Membership Committee', scopes: ['absence', 'renewal'] },
   { role: 'Visitor Host', label: 'Visitor Host', scopes: ['visitor'] },
   { role: 'Event Coordinator', label: 'Event Coordinator', scopes: ['visitor'] },
   { role: 'Education Coordinator', label: 'Education Coordinator', scopes: [] },
   { role: 'Mentor Coordinator', label: 'Mentor Coordinator', scopes: ['member_help', 'new_member'] },
-  { role: 'Growth Coordinator', label: 'Growth Coordinator', scopes: [] },
+  { role: 'Growth Coordinator', label: 'Growth Coordinator', scopes: ['goal'] },
   { role: 'Web Master', label: 'Web Master', scopes: [] },
-  { role: 'Network Education Coordinator', label: 'Network Education Coordinator', scopes: [] },
+  { role: 'Network Education Coordinator', label: 'Network Education Coordinator', scopes: ['training'] },
 ] as const;
 
 type MemberRef = {
@@ -788,8 +788,42 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       return jsonResponse({ ok: true, terms: terms || [], assignments: assignments || [], members: memberRows, roles: LT_ROLE_CATALOG });
     }
 
+    case 'getMemberSignals': {
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const status = textValue(p.status), signalType = textValue(p.signalType);
+      let query = db.from('member_signals')
+        .select('*,members!member_signals_member_id_fkey(name,nickname,mentor_team)')
+        .order('created_at', { ascending: false }).limit(200);
+      if (status) query = query.eq('status', status);
+      else query = query.in('status', ['new', 'acknowledged', 'in_progress']);
+      if (signalType) query = query.eq('signal_type', signalType);
+      if (auth.role === 'growth' && !auth.isAdmin) query = query.eq('signal_type', 'goal');
+      const { data, error } = await query;
+      if (error) return errResponse(error.message);
+      const rows = (data || []) as Record<string, unknown>[];
+      const counts = rows.reduce((acc: Record<string, number>, row) => {
+        const key = String(row.signal_type || 'other'); acc[key] = (acc[key] || 0) + 1; return acc;
+      }, {});
+      return jsonResponse({ ok: true, signals: rows, counts });
+    }
+
+    case 'updateMemberSignal': {
+      const auth = await requireAuth(db, p, ['admin']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const id = textValue(p.id), status = textValue(p.status);
+      if (!id || !['acknowledged', 'in_progress', 'resolved', 'cancelled'].includes(status)) return errResponse('สถานะงานไม่ถูกต้อง');
+      const now = new Date().toISOString(), actor = String(auth.displayName || auth.role || 'Chapter Admin');
+      const changes: Record<string, unknown> = { status, updated_at: now };
+      if (status === 'acknowledged' || status === 'in_progress') Object.assign(changes, { acknowledged_by: actor, acknowledged_at: now });
+      if (status === 'resolved' || status === 'cancelled') Object.assign(changes, { resolved_by: actor, resolved_at: now });
+      const { data, error } = await db.from('member_signals').update(changes).eq('id', id).select('*').single();
+      if (error) return errResponse(error.message);
+      return jsonResponse({ ok: true, signal: data });
+    }
+
     case 'saveLtTeamAssignment': {
-      const auth = await requireAuth(db, p, ['mc']);
+      const auth = await requireAuth(db, p, ['admin']);
       if (!auth.ok) return errResponse(auth.error!);
       const ltRole = textValue(p.ltRole);
       if (!LT_ROLE_CATALOG.some(item => item.role === ltRole)) return errResponse('ตำแหน่ง LT ไม่ถูกต้อง');
@@ -824,7 +858,7 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
     }
 
     case 'createLtTerm': {
-      const auth = await requireAuth(db, p, ['mc']);
+      const auth = await requireAuth(db, p, ['admin']);
       if (!auth.ok) return errResponse(auth.error!);
       const name = textValue(p.name).slice(0, 120), startsOn = textValue(p.startsOn), endsOn = textValue(p.endsOn);
       if (!name || !parseYmdDate(startsOn) || !parseYmdDate(endsOn) || endsOn < startsOn) return errResponse('กรุณาระบุชื่อและช่วงวันที่วาระให้ถูกต้อง');
