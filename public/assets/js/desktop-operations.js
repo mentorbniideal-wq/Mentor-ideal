@@ -1385,7 +1385,7 @@ var MENTOR_TEAMS=['TOOMTAM','Aof','Draft','PHAI','AMP'];
 // ── Mentor Team Manager ───────────────────────────────────────
 // members.mentor_team remains the source of truth. This view never deletes a
 // member; "ถอนออก" only clears the team assignment and preserves all history.
-var MTM={loaded:false,loading:false,teams:{},history:[],selected:{}};
+var MTM={loaded:false,loading:false,teams:{},teamLabels:{},history:[],selected:{}};
 function mtmAllMembers(){
   var keys=MENTOR_TEAMS.concat(['unassigned']),seen={};
   return keys.reduce(function(out,key){
@@ -1405,17 +1405,20 @@ function loadMentorTeamManager(force){
   gsr('getMembersByTeam',{role:'mc'},function(r){
     MTM.loading=false;
     if(!r||!r.ok){board.innerHTML='<div class="team-manager-loading" style="color:var(--re)">โหลดรายชื่อไม่สำเร็จ · '+esc(r&&r.error||'กรุณาลองใหม่')+'</div>';return;}
-    MTM.teams=r.teams||{};MTM.loaded=true;
+    MTM.teams=r.teams||{};MTM.teamLabels=r.teamLabels||{};MTM.loaded=true;
+    var filter=document.getElementById('team-manager-filter'),target=document.getElementById('team-manager-target');
+    if(filter)Array.prototype.forEach.call(filter.options,function(o){if(MTM.teamLabels[o.value])o.textContent=MTM.teamLabels[o.value];});
+    if(target)Array.prototype.forEach.call(target.options,function(o){if(MTM.teamLabels[o.value])o.textContent='ย้ายไป '+MTM.teamLabels[o.value];});
     renderMentorTeamManager();
   });
   gsr('getTeamMoveHistory',{role:'mc'},function(r){
     if(r&&r.ok){MTM.history=r.history||[];renderMentorTeamHistory();}
   });
 }
-function mtmTeamLabel(team){return team||'ยังไม่มีทีม';}
+function mtmTeamLabel(team){return team?(MTM.teamLabels[team]||team):'ยังไม่มีทีม';}
 function mtmMoveOptions(current){
   var html='<option value="">ย้าย…</option>';
-  MENTOR_TEAMS.forEach(function(team){if(team!==current)html+='<option value="'+team+'">'+team+'</option>';});
+  MENTOR_TEAMS.forEach(function(team){if(team!==current)html+='<option value="'+team+'">'+esc(MTM.teamLabels[team]||team)+'</option>';});
   if(current)html+='<option value="__NONE__">ถอนออกจากทีม</option>';
   return html;
 }
@@ -1457,7 +1460,7 @@ function mtmMember(id){return mtmAllMembers().find(function(m){return String(m.i
 function quickMoveMentorTeam(id,value){
   if(!value)return;var member=mtmMember(id),target=value==='__NONE__'?'':value;
   var name=member&&(member.nickname||member.name)||'สมาชิก';
-  if(!confirm((target?'ย้าย ':'ถอน ')+name+(target?' ไปทีม '+target+'?':' ออกจากทีม?')+'\n\nคะแนน ประวัติ และข้อมูลเดิมจะไม่ถูกลบ'))return;
+  if(!confirm((target?'ย้าย ':'ถอน ')+name+(target?' ไป'+mtmTeamLabel(target)+'?':' ออกจากทีม?')+'\n\nคะแนน ประวัติ และข้อมูลเดิมจะไม่ถูกลบ'))return;
   gsr('moveMemberToTeam',{role:'mc',memberId:id,memberName:member&&member.name||'',targetTeam:target,note:'Mentor Team Manager · single move'},function(r){
     if(!r||!r.ok){toast('❌ '+(r&&r.error||'เปลี่ยนทีมไม่สำเร็จ'),'err');return;}
     toast('✅ อัปเดตทีมของ '+name+' แล้ว','ok');delete MTM.selected[id];refreshMentorTeamManager();
@@ -1466,7 +1469,7 @@ function quickMoveMentorTeam(id,value){
 function bulkMoveMentorTeam(){
   var ids=Object.keys(MTM.selected);if(!ids.length)return;
   var target=(document.getElementById('team-manager-target')||{}).value||'';
-  var action=target?'ย้ายไปทีม '+target:'ถอนออกจากทีม';
+  var action=target?'ย้ายไป'+mtmTeamLabel(target):'ถอนออกจากทีม';
   if(!confirm(action+' จำนวน '+ids.length+' คน?\n\nระบบจะเก็บประวัติเดิมทั้งหมด และข้ามคนที่อยู่ทีมปลายทางแล้ว'))return;
   var btn=document.getElementById('team-manager-move');if(btn)btn.disabled=true;
   gsr('bulkMoveMembersToTeam',{role:'mc',memberIds:ids,targetTeam:target,note:'Mentor Team Manager · bulk move'},function(r){
@@ -2719,8 +2722,21 @@ function loadLtTeam(force){
 }
 function ltMemberOption(m){return esc(m.nickname||m.name||'—')+(m.nickname&&m.name?' · '+esc(m.name):'')+(m.lineLinked?' · LINE ✓':' · ยังไม่เชื่อม LINE');}
 function ltMentorAccess(role){return({'Mentor Co.':{role:'mc',team:'Mentor Co.'},'Mentor Team · TOOMTAM':{role:'toomtam',team:'TOOMTAM'},'Mentor Team · Aof':{role:'aof',team:'Aof'},'Mentor Team · Draft':{role:'draft',team:'Draft'},'Mentor Team · PHAI':{role:'phai',team:'PHAI'},'Mentor Team · AMP':{role:'amp',team:'AMP'},'Mentor Support':{role:'mentor_support',team:'Mentor Support'}})[role]||null;}
+function ltIsMentorRole(role){return role==='Mentor Co.'||role==='Mentor Support'||role.indexOf('Mentor Team · ')===0;}
+function ltRoleLabel(item,assignment,members,mentorTeams){
+  if(item.role.indexOf('Mentor Team · ')!==0)return item.label||item.role;
+  var code=item.role.replace('Mentor Team · ',''),member=members.find(function(m){return assignment&&m.id===assignment.assigned_member_id;}),saved=(mentorTeams.find(function(t){return t.name===code;})||{}).leader_name;
+  var owner=member&&(member.nickname||member.name)||saved||code;
+  return 'ทีม '+owner+' · Mentor หลัก';
+}
+function ltRoleCard(item,i,byRole,members,linked,opts,mentorTeams){
+  var a=byRole[item.role]||{},main=a.assigned_member_id||'',mainReady=main&&linked[main];
+  var scopes=(item.scopes||[]).map(function(s){return({absence:'แจ้งลา',visitor:'Visitor',renewal:'Renewal',training:'การอบรม',goal:'เป้าหมาย',member_help:'ขอ Mentor',new_member:'สมาชิกใหม่'})[s]||s;});
+  var code=item.role.indexOf('Mentor Team · ')===0?item.role.replace('Mentor Team · ',''):'';
+  return '<div style="border:1px solid var(--bd);border-radius:13px;padding:12px;background:var(--sf2)"><div style="display:flex;justify-content:space-between;gap:8px"><div><div style="font-size:12px;font-weight:900">'+esc(ltRoleLabel(item,a,members,mentorTeams))+'</div>'+(code?'<div style="font-size:8px;color:var(--sub);margin-top:2px">รหัสภายใน: '+esc(code)+'</div>':'')+'<div style="font-size:9px;color:var(--sub);margin-top:2px">'+(scopes.length?'รับ: '+esc(scopes.join(' · ')):'ตำแหน่งบริหาร')+'</div></div><span style="font-size:9px;font-weight:800;color:'+(mainReady?'var(--gr)':'var(--ye)')+'">'+(mainReady?'LINE พร้อม':'ต้องตรวจ LINE')+'</span></div><label style="font-size:9px;margin-top:9px">ผู้รับผิดชอบหลัก</label><select id="lt-main-'+i+'" '+(S.isAdmin?'':'disabled')+' style="font-size:11px;padding:7px">'+opts+'</select><label style="font-size:9px;margin-top:7px">ผู้สำรอง</label><select id="lt-fallback-'+i+'" '+(S.isAdmin?'':'disabled')+' style="font-size:11px;padding:7px">'+opts+'</select>'+(S.isAdmin?'<button class="bsm" onclick="saveLtRole('+i+')" style="width:100%;margin-top:9px;background:var(--ac-dim);color:var(--ac);border-color:var(--bd-hover);font-weight:800">บันทึกตำแหน่ง</button>':'<div style="font-size:9px;color:var(--sub);margin-top:9px">MC เปิดดูได้ · Chapter Admin เป็นผู้แก้ไข</div>')+'</div>';
+}
 function renderLtTeam(){
-  var d=_ltTeamData||{},terms=d.terms||[],assignments=d.assignments||[],members=d.members||[],roles=d.roles||[];
+  var d=_ltTeamData||{},terms=d.terms||[],assignments=d.assignments||[],members=d.members||[],roles=d.roles||[],mentorTeams=d.mentorTeams||[];
   var term=terms.find(function(t){return t.status==='active';})||null;
   var active=assignments.filter(function(a){return a.is_active&&(!term||!a.term_id||a.term_id===term.id);});
   var byRole={};active.forEach(function(a){byRole[a.lt_role]=a;});
@@ -2733,7 +2749,9 @@ function renderLtTeam(){
   if(termEl)termEl.innerHTML=term?'<div class="card" style="background:linear-gradient(135deg,var(--sf2),var(--sf));border-color:var(--bd-hover)"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap"><div><div style="font-size:10px;color:var(--gr);font-weight:900">● วาระที่กำลังใช้งาน</div><div style="font-size:17px;font-weight:900;margin-top:3px">'+esc(term.name)+'</div><div style="font-size:11px;color:var(--sub);margin-top:3px">'+passportFmtDate(term.starts_on)+' – '+passportFmtDate(term.ends_on)+'</div></div><div style="font-size:11px;color:var(--sub)">การแจ้งเตือนจะอ้างอิงทีมชุดนี้</div></div></div>':'<div class="card" style="border-color:var(--re);color:var(--re)">ยังไม่มีวาระ LT ที่กำลังใช้งาน · กรุณาสร้างวาระ</div>';
   var sum=document.getElementById('lt-team-summary');if(sum)sum.innerHTML=[['ตำแหน่งทั้งหมด',roles.length,'var(--ac)'],['กำหนดคนแล้ว',filled,'var(--gr)'],['LINE พร้อมรับ',ready,'#60a5fa'],['มีงานอัตโนมัติ',routed,'var(--ye)']].map(function(x){return'<div class="kcard"><div style="font-size:22px;font-weight:900;color:'+x[2]+'">'+x[1]+'</div><div style="font-size:10px;color:var(--sub);font-weight:800">'+x[0]+'</div></div>';}).join('');
   var opts='<option value="">— ยังไม่เลือก —</option>'+members.map(function(m){return'<option value="'+esc(m.id)+'">'+ltMemberOption(m)+'</option>';}).join('');
-  var roleEl=document.getElementById('lt-team-roles');if(roleEl)roleEl.innerHTML=roles.map(function(item,i){var a=byRole[item.role]||{},main=a.assigned_member_id||'',fallback=a.fallback_member_id||'',mainReady=main&&linked[main],scopes=(item.scopes||[]).map(function(s){return({absence:'แจ้งลา',visitor:'Visitor',renewal:'Renewal',training:'การอบรม',goal:'เป้าหมาย',member_help:'ขอ Mentor',new_member:'สมาชิกใหม่'})[s]||s;});return'<div style="border:1px solid var(--bd);border-radius:13px;padding:12px;background:var(--sf2)"><div style="display:flex;justify-content:space-between;gap:8px"><div><div style="font-size:12px;font-weight:900">'+esc(item.label||item.role)+'</div><div style="font-size:9px;color:var(--sub);margin-top:2px">'+(scopes.length?'รับ: '+esc(scopes.join(' · ')):'ตำแหน่งบริหาร')+'</div></div><span style="font-size:9px;font-weight:800;color:'+(mainReady?'var(--gr)':'var(--ye)')+'">'+(mainReady?'LINE พร้อม':'ต้องตรวจ LINE')+'</span></div><label style="font-size:9px;margin-top:9px">ผู้รับผิดชอบหลัก</label><select id="lt-main-'+i+'" '+(S.isAdmin?'':'disabled')+' style="font-size:11px;padding:7px">'+opts+'</select><label style="font-size:9px;margin-top:7px">ผู้สำรอง</label><select id="lt-fallback-'+i+'" '+(S.isAdmin?'':'disabled')+' style="font-size:11px;padding:7px">'+opts+'</select>'+(S.isAdmin?'<button class="bsm" onclick="saveLtRole('+i+')" style="width:100%;margin-top:9px;background:var(--ac-dim);color:var(--ac);border-color:var(--bd-hover);font-weight:800">บันทึกตำแหน่ง</button>':'<div style="font-size:9px;color:var(--sub);margin-top:9px">MC เปิดดูได้ · Chapter Admin เป็นผู้แก้ไข</div>')+'</div>';}).join('');
+  var indexedRoles=roles.map(function(item,i){return{item:item,index:i};});
+  var roleEl=document.getElementById('lt-team-roles');if(roleEl)roleEl.innerHTML=indexedRoles.filter(function(x){return !ltIsMentorRole(x.item.role);}).map(function(x){return ltRoleCard(x.item,x.index,byRole,members,linked,opts,mentorTeams);}).join('');
+  var mentorEl=document.getElementById('lt-mentor-roles');if(mentorEl)mentorEl.innerHTML=indexedRoles.filter(function(x){return ltIsMentorRole(x.item.role);}).map(function(x){return ltRoleCard(x.item,x.index,byRole,members,linked,opts,mentorTeams);}).join('');
   setTimeout(function(){roles.forEach(function(item,i){var a=byRole[item.role]||{},m=document.getElementById('lt-main-'+i),f=document.getElementById('lt-fallback-'+i);if(m)m.value=a.assigned_member_id||'';if(f)f.value=a.fallback_member_id||'';if(S.isAdmin&&m&&ltMentorAccess(item.role)){var btn=document.createElement('button');btn.className='bsm';btn.style.cssText='width:100%;margin-top:6px;border-color:#d2b779;color:#d2b779;font-weight:800';btn.textContent='🔐 เชิญเข้า Mentor Mobile';btn.onclick=function(){inviteLtMentor(i);};m.parentElement.appendChild(btn);}});},0);
   var routeEl=document.getElementById('lt-team-routing');if(routeEl)routeEl.innerHTML=[['🎯 ตั้งเป้าหมาย','Growth Coordinator','goal'],['👋 มี Visitor มา','Visitor Host · Event Coordinator','visitor'],['🔄 สนใจต่ออายุ','Membership Committee · Secretary/Treasurer','renewal'],['🎓 สนใจอบรม','Secretary/Treasurer · NEC','training'],['🆘 ขอความช่วยเหลือ','Mentor Coordinator','member_help']].map(function(x){var configured=roles.filter(function(r){return(r.scopes||[]).indexOf(x[2])>=0;}).some(function(r){var a=byRole[r.role];return a&&a.assigned_member_id&&linked[a.assigned_member_id];});return'<div style="border:1px solid var(--bd);border-radius:12px;padding:12px;background:var(--sf2)"><div style="font-size:12px;font-weight:900">'+x[0]+'</div><div style="font-size:10px;color:var(--sub);margin:4px 0 8px">ส่งหา '+x[1]+'</div><span style="font-size:9px;font-weight:900;color:'+(configured?'var(--gr)':'var(--ye)')+'">'+(configured?'● พร้อมรับงาน':'● รอกำหนดผู้รับ')+'</span></div>';}).join('');
 }

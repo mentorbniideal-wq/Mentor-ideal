@@ -779,19 +779,20 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
     case 'getLtTeam': {
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
-      const [{ data: terms, error: termErr }, { data: assignments, error: assignmentErr }, { data: members, error: memberErr }] = await Promise.all([
+      const [{ data: terms, error: termErr }, { data: assignments, error: assignmentErr }, { data: members, error: memberErr }, { data: mentorTeams, error: mentorTeamErr }] = await Promise.all([
         db.from('lt_terms').select('*').order('starts_on', { ascending: false }),
         db.from('passport_lt_assignments').select('*').order('lt_role'),
         db.from('members').select('id,name,nickname,email,is_archived').eq('is_archived', false).order('name'),
+        db.from('mentor_teams').select('name,leader_name').order('id'),
       ]);
-      if (termErr || assignmentErr || memberErr) return errResponse(termErr?.message || assignmentErr?.message || memberErr?.message || 'โหลด LT Team ไม่สำเร็จ');
+      if (termErr || assignmentErr || memberErr || mentorTeamErr) return errResponse(termErr?.message || assignmentErr?.message || memberErr?.message || mentorTeamErr?.message || 'โหลด LT Team ไม่สำเร็จ');
       const memberIds = ((members || []) as Record<string, unknown>[]).map(m => String(m.id));
       const { data: links } = memberIds.length
         ? await db.from('line_members').select('member_id,line_user_id').in('member_id', memberIds)
         : { data: [] };
       const linked = new Set((links || []).map((row: Record<string, unknown>) => String(row.member_id)));
       const memberRows = ((members || []) as Record<string, unknown>[]).map(m => ({ ...m, lineLinked: linked.has(String(m.id)) }));
-      return jsonResponse({ ok: true, terms: terms || [], assignments: assignments || [], members: memberRows, roles: LT_ROLE_CATALOG });
+      return jsonResponse({ ok: true, terms: terms || [], assignments: assignments || [], members: memberRows, mentorTeams: mentorTeams || [], roles: LT_ROLE_CATALOG });
     }
 
     case 'getMemberSignals': {
@@ -858,6 +859,12 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
         : db.from('passport_lt_assignments').insert(payload).select('*').single();
       const { data, error } = await query;
       if (error) return errResponse(error.message);
+      const mentorTeamMatch = /^Mentor Team · (TOOMTAM|Aof|Draft|PHAI|AMP)$/.exec(ltRole);
+      if (mentorTeamMatch) {
+        const { error: teamError } = await db.from('mentor_teams')
+          .update({ leader_name: assignedName || mentorTeamMatch[1] }).eq('name', mentorTeamMatch[1]);
+        if (teamError) return errResponse(`บันทึกตำแหน่งแล้ว แต่เปลี่ยนชื่อทีมไม่สำเร็จ: ${teamError.message}`);
+      }
       await db.from('passport_sessions').update({ assigned_lt_member_id: assignedMemberId || null, assigned_lt_name: assignedName, updated_at: new Date().toISOString() })
         .eq('lt_role', ltRole).in('status', ['scheduled', 'notified']);
       return jsonResponse({ ok: true, assignment: data });
@@ -1038,10 +1045,11 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const { data, error } = await db
-        .from('v_members_by_team')
-        .select('id, name, nickname, mentor_team, is_mentored, latest_score, traffic_light');
-      if (error) return errResponse(error.message);
+      const [{ data, error }, { data: mentorTeams, error: teamError }] = await Promise.all([
+        db.from('v_members_by_team').select('id, name, nickname, mentor_team, is_mentored, latest_score, traffic_light'),
+        db.from('mentor_teams').select('name,leader_name').order('id'),
+      ]);
+      if (error || teamError) return errResponse(error?.message || teamError?.message || 'โหลด Mentor Team ไม่สำเร็จ');
 
       // Group by team
       const teams: Record<string, unknown[]> = {
@@ -1053,7 +1061,10 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
         teams[key].push(m);
       }
 
-      return jsonResponse({ ok: true, teams });
+      const teamLabels = Object.fromEntries(((mentorTeams || []) as Record<string, unknown>[]).map(team => [
+        String(team.name), `ทีม ${String(team.leader_name || team.name)}`,
+      ]));
+      return jsonResponse({ ok: true, teams, teamLabels });
     }
 
     // ── MOVE: MC moves a member to a different team ───────────
