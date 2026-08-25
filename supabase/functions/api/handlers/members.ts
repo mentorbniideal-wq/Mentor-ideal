@@ -838,7 +838,13 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       const counts = rows.reduce((acc: Record<string, number>, row) => {
         const key = String(row.signal_type || 'other'); acc[key] = (acc[key] || 0) + 1; return acc;
       }, {});
-      return jsonResponse({ ok: true, signals: rows, counts, activeLtRoles });
+      let assignees: Record<string, unknown>[] = [];
+      if (auth.isAdmin) {
+        const { data: people } = await db.from('role_assignments')
+          .select('member_id,display_name,role,team_name').not('member_id', 'is', null).order('display_name');
+        assignees = (people || []) as Record<string, unknown>[];
+      }
+      return jsonResponse({ ok: true, signals: rows, counts, activeLtRoles, assignees });
     }
 
     case 'getMemberSignalHistory': {
@@ -902,6 +908,55 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       return jsonResponse({ ok: true, signal: data });
     }
 
+    case 'addMemberSignalNote': {
+      const auth = await requireAuth(db, p);
+      if (!auth.ok) return errResponse(auth.error!);
+      const id = textValue(p.id), note = textValue(p.note).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 1000);
+      if (!id || !note) return errResponse('กรุณาใส่บันทึกภายใน');
+      const { data: signal } = await db.from('member_signals')
+        .select('*,members!member_signals_member_id_fkey(mentor_team)').eq('id', id).maybeSingle();
+      if (!signal) return errResponse('ไม่พบงานที่ต้องการบันทึก', 404);
+      let activeLtRoles: string[] = [];
+      if (auth.memberId && !auth.isAdmin) {
+        const { data: ltRows } = await db.from('passport_lt_assignments').select('lt_role')
+          .eq('is_active', true).or(`assigned_member_id.eq.${auth.memberId},fallback_member_id.eq.${auth.memberId}`);
+        activeLtRoles = ((ltRows || []) as Record<string, unknown>[]).map(row => String(row.lt_role || '')).filter(Boolean);
+      }
+      if (!canViewMemberSignal(auth, signal as Record<string, unknown>, activeLtRoles)) return errResponse('ไม่มีสิทธิ์บันทึกในงานนี้', 403);
+      const { data, error } = await db.from('member_signal_events').insert({
+        signal_id: id, event_type: 'internal_note', actor_ref: String(auth.displayName || auth.role || 'ทีมงาน'),
+        metadata: { note },
+      }).select('*').single();
+      if (error) return errResponse(error.message);
+      return jsonResponse({ ok: true, event: data });
+    }
+
+    case 'reopenMemberSignal': {
+      const auth = await requireAuth(db, p, ['admin']);
+      if (!auth.ok || !auth.isAdmin) return errResponse('เฉพาะ Chapter Admin เท่านั้นที่เปิดงานใหม่จากงานเดิมได้', 403);
+      const id = textValue(p.id);
+      const { data: oldSignal } = await db.from('member_signals').select('*').eq('id', id).maybeSingle();
+      if (!oldSignal) return errResponse('ไม่พบงานเดิม', 404);
+      const old = oldSignal as Record<string, unknown>;
+      if (!['resolved', 'cancelled'].includes(String(old.status || ''))) return errResponse('งานนี้ยังไม่ปิด ไม่จำเป็นต้องเปิดใหม่');
+      const reason = textValue(p.reason).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 500);
+      if (!reason) return errResponse('กรุณาระบุเหตุผลที่เปิดงานใหม่');
+      const { data: created, error } = await db.from('member_signals').insert({
+        member_id: old.member_id, signal_type: old.signal_type, subject_type: 'member_signal', subject_id: id,
+        title: String(old.title || 'ติดตามงานต่อ'), detail: reason, payload: { reopened_from: id },
+        target_roles: old.target_roles || [], status: 'new', priority: old.priority || 'normal',
+        assigned_role: old.assigned_role || null, assigned_member_id: old.assigned_member_id || null,
+        source_surface: 'chapter_admin', consent_at: old.consent_at || null,
+        idempotency_key: `reopen:${id}:${crypto.randomUUID()}`,
+      }).select('*').single();
+      if (error || !created) return errResponse(error?.message || 'เปิดงานใหม่ไม่สำเร็จ');
+      await db.from('member_signal_events').insert([
+        { signal_id: id, event_type: 'reopened_as', actor_ref: String(auth.displayName || 'Chapter Admin'), metadata: { new_signal_id: created.id, reason } },
+        { signal_id: created.id, event_type: 'reopened_from', actor_ref: String(auth.displayName || 'Chapter Admin'), metadata: { previous_signal_id: id, reason } },
+      ]);
+      return jsonResponse({ ok: true, signal: created });
+    }
+
     case 'saveLtTeamAssignment': {
       const auth = await requireAuth(db, p, ['admin']);
       if (!auth.ok) return errResponse(auth.error!);
@@ -948,6 +1003,31 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       await db.from('passport_sessions').update({ assigned_lt_member_id: assignedMemberId || null, assigned_lt_name: assignedName, updated_at: new Date().toISOString() })
         .eq('lt_role', ltRole).in('status', ['scheduled', 'notified']);
       return jsonResponse({ ok: true, assignment: data });
+    }
+
+    case 'previewLtTerm': {
+      const auth = await requireAuth(db, p, ['admin']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const name = textValue(p.name).slice(0, 120), startsOn = textValue(p.startsOn), endsOn = textValue(p.endsOn);
+      if (!name || !parseYmdDate(startsOn) || !parseYmdDate(endsOn) || endsOn < startsOn) return errResponse('กรุณาระบุชื่อและช่วงวันที่วาระให้ถูกต้อง');
+      const [{ data: terms, error: termError }, { data: roles, error: roleError }] = await Promise.all([
+        db.from('lt_terms').select('id,name,starts_on,ends_on,status').order('starts_on', { ascending: false }),
+        db.from('lt_role_assignments').select('lt_role,assigned_member_id,fallback_member_id,assigned_name').eq('is_active', true),
+      ]);
+      if (termError) return errResponse(termError.message);
+      if (roleError) return errResponse(roleError.message);
+      const active = ((terms || []) as Record<string, unknown>[]).find(t => String(t.status || '') === 'active') || null;
+      const overlaps = ((terms || []) as Record<string, unknown>[]).filter(t =>
+        String(t.status || '') !== 'archived' && String(t.starts_on || '') <= endsOn && String(t.ends_on || '') >= startsOn
+      );
+      const assignments = (roles || []) as Record<string, unknown>[];
+      return jsonResponse({ ok: true, preview: {
+        name, startsOn, endsOn, activeTerm: active, overlapTerms: overlaps,
+        assignmentCount: assignments.filter(a => a.assigned_member_id).length,
+        fallbackCount: assignments.filter(a => a.fallback_member_id).length,
+        emptyRoles: assignments.filter(a => !a.assigned_member_id).map(a => String(a.lt_role || '')),
+        copyPrevious: p.copyPrevious !== false,
+      }});
     }
 
     case 'createLtTerm': {

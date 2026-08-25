@@ -107,8 +107,9 @@ const ROUTES: Record<string, string> = {
   'updatePassportSession': 'members', 'savePassportLtAssignment': 'members',
   'getPassportCalendar': 'members',
   'getLtTeam': 'members', 'saveLtTeamAssignment': 'members',
-  'createLtTerm': 'members',
+  'previewLtTerm': 'members', 'createLtTerm': 'members',
   'getMemberSignals': 'members', 'getMemberSignalHistory': 'members', 'updateMemberSignal': 'members',
+  'addMemberSignalNote': 'members', 'reopenMemberSignal': 'members',
 
   // Coaching / Core Issue
   'saveCoreIssue': 'coaching', 'getCoachingGuide': 'coaching',

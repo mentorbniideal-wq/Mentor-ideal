@@ -141,6 +141,12 @@
     <div id="mc-ov" class="sec on">
       <div id="mc-kpi-hero"></div>
 
+      <section id="chapter-ops-overview" class="ops-overview" data-admin-only="1" style="display:none" aria-live="polite">
+        <div class="ops-overview-head"><div><span>CHAPTER ADMIN</span><h2>ศูนย์ปฏิบัติการวันนี้</h2><p>งานค้าง ทีมที่รับผิดชอบ และความพร้อมของระบบในมุมมองเดียว</p></div><button class="bsm" onclick="loadChapterOpsOverview(true)">↻ รีเฟรช</button></div>
+        <div id="chapter-ops-metrics" class="ops-overview-metrics"><div class="signal-queue-state">กำลังรวบรวมสถานะระบบ…</div></div>
+        <div id="chapter-ops-next" class="ops-overview-next"></div>
+      </section>
+
       <aside class="command-rail">
         <div class="rail-card">
           <div class="rail-title">Priority Signals</div>
@@ -2266,7 +2272,9 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
   </div>
 </div>
 <div id="w121-pair-shade" class="w121-drawer-shade" onclick="if(event.target===this)w121ClosePairAction()" role="dialog" aria-modal="true" aria-label="จัดการคู่ 1-2-1"><aside class="w121-drawer"><div class="w121-drawer-head"><div><b>Pair Action Center</b><div id="w121-pair-sub" style="font-size:10px;color:var(--sub)">กำลังโหลด…</div></div><button class="w121-drawer-close" onclick="w121ClosePairAction()" aria-label="ปิด">✕</button></div><div id="w121-pair-body"><div class="w121-module-empty">กำลังโหลดข้อมูลของคู่นี้…</div></div></aside></div>
+<div id="lt-term-wizard" class="ltw-shade" hidden role="dialog" aria-modal="true" aria-labelledby="ltw-title"><section class="ltw-card"><header><div><small>TERM CHANGE ASSISTANT</small><h2 id="ltw-title">สร้างวาระ LT ถัดไป</h2></div><button type="button" onclick="closeLtTermWizard()" aria-label="ปิด">✕</button></header><div class="ltw-progress"><span>ระบุวาระ</span><span>ตรวจความพร้อม</span><span>ยืนยัน</span></div><div class="ltw-grid"><label>ชื่อวาระ<input id="ltw-name" maxlength="120" placeholder="วาระ ต.ค. 2569 – มี.ค. 2570"></label><label>วันเริ่ม<input id="ltw-start" type="date"></label><label>วันสิ้นสุด<input id="ltw-end" type="date"></label></div><label class="ltw-copy"><input id="ltw-copy" type="checkbox" checked> คัดลอกผู้รับผิดชอบเดิม <small>(แนะนำ)</small></label><div id="ltw-preview" class="ltw-preview"></div><footer><button class="ltw-secondary" onclick="closeLtTermWizard()">ยกเลิก</button><button id="ltw-action" onclick="previewLtTerm()">ตรวจความพร้อม</button></footer></section></div>
 <div id="sc-export-wrap" style="position:fixed;left:-9999px;top:0;width:840px;pointer-events:none;z-index:-999;overflow:hidden"></div>
+<script src="/assets/js/desktop-term-wizard.js" defer></script>
 <script src="/assets/js/desktop-one-to-one.js" defer></script>
 </main>
 </body>
