@@ -151,9 +151,8 @@ function checkSession(){
   prepareDesktopGoogleSession();
 }
 function prepareDesktopGoogleSession(){
-  var oauthReturn=location.search.indexOf('code=')>=0||location.hash.indexOf('access_token=')>=0;
-  var usedGoogle=false;try{usedGoogle=localStorage.getItem('bni_desktop_google_auth_used')==='1';}catch(e){}
-  if(!oauthReturn&&!usedGoogle){ld(false);showDesktopLoginError('');return;}
+  // Mobile and Desktop share the same Supabase session on this origin. Check
+  // the persisted session instead of relying on page-specific login markers.
   loadSupabaseSdk().then(checkDesktopGoogleSession).catch(function(e){ld(false);showDesktopLoginError(e.message||'โหลดระบบ Google Login ไม่สำเร็จ');});
 }
 function gsr(a,p,cb){
@@ -235,7 +234,7 @@ function switchDesktopRole(target){
 function signInWithGoogle(){
   showDesktopLoginError('กำลังเปิด Google Login...');
   try{localStorage.setItem('bni_desktop_google_auth_used','1');}catch(e){}
-  loadSupabaseSdk().then(function(){var sb=getSbAuth();if(!sb)throw new Error('ไม่สามารถเริ่ม Google Login ได้');return sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:oauthRedirectUrl(),queryParams:{prompt:'select_account'}}});}).then(function(res){
+  loadSupabaseSdk().then(function(){var sb=getSbAuth();if(!sb)throw new Error('ไม่สามารถเริ่ม Google Login ได้');return sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:oauthRedirectUrl()}});}).then(function(res){
     if(res&&res.error)showDesktopLoginError('เปิด Google Login ไม่สำเร็จ: '+res.error.message);
   }).catch(function(e){showDesktopLoginError('เปิด Google Login ไม่สำเร็จ: '+(e&&e.message?e.message:'กรุณาลองใหม่'));});
 }

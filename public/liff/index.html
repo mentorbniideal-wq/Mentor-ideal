@@ -75,15 +75,15 @@
 
     <div id="friendshipBanner" hidden></div>
     <nav class="tabs" id="tabNav">
-      <button class="tab member-tab" data-view="ceu">🎓 ปฏิทิน CEU</button>
-      <button class="tab member-tab" data-view="absence">ลา</button>
       <button class="tab member-tab" data-view="121">1-2-1</button>
       <button class="tab member-tab" data-view="goal">เป้าหมาย</button>
-      <button class="tab member-tab" data-view="visitor">แขกพิเศษ</button>
-      <button class="tab member-tab" data-view="renewal">🔄 Renewal</button>
       <button class="tab member-tab" data-view="progress">📊 ความก้าวหน้า</button>
+      <button class="tab member-tab" data-view="visitor">แขกพิเศษ</button>
       <button class="tab member-tab" data-view="issue">ช่วยเหลือ</button>
+      <button class="tab member-tab" data-view="absence">ลา / ส่งแทน</button>
       <button class="tab assign-tab hidden" data-view="assignments">📎 งาน</button>
+      <button class="tab member-tab" data-view="ceu">🎓 ปฏิทิน / การอบรม</button>
+      <button class="tab member-tab" data-view="renewal">🔄 ต่ออายุ</button>
     </nav>
 
     <!-- ลา -->
@@ -777,7 +777,7 @@ async function init() {
     $('#loading').hidden = true;
     $('#app').hidden = false;
     if(q.get('preview')!=='1'){checkLineFriendship();flushOffline121();window.addEventListener('online',flushOffline121);}
-    const defaultView = getRequestedAction() || 'absence';
+    const defaultView = getRequestedAction() || '121';
     show(defaultView);
     if(defaultView==='121')setTimeout(()=>openMy121Tour(false),180);
     if(q.get('preview')!=='1'&&q.get('visitor_token'))setTimeout(()=>consumeVisitorToken(q.get('visitor_token')),120);

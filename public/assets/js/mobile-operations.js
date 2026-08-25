@@ -81,7 +81,7 @@ function signInWithGoogle(){
   try{localStorage.setItem('bni_google_auth_used','1');}catch(e){}
   loadSupabaseSdk().then(function(){
     var sb=getSbAuth();if(!sb)throw new Error('ไม่สามารถเริ่ม Google Login ได้');
-    return sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:mobileOAuthRedirectUrl(),queryParams:{prompt:'select_account'}}});
+    return sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:mobileOAuthRedirectUrl()}});
   }).then(function(res){
     if(res&&res.error)showMobileLoginError('เปิด Google Login ไม่สำเร็จ: '+res.error.message);
   }).catch(function(e){showMobileLoginError('เปิด Google Login ไม่สำเร็จ: '+(e&&e.message?e.message:'กรุณาลองใหม่'));});
@@ -154,9 +154,8 @@ function checkSession(){
   prepareGoogleSessionIfNeeded();
 }
 function prepareGoogleSessionIfNeeded(){
-  var oauthReturn=location.search.indexOf('code=')>=0||location.hash.indexOf('access_token=')>=0;
-  var usedGoogle=false;try{usedGoogle=localStorage.getItem('bni_google_auth_used')==='1';}catch(e){}
-  if(!oauthReturn&&!usedGoogle){hideLoad();showMobileLoginError('');return;}
+  // Supabase persists one OAuth session for this origin. Always check it so a
+  // user who signed in on MC Desktop is not asked to sign in again on Mobile.
   loadSupabaseSdk().then(checkMobileGoogleSession).catch(function(e){hideLoad();showMobileLoginError(e.message||'โหลดระบบ Google Login ไม่สำเร็จ');});
 }
 var _apiLatest={},_apiSeq=0;
