@@ -327,7 +327,11 @@ function memberRow(m,clickFn){
   var sub=escHtml(m.mentor||'')+(m.trend?' · '+m.trend:'');
   var roiTag=m.roi>0?'<span style="font-size:.6rem;font-weight:700;color:'+(m.roi>=300?'var(--green)':m.roi>=100?'var(--yellow)':'var(--red)')+';background:rgba(0,0,0,.15);border-radius:4px;padding:1px 5px;margin-left:4px">ROI '+m.roi+'%</span>':'';
   var evo=tlEvoDots(m.scoreHistory||m.scores);
-  return '<div class="mr" onclick="'+clickFn+'"><div class="av" style="background:'+avbg(tl)+';color:'+scoreColor+'">'+escHtml(initials)+'</div><div class="mi"><div class="mn">'+escHtml(name.split(' ').slice(0,2).join(' '))+(nick?' ('+escHtml(nick)+')':'')+roiTag+'</div><div class="ms">'+sub+'</div>'+evo+'</div><div style="text-align:right"><div class="msc" style="color:'+scoreColor+'">'+scoreDisp+'</div></div><div class="tld" style="background:'+tlc(tl)+'"></div></div>';
+  var state=tl==='none'?'สมาชิกใหม่':tl==='black'?'ต้องดูแลด่วน':tl==='red'?'ควรติดตาม':tl==='yellow'?'กำลังพัฒนา':'สถานะดี';
+  return '<article class="mobile-member-card" role="button" tabindex="0" onclick="'+clickFn+'" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();'+clickFn+'}">'
+    +'<div class="mobile-member-avatar" style="background:'+avbg(tl)+';color:'+scoreColor+'">'+escHtml(initials)+'</div>'
+    +'<div class="mobile-member-main"><div class="mobile-member-name">'+escHtml(name.split(' ').slice(0,2).join(' '))+(nick?'<span>'+escHtml(nick)+'</span>':'')+'</div><div class="mobile-member-team">'+sub+'</div>'+evo+'<div class="mobile-member-state">'+state+roiTag+'</div></div>'
+    +'<div class="mobile-member-score" style="color:'+scoreColor+'"><strong>'+scoreDisp+'</strong><small>'+(tl==='none'?'สถานะ':'คะแนน')+'</small></div><span class="mobile-member-chevron">›</span></article>';
 }
 
 function mentorMemberRow(m,clickFn){
@@ -473,7 +477,7 @@ function enterApp(r){
   hideEntryChooser();
   document.getElementById('loginScreen').style.display='none';
   if(r.isMC){
-    document.getElementById('mcRoleLbl').textContent='MC · ตูมตาม';
+    document.getElementById('mcRoleLbl').textContent='Mentor Co.';
     document.getElementById('mcApp').classList.add('on');
     mobileActivatePane('#mcApp',document.getElementById('mc-dashboard'),'dashboard');
     loadDashboard();
@@ -525,7 +529,6 @@ function logout(){
 
 function mct(tab,btn){
   _swTab('#mcApp',tab,btn);
-  if(tab==='dashboard'){mountMcMemberTools('mc-dashboard-member-slot');}
   if(tab==='memberhub'){mountMcMemberTools('mc-memberhub-slot');renderMembers();}
   if(tab==='followup'){loadMobileFollowUp(true);}
   if(tab==='coaching'){loadMCCoaching();}
@@ -771,7 +774,7 @@ var MOBILE_PANE_META={
   'mentor-myteam':['วันนี้ของทีมฉัน','สมาชิกที่ควรดูแลและสิ่งที่ควรทำต่อ'],'mentor-directory':['สมาชิกในทีม','ค้นหาและเปิดข้อมูล Mentee แบบครบถ้วน'],'mentor-work':['งานของฉัน','รายการที่ต้องดำเนินการ ติดตาม และปิดงาน'],'mentor-121care':['1-2-1 Care','ช่วยสมาชิกที่ติดขั้นตอนและติดตามสิ่งที่ตกลงกัน'],'mentor-more':['เครื่องมือเพิ่มเติม','Coaching, สมาชิกใหม่, Activity และการอบรม'],'mentor-report':['รายงาน Core Issue','บันทึกประเด็นสำคัญและติดตามคำตอบจาก MC'],'mentor-renewal':['Renewal','ดูแลสมาชิกตั้งแต่เริ่มติดต่อจนทราบผล'],'mentor-mcmsg':['ข้อความและงานจาก MC','อ่าน รับทราบ และดำเนินการต่อจากที่เดียว'],'mentor-newmembers':['สมาชิกใหม่','ติดตาม Checklist และการเติบโตช่วงเริ่มต้น'],'mentor-coaching':['Coaching Guide','เตรียมบทสนทนาให้เหมาะกับสมาชิกแต่ละคน'],'mentor-mentorlog':['Activity Log','บันทึกหลักฐานการดูแลและ Next Action'],'mentor-90day':['90-Day Review','ทบทวนความก้าวหน้าและกำหนดเป้าหมายถัดไป'],'mentor-training':['Training & CEU','เลือกการอบรมที่เหมาะแล้วแนะนำสมาชิก'],'mentor-msummary':['Weekly Summary','สร้างสรุปสำหรับ LINE และ MC'],
   'g-dashboard':['วันนี้ของ Growth','ดูสัญญาณการเติบโตและสมาชิกที่ควรช่วยก่อน'],'g-powerteam':['แผนการเติบโต','Power Team, Synergy, Matching และ Sprint'],'g-ops':['งาน Growth','Check-in, Visitors, Action และงานประจำสัปดาห์'],'g-more':['เครื่องมือเพิ่มเติม','Analytics, Renewal, Growth Sheet และสรุปประจำสัปดาห์'],'g-analytics':['Chapter Pulse','แนวโน้ม ผลงาน และโอกาสพัฒนา'],'g-activity':['Activity','Visitors และสัญญาณกิจกรรมของ Chapter'],'g-renewal':['Renewal','ติดตามสมาชิกใกล้หมดอายุทั้ง Chapter'],'g-sheet':['Growth Sheet','ฐานข้อมูล Revenue และรายละเอียดการเติบโต']
 };
-function mobileEnhancePane(el){if(!el||el.dataset.mobileEnhanced==='1')return;var meta=MOBILE_PANE_META[el.id];if(!meta)return;var head=document.createElement('header');head.className='mobile-page-head';head.innerHTML='<div class="kicker">MENTOR CO. · MOBILE</div><h1>'+escHtml(meta[0])+'</h1><p>'+escHtml(meta[1])+'</p>';el.insertBefore(head,el.firstChild);if(el.id==='mc-dashboard'){var priority=document.createElement('section');priority.className='mobile-today-priority';head.after(priority);['mc-alert-list','mc-risk-monitor','mc-121-summary'].forEach(function(id){var node=document.getElementById(id);if(node)priority.appendChild(node);});}if(el.id==='g-dashboard'){var signal=document.getElementById('g-121-summary');if(signal)head.after(signal);}el.dataset.mobileEnhanced='1';}
+function mobileEnhancePane(el){if(!el||el.dataset.mobileEnhanced==='1')return;var meta=MOBILE_PANE_META[el.id];if(!meta)return;var head=document.createElement('header');head.className='mobile-page-head';head.innerHTML='<div class="kicker">MENTOR CO. · MOBILE</div><h1>'+escHtml(meta[0])+'</h1><p>'+escHtml(meta[1])+'</p>';el.insertBefore(head,el.firstChild);if(el.id==='mc-dashboard'){mountMcMemberTools('mc-memberhub-slot');var actions=document.createElement('nav');actions.className='mobile-today-actions';actions.setAttribute('aria-label','ทางลัดวันนี้');actions.innerHTML='<button onclick="mct(\'followup\',null)"><span>📌</span><b>งานติดตาม</b><small>เรียงตามความด่วน</small></button><button onclick="mct(\'memberhub\',null)"><span>👥</span><b>ค้นหาสมาชิก</b><small>เปิด Member 360</small></button><button onclick="openMobMeetPrep()"><span>📋</span><b>เตรียมประชุม</b><small>ดูประเด็นสำคัญ</small></button>';head.after(actions);var summary=document.getElementById('mc-summary');if(summary)actions.after(summary);var priority=document.createElement('section');priority.className='mobile-today-priority';summary?summary.after(priority):actions.after(priority);['mc-alert-list','mc-risk-monitor','mc-121-summary'].forEach(function(id){var node=document.getElementById(id);if(node)priority.appendChild(node);});}if(el.id==='mc-memberhub'){mountMcMemberTools('mc-memberhub-slot');var count=document.createElement('div');count.id='mc-member-result-count';count.className='mobile-member-result-count';head.after(count);}if(el.id==='g-dashboard'){var signal=document.getElementById('g-121-summary');if(signal)head.after(signal);}el.dataset.mobileEnhanced='1';}
 function mobileActivatePane(app,el,tab){mobileEnhancePane(el);try{sessionStorage.setItem('bni:mobile:last:'+app,tab);}catch(e){}document.querySelectorAll(app+' .tabs .tb').forEach(function(x){x.setAttribute('aria-current',x.classList.contains('on')?'page':'false');});document.querySelectorAll(app+' .lt').forEach(function(x){x.setAttribute('role','status');x.setAttribute('aria-live','polite');});}
 function mobileEnhanceStates(root){root=root||document;if(root.matches&&root.matches('.app .lt')){root.setAttribute('role','status');root.setAttribute('aria-live','polite');}if(root.matches&&root.matches('.app .empty'))root.setAttribute('role','status');root.querySelectorAll('.app .lt,.lt').forEach(function(x){x.setAttribute('role','status');x.setAttribute('aria-live','polite');});root.querySelectorAll('.app .empty,.empty').forEach(function(x){x.setAttribute('role','status');});}
 setTimeout(function(){mobileEnhanceStates(document);new MutationObserver(function(rows){rows.forEach(function(row){row.addedNodes.forEach(function(node){if(node.nodeType===1)mobileEnhanceStates(node);});});}).observe(document.body,{childList:true,subtree:true});},0);
@@ -1500,6 +1503,7 @@ function renderMembers(){
     if(so==='absent')return(b.absent||0)-(a.absent||0);
     return bS-aS;
   });
+  var countEl=document.getElementById('mc-member-result-count');if(countEl)countEl.innerHTML='<b>'+list.length+'</b> คนที่ตรงกับตัวกรอง <span>· แตะรายชื่อเพื่อเปิด Member 360</span>';
   if(!list.length){document.getElementById('mc-members').innerHTML='<div class="empty"><div class="empty-i">🔍</div>ไม่พบสมาชิกในตัวกรองนี้</div>';return;}
   var html='';
   var useGroups=(f==='all'&&mf==='all'&&!sq&&so==='score-desc');
