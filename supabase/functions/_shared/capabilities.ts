@@ -51,3 +51,11 @@ export function defaultCapabilities(role: string, isAdmin = false): string[] {
   if (role === 'growth') return [CAPABILITY.SIGNALS_VIEW, CAPABILITY.SIGNALS_MANAGE];
   return [];
 }
+
+export function canAssumeOperationalView(
+  subject: { role?: string; isMC?: boolean; isAdmin?: boolean },
+  targetRole: string,
+): boolean {
+  if (targetRole === 'admin') return Boolean(subject.isAdmin);
+  return Boolean(subject.isAdmin || subject.isMC || subject.role === 'toomtam');
+}

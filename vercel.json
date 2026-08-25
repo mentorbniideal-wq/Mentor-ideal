@@ -1,6 +1,8 @@
 {
   "outputDirectory": "public",
   "routes": [
+    { "src": "/assets/(.*)", "headers": { "Cache-Control": "public, max-age=300, must-revalidate", "X-Content-Type-Options": "nosniff" }, "continue": true },
+    { "src": "/(.*)", "headers": { "Referrer-Policy": "strict-origin-when-cross-origin", "X-Content-Type-Options": "nosniff" }, "continue": true },
     { "src": "/$",           "dest": "/index.html" },
     { "src": "/dashboard",   "dest": "/dashboard.html" },
     { "src": "/dashboard.html", "dest": "/dashboard.html" },

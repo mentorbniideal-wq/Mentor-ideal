@@ -1,6 +1,7 @@
 import {
   CAPABILITY,
   canAccessAdminSection,
+  canAssumeOperationalView,
   defaultCapabilities,
   hasCapability,
 } from './capabilities.ts';
@@ -9,6 +10,13 @@ Deno.test('Chapter Admin can access every capability and section', () => {
   const admin = { isAdmin: true };
   if (!hasCapability(admin, CAPABILITY.ACCESS_MANAGE)) throw new Error('admin capability denied');
   if (!canAccessAdminSection(admin, 'revenue', true)) throw new Error('admin section denied');
+});
+
+Deno.test('only Chapter Admin can assume the Chapter Admin view', () => {
+  if (canAssumeOperationalView({ role: 'mc', isMC: true }, 'admin')) throw new Error('Mentor Co escalated to admin view');
+  if (canAssumeOperationalView({ role: 'toomtam' }, 'admin')) throw new Error('Mentor escalated to admin view');
+  if (!canAssumeOperationalView({ role: 'admin', isAdmin: true }, 'admin')) throw new Error('Admin view denied');
+  if (!canAssumeOperationalView({ role: 'mc', isMC: true }, 'growth')) throw new Error('Operational view denied');
 });
 
 Deno.test('Mentor Co only accesses assigned sections and respects view-only mode', () => {

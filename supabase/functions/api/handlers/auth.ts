@@ -1,6 +1,7 @@
 // Auth handler — login + changePIN + getMyRole (Google OAuth)
 import { getServiceClient, jsonResponse } from '../../_shared/db.ts';
 import { verifyPin, verifyToken, requireAuth } from '../../_shared/auth.ts';
+import { canAssumeOperationalView } from '../../_shared/capabilities.ts';
 
 export async function handleAuth(p: Record<string, unknown>): Promise<Response> {
   const db     = getServiceClient();
@@ -31,6 +32,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
       isAdmin:     auth.isAdmin,
       teamName:    auth.teamName,
       displayName: auth.displayName,
+      capabilities: auth.capabilities || [],
       version,
     });
   }
@@ -60,6 +62,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
           isMentor:    auth.isMentor,
           teamName:    auth.teamName,
           displayName: auth.displayName,
+          capabilities: auth.capabilities || [],
           version,
         });
       }
@@ -81,13 +84,16 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
 
     const result = await verifyToken(db, token);
     if (!result.ok) return jsonResponse({ ok: false, error: result.error });
-    if (!result.isMC && result.role !== 'toomtam') {
+    if (!canAssumeOperationalView(result, targetRole)) {
+      if (targetRole === 'admin') {
+        return jsonResponse({ ok: false, error: 'เฉพาะ Chapter Admin เท่านั้นที่เปิดมุมมอง Chapter Admin ได้' });
+      }
       return jsonResponse({ ok: false, error: 'ต้องเป็น MC หรือ TOOMTAM จึงจะสลับ Role ได้โดยไม่ใช้ PIN' });
     }
 
     const RINFO: Record<string, { displayName: string; teamName: string | null; isMC: boolean; isMentor: boolean; isAdmin?: boolean }> = {
       admin:   { displayName: 'Chapter Admin', teamName: null, isMC: true, isMentor: false, isAdmin: true },
-      mc:      { displayName: 'MC',      teamName: null,      isMC: true,  isMentor: false },
+      mc:      { displayName: 'Mentor Co.', teamName: null,   isMC: true,  isMentor: false },
       toomtam: { displayName: 'TOOMTAM', teamName: 'TOOMTAM', isMC: false, isMentor: true  },
       aof:     { displayName: 'Aof',     teamName: 'Aof',     isMC: false, isMentor: true  },
       draft:   { displayName: 'Draft',   teamName: 'Draft',   isMC: false, isMentor: true  },
@@ -161,6 +167,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
       displayName: result.displayName,
       adminSections: result.adminSections || [],
       adminEditAccess: Boolean(result.adminEditAccess),
+      capabilities: result.capabilities || [],
       version,
     });
   }

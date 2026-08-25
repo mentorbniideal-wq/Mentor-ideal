@@ -21,7 +21,7 @@ const DEV_MODE = String(Deno.env.get('DEV_MODE') || 'false').toLowerCase() === '
 
 const ROLE_INFO: Record<string, { displayName: string; teamName: string | null; isMC: boolean; isMentor: boolean; isAdmin?: boolean }> = {
   admin:   { displayName: 'Chapter Admin', teamName: null, isMC: true, isMentor: false, isAdmin: true },
-  mc:      { displayName: 'MC',      teamName: null,      isMC: true,  isMentor: false },
+  mc:      { displayName: 'Mentor Co.', teamName: null,   isMC: true,  isMentor: false },
   toomtam: { displayName: 'TOOMTAM', teamName: 'TOOMTAM', isMC: false, isMentor: true  },
   aof:     { displayName: 'Aof',     teamName: 'Aof',     isMC: false, isMentor: true  },
   draft:   { displayName: 'Draft',   teamName: 'Draft',   isMC: false, isMentor: true  },

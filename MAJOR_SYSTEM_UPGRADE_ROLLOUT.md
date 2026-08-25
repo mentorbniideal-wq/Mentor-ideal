@@ -70,3 +70,12 @@
 - Realtime collaborative editing ยังไม่เปิด; ใช้ optimistic version ป้องกัน lost update
 - Module เก่าบางจุดยังต้องทยอยระบุ category/priority โดยตรง แม้ระบบจะมี safe inference แล้ว
 - ควรติดตาม SLA, งานค้าง, suppression reason และ LINE quota อย่างน้อยสองสัปดาห์หลังเปิดใช้
+
+## Performance guard — รอบหลังเปิดใช้
+
+- หน้าเว็บ preconnect ไปยัง Supabase เพื่อลดเวลาเริ่มเชื่อมต่อครั้งแรก
+- Static assets ใช้ browser cache 5 นาทีและยังตรวจสอบเวอร์ชันใหม่เมื่อหมดอายุ; HTML ยังคง revalidate ทุกครั้ง
+- Production เปิด gzip, `nosniff` และ strict referrer policy
+- รัน `node scripts/check-web-budgets.mjs` ก่อน deploy ทุกครั้ง เพื่อหยุด build เมื่อไฟล์หลักโตเกินเพดาน
+- ไฟล์ Desktop/Mobile หลักอยู่ใกล้เพดานแล้ว งาน feature รอบถัดไปควรสร้าง bundle ตามหน้าแทนการต่อโค้ดลงไฟล์เดิม
+- การสลับมุมมองถูกจำกัดเพิ่ม: Mentor Co. และ Mentor Team ไม่สามารถสมมติ Chapter Admin view ได้ แม้แก้ URL หรือ request เอง
