@@ -4,6 +4,7 @@ import { createOneToOneMatches, fullyDeliveredOneToOnePairIds, normalize121Name,
 import { linePush } from '../../_shared/line.ts';
 import { evaluateNotificationGuard, logSuppressedNotification } from '../../_shared/notification-orchestrator.ts';
 import { generateHandshakeCode, handshakeCodeHash } from '../../_shared/one-to-one.ts';
+import { member121ProfileCompleteness, member121ProfileMissingFields } from '../../_shared/member-121-profile.ts';
 
 const isoDate = (value: string) => { const m = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); return m ? `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}` : value; };
 const pairKey = (a: string, b: string) => [a,b].sort().join('|');
@@ -23,6 +24,33 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
 
   if(action==='getOneToOneManualCandidates'){
     const {data:members,error}=await db.from('members').select('id,name,nickname,mentor_team,profession,company_name').eq('is_archived',false).order('name');if(error)return errResponse(error.message);const ids=((members||[]) as Record<string,unknown>[]).map(x=>String(x.id));const {data:links}=ids.length?await db.from('line_members').select('member_id,line_user_id').in('member_id',ids):{data:[]};const linked=new Set(((links||[]) as Record<string,unknown>[]).filter(x=>x.line_user_id).map(x=>String(x.member_id)));const candidates=((members||[]) as Record<string,unknown>[]).map(x=>({...x,lineReady:linked.has(String(x.id))}));return jsonResponse({ok:true,members:candidates});
+  }
+
+  if(action==='getOneToOneProfileDashboard'){
+    const [{data:members,error},{data:profiles},{data:links},{data:reminders}]=await Promise.all([
+      db.from('members').select('id,name,nickname,mentor_team,profession,company_name').eq('is_archived',false).order('name'),
+      db.from('member_one_to_one_profiles').select('*'),
+      db.from('line_members').select('member_id,line_user_id'),
+      db.from('line_message_deliveries').select('member_id,status,sent_at,created_at').eq('notification_type','one_to_one_profile_reminder').order('created_at',{ascending:false}).limit(2000),
+    ]);if(error)return errResponse(error.message);
+    const profileBy=new Map(((profiles||[]) as Record<string,unknown>[]).map(x=>[String(x.member_id),x])),lineBy=new Map(((links||[]) as Record<string,unknown>[]).map(x=>[String(x.member_id),String(x.line_user_id||'')])),reminderBy=new Map<string,Record<string,unknown>>();
+    ((reminders||[]) as Record<string,unknown>[]).forEach(x=>{const id=String(x.member_id||'');if(id&&!reminderBy.has(id))reminderBy.set(id,x);});
+    const fieldLabels:Record<string,string>={business_summary:'ข้อมูลธุรกิจ',target_clients:'กลุ่มลูกค้า',problems_solved:'ปัญหาที่ช่วยแก้',looking_for:'Looking for',ideal_client:'Ideal Client',referral_trigger:'Referral Trigger',introduction_script:'ประโยคแนะนำ',gains_goals:'Goals',gains_interests:'Interests',gains_skills:'Skills'};
+    const rows=((members||[]) as Record<string,unknown>[]).map(m=>{const id=String(m.id),profile=profileBy.get(id),completeness=member121ProfileCompleteness(profile),missing=member121ProfileMissingFields(profile);return{...m,completeness,status:completeness===100?'complete':completeness===0?'not_started':'incomplete',missingFields:missing,missingLabels:missing.map(x=>fieldLabels[x]||x),lineReady:Boolean(lineBy.get(id)),lastReminder:reminderBy.get(id)||null,profileUpdatedAt:profile?.updated_at||null};});
+    return jsonResponse({ok:true,members:rows,stats:{total:rows.length,complete:rows.filter(x=>x.status==='complete').length,incomplete:rows.filter(x=>x.status==='incomplete').length,notStarted:rows.filter(x=>x.status==='not_started').length,lineMissing:rows.filter(x=>!x.lineReady).length}});
+  }
+
+  if(action==='sendOneToOneProfileReminder'){
+    if(!auth.isAdmin)return errResponse('เฉพาะ Chapter Admin เท่านั้นที่ส่งข้อความแจ้งเตือนได้',403);
+    const dryRun=p.dryRun!==false,confirmed=Boolean(p.confirmed),requested=Array.isArray(p.memberIds)?[...new Set((p.memberIds as unknown[]).map(String).filter(Boolean))]:[];
+    if(!requested.length)return errResponse('กรุณาเลือกสมาชิกอย่างน้อย 1 คน');if(requested.length>100)return errResponse('ส่งได้ไม่เกิน 100 คนต่อครั้ง');if(!dryRun&&!confirmed)return errResponse('ต้องยืนยันก่อนส่ง LINE');
+    const [{data:members},{data:profiles},{data:links}]=await Promise.all([db.from('members').select('id,name,nickname').in('id',requested).eq('is_archived',false),db.from('member_one_to_one_profiles').select('*').in('member_id',requested),db.from('line_members').select('member_id,line_user_id').in('member_id',requested)]),profileBy=new Map(((profiles||[]) as Record<string,unknown>[]).map(x=>[String(x.member_id),x])),lineBy=new Map(((links||[]) as Record<string,unknown>[]).map(x=>[String(x.member_id),String(x.line_user_id||'')]));
+    const liff=(Deno.env.get('LINE_LIFF_URL')||`${Deno.env.get('APP_URL')||'https://bni-mentor-system.vercel.app'}/liff/`).replace(/\/$/,''),profileUrl=`${liff}?action=121&section=profile`,rows=[] as Record<string,unknown>[];
+    for(const member of (members||[]) as Record<string,unknown>[]){const memberId=String(member.id),profile=profileBy.get(memberId),completeness=member121ProfileCompleteness(profile);if(completeness>=100)continue;const missingCount=member121ProfileMissingFields(profile).length,name=String(member.nickname||member.name||'สมาชิก'),message=`👤 เติม Business Profile ให้พร้อมก่อน 1-2-1\n\nคุณ ${name} กรอกแล้ว ${completeness}% · เหลือ ${missingCount} หัวข้อ\nข้อมูลนี้ช่วยให้คู่ของคุณรู้จักธุรกิจ GAINS และ Looking for ล่วงหน้า เพื่อเตรียมคำถามที่มีคุณภาพ\n\nเปิด MY121 → โปรไฟล์\n${profileUrl}\n\nกรอกเท่าที่สะดวกและกลับมาแก้ไขได้เสมอครับ`,lineUserId=lineBy.get(memberId)||'',guard=await evaluateNotificationGuard(db,{memberId,module:'one_to_one',category:'one_to_one_profile_reminder',priority:'reminder'});rows.push({memberId,name,completeness,missingCount,message,lineUserId,guard});}
+    if(dryRun)return jsonResponse({ok:true,dryRun:true,eligible:rows.filter(x=>x.lineUserId&&(x.guard as Record<string,unknown>).allowed).map(x=>({memberId:x.memberId,name:x.name,completeness:x.completeness})),suppressed:rows.filter(x=>!(x.guard as Record<string,unknown>).allowed).map(x=>({name:x.name,reason:(x.guard as Record<string,unknown>).reason})),noLine:rows.filter(x=>!x.lineUserId).map(x=>x.name),sample:rows[0]?.message||'',messageCount:rows.filter(x=>x.lineUserId&&(x.guard as Record<string,unknown>).allowed).length});
+    const week=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),actor=String(auth.displayName||auth.role||'Chapter Admin');let sent=0,skipped=0,failed=0;
+    for(const row of rows){const guard=row.guard as Awaited<ReturnType<typeof evaluateNotificationGuard>>,key=`121-profile-reminder:${row.memberId}:${week}`;if(!row.lineUserId){failed++;continue;}if(!guard.allowed){skipped++;await logSuppressedNotification(db,{memberId:String(row.memberId),module:'one_to_one',category:'one_to_one_profile_reminder',priority:'reminder'},guard,key,String(row.lineUserId));continue;}try{const result=await linePush(String(row.lineUserId),String(row.message),{db,idempotencyKey:key,memberId:String(row.memberId),notificationType:'one_to_one_profile_reminder',source:'api/weekly-121'});result.skipped?skipped++:sent++;await db.from('one_to_one_status_events').insert({member_id:row.memberId,event_type:'business_profile_reminder_sent',actor_type:'admin',actor_ref:actor,metadata:{completeness:row.completeness,deliveryId:result.deliveryId||null}});}catch(e){failed++;console.error('[profile-reminder]',row.memberId,e);}}
+    return jsonResponse({ok:true,sent,skipped,failed});
   }
 
   if(action==='createManualOneToOneRound'){

@@ -44,8 +44,14 @@ export function publicMember121Profile(row: Record<string, unknown> | null | und
 
 export function member121ProfileCompleteness(row: Record<string, unknown> | null | undefined) {
   if (!row) return 0;
-  const important = ['business_summary','target_clients','problems_solved','looking_for','ideal_client','referral_trigger','introduction_script','gains_goals','gains_interests','gains_skills'];
+  const important = MEMBER_121_COMPLETENESS_FIELDS;
   return Math.round(important.filter(field => String(row[field] || '').trim()).length / important.length * 100);
+}
+
+export const MEMBER_121_COMPLETENESS_FIELDS = ['business_summary','target_clients','problems_solved','looking_for','ideal_client','referral_trigger','introduction_script','gains_goals','gains_interests','gains_skills'] as const;
+
+export function member121ProfileMissingFields(row: Record<string, unknown> | null | undefined) {
+  return MEMBER_121_COMPLETENESS_FIELDS.filter(field => !String(row?.[field] || '').trim());
 }
 
 export function canAccessPairProfile(actorMemberId: string, pair: Record<string, unknown> | null | undefined, subjectMemberId: string) {

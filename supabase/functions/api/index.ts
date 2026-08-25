@@ -232,6 +232,7 @@ const ROUTES: Record<string, string> = {
   'getWeekly121MessageTemplates': 'weekly-121', 'setWeekly121MessageTemplate': 'weekly-121',
   'saveOneToOneBusinessProfile': 'weekly-121',
   'getOneToOneManualCandidates': 'weekly-121', 'createManualOneToOneRound': 'weekly-121',
+  'getOneToOneProfileDashboard': 'weekly-121', 'sendOneToOneProfileReminder': 'weekly-121',
 
   // Mentor Mobile 1-2-1 Care (server-enforced team scope)
   'getMentorOneToOneCare': 'mentor-121', 'updateMentorOneToOneCare': 'mentor-121',

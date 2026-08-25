@@ -1,4 +1,4 @@
-import { canAccessPairProfile, member121ProfileCompleteness, normalizeMember121Profile, publicMember121Profile } from './member-121-profile.ts';
+import { canAccessPairProfile, member121ProfileCompleteness, member121ProfileMissingFields, normalizeMember121Profile, publicMember121Profile } from './member-121-profile.ts';
 const eq=(actual:unknown,expected:unknown)=>{if(JSON.stringify(actual)!==JSON.stringify(expected))throw new Error(`${JSON.stringify(actual)} != ${JSON.stringify(expected)}`);};
 
 Deno.test('member 121 profile strips unknown fields and limits text',()=>{
@@ -14,6 +14,11 @@ Deno.test('partner projection respects section visibility',()=>{
 Deno.test('profile completeness uses the ten useful conversation fields',()=>{
   eq(member121ProfileCompleteness({business_summary:'a',target_clients:'b',problems_solved:'c',looking_for:'d',ideal_client:'e'}),50);
   eq(member121ProfileCompleteness(Object.fromEntries(['business_summary','target_clients','problems_solved','looking_for','ideal_client','referral_trigger','introduction_script','gains_goals','gains_interests','gains_skills'].map(x=>[x,'yes']))),100);
+});
+
+Deno.test('profile missing fields returns only incomplete essentials',()=>{
+  eq(member121ProfileMissingFields({business_summary:'พร้อม',looking_for:'ต้องการคู่ค้า'}).length,8);
+  eq(member121ProfileMissingFields(Object.fromEntries(['business_summary','target_clients','problems_solved','looking_for','ideal_client','referral_trigger','introduction_script','gains_goals','gains_interests','gains_skills'].map(x=>[x,'พร้อม']))),[]);
 });
 
 Deno.test('pair profile access requires actor and subject in the same pair',()=>{
