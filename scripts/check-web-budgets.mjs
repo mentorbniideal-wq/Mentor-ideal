@@ -8,6 +8,10 @@ const budgets = [
   ['public/dashboard.html', 210_000],
   ['public/index.html', 110_000],
   ['public/liff/index.html', 200_000],
+  ['public/liff/chapter-home.css', 8_000],
+  ['public/liff/chapter-home.js', 12_000],
+  ['public/liff/help-center.css', 12_000],
+  ['public/liff/help-center.js', 10_000],
 ];
 
 let failed = false;

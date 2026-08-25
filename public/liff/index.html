@@ -6,6 +6,8 @@
   <link rel="preconnect" href="https://itwyjhlfemxsfbimshby.supabase.co" crossorigin>
   <meta name="theme-color" content="#123c35">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="./chapter-home.css">
+  <link rel="stylesheet" href="./help-center.css">
   <title>MY IDEAL · Action Center</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="./config.js"></script>
@@ -60,7 +62,6 @@
     .oto-growth-actions button,.p121-question-actions button{padding:10px 12px}.p121-head button,.g-head button{width:44px;height:44px}
     button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #1b75d0;outline-offset:3px}
     .network-state{position:fixed;z-index:120;left:12px;right:12px;top:calc(8px + env(safe-area-inset-top));max-width:496px;margin:auto;padding:11px 14px;border-radius:12px;background:#7d2f28;color:#fff;text-align:center;font-size:13px;font-weight:700;box-shadow:0 8px 28px #0004}.network-state[hidden]{display:none}
-    .chapter-home{padding:16px 14px 22px}.chapter-home-hero{padding:18px;border-radius:19px;background:linear-gradient(145deg,#123c35,#1f5c50);color:#fff}.chapter-home-hero small{color:#d9c089;font-weight:800;letter-spacing:.1em}.chapter-home-hero h2{margin:5px 0;font-size:22px}.chapter-home-hero p{margin:0;color:#d8e4df;font-size:12px;line-height:1.6}.chapter-next{margin-top:14px}.chapter-next>h3,.chapter-section-title{font-size:14px;margin:0 0 8px}.chapter-action{display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:10px;align-items:center;min-height:68px;padding:11px;margin-top:8px;border:1px solid var(--line);border-radius:14px;background:#fff}.chapter-action>span{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:#f1ece1;font-size:19px}.chapter-action b{display:block;font-size:13px}.chapter-action small{display:block;margin-top:2px;color:var(--muted);font-size:10px;line-height:1.4}.chapter-action button{min-height:44px;border:0;border-radius:10px;background:var(--ink);color:#fff;padding:7px 9px;font:700 10px inherit}.chapter-pulse{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:14px}.chapter-pulse div{padding:11px 5px;border-radius:13px;background:#f1ece1;text-align:center}.chapter-pulse b{display:block;font-size:20px}.chapter-pulse small{font-size:9px;color:var(--muted)}.chapter-links{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.chapter-links button{min-height:66px;padding:10px;border:1px solid var(--line);border-radius:14px;background:#fff;color:var(--ink);text-align:left;font:inherit}.chapter-links b,.chapter-links small{display:block}.chapter-links b{font-size:12px}.chapter-links small{margin-top:3px;color:var(--muted);font-size:10px;line-height:1.4}@media(max-width:360px){.chapter-action{grid-template-columns:34px minmax(0,1fr)}.chapter-action button{grid-column:1/-1;width:100%}.chapter-pulse{grid-template-columns:1fr}.chapter-links{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -183,12 +184,23 @@
     </form>
 
     <!-- ขอความช่วยเหลือ -->
-    <form class="card" data-card="issue">
-      <h2>ขอความช่วยเหลือ</h2><p class="hint">ข้อมูลนี้ใช้เพื่อให้ Mentor ช่วยติดตามอย่างเหมาะสม</p>
-      <div id="issueHistory" style="margin-bottom:12px"></div>
-      <label>เรื่องที่อยากให้ช่วย</label>
-      <textarea name="issueText" required placeholder="เล่าได้เต็มที่ ทีมจะรับเรื่องอย่างระมัดระวัง"></textarea>
-      <button class="submit">ส่งให้ทีม Mentor</button>
+    <form class="card help-center" data-card="issue">
+      <header class="help-hero"><small>HELP &amp; REQUEST CENTER</small><h2>มีเรื่องให้ทีมช่วยไหม?</h2><p>เลือกหัวข้อคร่าว ๆ ระบบจะส่งต่อให้ทีมที่เหมาะสม โดยไม่ต้องรู้ว่าใครรับผิดชอบ</p></header>
+      <div class="help-oa-note"><span>🤖</span><div><b>Official Account เป็นระบบอัตโนมัติ</b><small>ข้อความที่พิมพ์ในแชตอาจไม่มีคนเห็น หากต้องการคนช่วยให้ส่งผ่านหน้านี้</small></div></div>
+      <fieldset class="help-topics"><legend>ต้องการความช่วยเหลือเรื่องไหน?</legend>
+        <label><input type="radio" name="issueCategory" value="mentor" checked><span>💬</span><b>คุยกับ Mentor<small>คำแนะนำหรือเรื่องที่อยากปรึกษา</small></b></label>
+        <label><input type="radio" name="issueCategory" value="one_to_one"><span>🤝</span><b>ระบบ 1-2-1<small>คู่ นัดหมาย หรือการยืนยัน</small></b></label>
+        <label><input type="radio" name="issueCategory" value="visitor"><span>👥</span><b>แขกพิเศษ<small>ลงทะเบียนหรือติดตาม Visitor</small></b></label>
+        <label><input type="radio" name="issueCategory" value="growth"><span>🎯</span><b>เป้าหมาย<small>คะแนนหรือแผนพัฒนาธุรกิจ</small></b></label>
+        <label><input type="radio" name="issueCategory" value="training"><span>🎓</span><b>การอบรม<small>หลักสูตร CEU, ST หรือ NEC</small></b></label>
+        <label><input type="radio" name="issueCategory" value="renewal"><span>🔄</span><b>ต่ออายุ<small>ข้อมูลสมาชิกภาพและ Renewal</small></b></label>
+        <label><input type="radio" name="issueCategory" value="technical"><span>🛠️</span><b>ใช้งานระบบ<small>เข้าไม่ได้ ข้อมูลผิด หรือพบข้อขัดข้อง</small></b></label>
+      </fieldset>
+      <label for="issueText">เล่าเรื่องที่ต้องการให้ช่วย</label>
+      <textarea id="issueText" name="issueText" required minlength="3" maxlength="1500" placeholder="บอกสิ่งที่เกิดขึ้นและสิ่งที่อยากให้ทีมช่วย"></textarea>
+      <label class="help-consent"><input type="checkbox" name="shareConsent" value="true" required><span>ยินยอมให้ส่งข้อมูลนี้แก่ทีม Chapter ที่เกี่ยวข้องเพื่อช่วยดำเนินการ</span></label>
+      <button class="submit">ส่งคำขอให้ทีมที่เกี่ยวข้อง</button>
+      <div id="issueHistory" class="help-history"></div>
     </form>
 
     <!-- Renewal -->
@@ -215,6 +227,8 @@
 <section id="profile121" class="p121" hidden role="dialog" aria-modal="true" aria-label="โปรไฟล์ 1-2-1"></section>
 <section id="guidedSession" class="guided" hidden role="dialog" aria-modal="true" aria-label="ผู้ช่วยนำทาง 1-2-1"></section>
 <section id="my121Tour" class="my121-tour" hidden role="dialog" aria-modal="true" aria-label="วิธีใช้ MY121"><div id="my121TourCard" class="my121-tour-card"></div></section>
+<script src="./chapter-home.js"></script>
+<script src="./help-center.js"></script>
 <script>
 const cfg = window.BNI_LIFF_CONFIG || {};
 let accessToken = '', _role = 'member';
@@ -649,32 +663,6 @@ async function confirm121(id, btn) {
   }
 }
 
-async function loadIssueHistory() {
-  const box = $('#issueHistory');
-  if (!box || box._loaded) return;
-  const r = await api({ action: 'get-issues' });
-  if (!r.ok || !r.issues?.length) { box._loaded = true; return; }
-  box.innerHTML = `<div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px">เรื่องที่ส่งไว้</div>` +
-    r.issues.map(i => {
-      const date = i.reported_at ? new Date(i.reported_at).toLocaleDateString('th-TH', { day:'numeric', month:'short' }) : '';
-      const resolved = i.resolved_at;
-      const reply = i.mentor_response;
-      const statusBadge = resolved
-        ? `<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(0,180,0,.15);color:green">แก้ไขแล้ว</span>`
-        : reply
-          ? `<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(0,120,255,.12);color:#0066cc">Mentor ตอบแล้ว</span>`
-          : `<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(0,0,0,.08);color:var(--muted)">รอ Mentor</span>`;
-      return `<div style="padding:8px 0;border-bottom:1px solid rgba(0,0,0,.07)">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
-          <span style="font-size:11px;color:var(--muted)">${date}</span>${statusBadge}
-        </div>
-        <div style="font-size:13px;line-height:1.5">${i.issue_text}</div>
-        ${reply ? `<div style="font-size:12px;color:#0066cc;margin-top:4px;padding:6px 8px;background:rgba(0,120,255,.07);border-radius:6px">💬 ${reply}</div>` : ''}
-      </div>`;
-    }).join('');
-  box._loaded = true;
-}
-
 async function loadPendingVisitors() {
   const box = $('#pendingVisitors');
   if (!box || box._loaded) return;
@@ -720,22 +708,6 @@ async function consumeVisitorToken(token){
 async function scanVisitorQr(){
   if(!liff.scanCodeV2){alert('เครื่องนี้ยังไม่รองรับการสแกน กรุณาอัปเดต LINE หรือเปิดลิงก์จาก QR โดยตรง');return;}
   try{const result=await liff.scanCodeV2();const token=visitorTokenFromValue(result?.value);if(!token)throw new Error('ไม่พบรหัสเช็กอิน');await consumeVisitorToken(token);}catch(e){if(!String(e?.message||e).toLowerCase().includes('cancel'))alert('ยังอ่าน QR ไม่สำเร็จ กรุณาลองใหม่');}
-}
-
-let chapterHomeLoaded=false;
-function chapterHomeGo(view){show(view);window.scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}
-function chapterHomeAction(icon,title,detail,view,label){return `<div class="chapter-action"><span>${icon}</span><div><b>${escHtml(title)}</b><small>${escHtml(detail)}</small></div><button type="button" onclick="chapterHomeGo('${view}')">${escHtml(label)}</button></div>`;}
-async function loadChapterHome(force=false){
-  const box=$('#chapterHomeContent');if(!box||chapterHomeLoaded&&!force)return;
-  box.innerHTML='<div class="loading" style="padding:28px 0">กำลังรวมเรื่องสำคัญ…</div>';
-  let r;if(new URLSearchParams(location.search).get('preview')==='1')r={ok:true,profileCompleteness:60,pair:{status:'matched',partnerName:'เพื่อนสมาชิก'},pendingVisitors:1,openRequests:1,daysToExpiry:120,upcomingTraining:2,pendingFollowUps:1};else r=await api({action:'member-home'},{latestKey:'member-home'});
-  if(!r.ok){box.innerHTML=`<div class="oto-history-empty">${escHtml(r.error||'โหลดหน้าวันนี้ไม่สำเร็จ')}<br><button class="oto-history-refresh" style="margin-top:10px" onclick="loadChapterHome(true)">ลองใหม่</button></div>`;return;}
-  chapterHomeLoaded=true;const actions=[];
-  if(Number(r.profileCompleteness||0)<100)actions.push(chapterHomeAction('👤','เติม Business Profile',`กรอกแล้ว ${r.profileCompleteness||0}% · ช่วยให้คู่รู้จักคุณล่วงหน้า`,'121','เติมข้อมูล'));
-  if(r.pair)actions.push(chapterHomeAction('🤝',`คู่ 1-2-1 · ${r.pair.partnerName||'คู่ของคุณ'}`,r.pair.nextAction||'เปิด MY121 เพื่อดูขั้นตอนถัดไป','121','เปิด MY121'));
-  if(Number(r.pendingFollowUps||0)>0)actions.push(chapterHomeAction('✅','สิ่งที่ตกลงไว้',`ยังมี ${r.pendingFollowUps} รายการที่ต้องทำต่อ`,'121','ดูรายการ'));
-  if(!actions.length)actions.push(chapterHomeAction('🎯','ตั้งเป้าหมายถัดไป','งานสำคัญครบแล้ว ลองเลือกเรื่องที่อยากพัฒนา','goal','เปิดเป้าหมาย'));
-  box.innerHTML=`<section class="chapter-next"><h3>ทำต่อก่อน 1–3 เรื่อง</h3>${actions.slice(0,3).join('')}</section><div class="chapter-pulse"><div><b>${r.pendingVisitors||0}</b><small>Visitor ที่ติดตาม</small></div><div><b>${r.upcomingTraining||0}</b><small>การอบรมที่กำลังมา</small></div><div><b>${r.openRequests||0}</b><small>คำขอที่กำลังดูแล</small></div></div><div class="chapter-links"><button type="button" onclick="chapterHomeGo('visitor')"><b>👥 Visitor Journey</b><small>ลงทะเบียนและติดตามแขก</small></button><button type="button" onclick="chapterHomeGo('ceu')"><b>🎓 Training & CEU</b><small>ดูรอบเรียนและแจ้งความสนใจ</small></button><button type="button" onclick="chapterHomeGo('issue')"><b>💬 Help Center</b><small>ขอความช่วยเหลือโดยไม่ต้องรู้ว่าต้องหาทีมไหน</small></button><button type="button" onclick="chapterHomeGo('progress')"><b>📊 ความก้าวหน้า</b><small>ดูคะแนนและสิ่งที่พัฒนาขึ้น</small></button></div>`;
 }
 
 async function init() {
@@ -826,9 +798,13 @@ $$('form').forEach(f => f.addEventListener('submit', async e => {
   e.preventDefault();
   const action = f.dataset.card;
   const payload = Object.fromEntries(new FormData(f));
+  if (action === 'issue') payload.clientActionId = crypto.randomUUID();
   const st = $('#status');
   st.className = 'status'; st.textContent = 'กำลังบันทึก…';
+  const submitButton = f.querySelector('button.submit');
+  if (submitButton) submitButton.disabled = true;
   const r = await api({ action, ...payload });
+  if (submitButton) submitButton.disabled = false;
   st.textContent = r.message || r.error || 'เรียบร้อย';
   st.className = `status ${r.ok ? 'ok' : 'err'}`;
   if (r.ok) {

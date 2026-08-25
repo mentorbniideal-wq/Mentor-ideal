@@ -1,0 +1,28 @@
+.chapter-home{min-width:0;padding:16px 14px 22px}
+.chapter-home-hero{padding:18px;border-radius:19px;background:linear-gradient(145deg,#123c35,#1f5c50);color:#fff}
+.chapter-home-hero small{color:#d9c089;font-weight:800;letter-spacing:.1em}
+.chapter-home-hero h2{margin:5px 0;font-size:22px}
+.chapter-home-hero p{margin:0;color:#d8e4df;font-size:12px;line-height:1.6}
+.chapter-next{margin-top:14px}
+.chapter-next>h3,.chapter-section-title{font-size:14px;margin:0 0 8px}
+.chapter-action{display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:10px;align-items:center;min-height:68px;padding:11px;margin-top:8px;border:1px solid var(--line);border-radius:14px;background:#fff}
+.chapter-action>span{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:#f1ece1;font-size:19px}
+.chapter-action>div{min-width:0}
+.chapter-action b{display:block;font-size:13px;overflow-wrap:anywhere}
+.chapter-action small{display:block;margin-top:2px;color:var(--muted);font-size:10px;line-height:1.4;overflow-wrap:anywhere}
+.chapter-action button{min-width:0;min-height:44px;border:0;border-radius:10px;background:var(--ink);color:#fff;padding:7px 9px;font:700 10px inherit;overflow-wrap:anywhere}
+.chapter-pulse{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:14px}
+.chapter-pulse div{padding:11px 5px;border-radius:13px;background:#f1ece1;text-align:center}
+.chapter-pulse b{display:block;font-size:20px}
+.chapter-pulse small{font-size:9px;color:var(--muted);overflow-wrap:anywhere}
+.chapter-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:14px}
+.chapter-links button{min-width:0;min-height:66px;padding:10px;border:1px solid var(--line);border-radius:14px;background:#fff;color:var(--ink);text-align:left;font:inherit;overflow-wrap:anywhere}
+.chapter-links b,.chapter-links small{display:block}
+.chapter-links b{font-size:12px}
+.chapter-links small{margin-top:3px;color:var(--muted);font-size:10px;line-height:1.4}
+@media(max-width:360px){
+  .chapter-action{grid-template-columns:34px minmax(0,1fr)}
+  .chapter-action button{grid-column:1/-1;width:100%}
+  .chapter-pulse{grid-template-columns:1fr}
+  .chapter-links{grid-template-columns:1fr}
+}

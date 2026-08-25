@@ -12,6 +12,7 @@ import { canMemberUpdateFollowUp, evaluateOneToOneAccess, shouldCreateMentorNoti
 import { canAccessPairProfile, member121ProfileCompleteness, normalizeMember121Profile, publicMember121Profile } from '../_shared/member-121-profile.ts';
 import { buildGoalCoach } from '../_shared/goal-coach.ts';
 import { upsertMemberSignal } from '../_shared/member-signals.ts';
+import { helpRequestRoute } from '../_shared/help-request.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
 
@@ -512,7 +513,12 @@ Deno.serve(async (req: Request) => {
   }
 
   if (action === 'issue') {
-    const issueText = String(body.issueText || '').trim();
+    const issueText = String(body.issueText || '').trim().slice(0, 1500);
+    const category = String(body.issueCategory || 'mentor');
+    const clientActionId = String(body.clientActionId || '').trim().slice(0, 100);
+    const route = helpRequestRoute(category);
+    if (!route) return response({ ok: false, error: 'หัวข้อที่เลือกไม่ถูกต้อง กรุณาเลือกใหม่' }, 400);
+    if (body.shareConsent !== 'true' && body.shareConsent !== true) return response({ ok: false, error: 'กรุณายินยอมให้ส่งข้อมูลแก่ทีมที่เกี่ยวข้อง' }, 400);
     if (issueText.length < 3) return response({ ok: false, error: 'กรุณาระบุรายละเอียดเพิ่มเติม' }, 400);
     const { data: issue, error } = await db.from('line_issues')
       .insert({ member_id: memberId, issue_text: issueText })
@@ -521,6 +527,11 @@ Deno.serve(async (req: Request) => {
     if (error) return response({ ok: false, error: error.message }, 400);
     const issueId = String((issue as Record<string, unknown> | null)?.id || '');
     if (issueId) {
+      await upsertMemberSignal(db, {
+        memberId, signalType: route.signalType, title: `คำขอความช่วยเหลือ · ${route.label}`, detail: issueText,
+        subjectType: 'help_request', subjectId: issueId, payload: { issueId, category, routeLabel: route.label },
+        idempotencyKey: `help-request:${clientActionId || issueId}`, consent: true,
+      });
       await notifyIssueStakeholders(db, {
         issueId,
         memberId,
@@ -535,7 +546,7 @@ Deno.serve(async (req: Request) => {
     await trackLineEvent(db, 'liff_issue_submitted', {
       lineUserId: identity.userId, memberId, source: 'liff',
     });
-    return response({ ok: true, message: 'ส่งเรื่องให้ทีม Mentor แล้ว' });
+    return response({ ok: true, message: `รับเรื่องแล้ว · ส่งต่อให้ ${route.label}` });
   }
 
   if (action === '121') {
@@ -840,7 +851,18 @@ Deno.serve(async (req: Request) => {
       .eq('member_id', memberId)
       .order('reported_at', { ascending: false })
       .limit(5);
-    return response({ ok: true, issues: issues || [] });
+    const issueIds = ((issues || []) as Record<string, unknown>[]).map(row => String(row.id || '')).filter(Boolean);
+    const { data: signals } = issueIds.length ? await db.from('member_signals')
+      .select('subject_id,status,payload,target_roles')
+      .eq('member_id', memberId)
+      .eq('subject_type', 'help_request')
+      .in('subject_id', issueIds) : { data: [] };
+    const signalByIssue = new Map(((signals || []) as Record<string, unknown>[]).map(row => [String(row.subject_id || ''), row]));
+    const enriched = ((issues || []) as Record<string, unknown>[]).map(row => {
+      const signal = signalByIssue.get(String(row.id || '')) as Record<string, unknown> | undefined;
+      return { ...row, status: String(signal?.status || (row.resolved_at ? 'resolved' : 'new')), routing: signal?.target_roles || [], category: (signal?.payload as Record<string, unknown> | undefined)?.category || 'mentor' };
+    });
+    return response({ ok: true, issues: enriched });
   }
 
   if (action === 'get-visitors') {
