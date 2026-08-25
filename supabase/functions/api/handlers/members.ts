@@ -15,11 +15,10 @@ const LT_ROLE_CATALOG = [
   { role: 'Membership Committee', label: 'Membership Committee', scopes: ['absence', 'renewal'] },
   { role: 'Visitor Host', label: 'Visitor Host', scopes: ['visitor'] },
   { role: 'Event Coordinator', label: 'Event Coordinator', scopes: ['visitor'] },
-  { role: 'Education Coordinator', label: 'Education Coordinator', scopes: [] },
   { role: 'Mentor Coordinator', label: 'Mentor Coordinator', scopes: ['member_help', 'new_member'] },
   { role: 'Growth Coordinator', label: 'Growth Coordinator', scopes: ['goal'] },
   { role: 'Web Master', label: 'Web Master', scopes: [] },
-  { role: 'Network Education Coordinator', label: 'Network Education Coordinator', scopes: ['training'] },
+  { role: 'Network Education Coordinator', label: 'NEC · Network Education Coordinator', scopes: ['training'] },
 ] as const;
 
 type MemberRef = {

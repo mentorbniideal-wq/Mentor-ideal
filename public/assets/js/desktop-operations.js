@@ -2749,7 +2749,7 @@ function renderPassportBoard(){
   (assignments||[]).forEach(function(a){if(roleOrder.indexOf(a.lt_role)<0)roleOrder.push(a.lt_role);});
   var aByRole={};assignments.forEach(function(a){aByRole[a.lt_role]=a;});
   var aEl=document.getElementById('passport-assignments');
-  if(aEl)aEl.innerHTML=(roleOrder.length?roleOrder:['Mentor Coordinator','President','Vice President','Secretary/Treasurer','Visitor Host','Education Coordinator','Growth Coordinator','Membership Committee']).map(function(role){
+  if(aEl)aEl.innerHTML=(roleOrder.length?roleOrder:['Mentor Coordinator','President','Vice President','Secretary/Treasurer','Visitor Host','Network Education Coordinator','Growth Coordinator','Membership Committee']).map(function(role){
     var a=aByRole[role]||{};
     return '<div style="border:1px solid var(--bd);border-radius:10px;padding:9px;margin-bottom:8px;background:var(--sf2)">'
       +'<div style="font-size:11px;font-weight:800;margin-bottom:6px">'+esc(role)+'</div>'
