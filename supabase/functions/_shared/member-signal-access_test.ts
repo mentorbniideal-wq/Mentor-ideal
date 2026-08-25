@@ -1,4 +1,4 @@
-import { canManageMemberSignal, canViewMemberSignal } from './member-signal-access.ts';
+import { canManageMemberSignal, canTransitionMemberSignal, canViewMemberSignal } from './member-signal-access.ts';
 
 const help = { signal_type: 'member_help', target_roles: ['Mentor Coordinator'], members: { mentor_team: 'Aof' } };
 
@@ -25,4 +25,11 @@ Deno.test('Active LT holder sees signals routed to their role', () => {
   const auth = { ok: true, role: 'toomtam', memberId: 'member-1' };
   const training = { signal_type: 'training', target_roles: ['Network Education Coordinator'] };
   if (!canViewMemberSignal(auth, training, ['Network Education Coordinator'])) throw new Error('LT route denied');
+});
+
+Deno.test('closed member signals cannot regress without a dedicated reopen workflow', () => {
+  if (!canTransitionMemberSignal('new', 'in_progress')) throw new Error('valid transition denied');
+  if (!canTransitionMemberSignal('in_progress', 'resolved')) throw new Error('completion denied');
+  if (canTransitionMemberSignal('resolved', 'in_progress')) throw new Error('resolved work reopened');
+  if (canTransitionMemberSignal('cancelled', 'acknowledged')) throw new Error('cancelled work reopened');
 });

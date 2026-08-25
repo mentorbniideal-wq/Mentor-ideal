@@ -38,3 +38,16 @@ export function canManageMemberSignal(
   if (auth.role === 'mentor_support') return false;
   return canViewMemberSignal(auth, row, activeLtRoles);
 }
+
+const SIGNAL_TRANSITIONS: Record<string, string[]> = {
+  new: ['acknowledged', 'in_progress', 'resolved', 'cancelled'],
+  acknowledged: ['in_progress', 'resolved', 'cancelled'],
+  in_progress: ['resolved', 'cancelled'],
+  resolved: [],
+  cancelled: [],
+};
+
+export function canTransitionMemberSignal(fromStatus: string, toStatus: string): boolean {
+  if (fromStatus === toStatus) return true;
+  return (SIGNAL_TRANSITIONS[fromStatus] || []).includes(toStatus);
+}

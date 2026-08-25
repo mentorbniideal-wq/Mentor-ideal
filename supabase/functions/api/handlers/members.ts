@@ -5,7 +5,7 @@ import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { canAccessTeam } from '../../_shared/authorization.ts';
 import { calcPalmsScore } from '../../_shared/palms.ts';
-import { canManageMemberSignal, canViewMemberSignal } from '../../_shared/member-signal-access.ts';
+import { canManageMemberSignal, canTransitionMemberSignal, canViewMemberSignal } from '../../_shared/member-signal-access.ts';
 
 const VALID_TEAMS = new Set(['TOOMTAM', 'Aof', 'Draft', 'PHAI', 'AMP']);
 const GROWTH_WATCH_MIN_SCORE = 65;
@@ -870,6 +870,9 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       const { data: current, error: currentError } = await db.from('member_signals')
         .select('*,members!member_signals_member_id_fkey(mentor_team)').eq('id', id).maybeSingle();
       if (currentError || !current) return errResponse('ไม่พบงานที่ต้องการอัปเดต', 404);
+      if (!canTransitionMemberSignal(String((current as Record<string, unknown>).status || ''), status)) {
+        return errResponse('งานนี้ปิดแล้ว หากต้องเปิดใหม่ให้สร้างคำขอใหม่เพื่อรักษาประวัติเดิม', 409);
+      }
       let activeLtRoles: string[] = [];
       if (auth.memberId && !auth.isAdmin) {
         const { data: ltRows } = await db.from('passport_lt_assignments').select('lt_role')
