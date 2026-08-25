@@ -14,6 +14,7 @@ export async function upsertMemberSignal(db: Db, input: {
     title: input.title, detail: input.detail || null, payload: input.payload || {},
     target_roles: ltRolesForScope(input.signalType), priority: input.priority || 'normal',
     consent_at: input.consent ? now : null, status: 'new', updated_at: now,
+    source_surface: input.subjectType || 'liff',
     idempotency_key: input.idempotencyKey,
   }, { onConflict: 'idempotency_key' }).select('id,status,target_roles').single();
 }

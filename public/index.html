@@ -540,12 +540,20 @@
       <div class="sh">งานที่ต้องดำเนินการ</div>
       <div id="mentor-completion"></div>
       <div class="mentor-hub-grid">
+        <button class="mentor-hub-card" onclick="mentorOpenSection('signals');loadMobileMemberSignals()">📥 <b id="work-signal-count" class="mentor-hub-count" style="display:none">0</b><strong>คำขอจากสมาชิก</strong><span>รับเรื่องตามทีมและหน้าที่ พร้อมดูเวลาที่ควรตอบ</span></button>
         <button class="mentor-hub-card" onclick="mentorOpenSection('report')">📝 <b id="work-report-count" class="mentor-hub-count" style="display:none">0</b><strong>รายงาน Core Issue</strong><span>ส่งรายงานและติดตามคำตอบจาก MC</span></button>
         <button class="mentor-hub-card" onclick="mentorOpenSection('mcmsg')">💬 <b id="work-msg-count" class="mentor-hub-count" style="display:none">0</b><strong>งานและข้อความจาก MC</strong><span>รับทราบงาน อ่านประกาศ และติดตามคำสั่ง</span></button>
         <button class="mentor-hub-card" onclick="mentorOpenSection('renewal')">💳 <b id="work-renew-count" class="mentor-hub-count" style="display:none">0</b><strong>Renewal</strong><span>ติดตามการติดต่อ การตัดสินใจ และชำระเงิน</span></button>
         <button class="mentor-hub-card" onclick="mentorOpenSection('121care')">🤝 <b id="work-121-count" class="mentor-hub-count" style="display:none">0</b><strong>1-2-1 Care</strong><span>รับคำขอ ดูคู่ที่ติดขั้นตอน และติดตาม Referral</span></button>
         <button class="mentor-hub-card" onclick="mentorOpenSection('mentorlog')">📓 <strong>Mentor Log</strong><span>บันทึกกิจกรรมและหลักฐานการดูแล Mentee</span></button>
       </div>
+    </div>
+    <div class="pane" id="mentor-signals">
+      <button class="dp-back" onclick="mentorReturnTo('work')" aria-label="กลับไปศูนย์งาน">← งาน</button>
+      <div class="sh">📥 คำขอจากสมาชิก</div>
+      <p class="mobile-mini-note">แสดงเฉพาะเรื่องที่ตรงกับทีมและตำแหน่งของคุณ Mentor Support เปิดอ่านเพื่อช่วยวิเคราะห์ได้ แต่ไม่สามารถตอบสมาชิกแทนทีมหลัก</p>
+      <div id="mentor-signal-summary" class="mobile-metric-grid"></div>
+      <div id="mentor-signal-list"><div class="lt">⏳ กำลังโหลด...</div></div>
     </div>
     <div class="pane" id="mentor-directory">
       <label class="fl" for="mentor-member-search">ค้นหา Mentee</label>

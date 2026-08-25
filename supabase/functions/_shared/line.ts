@@ -23,6 +23,9 @@ export interface LineSendOptions {
   memberId?: string | null;
   notificationType?: string;
   source?: string;
+  module?: string;
+  category?: string;
+  priority?: 'critical' | 'action_required' | 'reminder' | 'informational';
 }
 
 export interface LineSendResult {
@@ -147,6 +150,15 @@ async function claimDelivery(
   if (!options.db || !options.idempotencyKey) return { shouldSend: true };
 
   const payloadHash = await sha256Hex(JSON.stringify(messages));
+  const notificationType = String(options.notificationType || '');
+  const notificationSource = String(options.source || '');
+  const inferredModule = options.module || (
+    notificationType.startsWith('one_to_one') || notificationType.includes('121') || notificationSource.includes('121') ? 'one_to_one' :
+    notificationType.startsWith('visitor') ? 'visitor' :
+    notificationType.startsWith('renewal') ? 'renewal' :
+    notificationType.startsWith('training') ? 'training' :
+    notificationType.startsWith('goal') ? 'goal' : 'operational'
+  );
   // Extract first 300 chars of the primary text message for the activity log
   const firstText = messages.find(m => m.type === 'text' && typeof m.text === 'string');
   const messagePreview = firstText ? String(firstText.text).slice(0, 300) : null;
@@ -158,6 +170,9 @@ async function claimDelivery(
     p_notification_type: options.notificationType || null,
     p_source: options.source || null,
     p_payload_hash: payloadHash,
+    p_module: inferredModule,
+    p_category: options.category || notificationType || null,
+    p_priority: options.priority || 'informational',
   };
   const { data, error } = await options.db.rpc('fn_claim_line_delivery', {
     ...baseArgs,

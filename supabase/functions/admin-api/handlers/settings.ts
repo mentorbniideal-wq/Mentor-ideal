@@ -172,6 +172,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     if (existingAssignment) return errResponse('Gmail นี้มีสิทธิ์ในระบบอยู่แล้ว กรุณาให้ Chapter Admin ตรวจสอบก่อน');
     const { error: assignError } = await db.from('role_assignments').insert({
       email: googleUser.email,
+      member_id: String(row.member_id),
       role,
       display_name: displayName,
       team_name: row.approved_team_name || null,
@@ -195,35 +196,30 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
   if (action === 'getAdminSessionInfo') {
     const auth = await requireAuth(db, p);
     if (!auth.ok) return errResponse(auth.error!);
-    const { data: ra } = await db
-      .from('role_assignments')
-      .select('admin_sections, admin_edit_access, display_name')
-      .eq('role', auth.role!)
-      .limit(1)
-      .maybeSingle();
-    const sections: string[] = Array.isArray((ra as Record<string,unknown>)?.admin_sections)
-      ? ((ra as Record<string,unknown>).admin_sections as unknown[]).map(String)
-      : [];
     return jsonResponse({
       ok:              true,
       role:            auth.role,
       isMC:            auth.isMC,
       isMentor:        auth.isMentor,
+      isAdmin:         auth.isAdmin,
       displayName:     auth.displayName,
-      adminSections:   sections,
-      adminEditAccess: Boolean((ra as Record<string,unknown>)?.admin_edit_access ?? auth.isMC),
+      adminSections:   auth.adminSections || [],
+      adminEditAccess: Boolean(auth.adminEditAccess),
+      capabilities:    auth.capabilities || [],
     });
   }
 
-  // ── MC-only actions ──────────────────────────────────────────────────────────
+  // ── Chapter Admin-only control plane ───────────────────────────────────────
+  // Mentor Co uses the operational pages granted through admin_sections, but
+  // cannot change accounts, invitations, LINE configuration, or system settings.
   const auth = await requireAuth(db, p);
   if (!auth.ok) return errResponse(auth.error!);
-  if (!auth.isMC) return errResponse('Admin access required', 403);
+  if (!auth.isAdmin) return errResponse('เฉพาะ Chapter Admin เท่านั้นที่จัดการการเข้าถึงและการตั้งค่าระบบได้', 403);
 
   if (action === 'getRoleAssignments') {
     const { data, error } = await db
       .from('role_assignments')
-      .select('email, role, display_name, team_name, is_mc, is_mentor, admin_sections, admin_edit_access, created_at')
+      .select('email, role, display_name, team_name, member_id, is_mc, is_mentor, is_admin, admin_sections, admin_edit_access, capabilities, created_at')
       .order('role');
     if (error) return errResponse(error.message);
     return jsonResponse({ ok: true, assignments: data || [] });
@@ -314,21 +310,26 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     const teamName    = p.teamName || p.team_name ? String(p.teamName || p.team_name) : null;
     const isMC        = Boolean(p.isMC    ?? p.is_mc    ?? false);
     const isMentor    = Boolean(p.isMentor ?? p.is_mentor ?? false);
+    const isAdmin     = role === 'admin' || Boolean(p.isAdmin ?? p.is_admin ?? false);
     const hasAdminSections = Array.isArray(p.adminSections);
     const adminSections = (hasAdminSections ? p.adminSections as string[] : [])
       .filter(s => ADMIN_SECTIONS.includes(s as typeof ADMIN_SECTIONS[number]));
 
     if (!email || !role) return errResponse('email and role required');
-    const validRoles = ['mc','toomtam','aof','draft','phai','amp','mentor_support','growth'];
+    const validRoles = ['admin','mc','toomtam','aof','draft','phai','amp','mentor_support','growth'];
     if (!validRoles.includes(role)) return errResponse(`Invalid role. Must be one of: ${validRoles.join(', ')}`);
 
     const assignment: Record<string, unknown> = {
       email, role, display_name: displayName, team_name: teamName,
-      is_mc: isMC, is_mentor: isMentor,
+      is_mc: isMC || isAdmin, is_mentor: isMentor, is_admin: isAdmin,
     };
     if (hasAdminSections) assignment.admin_sections = adminSections;
     if (p.adminEditAccess !== undefined) {
       assignment.admin_edit_access = Boolean(p.adminEditAccess);
+    }
+    if (Array.isArray(p.capabilities)) {
+      assignment.capabilities = (p.capabilities as unknown[])
+        .map(String).map(value => value.trim()).filter(Boolean).slice(0, 50);
     }
 
     const { error } = await db.from('role_assignments').upsert(
@@ -365,7 +366,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
       .filter(s => ADMIN_SECTIONS.includes(s as typeof ADMIN_SECTIONS[number]));
     const editAccess = Boolean(p.editAccess);
     if (!id || !role) return errResponse('id and role required');
-    const validRoles = ['mc','toomtam','aof','draft','phai','amp','mentor_support','growth'];
+    const validRoles = ['admin','mc','toomtam','aof','draft','phai','amp','mentor_support','growth'];
     if (!validRoles.includes(role)) return errResponse('Invalid role');
 
     const { data: req, error: fetchErr } = await db
@@ -378,8 +379,9 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
       role,
       display_name: String(r.name || r.email),
       team_name:    teamName,
-      is_mc:        role === 'mc',
+      is_mc:        role === 'mc' || role === 'admin',
       is_mentor:    isMentor,
+      is_admin:     role === 'admin',
       admin_sections: approvedSections.length
         ? approvedSections
         : (Array.isArray(r.requested_sections) ? r.requested_sections : []),
@@ -390,7 +392,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     await db.from('access_requests').update({
       status:      'approved',
       reviewed_at: new Date().toISOString(),
-      reviewed_by: auth.displayName || 'MC',
+      reviewed_by: auth.displayName || 'Chapter Admin',
     }).eq('id', id);
 
     return jsonResponse({ ok: true });
@@ -402,7 +404,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     const { error } = await db.from('access_requests').update({
       status:      'rejected',
       reviewed_at: new Date().toISOString(),
-      reviewed_by: auth.displayName || 'MC',
+      reviewed_by: auth.displayName || 'Chapter Admin',
     }).eq('id', id);
     if (error) return errResponse(error.message);
     return jsonResponse({ ok: true });

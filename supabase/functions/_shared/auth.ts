@@ -1,16 +1,19 @@
 // Auth helper — supports Google OAuth JWT tokens and (legacy) PIN-based auth
 import { SupabaseClient, createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { defaultCapabilities } from './capabilities.ts';
 
 export interface AuthResult {
   ok: boolean;
   role?: string;
   displayName?: string;
   teamName?: string | null;
+  memberId?: string | null;
   isMC?: boolean;
   isMentor?: boolean;
   isAdmin?: boolean;
   adminSections?: string[];
   adminEditAccess?: boolean;
+  capabilities?: string[];
   error?: string;
 }
 
@@ -59,7 +62,7 @@ export async function verifyToken(
   // Look up role_assignments by email (service client can read this)
   const { data: ra, error: raErr } = await supabase
     .from('role_assignments')
-    .select('role, display_name, team_name, is_mc, is_mentor, is_admin, admin_sections, admin_edit_access')
+    .select('role, display_name, team_name, member_id, is_mc, is_mentor, is_admin, admin_sections, admin_edit_access, capabilities')
     .ilike('email', email)
     .maybeSingle();
 
@@ -67,16 +70,22 @@ export async function verifyToken(
   if (!ra) return { ok: false, error: `ไม่มีสิทธิ์ใช้งาน (${email}) กรุณาติดต่อ MC` };
 
   const r = ra as Record<string, unknown>;
+  const isAdmin = Boolean(r.is_admin) || String(r.role) === 'admin';
+  const capabilities = Array.isArray(r.capabilities)
+    ? r.capabilities.map(String)
+    : defaultCapabilities(String(r.role), isAdmin);
   return {
     ok:          true,
     role:        String(r.role),
     displayName: String(r.display_name || r.role),
     teamName:    r.team_name != null ? String(r.team_name) : null,
+    memberId:    r.member_id != null ? String(r.member_id) : null,
     isMC:        Boolean(r.is_mc),
     isMentor:    Boolean(r.is_mentor),
-    isAdmin:     Boolean(r.is_admin) || String(r.role) === 'admin',
+    isAdmin,
     adminSections: Array.isArray(r.admin_sections) ? r.admin_sections.map(String) : [],
     adminEditAccess: Boolean(r.admin_edit_access),
+    capabilities,
   };
 }
 
@@ -91,7 +100,7 @@ export async function verifyPin(
   const info = ROLE_INFO[r];
 
   if (DEV_MODE) {
-    return { ok: true, role: r, ...info };
+    return { ok: true, role: r, ...info, capabilities: defaultCapabilities(r, Boolean(info.isAdmin)) };
   }
 
   if (!pin) {
@@ -110,6 +119,7 @@ export async function verifyPin(
   }
 
   const row = data as Record<string, unknown>;
+  const isAdmin = Boolean(row.is_admin ?? info.isAdmin);
   return {
     ok: true,
     role: String(row.role),
@@ -117,7 +127,8 @@ export async function verifyPin(
     teamName: row.team_name != null ? String(row.team_name) : info.teamName,
     isMC: Boolean(row.is_mc ?? info.isMC),
     isMentor: Boolean(row.is_mentor ?? info.isMentor),
-    isAdmin: Boolean(row.is_admin ?? info.isAdmin),
+    isAdmin,
+    capabilities: defaultCapabilities(r, isAdmin),
   };
 }
 
@@ -131,7 +142,7 @@ export async function requireAuth(
   if (DEV_MODE) {
     const role = String(payload.role || 'mc').toLowerCase();
     const info = ROLE_INFO[role] ?? ROLE_INFO['mc'];
-    return { ok: true, role, ...info };
+    return { ok: true, role, ...info, capabilities: defaultCapabilities(role, Boolean(info.isAdmin)) };
   }
 
   // 1. Token-based auth (Google OAuth) — preferred

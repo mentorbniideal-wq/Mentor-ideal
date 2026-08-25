@@ -5,6 +5,7 @@ import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { canAccessTeam } from '../../_shared/authorization.ts';
 import { calcPalmsScore } from '../../_shared/palms.ts';
+import { canManageMemberSignal, canViewMemberSignal } from '../../_shared/member-signal-access.ts';
 
 const VALID_TEAMS = new Set(['TOOMTAM', 'Aof', 'Draft', 'PHAI', 'AMP']);
 const GROWTH_WATCH_MIN_SCORE = 65;
@@ -783,7 +784,7 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
         db.from('lt_terms').select('*').order('starts_on', { ascending: false }),
         db.from('passport_lt_assignments').select('*').order('lt_role'),
         db.from('members').select('id,name,nickname,email,is_archived').eq('is_archived', false).order('name'),
-        db.from('mentor_teams').select('name,leader_name').order('id'),
+        db.from('mentor_teams').select('name,leader_name,leader_member_id,display_name,active_term_id,updated_at').order('id'),
       ]);
       if (termErr || assignmentErr || memberErr || mentorTeamErr) return errResponse(termErr?.message || assignmentErr?.message || memberErr?.message || mentorTeamErr?.message || 'โหลด LT Team ไม่สำเร็จ');
       const memberIds = ((members || []) as Record<string, unknown>[]).map(m => String(m.id));
@@ -795,8 +796,27 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       return jsonResponse({ ok: true, terms: terms || [], assignments: assignments || [], members: memberRows, mentorTeams: mentorTeams || [], roles: LT_ROLE_CATALOG });
     }
 
+    // Stable codes + term-aware labels shared by Desktop, Mentor Mobile and LIFF.
+    case 'getTeamCatalog': {
+      const auth = await requireAuth(db, p);
+      if (!auth.ok) return errResponse(auth.error!);
+      const { data, error } = await db.from('mentor_teams')
+        .select('name,leader_name,leader_member_id,display_name,active_term_id,updated_at')
+        .order('id');
+      if (error) return errResponse(error.message);
+      const teams = ((data || []) as Record<string, unknown>[]).map(team => ({
+        code: String(team.name || ''),
+        displayName: String(team.display_name || `ทีม ${String(team.leader_name || team.name || '')}`),
+        leaderName: String(team.leader_name || ''),
+        leaderMemberId: team.leader_member_id ? String(team.leader_member_id) : null,
+        activeTermId: team.active_term_id ? String(team.active_term_id) : null,
+        updatedAt: team.updated_at ? String(team.updated_at) : null,
+      }));
+      return jsonResponse({ ok: true, teams });
+    }
+
     case 'getMemberSignals': {
-      const auth = await requireAuth(db, p, ['mc', 'growth']);
+      const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
       const status = textValue(p.status), signalType = textValue(p.signalType);
       let query = db.from('member_signals')
@@ -805,27 +825,77 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       if (status) query = query.eq('status', status);
       else query = query.in('status', ['new', 'acknowledged', 'in_progress']);
       if (signalType) query = query.eq('signal_type', signalType);
-      if (auth.role === 'growth' && !auth.isAdmin) query = query.eq('signal_type', 'goal');
       const { data, error } = await query;
       if (error) return errResponse(error.message);
-      const rows = (data || []) as Record<string, unknown>[];
+      let activeLtRoles: string[] = [];
+      if (auth.memberId && !auth.isAdmin) {
+        const { data: ltRows } = await db.from('passport_lt_assignments').select('lt_role')
+          .eq('is_active', true).or(`assigned_member_id.eq.${auth.memberId},fallback_member_id.eq.${auth.memberId}`);
+        activeLtRoles = ((ltRows || []) as Record<string, unknown>[]).map(row => String(row.lt_role || '')).filter(Boolean);
+      }
+      const rows = ((data || []) as Record<string, unknown>[])
+        .filter(row => canViewMemberSignal(auth, row, activeLtRoles));
       const counts = rows.reduce((acc: Record<string, number>, row) => {
         const key = String(row.signal_type || 'other'); acc[key] = (acc[key] || 0) + 1; return acc;
       }, {});
-      return jsonResponse({ ok: true, signals: rows, counts });
+      return jsonResponse({ ok: true, signals: rows, counts, activeLtRoles });
+    }
+
+    case 'getMemberSignalHistory': {
+      const auth = await requireAuth(db, p);
+      if (!auth.ok) return errResponse(auth.error!);
+      const id = textValue(p.id);
+      if (!id) return errResponse('ไม่พบงานที่ต้องการดู');
+      const { data: signal, error: signalError } = await db.from('member_signals')
+        .select('*,members!member_signals_member_id_fkey(name,nickname,mentor_team)').eq('id', id).maybeSingle();
+      if (signalError || !signal) return errResponse('ไม่พบงานที่ต้องการดู', 404);
+      let activeLtRoles: string[] = [];
+      if (auth.memberId && !auth.isAdmin) {
+        const { data: ltRows } = await db.from('passport_lt_assignments').select('lt_role')
+          .eq('is_active', true).or(`assigned_member_id.eq.${auth.memberId},fallback_member_id.eq.${auth.memberId}`);
+        activeLtRoles = ((ltRows || []) as Record<string, unknown>[]).map(row => String(row.lt_role || '')).filter(Boolean);
+      }
+      if (!canViewMemberSignal(auth, signal as Record<string, unknown>, activeLtRoles)) return errResponse('ไม่มีสิทธิ์ดูประวัติงานนี้', 403);
+      const { data: events, error } = await db.from('member_signal_events').select('*')
+        .eq('signal_id', id).order('created_at', { ascending: false }).limit(100);
+      if (error) return errResponse(error.message);
+      return jsonResponse({ ok: true, signal, events: events || [] });
     }
 
     case 'updateMemberSignal': {
-      const auth = await requireAuth(db, p, ['admin']);
+      const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
       const id = textValue(p.id), status = textValue(p.status);
       if (!id || !['acknowledged', 'in_progress', 'resolved', 'cancelled'].includes(status)) return errResponse('สถานะงานไม่ถูกต้อง');
+      const { data: current, error: currentError } = await db.from('member_signals')
+        .select('*,members!member_signals_member_id_fkey(mentor_team)').eq('id', id).maybeSingle();
+      if (currentError || !current) return errResponse('ไม่พบงานที่ต้องการอัปเดต', 404);
+      let activeLtRoles: string[] = [];
+      if (auth.memberId && !auth.isAdmin) {
+        const { data: ltRows } = await db.from('passport_lt_assignments').select('lt_role')
+          .eq('is_active', true).or(`assigned_member_id.eq.${auth.memberId},fallback_member_id.eq.${auth.memberId}`);
+        activeLtRoles = ((ltRows || []) as Record<string, unknown>[]).map(row => String(row.lt_role || '')).filter(Boolean);
+      }
+      if (!canManageMemberSignal(auth, current as Record<string, unknown>, activeLtRoles)) return errResponse('ไม่มีสิทธิ์จัดการงานนี้', 403);
       const now = new Date().toISOString(), actor = String(auth.displayName || auth.role || 'Chapter Admin');
       const changes: Record<string, unknown> = { status, updated_at: now };
+      const assignedRole = textValue(p.assignedRole).slice(0, 120);
+      const assignedMemberId = textValue(p.assignedMemberId);
+      if (assignedRole) changes.assigned_role = assignedRole;
+      if (assignedMemberId && (auth.isAdmin || assignedMemberId === auth.memberId)) changes.assigned_member_id = assignedMemberId;
+      if (status === 'in_progress' && auth.memberId && !(current as Record<string, unknown>).assigned_member_id) changes.assigned_member_id = auth.memberId;
       if (status === 'acknowledged' || status === 'in_progress') Object.assign(changes, { acknowledged_by: actor, acknowledged_at: now });
-      if (status === 'resolved' || status === 'cancelled') Object.assign(changes, { resolved_by: actor, resolved_at: now });
-      const { data, error } = await db.from('member_signals').update(changes).eq('id', id).select('*').single();
+      if (status === 'resolved' || status === 'cancelled') Object.assign(changes, {
+        resolved_by: actor, resolved_at: now,
+        resolution_code: textValue(p.resolutionCode).slice(0, 80) || status,
+        resolution_note: textValue(p.resolutionNote).slice(0, 1000) || null,
+      });
+      let update = db.from('member_signals').update(changes).eq('id', id);
+      const expectedVersion = Number(p.expectedVersion || 0);
+      if (expectedVersion > 0) update = update.eq('version', expectedVersion);
+      const { data, error } = await update.select('*').maybeSingle();
       if (error) return errResponse(error.message);
+      if (!data) return errResponse('ข้อมูลถูกแก้ไขจากอีกอุปกรณ์ กรุณารีเฟรชแล้วลองใหม่', 409);
       return jsonResponse({ ok: true, signal: data });
     }
 
@@ -861,8 +931,15 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       if (error) return errResponse(error.message);
       const mentorTeamMatch = /^Mentor Team · (TOOMTAM|Aof|Draft|PHAI|AMP)$/.exec(ltRole);
       if (mentorTeamMatch) {
+        const leaderName = assignedName || mentorTeamMatch[1];
         const { error: teamError } = await db.from('mentor_teams')
-          .update({ leader_name: assignedName || mentorTeamMatch[1] }).eq('name', mentorTeamMatch[1]);
+          .update({
+            leader_name: leaderName,
+            leader_member_id: assignedMemberId || null,
+            display_name: `ทีม ${leaderName}`,
+            active_term_id: (term as Record<string, unknown>).id,
+            updated_at: new Date().toISOString(),
+          }).eq('name', mentorTeamMatch[1]);
         if (teamError) return errResponse(`บันทึกตำแหน่งแล้ว แต่เปลี่ยนชื่อทีมไม่สำเร็จ: ${teamError.message}`);
       }
       await db.from('passport_sessions').update({ assigned_lt_member_id: assignedMemberId || null, assigned_lt_name: assignedName, updated_at: new Date().toISOString() })
@@ -1047,7 +1124,7 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
 
       const [{ data, error }, { data: mentorTeams, error: teamError }] = await Promise.all([
         db.from('v_members_by_team').select('id, name, nickname, mentor_team, is_mentored, latest_score, traffic_light'),
-        db.from('mentor_teams').select('name,leader_name').order('id'),
+        db.from('mentor_teams').select('name,leader_name,display_name').order('id'),
       ]);
       if (error || teamError) return errResponse(error?.message || teamError?.message || 'โหลด Mentor Team ไม่สำเร็จ');
 
@@ -1062,9 +1139,14 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       }
 
       const teamLabels = Object.fromEntries(((mentorTeams || []) as Record<string, unknown>[]).map(team => [
-        String(team.name), `ทีม ${String(team.leader_name || team.name)}`,
+        String(team.name), String(team.display_name || `ทีม ${String(team.leader_name || team.name)}`),
       ]));
-      return jsonResponse({ ok: true, teams, teamLabels });
+      const teamCatalog = ((mentorTeams || []) as Record<string, unknown>[]).map(team => ({
+        code: String(team.name || ''),
+        displayName: String(team.display_name || `ทีม ${String(team.leader_name || team.name)}`),
+        leaderName: String(team.leader_name || ''),
+      }));
+      return jsonResponse({ ok: true, teams, teamLabels, teamCatalog });
     }
 
     // ── MOVE: MC moves a member to a different team ───────────

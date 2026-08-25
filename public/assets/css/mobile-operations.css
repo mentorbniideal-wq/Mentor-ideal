@@ -1278,6 +1278,7 @@ body #loginScreen::before{
 .gw-pub-btn{background:none;border:none;color:#A89880;font-size:.73rem;cursor:pointer;padding:2px 4px;font-family:'Sarabun',sans-serif;transition:color .15s;}
 .gw-pub-btn:hover{color:#CDB88E;}
 .gw-pub-sep{color:#3A3530;font-size:.8rem;}
+@media(max-width:420px){body #loginScreen{padding:1.5rem 1rem}.gw-card{width:min(100%,360px);max-width:100%;min-width:0}.gw-pub-strip{gap:.3rem}.gw-pub-btn{white-space:normal;overflow-wrap:anywhere}.gw-divider span{white-space:normal;text-align:center}}
 #loginScreen .training-tile.gateway-tile{
   background:linear-gradient(145deg,rgba(39,54,43,.62),rgba(27,32,28,.96));
   border-color:rgba(118,142,123,.28)!important;
@@ -1597,3 +1598,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
   .mentor-hub-grid{grid-template-columns:1fr;}
   .workspace-actions{grid-template-columns:repeat(2,1fr);}
 }
+
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+/* Major Upgrade · role-aware member request queue */
+.mobile-signal-card{background:var(--bg2);border:1px solid var(--border);border-radius:15px;padding:.8rem;margin-bottom:.55rem;box-shadow:0 8px 24px rgba(0,0,0,.08)}.mobile-signal-card.late{border-color:rgba(248,113,113,.5)}.mobile-signal-card.soon{border-color:rgba(251,191,36,.45)}.mobile-signal-card h3{font-size:.88rem;margin:.3rem 0 .12rem}.mobile-signal-card>strong{font-size:.78rem}.mobile-signal-card p{font-size:.72rem;line-height:1.55;color:var(--gray2);margin:.35rem 0}.mobile-signal-card small{display:block;color:var(--gray2);font-size:.65rem;margin-top:.35rem}.mobile-signal-meta{display:flex;align-items:center;justify-content:space-between;gap:.5rem;font-size:.65rem;font-weight:800;color:var(--gold)}.mobile-signal-sla{color:var(--gray2);font-weight:700}.mobile-signal-card.late .mobile-signal-sla{color:var(--red)}.mobile-signal-actions{display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin-top:.7rem}.mobile-signal-actions button{min-height:46px;border:1px solid var(--border);border-radius:10px;background:var(--bg3);color:var(--white);font:700 .75rem inherit;touch-action:manipulation}.mobile-signal-actions button:last-child{border-color:rgba(52,211,153,.4);color:var(--green)}.mobile-support-note{margin-top:.65rem;padding:.55rem;border-radius:9px;background:rgba(96,165,250,.08);color:#93c5fd;font-size:.68rem;line-height:1.5}

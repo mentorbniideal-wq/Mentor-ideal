@@ -89,6 +89,7 @@ const ROUTES: Record<string, string> = {
   'getMemberList': 'members', 'addNewMember': 'members',
   'addNewMembersBatch': 'members', 'assignToTeam': 'members',
   'moveMemberToTeam': 'members', 'getMembersByTeam': 'members',
+  'getTeamCatalog': 'members',
   'bulkMoveMembersToTeam': 'members', 'getTeamHistory': 'members',
   'getTeamMoveHistory': 'members',
   'setMentoringMode': 'members',
@@ -107,7 +108,7 @@ const ROUTES: Record<string, string> = {
   'getPassportCalendar': 'members',
   'getLtTeam': 'members', 'saveLtTeamAssignment': 'members',
   'createLtTerm': 'members',
-  'getMemberSignals': 'members', 'updateMemberSignal': 'members',
+  'getMemberSignals': 'members', 'getMemberSignalHistory': 'members', 'updateMemberSignal': 'members',
 
   // Coaching / Core Issue
   'saveCoreIssue': 'coaching', 'getCoachingGuide': 'coaching',

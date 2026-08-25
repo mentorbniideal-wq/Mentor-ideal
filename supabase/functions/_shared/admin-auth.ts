@@ -1,5 +1,6 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireAuth, type AuthResult } from './auth.ts';
+import { canAccessAdminSection } from './capabilities.ts';
 
 export async function requireAdminAccess(
   db: SupabaseClient,
@@ -9,15 +10,14 @@ export async function requireAdminAccess(
 ): Promise<AuthResult> {
   const auth = await requireAuth(db, payload);
   if (!auth.ok) return auth;
-  if (auth.isMC) return auth;
-  if (options.mcOnly) return { ok: false, error: 'MC access required' };
-
-  const sections = auth.adminSections || [];
-  if (!sections.includes(section)) {
-    return { ok: false, error: `ไม่มีสิทธิ์เข้าถึงหมวด ${section}` };
+  if (options.mcOnly && !auth.isMC && !auth.isAdmin) {
+    return { ok: false, error: 'Mentor Co access required' };
   }
-  if (options.write && !auth.adminEditAccess) {
-    return { ok: false, error: 'บัญชีนี้เป็น View Only ไม่สามารถแก้ไขข้อมูลได้' };
+  if (!canAccessAdminSection(auth, section, Boolean(options.write))) {
+    if ((auth.adminSections || []).includes(section) && options.write) {
+      return { ok: false, error: 'บัญชีนี้เป็น View Only ไม่สามารถแก้ไขข้อมูลได้' };
+    }
+    return { ok: false, error: `ไม่มีสิทธิ์เข้าถึงหมวด ${section}` };
   }
   return auth;
 }

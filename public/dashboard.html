@@ -1535,9 +1535,9 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         <div id="lt-team-routing" class="lt-team-routing-grid"></div>
       </div>
       <div class="card" style="margin-top:14px">
-        <div style="font-size:13px;font-weight:900">📥 งานและความสนใจจากสมาชิก</div>
-        <div style="font-size:10px;color:var(--sub);margin:3px 0 12px">รวมเป้าหมาย แขก การต่ออายุ และการอบรม เพื่อให้ทีมที่รับผิดชอบติดตามต่อ</div>
-        <div id="lt-signal-inbox" style="display:grid;gap:8px"></div>
+        <div class="signal-queue-head"><div><div class="signal-queue-eyebrow">UNIVERSAL WORK QUEUE</div><div class="signal-queue-title">📥 งานและความสนใจจากสมาชิก</div><div class="signal-queue-sub">ดูว่าเรื่องใดต้องทำก่อน ใครรับผิดชอบ และใกล้เกิน SLA หรือไม่</div></div><button class="bsm" onclick="loadMemberSignals()">↻ รีเฟรช</button></div>
+        <div id="lt-signal-summary" class="signal-queue-summary" aria-live="polite"></div>
+        <div id="lt-signal-inbox" class="signal-queue-list" aria-live="polite"></div>
       </div>
     </div>
 

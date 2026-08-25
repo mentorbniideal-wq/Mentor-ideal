@@ -109,7 +109,7 @@ Deno.test('unified sender skips provider call when delivery key is already claim
   }
 });
 
-Deno.test('unified sender claims delivery with message_preview using the 8-arg RPC contract', async () => {
+Deno.test('unified sender claims delivery with governance metadata', async () => {
   let fetchCalls = 0;
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (() => {
@@ -125,7 +125,7 @@ Deno.test('unified sender claims delivery with message_preview using the 8-arg R
     rpc: (_fn: string, args: Record<string, unknown>) => {
       rpcArgs = args;
       return Promise.resolve({
-        data: [{ delivery_id: 'delivery-8arg', should_send: false }],
+        data: [{ delivery_id: 'delivery-governed', should_send: false }],
         error: null,
       });
     },
@@ -141,21 +141,27 @@ Deno.test('unified sender claims delivery with message_preview using the 8-arg R
       notificationType: 'test',
     });
     assert(result.skipped);
-    assertEquals(result.deliveryId, 'delivery-8arg');
+    assertEquals(result.deliveryId, 'delivery-governed');
     assertEquals(fetchCalls, 0);
     assert(rpcArgs);
     const capturedArgs = rpcArgs as Record<string, unknown>;
     assertEquals(capturedArgs.p_message_preview, 'hello legacy');
     assertEquals(Object.keys(capturedArgs).sort(), [
+      'p_category',
       'p_channel',
       'p_idempotency_key',
       'p_member_id',
       'p_message_preview',
+      'p_module',
       'p_notification_type',
       'p_payload_hash',
+      'p_priority',
       'p_recipient_id',
       'p_source',
     ]);
+    assertEquals(capturedArgs.p_module, 'operational');
+    assertEquals(capturedArgs.p_category, 'test');
+    assertEquals(capturedArgs.p_priority, 'informational');
   } finally {
     globalThis.fetch = originalFetch;
   }
