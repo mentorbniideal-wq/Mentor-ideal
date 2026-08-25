@@ -443,6 +443,40 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  if (action === 'member-home') {
+    const today = new Date().toISOString().slice(0, 10);
+    const trainingUntil = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
+    const [{ data: profile }, { data: pairRows }, { count: visitorCount }, { count: requestCount }, { count: trainingCount }, { count: followUpCount }, { data: renewal }] = await Promise.all([
+      db.from('member_one_to_one_profiles').select('*').eq('member_id', memberId).maybeSingle(),
+      db.from('matching_pairs').select('id,member_a_id,member_b_id,status,created_at').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId}`).is('archived_at', null).order('created_at', { ascending: false }).limit(1),
+      db.from('visitor_log').select('id', { count: 'exact', head: true }).eq('invited_by', memberId).eq('status', 'pending'),
+      db.from('member_signals').select('id', { count: 'exact', head: true }).eq('member_id', memberId).in('status', ['new','acknowledged','in_progress','waiting_member','snoozed']),
+      db.from('bni_events').select('id', { count: 'exact', head: true }).gte('event_date', today).lte('event_date', trainingUntil).or('ceu.gt.0,category.ilike.%training%,name.ilike.%MSP%'),
+      db.from('one_to_one_follow_up_actions').select('id', { count: 'exact', head: true }).eq('owner_member_id', memberId).in('status', ['pending','in_progress','overdue']),
+      db.from('renewals').select('days_left,expiry_date,status').eq('member_id', memberId).maybeSingle(),
+    ]);
+    const pair = ((pairRows || []) as Record<string, unknown>[])[0] || null;
+    let pairSummary: Record<string, unknown> | null = null;
+    if (pair) {
+      const partnerId = String(pair.member_a_id) === memberId ? String(pair.member_b_id) : String(pair.member_a_id);
+      const { data: partner } = await db.from('members').select('name,nickname').eq('id', partnerId).maybeSingle();
+      const state = String(pair.status || 'matched');
+      const nextByStatus: Record<string,string> = { matched:'ทักคู่และเลือกวันนัด',scheduled:'ยืนยันเวลานัดกับคู่',confirmed_schedule:'เตรียมข้อมูลก่อนวัน 1-2-1',awaiting_verification:'ทำ Digital Handshake',partially_verified:'รออีกฝ่ายยืนยัน',verified:'บันทึก Reflection และสิ่งที่ทำต่อ',late_verified:'บันทึก Reflection และสิ่งที่ทำต่อ' };
+      pairSummary = { id: pair.id, status: state, partnerName: String((partner as Record<string,unknown>|null)?.nickname || (partner as Record<string,unknown>|null)?.name || 'คู่ของคุณ'), nextAction: nextByStatus[state] || 'เปิด MY121 เพื่อดูขั้นตอนถัดไป' };
+    }
+    return response({
+      ok: true,
+      profileCompleteness: member121ProfileCompleteness(profile as Record<string,unknown>|null),
+      pair: pairSummary,
+      pendingVisitors: visitorCount || 0,
+      openRequests: requestCount || 0,
+      upcomingTraining: trainingCount || 0,
+      pendingFollowUps: followUpCount || 0,
+      daysToExpiry: Number((renewal as Record<string,unknown>|null)?.days_left || 0),
+      renewalStatus: String((renewal as Record<string,unknown>|null)?.status || ''),
+    });
+  }
+
   if (action === 'absence') {
     const absenceType = String(body.absenceType || 'ลา');
     if (!['ลา', 'ส่ง sub'].includes(absenceType)) return response({ ok: false, error: 'ประเภทไม่ถูกต้อง' }, 400);
