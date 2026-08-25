@@ -4,14 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#123c35">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <title>MY IDEAL · Action Center</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <script src="./config.js"></script>
   <style>
-    :root{--ink:#123c35;--gold:#b89a64;--paper:#f6f2e9;--muted:#6e7773;--line:#ded7ca;--white:#fff;--red:#b65245;--green:#1f7a64}
+    :root{--ink:#123c35;--gold:#765d2e;--paper:#f6f2e9;--muted:#59645f;--line:#cfc6b6;--white:#fff;--red:#a63f34;--green:#1f6f5d}
     *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Thonburi","Noto Sans Thai",sans-serif;min-height:100vh}
-    body:before{content:"";position:fixed;inset:0;background:url("/assets/line/rich-menu-zen-texture-v1.png") center/cover;opacity:.09;pointer-events:none}
+    body:before{content:"";position:fixed;inset:0;background:url("/assets/line/rich-menu-zen-texture-mobile-v1.jpg") center/cover;opacity:.09;pointer-events:none}
     .shell{position:relative;max-width:520px;margin:auto;padding:calc(20px + env(safe-area-inset-top)) 18px calc(34px + env(safe-area-inset-bottom))}
     .eyebrow{font-size:11px;letter-spacing:.18em;color:var(--gold);font-weight:700}
     .hero{padding:22px 4px 16px}.hero h1{font-size:26px;margin:8px 0 4px;line-height:1.25}.hero p{margin:0;color:var(--muted);font-size:14px}
@@ -52,9 +52,17 @@
     @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
     .p121{z-index:60}
     @media(max-width:520px){html,body{max-width:100%;overflow-x:hidden}.p121-profile-grid{grid-template-columns:1fr}.p121-profile-card.wide{grid-column:auto}.p121-wrap{padding-left:12px;padding-right:12px}.guided .g-layout{width:100vw;max-width:100vw;padding-left:8px;padding-right:8px}.guided .g-main-card{width:calc(100vw - 16px)!important;max-width:calc(100vw - 16px)!important;min-width:0;overflow:hidden}.guided .g-chips{max-width:100%;min-width:0;overflow:hidden;align-items:stretch}.guided .g-chip{min-width:0;max-width:100%;flex:1 1 120px;white-space:normal;overflow-wrap:anywhere}.guided .g-agreement span{display:block;min-width:0;overflow-wrap:anywhere}.guided textarea,.guided input,.guided select{max-width:100%;min-width:0}}
+    /* Mobile readability and WCAG touch-target baseline */
+    .my121-nav button>b,.my121-nav i,.my121-page-head small,.my121-help,.oto-history-stat small,.oto-journey-row small,.oto-growth-actions button,.p121-question-actions button,.oto-memory-row button{font-size:12px}
+    .my121-help,.my121-tour-skip,.oto-history-refresh,.oto-growth-actions button,.p121-question-actions button,.oto-memory-row button,.p121-head button,.g-head button{min-width:44px;min-height:44px}
+    .my121-title{padding-right:92px}.my121-help{padding:8px 12px}.my121-tour-skip{padding:10px 12px}
+    .oto-growth-actions button,.p121-question-actions button{padding:10px 12px}.p121-head button,.g-head button{width:44px;height:44px}
+    button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #1b75d0;outline-offset:3px}
+    .network-state{position:fixed;z-index:120;left:12px;right:12px;top:calc(8px + env(safe-area-inset-top));max-width:496px;margin:auto;padding:11px 14px;border-radius:12px;background:#7d2f28;color:#fff;text-align:center;font-size:13px;font-weight:700;box-shadow:0 8px 28px #0004}.network-state[hidden]{display:none}
   </style>
 </head>
 <body>
+<div id="networkState" class="network-state" role="status" aria-live="polite" hidden>ไม่มีอินเทอร์เน็ต · ข้อมูลที่รองรับจะเก็บไว้ในเครื่อง</div>
 <main class="shell">
   <div id="loading" class="loading">กำลังเชื่อมต่อ MY IDEAL…</div>
   <div id="app" hidden>
@@ -67,6 +75,7 @@
 
     <div id="friendshipBanner" hidden></div>
     <nav class="tabs" id="tabNav">
+      <button class="tab member-tab" data-view="ceu">🎓 ปฏิทิน CEU</button>
       <button class="tab member-tab" data-view="absence">ลา</button>
       <button class="tab member-tab" data-view="121">1-2-1</button>
       <button class="tab member-tab" data-view="goal">เป้าหมาย</button>
@@ -81,12 +90,18 @@
     <form class="card" data-card="absence">
       <h2>แจ้งลา / ส่งแทน</h2><p class="hint">แจ้งทีมล่วงหน้าอย่างเป็นระบบ</p>
       <div id="absenceInfo" style="display:none;padding:8px 12px;border-radius:8px;font-size:13px;margin-bottom:12px"></div>
-      <label>ประเภท</label><select name="absenceType"><option>ลา</option><option>ส่ง sub</option></select>
-      <label>วันที่ประชุม</label><input type="date" name="meetingDate" required>
+      <label>ประเภท</label><select name="absenceType" aria-label="ประเภทการลา"><option>ลา</option><option>ส่ง sub</option></select>
+      <label>วันที่ประชุม</label><input type="date" name="meetingDate" aria-label="วันที่ประชุม" required>
       <label>ชื่อผู้มาแทน (ถ้ามี)</label><input name="subName" placeholder="ชื่อผู้มาแทน">
       <label>รายละเอียด</label><textarea name="reason" placeholder="เหตุผลหรือข้อมูลที่ทีมควรรู้"></textarea>
       <button class="submit">ยืนยันการแจ้ง</button>
     </form>
+
+    <!-- ปฏิทิน CEU -->
+    <section class="card" data-card="ceu">
+      <h2>ปฏิทินการเรียน CEU</h2><p class="hint">ดูรอบเรียนที่กำลังจะมาถึง แล้วเลือกวันที่เหมาะกับคุณ</p>
+      <div id="ceuCalendar"><div class="loading" style="padding:24px 0">กำลังโหลดปฏิทิน CEU…</div></div>
+    </section>
 
     <!-- MY121 -->
     <form class="card my121-hub" data-card="121">
@@ -105,7 +120,7 @@
         <div id="legacy121Form">
           <div id="pending121" style="margin-bottom:12px"></div>
           <label>ชื่อสมาชิก</label><input name="partnerName" required placeholder="ชื่อหรือชื่อเล่น">
-          <label>วันที่นัด</label><input type="date" name="meetingDate" required>
+          <label>วันที่นัด</label><input type="date" name="meetingDate" aria-label="วันที่นัดหมาย" required>
           <button class="submit">บันทึกนัดหมาย</button>
         </div>
       </section>
@@ -189,8 +204,8 @@
     <div id="status" class="status"></div>
   </div>
 </main>
-<section id="profile121" class="p121" hidden aria-label="โปรไฟล์ 1-2-1"></section>
-<section id="guidedSession" class="guided" hidden aria-label="ผู้ช่วยนำทาง 1-2-1"></section>
+<section id="profile121" class="p121" hidden role="dialog" aria-modal="true" aria-label="โปรไฟล์ 1-2-1"></section>
+<section id="guidedSession" class="guided" hidden role="dialog" aria-modal="true" aria-label="ผู้ช่วยนำทาง 1-2-1"></section>
 <section id="my121Tour" class="my121-tour" hidden role="dialog" aria-modal="true" aria-label="วิธีใช้ MY121"><div id="my121TourCard" class="my121-tour-card"></div></section>
 <script>
 const cfg = window.BNI_LIFF_CONFIG || {};
@@ -203,7 +218,7 @@ function getRequestedAction() {
   const q = new URLSearchParams(location.search);
   if (q.get('action')) return q.get('action');
   const pathAction = location.pathname.match(
-    /\/liff\/(mentor-log|follow-up|issue|renewal|assignments|absence|121|goal|visitor|progress)\/?$/,
+    /\/liff\/(mentor-log|follow-up|issue|renewal|assignments|absence|ceu|121|goal|visitor|progress)\/?$/,
   );
   if (pathAction) return pathAction[1];
   const liffState = q.get('liff.state');
@@ -227,23 +242,51 @@ function show(view) {
   if (view === 'assignments') loadAssignments();
   if (view === 'progress')    loadProgress();
   if (view === 'goal')        loadGoalCoach();
+  if (view === 'ceu')         loadCeuCalendar();
   if (view === '121')         showMy121Page(getRequestedParam('section')||'pair',{updateUrl:false});
   if (view === 'issue')       loadIssueHistory();
   if (view === 'visitor')     loadPendingVisitors();
 }
 
-async function api(payload) {
-  try{
-    const r = await fetch(cfg.apiUrl, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,accessToken})});
+const apiReadActions=new Set(['renewal','training-calendar','get-my-one-to-one-system','get-my-one-to-one-history','get-my-one-to-one-profile','get-pair-121-profile','get-guided-session','get-pending-visitors']);
+const apiLatest=new Map();
+async function api(payload,options={}) {
+  const key=options.latestKey||'',requestId=crypto.randomUUID();if(key)apiLatest.set(key,requestId);
+  const attempts=apiReadActions.has(payload.action)?2:1;
+  for(let attempt=0;attempt<attempts;attempt++)try{
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),options.timeout||15000);
+    const r = await fetch(cfg.apiUrl, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,accessToken}),signal:controller.signal});
+    clearTimeout(timer);
     const text=await r.text();let data;try{data=JSON.parse(text);}catch{data={ok:false,error:`ระบบตอบกลับไม่ถูกต้อง (${r.status})`};}
-    if(!r.ok&&!data.error)data.error=`เรียกข้อมูลไม่สำเร็จ (${r.status})`;return data;
-  }catch{return{ok:false,offline:true,error:'ไม่มีอินเทอร์เน็ต ระบบเก็บข้อมูลที่รองรับไว้ในเครื่องแล้ว'};}
+    if(!r.ok&&!data.error)data.error=`เรียกข้อมูลไม่สำเร็จ (${r.status})`;
+    if(key&&apiLatest.get(key)!==requestId)return{ok:false,stale:true,error:'มีคำขอใหม่กว่าแล้ว'};
+    return data;
+  }catch(e){
+    if(attempt+1<attempts&&navigator.onLine){await new Promise(resolve=>setTimeout(resolve,500));continue;}
+    const timeout=e?.name==='AbortError';return{ok:false,offline:!navigator.onLine,error:!navigator.onLine?'ไม่มีอินเทอร์เน็ต ระบบเก็บข้อมูลที่รองรับไว้ในเครื่องแล้ว':timeout?'การเชื่อมต่อใช้เวลานานเกินไป กรุณาลองใหม่':'เชื่อมต่อระบบไม่สำเร็จ กรุณาลองใหม่'};
+  }
+}
+
+function updateNetworkState(){const el=$('#networkState');if(!el)return;el.hidden=navigator.onLine;if(navigator.onLine)flushOffline121();}
+addEventListener('online',updateNetworkState);addEventListener('offline',updateNetworkState);
+
+let ceuCalendarLoaded=false;
+async function loadCeuCalendar(force=false){
+  const box=$('#ceuCalendar');if(!box||ceuCalendarLoaded&&!force)return;
+  box.innerHTML='<div class="loading" style="padding:24px 0">กำลังโหลดปฏิทิน CEU…</div>';
+  const preview=new URLSearchParams(location.search).get('preview')==='1';
+  const r=preview?{ok:true,events:[{name:'Member Success Program (MSP)',eventDate:'2026-09-05',timeStart:'10:00',timeEnd:'17:00',ceu:1,isOnline:false,location:'BNI Thailand Training Center',priceThb:1550,note:'เหมาะสำหรับสมาชิกใหม่และผู้ที่ต้องการทบทวนพื้นฐาน'}]}:await api({action:'training-calendar'},{latestKey:'ceu-calendar'});
+  if(!r.ok){box.innerHTML=`<div class="oto-history-empty">${escHtml(r.error||'โหลดปฏิทินไม่สำเร็จ')}<br><button type="button" class="oto-history-refresh" style="margin-top:10px" onclick="loadCeuCalendar(true)">ลองใหม่</button></div>`;return;}
+  ceuCalendarLoaded=true;const events=r.events||[];
+  if(!events.length){box.innerHTML='<div class="oto-history-empty">ยังไม่มีรอบเรียน CEU ที่ประกาศในขณะนี้<br><small>กลับมาตรวจสอบใหม่ได้จาก Rich Menu</small></div>';return;}
+  box.innerHTML='<div style="display:grid;gap:10px;min-width:0">'+events.map(e=>{const date=new Date(`${e.eventDate}T00:00:00`),dateText=Number.isNaN(date.getTime())?e.eventDate:date.toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short',year:'numeric'}),time=[e.timeStart,e.timeEnd].filter(Boolean).join('–'),details=[e.isOnline?'ออนไลน์':'เรียนที่สถานที่',e.location,time,e.priceThb?`${Number(e.priceThb).toLocaleString('th-TH')} บาท`:'' ].filter(Boolean),start=String(e.eventDate||'').replaceAll('-','')+'T'+String(e.timeStart||'09:00').replace(':','')+'00',end=String(e.eventDate||'').replaceAll('-','')+'T'+String(e.timeEnd||e.timeStart||'17:00').replace(':','')+'00',calendar=`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(e.name||'CEU Training')}&dates=${start}/${end}&details=${encodeURIComponent(e.note||'BNI CEU Training')}&location=${encodeURIComponent(e.location||'')}`;return `<article style="min-width:0;overflow:hidden;border:1px solid var(--line);border-radius:15px;background:#fff;padding:14px"><div style="display:flex;justify-content:space-between;gap:10px;min-width:0"><div style="min-width:0;overflow-wrap:anywhere"><small style="color:var(--gold);font-weight:800">${escHtml(dateText)}</small><h3 style="font-size:15px;margin:4px 0;overflow-wrap:anywhere">${escHtml(e.name||'CEU Training')}</h3></div>${Number(e.ceu||0)>0?`<b style="white-space:nowrap;color:#1f5c50">+${Number(e.ceu)} CEU</b>`:''}</div><p style="font-size:12px;color:var(--muted);margin:5px 0;overflow-wrap:anywhere">${details.map(escHtml).join(' · ')}</p>${e.note?`<p style="font-size:12px;line-height:1.55;margin:8px 0;overflow-wrap:anywhere">${escHtml(e.note)}</p>`:''}<a href="${calendar}" target="_blank" rel="noopener" style="display:block;margin-top:10px;border-radius:10px;background:var(--ink);color:#fff;padding:11px;text-align:center;text-decoration:none;font-size:12px;font-weight:800">เพิ่มลง Google Calendar</a></article>`;}).join('')+'</div>';
 }
 
 const offline121Key='bni:121:offline-actions';
 function offline121Actions(){try{return JSON.parse(localStorage.getItem(offline121Key)||'[]');}catch{return[];}}
 function queueOffline121(payload){const rows=offline121Actions();rows.push({id:crypto.randomUUID(),createdAt:new Date().toISOString(),payload});localStorage.setItem(offline121Key,JSON.stringify(rows.slice(-50)));}
 async function flushOffline121(){if(!navigator.onLine||!accessToken)return;const rows=offline121Actions(),remaining=[];for(const row of rows){const r=await api(row.payload);if(!r.ok){remaining.push(row);if(r.code==='VERSION_CONFLICT')break;}}localStorage.setItem(offline121Key,JSON.stringify(remaining));}
+updateNetworkState();
 
 function liffLoginRedirectUrl(){
   const action=getRequestedAction()||'121';
@@ -349,16 +392,19 @@ async function ackAssignment(id, btn) {
 
 const my121Pages=new Set(['pair','profile','prepare','history','actions']);
 let my121Page='pair',my121CurrentSystem=null;
-const my121TourKey='bni:my121:onboarding:v1';let my121TourStep=0;
+const my121TourKey='bni:my121:onboarding:v1';let my121TourStep=0,my121TourReturnFocus=null;
 const my121TourSlides=[
   {icon:'🤝',title:'MY121 ช่วยให้ 1-2-1 ง่ายขึ้น',text:'ดูคู่ เตรียมตัว นัดหมาย และติดตามสิ่งที่ตกลงกันได้ในที่เดียว',points:[['👤','รู้จักคู่ล่วงหน้า','ดู Business Profile, GAINS และ Looking for'],['🎯','เป้าหมายคือความเข้าใจ','ไม่ใช่พื้นที่ขายสินค้าให้อีกฝ่าย']]},
   {icon:'🗓️',title:'ได้รับคู่แล้ว ทำ 4 ขั้นตอน',text:'เริ่มจาก “คู่ของฉัน” แล้วเลือกวิธีที่เหมาะกับคุณ',points:[['1️⃣','ดูคู่และโปรไฟล์','เตรียมคำถามก่อนถึงวันนัด'],['2️⃣','เลือกและยืนยันวันนัด','ทั้งสองฝ่ายเห็นสถานะเดียวกัน'],['3️⃣','คุยตามธรรมชาติ หรือใช้ Guide','สมาชิกเดิมคุยแบบที่ถนัดได้ ส่วน Guide ช่วยคนที่ยังไม่รู้จะเริ่มอย่างไร'],['4️⃣','รับรองร่วมกันและบันทึกผล','ยืนยันว่าพบกันแล้ว แล้วกลับมาดูประวัติได้']]},
   {icon:'💬',title:'นี่คือระบบอัตโนมัติ',text:'LINE Official Account ส่งข้อมูลและเปิดเมนูให้ แต่ไม่ใช่ห้องแชตกับ Mentor โดยตรง',points:[['🤖','พิมพ์คุยกับบอท Mentor อาจไม่เห็น','ใช้ปุ่มในระบบเพื่อส่งเรื่องให้ถูกคน'],['🙋','ต้องการคนช่วย ให้กด “คุยกับ Mentor”','Mentor และ MC จะได้รับเรื่องตามสิทธิ์'],['🕘','ดูย้อนหลังได้ทุกเมื่อ','เปิด “ประวัติ” เพื่อดูสิ่งที่เคยบันทึกและทำต่อ']]}
 ];
-function openMy121Tour(force=false){if(!force&&localStorage.getItem(my121TourKey)==='done')return;my121TourStep=0;$('#my121Tour').hidden=false;document.body.style.overflow='hidden';renderMy121Tour();}
+function safeStorageGet(key){try{return localStorage.getItem(key);}catch{return null;}}
+function safeStorageSet(key,value){try{localStorage.setItem(key,value);}catch{}}
+function openMy121Tour(force=false){if(!force&&safeStorageGet(my121TourKey)==='done')return;my121TourReturnFocus=document.activeElement;my121TourStep=0;$('#my121Tour').hidden=false;document.body.style.overflow='hidden';renderMy121Tour();setTimeout(()=>$('#my121TourCard button')?.focus(),0);}
 function renderMy121Tour(){const s=my121TourSlides[my121TourStep],last=my121TourStep===my121TourSlides.length-1;$('#my121TourCard').innerHTML=`<div class="my121-tour-top"><small>MY121 · ${my121TourStep+1}/${my121TourSlides.length}</small><button class="my121-tour-skip" type="button" onclick="closeMy121Tour()">ข้าม</button></div><div class="my121-tour-art">${s.icon}</div><h2>${s.title}</h2><p>${s.text}</p><div class="my121-tour-points">${s.points.map((x,i)=>`<div class="my121-tour-point ${my121TourStep===2&&i===1?'my121-bot-note':''}"><span>${x[0]}</span><div><b>${x[1]}</b>${x[2]}</div></div>`).join('')}</div><div class="my121-tour-foot"><div class="my121-tour-dots">${my121TourSlides.map((_,i)=>`<i class="${i===my121TourStep?'on':''}"></i>`).join('')}</div><button class="my121-tour-next" type="button" onclick="nextMy121Tour()">${last?'เข้า MY121':'ถัดไป'}</button></div>`;}
 function nextMy121Tour(){if(my121TourStep<my121TourSlides.length-1){my121TourStep++;renderMy121Tour();return;}closeMy121Tour();}
-function closeMy121Tour(){localStorage.setItem(my121TourKey,'done');$('#my121Tour').hidden=true;document.body.style.overflow='';}
+function closeMy121Tour(){safeStorageSet(my121TourKey,'done');$('#my121Tour').hidden=true;document.body.style.overflow='';my121TourReturnFocus?.focus?.();}
+$('#my121Tour').addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();closeMy121Tour();return;}if(e.key!=='Tab')return;const focusable=[...$('#my121Tour').querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter(x=>!x.disabled);if(!focusable.length)return;const first=focusable[0],last=focusable.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}});
 function setMy121Badge(id,value){const el=$(id);if(!el)return;const count=Math.max(0,Number(value||0));el.hidden=!count;el.textContent=count>9?'9+':String(count);}
 function showMy121Page(page='pair',options={}){
   page=my121Pages.has(page)?page:'pair';my121Page=page;
@@ -428,7 +474,8 @@ async function loadMy121History(force=false){
 }
 
 let profile121PairId='';
-function close121Profile(){const root=$('#profile121');root.hidden=true;root.innerHTML='';document.body.style.overflow=$('#guidedSession')?.hidden?'':'hidden';}
+let overlayReturnFocus=null;
+function close121Profile(){const root=$('#profile121');root.hidden=true;root.innerHTML='';document.body.style.overflow=$('#guidedSession')?.hidden?'':'hidden';overlayReturnFocus?.focus?.();}
 function p121Field(name,label,value,placeholder=''){return`<label>${label}</label><textarea data-p121="${name}" placeholder="${placeholder}">${escGuided(value||'')}</textarea>`;}
 function p121Share(name,label,checked){return`<label class="p121-share"><input type="checkbox" data-p121="${name}" ${checked!==false?'checked':''}><span>${label}</span></label>`;}
 async function openMy121Profile(){const root=$('#profile121');root.hidden=false;root.innerHTML='<div class="loading">กำลังเปิดโปรไฟล์ 1-2-1 ของคุณ…</div>';document.body.style.overflow='hidden';let r;if(new URLSearchParams(location.search).get('preview')==='1')r={ok:true,member:{nickname:'พีท',profession:'ที่ปรึกษาธุรกิจ',company_name:'Mentor Co.'},business:{description:'ช่วยเจ้าของธุรกิจวางระบบให้เติบโตอย่างเป็นขั้นตอน'},profile:{business_summary:'ช่วยเจ้าของธุรกิจวางระบบการทำงานและการเติบโต',target_clients:'เจ้าของธุรกิจที่มีทีม 5–50 คน',problems_solved:'งานติดเจ้าของ ระบบยังไม่ชัด และทีมทำงานไม่ต่อเนื่อง',looking_for:'เจ้าของธุรกิจที่กำลังขยายทีม',ideal_client:'ผู้บริหารที่พร้อมปรับระบบและลงมือทำ',referral_trigger:'ได้ยินว่า “งานทุกอย่างต้องผ่านผม”',gains_goals:'ช่วยธุรกิจสมาชิกเติบโตอย่างยั่งยืน',gains_interests:'เทคโนโลยี การออกแบบระบบ และการพัฒนาคน',gains_skills:'วางระบบ วิเคราะห์ปัญหา และจัดลำดับงาน',share_business:true,share_referral_focus:true,share_goals:true,share_accomplishments:true,share_interests:true,share_networks:false,share_skills:true},completeness:70};else r=await api({action:'get-my-121-profile'});if(!r.ok){root.innerHTML=`<div class="p121-wrap"><div class="oto-history-empty">${escGuided(r.error||'เปิดโปรไฟล์ไม่สำเร็จ')}</div><button class="p121-shortcut" onclick="close121Profile()">กลับ</button></div>`;return;}renderMy121Profile(r);}
@@ -646,9 +693,11 @@ async function createVisitorQr(visitorLogId){
   const url=`${location.origin}/liff/?action=visitor&visitor_token=${encodeURIComponent(r.token)}`;
   panel.innerHTML=`<div class="visitor-qr"><b>QR เช็กอินของ ${escHtml(r.visitorName)}</b><p class="hint" style="margin:5px 0 12px">ส่งภาพนี้ให้แขกแสดงในวันประชุม · QR หมดอายุ ${new Date(r.expiresAt).toLocaleString('th-TH')}</p><div id="visitorQrCanvas"></div><div class="visitor-qr-actions"><button id="copyVisitorLink" type="button">คัดลอกลิงก์</button><button type="button" onclick="this.closest('.visitor-qr').remove()">ปิด</button></div><p class="hint" style="margin:10px 0 0">QR ไม่มีชื่อหรือข้อมูลธุรกิจของแขก และใช้ยืนยันได้ครั้งเดียว</p></div>`;
   $('#copyVisitorLink').onclick=()=>copyVisitorCheckinLink(url);
-  if(window.QRCode)new QRCode($('#visitorQrCanvas'),{text:url,width:260,height:260,colorDark:'#123c35',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
-  else panel.querySelector('.hint').textContent='สร้างภาพ QR ไม่สำเร็จ แต่ยังคัดลอกลิงก์ได้';
+  try{await ensureQrCode();new QRCode($('#visitorQrCanvas'),{text:url,width:260,height:260,colorDark:'#123c35',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});}
+  catch{panel.querySelector('.hint').textContent='สร้างภาพ QR ไม่สำเร็จ แต่ยังคัดลอกลิงก์ได้';}
 }
+let qrCodePromise=null;
+function ensureQrCode(){if(window.QRCode)return Promise.resolve();if(qrCodePromise)return qrCodePromise;qrCodePromise=new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js';s.async=true;s.onload=resolve;s.onerror=()=>{qrCodePromise=null;reject(new Error('โหลด QR ไม่สำเร็จ'));};document.head.appendChild(s);});return qrCodePromise;}
 async function copyVisitorCheckinLink(url){try{await navigator.clipboard.writeText(url);alert('คัดลอกลิงก์เช็กอินแล้ว');}catch{prompt('คัดลอกลิงก์นี้',url);}}
 async function consumeVisitorToken(token){
   const r=await api({action:'consume-visitor-checkin-token',token:visitorTokenFromValue(token)});

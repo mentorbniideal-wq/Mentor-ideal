@@ -13,7 +13,7 @@ const PERSONAL_SUPPORT_ITEMS: RichMenuItem[] = [
   { icon: '◉', label: 'คะแนนของฉัน', sublabel: 'Score & Action', action: { type: 'uri', uri: 'LIFF_URL?action=progress' } },
   { icon: '↗', label: 'ประวัติ', sublabel: 'My Progress', action: { type: 'uri', uri: 'LIFF_URL?action=progress' } },
   { icon: '◇', label: 'นัด 1-2-1', sublabel: 'Connect', action: { type: 'uri', uri: 'LIFF_URL?action=121' } },
-  { icon: '○', label: 'ลา / ส่งแทน', sublabel: 'Attendance', action: { type: 'uri', uri: 'LIFF_URL?action=absence' } },
+  { icon: '▦', label: 'ปฏิทิน / การอบรม', sublabel: 'Calendar Training', action: { type: 'uri', uri: 'LIFF_URL?action=ceu' } },
   { icon: '△', label: 'เป้าหมาย', sublabel: 'My Goal', action: { type: 'uri', uri: 'LIFF_URL?action=goal' } },
   { icon: '?', label: 'ขอความช่วยเหลือ', sublabel: 'Private Support', action: { type: 'uri', uri: 'LIFF_URL?action=issue' } },
   { icon: '121', label: 'MY121', sublabel: 'My 1-2-1', action: { type: 'uri', uri: 'LIFF_URL?action=121' } },
@@ -81,7 +81,7 @@ export function buildTabbedRichMenuPage(
   const uri = (action: string) => ({ type: 'uri' as const, uri: resolveRichMenuUri(`LIFF_URL?action=${action}`, liffUrl, appUrl) });
   const switchTo = (target: 'today' | 'more'): RichMenuSwitchAction => ({ type: 'richmenuswitch', richMenuAliasId: aliases[target], data: `tab=${target}` });
   const actions = page === 'today'
-    ? [uri('121'), uri('progress'), uri('visitor'), uri('absence'), uri('goal'), switchTo('more')]
+    ? [uri('121'), uri('progress'), uri('visitor'), uri('ceu'), uri('goal'), switchTo('more')]
     : [uri('renewal'), uri('issue'), uri('assignments'), uri('visitor'), uri('progress'), switchTo('today')];
   return {
     size: { width: 2500, height: 1686 }, selected: true,

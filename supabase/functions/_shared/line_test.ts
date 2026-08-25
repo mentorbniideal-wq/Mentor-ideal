@@ -220,7 +220,7 @@ Deno.test('rich menu opens every personal action directly in LIFF', () => {
   assertEquals(menu.areas[0].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=progress' });
   assertEquals(menu.areas[1].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=progress' });
   assertEquals(menu.areas[2].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=121' });
-  assertEquals(menu.areas[3].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=absence' });
+  assertEquals(menu.areas[3].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=ceu' });
   assertEquals(menu.areas[4].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=goal' });
   assertEquals(menu.areas[5].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=issue' });
   assertEquals(menu.areas[6].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=121' });

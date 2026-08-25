@@ -26,14 +26,14 @@ body{font-family:Thonburi,-apple-system,BlinkMacSystemFont,sans-serif;background
 <body><div class="texture"></div><div class="wash"></div><main id="menu"></main>
 <script>
 const data={
-member:[["01","คะแนนของฉัน","SCORE & ACTION"],["02","ประวัติ","MY PROGRESS"],["03","นัด 1-2-1","CONNECT"],["04","ลา / ส่งแทน","ATTENDANCE"],["05","เป้าหมาย","MY GOAL"],["06","ขอความช่วยเหลือ","PRIVATE SUPPORT"],["07","MY121","MY 1-2-1"]],
+member:[["01","คะแนนของฉัน","SCORE & ACTION"],["02","ประวัติ","MY PROGRESS"],["03","นัด 1-2-1","CONNECT"],["04","ปฏิทิน / การอบรม","Calendar Training"],["05","เป้าหมาย","MY GOAL"],["06","ขอความช่วยเหลือ","PRIVATE SUPPORT"],["07","MY121","MY 1-2-1"]],
 mentor:[["01","Focus 3","PRIORITY MEMBERS"],["02","ทีมของฉัน","TEAM PULSE"],["03","บันทึก Mentor","MENTOR LOG"],["04","งานติดตาม","FOLLOW-UP"],["05","รายงานปัญหา","CORE ISSUE"],["06","Renewal","MEMBER JOURNEY"]],
 mc:[["01","Chapter Pulse","LIVE OVERVIEW"],["02","Mentor Team","TEAM HEALTH"],["03","Alerts","NEEDS ATTENTION"],["04","มอบหมายงาน","ASSIGNMENT"],["05","Reports","INSIGHTS"],["06","ตั้งค่าระบบ","ADMIN"]],
 growth:[["01","Growth Pulse","OPPORTUNITY"],["02","Referral Match","SMART CONNECT"],["03","Visitor","GUEST JOURNEY"],["04","Growth Tasks","NEXT ACTIONS"],["05","Power Team","SYNERGY"],["06","Chapter Trend","MOMENTUM"]]
 };
 const role=new URLSearchParams(location.search).get("role")||"member";
 const page=new URLSearchParams(location.search).get("page")||"";
-const tabbed={today:[["01","MY121","คู่และ GUIDED 1-2-1"],["02","คะแนนของฉัน","SCORE & ACTION"],["03","แขกพิเศษ","VISITOR CHECK-IN"],["04","ลา / ส่งแทน","ATTENDANCE"],["05","เป้าหมาย","MY GOAL"],["06","เมนูเพิ่มเติม","MORE"]],more:[["01","ต่ออายุ","RENEWAL"],["02","คุยกับ Mentor","PRIVATE SUPPORT"],["03","งานของฉัน","ASSIGNMENTS"],["04","แขกพิเศษ","VISITOR"],["05","ความก้าวหน้า","MY PROGRESS"],["06","กลับหน้าหลัก","BACK"]]};
+const tabbed={today:[["01","MY121","คู่และ GUIDED 1-2-1"],["02","คะแนนของฉัน","SCORE & ACTION"],["03","แขกพิเศษ","VISITOR CHECK-IN"],["04","ปฏิทิน / การอบรม","Calendar Training"],["05","เป้าหมาย","MY GOAL"],["06","เมนูเพิ่มเติม","MORE"]],more:[["01","ต่ออายุ","RENEWAL"],["02","คุยกับ Mentor","PRIVATE SUPPORT"],["03","งานของฉัน","ASSIGNMENTS"],["04","แขกพิเศษ","VISITOR"],["05","ความก้าวหน้า","MY PROGRESS"],["06","กลับหน้าหลัก","BACK"]]};
 const items=page?tabbed[page]:data[role];
 const cell=x=>`<section class="cell"><div class="icon">${x[0]}</div><div class="ornament"></div><div class="title ${x[1].length>12?"long":""}">${x[1]}</div><div class="sub">${x[2]}</div></section>`;
 const menu=document.getElementById("menu");

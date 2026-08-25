@@ -105,6 +105,21 @@ Deno.serve(async (req: Request) => {
     return {session:pair?session as Record<string,unknown>:null,pair};
   }
 
+  if(action==='training-calendar'){
+    const from=new Date().toISOString().slice(0,10),until=new Date(Date.now()+180*86400000).toISOString().slice(0,10);
+    const {data,error}=await db.from('bni_events')
+      .select('event_no,name,event_date,time_start,time_end,ceu,category,audience,is_online,location,price_thb,note_th,venue_region')
+      .gte('event_date',from).lte('event_date',until).order('event_date',{ascending:true}).limit(100);
+    if(error)return response({ok:false,error:'โหลดปฏิทิน CEU ไม่สำเร็จ'},500);
+    const events=((data||[]) as Record<string,unknown>[]).filter(row=>Number(row.ceu||0)>0||/ceu|training|msp|skill/i.test(`${row.category||''} ${row.name||''}`)).map(row=>({
+      id:String(row.event_no||''),name:String(row.name||'CEU Training'),eventDate:String(row.event_date||''),
+      timeStart:String(row.time_start||'').slice(0,5),timeEnd:String(row.time_end||'').slice(0,5),ceu:Number(row.ceu||0),
+      category:String(row.category||''),audience:String(row.audience||''),isOnline:Boolean(row.is_online),
+      location:String(row.location||''),priceThb:Number(row.price_thb||0),note:String(row.note_th||''),venueRegion:String(row.venue_region||''),
+    }));
+    return response({ok:true,events});
+  }
+
   if(action==='get-my-121-profile'){
     const [{data:person},{data:business},{data:profile}]=await Promise.all([
       db.from('members').select('id,name,nickname,profession,company_name,mentor_team').eq('id',memberId).maybeSingle(),
