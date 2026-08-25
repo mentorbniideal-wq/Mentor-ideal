@@ -8,6 +8,19 @@ import { calcPalmsScore } from '../../_shared/palms.ts';
 
 const VALID_TEAMS = new Set(['TOOMTAM', 'Aof', 'Draft', 'PHAI', 'AMP']);
 const GROWTH_WATCH_MIN_SCORE = 65;
+const LT_ROLE_CATALOG = [
+  { role: 'President', label: 'President', scopes: [] },
+  { role: 'Vice President', label: 'Vice President', scopes: [] },
+  { role: 'Secretary/Treasurer', label: 'Secretary / Treasurer', scopes: ['absence'] },
+  { role: 'Membership Committee', label: 'Membership Committee', scopes: ['absence', 'renewal'] },
+  { role: 'Visitor Host', label: 'Visitor Host', scopes: ['visitor'] },
+  { role: 'Event Coordinator', label: 'Event Coordinator', scopes: ['visitor'] },
+  { role: 'Education Coordinator', label: 'Education Coordinator', scopes: [] },
+  { role: 'Mentor Coordinator', label: 'Mentor Coordinator', scopes: ['member_help', 'new_member'] },
+  { role: 'Growth Coordinator', label: 'Growth Coordinator', scopes: [] },
+  { role: 'Web Master', label: 'Web Master', scopes: [] },
+  { role: 'Network Education Coordinator', label: 'Network Education Coordinator', scopes: [] },
+] as const;
 
 type MemberRef = {
   id: string;
@@ -754,6 +767,73 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
         .select('*');
       if (error) return errResponse(error.message);
       return jsonResponse({ ok: true, members: data });
+    }
+
+    // ── Chapter LT Team & six-month terms (MC only) ───────────
+    case 'getLtTeam': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const [{ data: terms, error: termErr }, { data: assignments, error: assignmentErr }, { data: members, error: memberErr }] = await Promise.all([
+        db.from('lt_terms').select('*').order('starts_on', { ascending: false }),
+        db.from('passport_lt_assignments').select('*').order('lt_role'),
+        db.from('members').select('id,name,nickname,email,is_archived').eq('is_archived', false).order('name'),
+      ]);
+      if (termErr || assignmentErr || memberErr) return errResponse(termErr?.message || assignmentErr?.message || memberErr?.message || 'โหลด LT Team ไม่สำเร็จ');
+      const memberIds = ((members || []) as Record<string, unknown>[]).map(m => String(m.id));
+      const { data: links } = memberIds.length
+        ? await db.from('line_members').select('member_id,line_user_id').in('member_id', memberIds)
+        : { data: [] };
+      const linked = new Set((links || []).map((row: Record<string, unknown>) => String(row.member_id)));
+      const memberRows = ((members || []) as Record<string, unknown>[]).map(m => ({ ...m, lineLinked: linked.has(String(m.id)) }));
+      return jsonResponse({ ok: true, terms: terms || [], assignments: assignments || [], members: memberRows, roles: LT_ROLE_CATALOG });
+    }
+
+    case 'saveLtTeamAssignment': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const ltRole = textValue(p.ltRole);
+      if (!LT_ROLE_CATALOG.some(item => item.role === ltRole)) return errResponse('ตำแหน่ง LT ไม่ถูกต้อง');
+      const assignedMemberId = textValue(p.assignedMemberId);
+      const fallbackMemberId = textValue(p.fallbackMemberId);
+      if (assignedMemberId && assignedMemberId === fallbackMemberId) return errResponse('ผู้รับผิดชอบหลักและผู้สำรองต้องเป็นคนละคน');
+      const { data: term } = await db.from('lt_terms').select('*').eq('status', 'active').maybeSingle();
+      if (!term) return errResponse('ยังไม่มีวาระ LT ที่กำลังใช้งาน');
+      let assignedName: string | null = null;
+      if (assignedMemberId) {
+        const { data: member } = await db.from('members').select('name,nickname').eq('id', assignedMemberId).eq('is_archived', false).maybeSingle();
+        if (!member) return errResponse('ไม่พบสมาชิกที่เลือก');
+        assignedName = textValue((member as Record<string, unknown>).nickname) || textValue((member as Record<string, unknown>).name) || null;
+      }
+      const scopes = [...(LT_ROLE_CATALOG.find(item => item.role === ltRole)?.scopes || [])];
+      const payload = {
+        lt_role: ltRole, assigned_member_id: assignedMemberId || null, assigned_name: assignedName,
+        fallback_member_id: fallbackMemberId || null, term_id: (term as Record<string, unknown>).id,
+        term_start: (term as Record<string, unknown>).starts_on, term_end: (term as Record<string, unknown>).ends_on,
+        notification_scopes: scopes, notes: textValue(p.notes) || null, is_active: true, updated_at: new Date().toISOString(),
+      };
+      const { data: existing } = await db.from('passport_lt_assignments').select('id')
+        .eq('lt_role', ltRole).eq('term_id', (term as Record<string, unknown>).id).eq('is_active', true).maybeSingle();
+      const query = existing
+        ? db.from('passport_lt_assignments').update(payload).eq('id', (existing as Record<string, unknown>).id).select('*').single()
+        : db.from('passport_lt_assignments').insert(payload).select('*').single();
+      const { data, error } = await query;
+      if (error) return errResponse(error.message);
+      await db.from('passport_sessions').update({ assigned_lt_member_id: assignedMemberId || null, assigned_lt_name: assignedName, updated_at: new Date().toISOString() })
+        .eq('lt_role', ltRole).in('status', ['scheduled', 'notified']);
+      return jsonResponse({ ok: true, assignment: data });
+    }
+
+    case 'createLtTerm': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const name = textValue(p.name).slice(0, 120), startsOn = textValue(p.startsOn), endsOn = textValue(p.endsOn);
+      if (!name || !parseYmdDate(startsOn) || !parseYmdDate(endsOn) || endsOn < startsOn) return errResponse('กรุณาระบุชื่อและช่วงวันที่วาระให้ถูกต้อง');
+      const { data, error } = await db.rpc('fn_create_lt_term', {
+        p_name: name, p_starts_on: startsOn, p_ends_on: endsOn,
+        p_copy_previous: p.copyPrevious !== false, p_actor: String(auth.displayName || auth.role || 'mc'),
+      });
+      if (error) return errResponse(error.message);
+      return jsonResponse({ ok: true, termId: data });
     }
 
     // ── Passport to Success Scheduler (MC only) ────────────────

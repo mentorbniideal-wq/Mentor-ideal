@@ -3,6 +3,7 @@ import { getServiceClient } from '../_shared/db.ts';
 import { trackLineEvent } from '../_shared/analytics.ts';
 import { buildIdempotencyKey } from '../_shared/line.ts';
 import { notifyAbsenceStakeholders } from '../_shared/line-absence-notify.ts';
+import { notifyVisitorStakeholders } from '../_shared/line-visitor-notify.ts';
 import { notifyIssueStakeholders } from '../_shared/line-issue-notify.ts';
 import { notifyOneToOneMentorAndMc, notifyOneToOnePartner } from '../_shared/one-to-one-notify.ts';
 import { generateHandshakeCode, handshakeCodeHash, oneToOneGoogleCalendarUrl, oneToOneIcs, pairStatusFromVerification, safeHashEqual } from '../_shared/one-to-one.ts';
@@ -574,14 +575,20 @@ Deno.serve(async (req: Request) => {
     const notes = body.notes ? String(body.notes).trim() : null;
     if (!visitorName) return response({ ok: false, error: 'visitorName required' }, 400);
     if (!visitDate) return response({ ok: false, error: 'visitDate required' }, 400);
-    const { error } = await db.from('visitor_log').insert({
+    const { data: visitor, error } = await db.from('visitor_log').insert({
       visitor_name: visitorName,
       invited_by: memberId,
       visit_date: visitDate,
       notes,
       status: 'pending',
-    });
+    }).select('id').single();
     if (error) return response({ ok: false, error: error.message }, 400);
+    await notifyVisitorStakeholders(db, {
+      visitorLogId: String((visitor as Record<string, unknown>).id), visitorName, visitDate,
+      invitedByMemberId: memberId,
+      invitedByName: String(identity.member.nickname || identity.member.name || ''),
+      notes: notes || '', source: 'liff-api',
+    });
     await trackLineEvent(db, 'liff_visitor_logged', {
       lineUserId: identity.userId, memberId, source: 'liff',
     });

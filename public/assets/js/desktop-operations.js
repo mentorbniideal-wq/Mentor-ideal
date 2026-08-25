@@ -2598,6 +2598,50 @@ function loadDesktopScorecard(){
   });
 }
 
+// ── LT Team: six-month Chapter leadership terms ───────────────
+var _ltTeamLoaded=false,_ltTeamData=null;
+function loadLtTeam(force){
+  if(_ltTeamLoaded&&!force){renderLtTeam();return;}
+  var roles=document.getElementById('lt-team-roles');if(roles)roles.innerHTML='<div style="color:var(--sub);padding:24px">⏳ กำลังโหลด LT Team...</div>';
+  gsr('getLtTeam',{role:'mc'},function(r){
+    if(!r||!r.ok){if(roles)roles.innerHTML='<div style="color:var(--re);padding:18px">❌ '+esc(r&&r.error||'โหลด LT Team ไม่สำเร็จ')+'</div>';return;}
+    _ltTeamLoaded=true;_ltTeamData=r;renderLtTeam();
+  });
+}
+function ltMemberOption(m){return esc(m.nickname||m.name||'—')+(m.nickname&&m.name?' · '+esc(m.name):'')+(m.lineLinked?' · LINE ✓':' · ยังไม่เชื่อม LINE');}
+function renderLtTeam(){
+  var d=_ltTeamData||{},terms=d.terms||[],assignments=d.assignments||[],members=d.members||[],roles=d.roles||[];
+  var term=terms.find(function(t){return t.status==='active';})||null;
+  var active=assignments.filter(function(a){return a.is_active&&(!term||!a.term_id||a.term_id===term.id);});
+  var byRole={};active.forEach(function(a){byRole[a.lt_role]=a;});
+  var linked={};members.forEach(function(m){linked[m.id]=!!m.lineLinked;});
+  var filled=roles.filter(function(r){return byRole[r.role]&&byRole[r.role].assigned_member_id;}).length;
+  var ready=roles.filter(function(r){var a=byRole[r.role];return a&&a.assigned_member_id&&linked[a.assigned_member_id];}).length;
+  var routed=roles.filter(function(r){return (r.scopes||[]).length;}).length;
+  badge('badge-lt-team',Math.max(0,roles.length-filled));
+  var termEl=document.getElementById('lt-team-term');
+  if(termEl)termEl.innerHTML=term?'<div class="card" style="background:linear-gradient(135deg,var(--sf2),var(--sf));border-color:var(--bd-hover)"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap"><div><div style="font-size:10px;color:var(--gr);font-weight:900">● วาระที่กำลังใช้งาน</div><div style="font-size:17px;font-weight:900;margin-top:3px">'+esc(term.name)+'</div><div style="font-size:11px;color:var(--sub);margin-top:3px">'+passportFmtDate(term.starts_on)+' – '+passportFmtDate(term.ends_on)+'</div></div><div style="font-size:11px;color:var(--sub)">การแจ้งเตือนจะอ้างอิงทีมชุดนี้</div></div></div>':'<div class="card" style="border-color:var(--re);color:var(--re)">ยังไม่มีวาระ LT ที่กำลังใช้งาน · กรุณาสร้างวาระ</div>';
+  var sum=document.getElementById('lt-team-summary');if(sum)sum.innerHTML=[['ตำแหน่งทั้งหมด',roles.length,'var(--ac)'],['กำหนดคนแล้ว',filled,'var(--gr)'],['LINE พร้อมรับ',ready,'#60a5fa'],['มีงานอัตโนมัติ',routed,'var(--ye)']].map(function(x){return'<div class="kcard"><div style="font-size:22px;font-weight:900;color:'+x[2]+'">'+x[1]+'</div><div style="font-size:10px;color:var(--sub);font-weight:800">'+x[0]+'</div></div>';}).join('');
+  var opts='<option value="">— ยังไม่เลือก —</option>'+members.map(function(m){return'<option value="'+esc(m.id)+'">'+ltMemberOption(m)+'</option>';}).join('');
+  var roleEl=document.getElementById('lt-team-roles');if(roleEl)roleEl.innerHTML=roles.map(function(item,i){var a=byRole[item.role]||{},main=a.assigned_member_id||'',fallback=a.fallback_member_id||'',mainReady=main&&linked[main],scopes=(item.scopes||[]).map(function(s){return({absence:'แจ้งลา',visitor:'Visitor',renewal:'Renewal',member_help:'ขอ Mentor',new_member:'สมาชิกใหม่'})[s]||s;});return'<div style="border:1px solid var(--bd);border-radius:13px;padding:12px;background:var(--sf2)"><div style="display:flex;justify-content:space-between;gap:8px"><div><div style="font-size:12px;font-weight:900">'+esc(item.label||item.role)+'</div><div style="font-size:9px;color:var(--sub);margin-top:2px">'+(scopes.length?'รับ: '+esc(scopes.join(' · ')):'ตำแหน่งบริหาร')+'</div></div><span style="font-size:9px;font-weight:800;color:'+(mainReady?'var(--gr)':'var(--ye)')+'">'+(mainReady?'LINE พร้อม':'ต้องตรวจ LINE')+'</span></div><label style="font-size:9px;margin-top:9px">ผู้รับผิดชอบหลัก</label><select id="lt-main-'+i+'" style="font-size:11px;padding:7px">'+opts+'</select><label style="font-size:9px;margin-top:7px">ผู้สำรอง</label><select id="lt-fallback-'+i+'" style="font-size:11px;padding:7px">'+opts+'</select><button class="bsm" onclick="saveLtRole('+i+')" style="width:100%;margin-top:9px;background:var(--ac-dim);color:var(--ac);border-color:var(--bd-hover);font-weight:800">บันทึกตำแหน่ง</button></div>';}).join('');
+  setTimeout(function(){roles.forEach(function(item,i){var a=byRole[item.role]||{},m=document.getElementById('lt-main-'+i),f=document.getElementById('lt-fallback-'+i);if(m)m.value=a.assigned_member_id||'';if(f)f.value=a.fallback_member_id||'';});},0);
+  var routeEl=document.getElementById('lt-team-routing');if(routeEl)routeEl.innerHTML=[['🙋 แจ้งลา / ส่งแทน','Membership Committee · Secretary/Treasurer','absence'],['👋 มี Visitor มา','Visitor Host · Event Coordinator','visitor'],['🔄 ใกล้ต่ออายุ','Membership Committee','renewal'],['🆘 ขอความช่วยเหลือ','Mentor Coordinator','member_help']].map(function(x){var configured=roles.filter(function(r){return(r.scopes||[]).indexOf(x[2])>=0;}).some(function(r){var a=byRole[r.role];return a&&a.assigned_member_id&&linked[a.assigned_member_id];});return'<div style="border:1px solid var(--bd);border-radius:12px;padding:12px;background:var(--sf2)"><div style="font-size:12px;font-weight:900">'+x[0]+'</div><div style="font-size:10px;color:var(--sub);margin:4px 0 8px">ส่งหา '+x[1]+'</div><span style="font-size:9px;font-weight:900;color:'+(configured?'var(--gr)':'var(--ye)')+'">'+(configured?'● พร้อมใช้งาน':'● รอกำหนดผู้รับ')+'</span></div>';}).join('');
+}
+function saveLtRole(index){
+  var d=_ltTeamData||{},item=(d.roles||[])[index];if(!item)return;
+  var main=(document.getElementById('lt-main-'+index)||{}).value||'',fallback=(document.getElementById('lt-fallback-'+index)||{}).value||'';
+  if(main&&main===fallback){toast('❌ ผู้รับผิดชอบหลักและผู้สำรองต้องเป็นคนละคน','err');return;}
+  ld(true);gsr('saveLtTeamAssignment',{role:'mc',ltRole:item.role,assignedMemberId:main,fallbackMemberId:fallback},function(r){ld(false);if(!r||!r.ok){toast('❌ '+(r&&r.error||'บันทึกไม่ได้'),'err');return;}toast('✅ บันทึก '+item.label+' แล้ว','ok');_ltTeamLoaded=false;_passportLoaded=false;loadLtTeam(true);});
+}
+function createLtTerm(){
+  var name=prompt('ชื่อวาระ เช่น วาระ ต.ค. 2569 – มี.ค. 2570');if(!name)return;
+  var starts=prompt('วันเริ่มวาระ YYYY-MM-DD');if(!starts)return;
+  var ends=prompt('วันสิ้นสุดวาระ YYYY-MM-DD');if(!ends)return;
+  var copy=confirm('คัดลอกผู้รับผิดชอบจากวาระปัจจุบันไปเป็นจุดเริ่มต้นหรือไม่?\nกด OK = คัดลอก แล้วค่อยเปลี่ยนคน');
+  if(!confirm('ยืนยันเปิดใช้ “'+name+'” ตั้งแต่ '+starts+' ถึง '+ends+' ?\nวาระปัจจุบันจะถูกปิดและยังดูย้อนหลังได้'))return;
+  ld(true);gsr('createLtTerm',{role:'mc',name:name,startsOn:starts,endsOn:ends,copyPrevious:copy},function(r){ld(false);if(!r||!r.ok){toast('❌ '+(r&&r.error||'สร้างวาระไม่ได้'),'err');return;}toast('✅ เปิดวาระใหม่แล้ว','ok');_ltTeamLoaded=false;_passportLoaded=false;loadLtTeam(true);});
+}
+
 // ── Passport to Success Scheduler ─────────────────────────────
 var _passportLoaded=false,_passportData=null;
 function passportMemberLabel(m){
@@ -2700,17 +2744,13 @@ function renderPassportBoard(){
   var roleOrder=(templates||[]).map(function(t){return t.lt_role;}).filter(function(v,i,a){return v&&a.indexOf(v)===i;});
   (assignments||[]).forEach(function(a){if(roleOrder.indexOf(a.lt_role)<0)roleOrder.push(a.lt_role);});
   var aByRole={};assignments.forEach(function(a){aByRole[a.lt_role]=a;});
-  var memberOpts='<option value="">— ยังไม่เลือก —</option>'+(D.mem||[]).slice().sort(function(a,b){return String(a.name||'').localeCompare(String(b.name||''));}).map(function(m){return '<option value="'+esc(m.id||'')+'">'+esc(m.nick||m.nickname||m.name||'')+(m.name&&m.nick?' · '+esc(m.name):'')+'</option>';}).join('');
   var aEl=document.getElementById('passport-assignments');
   if(aEl)aEl.innerHTML=(roleOrder.length?roleOrder:['Mentor Coordinator','President','Vice President','Secretary/Treasurer','Visitor Host','Education Coordinator','Growth Coordinator','Membership Committee']).map(function(role){
     var a=aByRole[role]||{};
     return '<div style="border:1px solid var(--bd);border-radius:10px;padding:9px;margin-bottom:8px;background:var(--sf2)">'
       +'<div style="font-size:11px;font-weight:800;margin-bottom:6px">'+esc(role)+'</div>'
-      +'<div style="display:flex;gap:6px"><select id="pass-lt-'+esc(role).replace(/[^a-zA-Z0-9]/g,'_')+'" style="flex:1;min-width:0;background:var(--sf);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:6px;font-size:11px">'+memberOpts+'</select>'
-      +'<button class="bsm" onclick="passportSaveLt(\''+esc(role).replace(/'/g,"\\'")+'\')" style="font-size:10px;background:var(--ac-dim);color:var(--ac);border-color:var(--bd-hover)">บันทึก</button></div>'
-      +(a.assigned_name?'<div style="font-size:10px;color:var(--sub);margin-top:5px">ปัจจุบัน: '+esc(a.assigned_name)+'</div>':'')+'</div>';
+      +'<div style="font-size:11px;color:'+(a.assigned_name?'var(--tx)':'var(--ye)')+'">'+(a.assigned_name?esc(a.assigned_name):'ยังไม่กำหนดใน LT TEAM')+'</div></div>';
   }).join('');
-  setTimeout(function(){roleOrder.forEach(function(role){var a=aByRole[role]||{},id='pass-lt-'+esc(role).replace(/[^a-zA-Z0-9]/g,'_'),el=document.getElementById(id);if(el&&a.assigned_member_id)el.value=a.assigned_member_id;});},0);
 
   var mEl=document.getElementById('passport-members');
   if(mEl){

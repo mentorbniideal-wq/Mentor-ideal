@@ -91,6 +91,7 @@
     <button class="tb on" onclick="sw('mc-ov',this,'mc')">📊 Overview</button>
     <button class="tb" onclick="sw('mc-mem',this,'mc')">👥 สมาชิก</button>
     <button class="tb" onclick="sw('mc-team',this,'mc');loadDesktopScorecard()">🏆 Mentor Teams</button>
+    <button class="tb" onclick="sw('mc-lt-team',this,'mc');loadLtTeam()">🏛 LT TEAM<span class="nb" id="badge-lt-team"></span></button>
     <button class="tb" onclick="sw('mc-ren',this,'mc')">🔄 Renewal<span class="nb" id="badge-ren"></span></button>
     <button class="tb" onclick="sw('mc-risk',this,'mc')">⚠️ Risk<span class="nb" id="badge-risk"></span></button>
     <button class="tb" onclick="sw('mc-msg',this,'mc');loadOnboardEditor()">💬 Messages<span class="nb" id="badge-msg"></span></button>
@@ -1482,6 +1483,31 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       </div>
     </div>
 
+    <div id="mc-lt-team" class="sec">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+        <div>
+          <div style="font-size:10px;font-weight:800;letter-spacing:.14em;color:var(--ac)">CHAPTER LEADERSHIP</div>
+          <h2 style="font-size:22px;font-weight:900;margin:4px 0;color:var(--tx)">🏛 LT TEAM</h2>
+          <div style="font-size:11px;color:var(--sub)">กำหนดผู้รับผิดชอบตามวาระ และส่งงานไปหาตำแหน่งที่ถูกต้องอัตโนมัติ</div>
+        </div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap">
+          <button class="bsm" onclick="createLtTerm()" style="background:var(--ac-dim);border-color:var(--bd-hover);color:var(--ac);font-weight:800">+ สร้างวาระถัดไป</button>
+          <button class="bsm" onclick="loadLtTeam(true)">↻ รีเฟรช</button>
+        </div>
+      </div>
+      <div id="lt-team-term"></div>
+      <div id="lt-team-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0"></div>
+      <div class="card" style="margin-bottom:14px">
+        <div style="font-size:13px;font-weight:900;margin-bottom:3px">ตำแหน่งในวาระปัจจุบัน</div>
+        <div style="font-size:10px;color:var(--sub);margin-bottom:12px">ผู้รับผิดชอบหลักจะได้รับ LINE ก่อน หากยังไม่เชื่อม LINE ระบบจะใช้ผู้สำรองหรือส่งให้ MC</div>
+        <div id="lt-team-roles" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px"></div>
+      </div>
+      <div class="card">
+        <div style="font-size:13px;font-weight:900;margin-bottom:10px">เส้นทางแจ้งเตือนที่เปิดใช้แล้ว</div>
+        <div id="lt-team-routing" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:9px"></div>
+      </div>
+    </div>
+
     <div id="mc-passport" class="sec">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap">
         <div>
@@ -1515,7 +1541,8 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         </div>
         <div class="card">
           <div style="font-size:13px;font-weight:800;margin-bottom:3px">👥 LT Role Mapping</div>
-          <div style="font-size:10px;color:var(--sub);margin-bottom:10px">เลือกคนรับผิดชอบแต่ละบทบาท เปลี่ยนวาระได้ในอนาคต</div>
+          <div style="font-size:10px;color:var(--sub);margin-bottom:10px">Passport ใช้ผู้รับผิดชอบจากหน้า LT TEAM ชุดเดียวกัน</div>
+          <button class="bsm" onclick="sw('mc-lt-team',null,'mc');loadLtTeam()" style="width:100%;margin-bottom:10px;background:var(--ac-dim);color:var(--ac);border-color:var(--bd-hover);font-weight:800">เปิด LT TEAM</button>
           <div id="passport-assignments"><div style="color:var(--sub);font-size:12px;text-align:center;padding:20px">ยังไม่ได้โหลด</div></div>
         </div>
       </div>

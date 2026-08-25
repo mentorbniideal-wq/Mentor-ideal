@@ -1,6 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
 // Supabase query-builder chains are dynamic until generated database types are introduced.
 import { linePush } from './line.ts';
+import { resolveLtLineRecipients } from './lt-role-routing.ts';
 
 type Db = {
   from: (table: string) => any;
@@ -40,6 +41,11 @@ export async function notifyAbsenceStakeholders(
       mcReady = true;
     }
   }
+
+  // Route to the active six-month LT holders. MC and Mentor remain fallbacks
+  // and retain visibility while the Chapter adopts role-based operations.
+  const ltRouting = await resolveLtLineRecipients(db, 'absence');
+  for (const recipient of ltRouting.recipients) recipients.add(recipient);
 
   if (notice.mentorTeam) {
     const teamSettingKey = `LINE_ID_${notice.mentorTeam.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
@@ -123,6 +129,15 @@ export async function notifyAbsenceStakeholders(
       title: `หัวหน้าทีม ${notice.mentorTeam || 'ไม่ระบุทีม'} ยังรับ LINE Alert ไม่ได้`,
       body: `${notice.nickname || notice.memberName} แจ้ง ${notice.absenceType} วันที่ ${notice.meetingDate}`,
       data: { memberId: notice.memberId, mentorTeam: notice.mentorTeam, source: notice.source },
+      target_audience: ['role:mc'],
+    });
+  }
+  if (ltRouting.missingRoles.length) {
+    await db.from('notifications').insert({
+      type: 'lt_role_recipient_missing', severity: 'warning',
+      title: 'ตำแหน่งรับแจ้งลายังตั้งค่าไม่ครบ',
+      body: `ยังไม่ได้กำหนด ${ltRouting.missingRoles.join(', ')} ใน LT Team`,
+      data: { scope: 'absence', missingRoles: ltRouting.missingRoles, source: notice.source },
       target_audience: ['role:mc'],
     });
   }
