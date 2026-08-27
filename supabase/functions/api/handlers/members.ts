@@ -1491,6 +1491,20 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       const { error: updErr } = await db.from('members').update(updates).eq('id', mid);
       if (updErr) return errResponse(updErr.message);
 
+      await db.from('member_admin_events').insert({
+        member_id: mid,
+        event_type: clearScores ? 'seat_transfer_updated' : 'member_profile_updated',
+        actor_role: String(auth.role || 'mc'),
+        actor_ref: String(auth.role || 'mc'),
+        metadata: {
+          old_name: lookup.member.name,
+          new_name: newName,
+          nickname_changed: newNick !== String(lookup.member.nickname || ''),
+          membership_start_changed: Boolean(startRaw),
+          score_history_cleared: clearScores,
+        },
+      });
+
       // If seat transfer: recalculate bni_days in r2y_stats
       if (startRaw) {
         const daysSince = Math.max(1, Math.floor((Date.now() - new Date(startRaw).getTime()) / 86400000));

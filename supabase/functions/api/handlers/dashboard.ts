@@ -3,6 +3,7 @@ import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { memberAccessError, resolveMemberAccess } from '../../_shared/authorization.ts';
 import { calcPalmsScore, trafficLight } from '../../_shared/palms.ts';
+import { sortMember360Timeline, summarizeMember360Health } from '../../_shared/member-360.ts';
 
 // ── PALMS gap computation (mirrors WEBAPP.js gapXxx functions) ────────────────
 type GapEntry = { cat: string; icon: string; cur: number; max: number; next: number; gain: number; action: string; curVal: string; tgtVal: string; altAction?: string; altTgtVal?: string };
@@ -533,6 +534,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       const denied = memberAccessError(auth, lookup.member, { allowGrowth: true });
       if (denied) return errResponse(denied, 403);
       const memberId = String(mv.id);
+      const historyLimit = Math.min(80, Math.max(10, Number(p.historyLimit) || 20));
 
       const [{ data: scores }, { data: bizRow }] = await Promise.all([
         db.from('monthly_scores').select('year, month, score')
@@ -546,8 +548,70 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         score: Number(s.score) || null,
       }));
 
-      const { data: info } = await db.from('members').select('phone, email').eq('id', memberId).single();
+      const { data: info } = await db.from('members').select('*').eq('id', memberId).single();
       const inf = (info || {}) as Record<string, unknown>;
+
+      // Member 360 is loaded only when an operator opens a member. Keep the
+      // dashboard fast while returning one current, cross-module record here.
+      const [goalsQ, profileQ, logsQ, reviewsQ, notesQ, legacy121Q, visitorsQ,
+        renewalQ, signalsQ, passportQ, passportSessionsQ, blueprintQ, lineQ,
+        pairsQ, followUpsQ, attentionQ, auditQ] = await Promise.all([
+        db.from('line_goals').select('goal_type,target,set_at').eq('member_id', memberId).order('set_at', { ascending: false }),
+        db.from('member_one_to_one_profiles').select('*').eq('member_id', memberId).maybeSingle(),
+        db.from('mentor_logs').select('id,mentor_team,session_date,notes,next_actions,created_at').eq('member_id', memberId).order('session_date', { ascending: false }).limit(historyLimit),
+        db.from('ninety_day_reviews').select('id,mentor_team,review_date,content,created_at').eq('member_id', memberId).order('review_date', { ascending: false }).limit(8),
+        db.from('member_notes').select('id,note,author_role,created_at,updated_at').eq('member_id', memberId).order('created_at', { ascending: false }).limit(historyLimit),
+        db.from('one_to_one_logs').select('id,initiator_id,partner_id,scheduled_date,met_at,outcome,notes,created_at').or(`initiator_id.eq.${memberId},partner_id.eq.${memberId}`).order('created_at', { ascending: false }).limit(historyLimit),
+        db.from('visitor_log').select('id,visitor_name,visit_date,status,notes,created_at').eq('invited_by', memberId).order('visit_date', { ascending: false }).limit(historyLimit),
+        db.from('renewals').select('*').eq('member_id', memberId).maybeSingle(),
+        db.from('member_signals').select('id,signal_type,title,detail,status,priority,target_roles,created_at,updated_at').eq('member_id', memberId).order('created_at', { ascending: false }).limit(historyLimit),
+        db.from('passport_enrollments').select('*').eq('member_id', memberId).maybeSingle(),
+        db.from('passport_sessions').select('id,week_no,scheduled_date,title,lt_role,status,completed_at,notes,updated_at').eq('member_id', memberId).order('week_no', { ascending: true }),
+        db.from('member_success_blueprints').select('*').eq('member_id', memberId).order('blueprint_year', { ascending: false }).limit(3),
+        db.from('line_members').select('registered_at').eq('member_id', memberId).maybeSingle(),
+        db.from('matching_pairs').select('id,round_id,member_a_id,member_b_id,optional_member_c_id,status,created_at').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId},optional_member_c_id.eq.${memberId}`).order('created_at', { ascending: false }).limit(historyLimit),
+        db.from('one_to_one_follow_up_actions').select('id,action_type,description,due_date,status,completed_at,outcome,created_at').or(`owner_member_id.eq.${memberId},related_member_id.eq.${memberId}`).order('created_at', { ascending: false }).limit(20),
+        db.from('one_to_one_attention_items').select('id,level,reason,suggested_action,due_date,status,resolution,created_at,resolved_at').eq('member_id', memberId).order('created_at', { ascending: false }).limit(20),
+        db.from('member_admin_events').select('id,event_type,actor_role,metadata,created_at').eq('member_id', memberId).order('created_at', { ascending: false }).limit(historyLimit),
+      ]);
+
+      const pairIds = ((pairsQ.data || []) as Record<string, unknown>[]).map((row) => String(row.id));
+      const schedulesQ = pairIds.length
+        ? await db.from('one_to_one_schedules').select('id,pair_id,starts_at,duration_minutes,meeting_mode,location_or_link,status,created_at').in('pair_id', pairIds).order('starts_at', { ascending: false }).limit(30)
+        : { data: [], error: null };
+      const profile = (profileQ.data || null) as Record<string, unknown> | null;
+      const profileFields = profile ? [
+        'business_summary','target_clients','problems_solved','primary_services','differentiators',
+        'service_area','looking_for','ideal_client','referral_trigger','good_referral','not_a_fit',
+        'before_intro_question','promise_boundaries','credibility_story','introduction_script',
+        'gains_goals','gains_accomplishments','gains_interests','gains_networks','gains_skills',
+      ] : [];
+      const profileCompleted = profileFields.filter((key) => String(profile?.[key] || '').trim()).length;
+      const healthChecks = [
+        { key: 'nickname', label: 'ชื่อเล่น', ok: Boolean(String(inf.nickname || mv.nickname || '').trim()) },
+        { key: 'mentor_team', label: 'Mentor Team', ok: Boolean(String(mv.mentor_team || '').trim()) },
+        { key: 'line', label: 'เชื่อม LINE', ok: Boolean(lineQ.data) },
+        { key: 'phone', label: 'เบอร์โทรศัพท์', ok: Boolean(String(inf.phone || '').trim()) },
+        { key: 'email', label: 'อีเมล', ok: Boolean(String(inf.email || '').trim()) },
+        { key: 'joined_date', label: 'วันที่เริ่มสมาชิก', ok: Boolean(inf.joined_date || inf.membership_start_date) },
+        { key: 'business', label: 'Business Profile', ok: Boolean(String(profile?.business_summary || (bizRow as Record<string, unknown> | null)?.description || '').trim()) },
+        { key: 'looking_for', label: 'Looking For', ok: Boolean(String(profile?.looking_for || '').trim()) },
+        { key: 'gains', label: 'GAINS', ok: ['gains_goals','gains_accomplishments','gains_interests','gains_networks','gains_skills'].every((key) => Boolean(String(profile?.[key] || '').trim())) },
+        { key: 'renewal', label: 'วันต่ออายุ', ok: Boolean((renewalQ.data as Record<string, unknown> | null)?.expiry_date || mv.expiry_date) },
+      ];
+      const timeline: Record<string, unknown>[] = [];
+      for (const row of (logsQ.data || []) as Record<string, unknown>[]) timeline.push({ type: 'mentor_log', icon: '📓', title: 'Mentor Log', detail: row.notes || row.next_actions || '', at: row.session_date || row.created_at });
+      for (const row of (legacy121Q.data || []) as Record<string, unknown>[]) timeline.push({ type: 'one_to_one', icon: '🤝', title: row.met_at ? 'ทำ 1-2-1 แล้ว' : 'นัดหมาย 1-2-1', detail: row.outcome || row.notes || '', at: row.met_at || row.scheduled_date || row.created_at });
+      for (const row of (visitorsQ.data || []) as Record<string, unknown>[]) timeline.push({ type: 'visitor', icon: '👋', title: `Visitor: ${String(row.visitor_name || '')}`, detail: row.status || '', at: row.visit_date || row.created_at });
+      for (const row of (signalsQ.data || []) as Record<string, unknown>[]) timeline.push({ type: 'signal', icon: '📌', title: row.title || 'Member Signal', detail: row.detail || row.status || '', at: row.created_at });
+      for (const row of (notesQ.data || []) as Record<string, unknown>[]) timeline.push({ type: 'note', icon: '📝', title: 'บันทึกภายใน', detail: row.note || '', at: row.created_at });
+      for (const row of (auditQ.data || []) as Record<string, unknown>[]) timeline.push({ type: 'admin_action', icon: '🛡️', title: String(row.event_type || 'Admin action'), detail: `โดย ${String(row.actor_role || 'ระบบ')}`, at: row.created_at });
+      const sortedTimeline = sortMember360Timeline(timeline, 80);
+      const optionalErrors = [goalsQ, profileQ, logsQ, reviewsQ, notesQ, legacy121Q,
+        visitorsQ, renewalQ, signalsQ, passportQ, passportSessionsQ, blueprintQ,
+        lineQ, pairsQ, schedulesQ, followUpsQ, attentionQ, auditQ]
+        .map((q, index) => q.error ? ['goals','profile','mentor_logs','reviews','notes','one_to_one','visitors','renewal','signals','passport','passport_sessions','blueprints','line','pairs','schedules','follow_ups','attention','audit'][index] : '')
+        .filter(Boolean);
 
       const bniDays = Number(mv.bni_days) || 0;
       const weeks = bniDays > 0 ? Math.min(26, Math.max(1, Math.floor(bniDays / 7))) : 1;
@@ -658,6 +722,33 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
             ? { coreIssue: mv.open_core_issue, savedAt: mv.core_issue_opened_at }
             : null,
         renewal: mv.expiry_date || '',
+        member360: {
+          identity: {
+            id: memberId, name: mv.name, nickname: mv.nickname,
+            profession: inf.profession || inf.business_category || '',
+            company: inf.company || inf.company_name || '',
+            mentorTeam: mv.mentor_team || '',
+            phone: auth.role === 'growth' ? '' : inf.phone || '',
+            email: auth.role === 'growth' ? '' : inf.email || '',
+            joinedDate: inf.joined_date || inf.membership_start_date || '',
+            mentoringMode: inf.mentoring_mode || 'active', isNewMember: Boolean(inf.is_new_member),
+            isArchived: Boolean(inf.is_archived), lineLinked: Boolean(lineQ.data),
+            lineRegisteredAt: (lineQ.data as Record<string, unknown> | null)?.registered_at || null,
+          },
+          goals: goalsQ.data || [], businessProfile: profile,
+          profileCompleteness: { completed: profileCompleted, total: profileFields.length, percent: profileFields.length ? Math.round(profileCompleted / profileFields.length * 100) : 0 },
+          dataHealth: summarizeMember360Health(healthChecks),
+          mentorLogs: auth.role === 'growth' ? [] : logsQ.data || [],
+          reviews: auth.role === 'growth' ? [] : reviewsQ.data || [],
+          notes: auth.role === 'growth' ? [] : notesQ.data || [],
+          oneToOne: { legacy: legacy121Q.data || [], pairs: pairsQ.data || [], schedules: schedulesQ.data || [], followUps: followUpsQ.data || [], attention: auth.role === 'growth' ? [] : attentionQ.data || [] },
+          visitors: visitorsQ.data || [], renewal: renewalQ.data || null,
+          signals: signalsQ.data || [], passport: { enrollment: passportQ.data || null, sessions: passportSessionsQ.data || [] },
+          blueprints: blueprintQ.data || [],
+          timeline: auth.role === 'growth' ? sortedTimeline.filter((event) => !['mentor_log','note'].includes(String(event.type))) : sortedTimeline,
+          historyLimit, refreshedAt: new Date().toISOString(), partial: optionalErrors.length > 0,
+          unavailableModules: optionalErrors,
+        },
       });
     }
 

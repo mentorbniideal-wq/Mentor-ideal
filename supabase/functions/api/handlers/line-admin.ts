@@ -841,8 +841,24 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       const userId = await findLineUserId(db, memberName);
       if (!userId) return jsonResponse({ ok: true, sent: false });
 
-      await sendLineMsg(userId, message);
-      return jsonResponse({ ok: true, sent: true });
+      const memberId = await findMemberId(db, memberName);
+      const sent = await sendLineMsg(userId, message, {
+        db,
+        memberId,
+        notificationType: 'manual_member_message',
+        source: 'desktop/member-360',
+        module: 'manual',
+        category: 'manual_member_message',
+        priority: 'informational',
+      });
+      await db.from('member_admin_events').insert({
+        member_id: memberId,
+        event_type: sent ? 'manual_line_sent' : 'manual_line_failed',
+        actor_role: String(auth.role || 'mc'),
+        actor_ref: String(auth.role || 'mc'),
+        metadata: { source: 'desktop/member-360', message_length: message.length },
+      });
+      return jsonResponse({ ok: true, sent });
     }
 
     // ── BROADCAST: push message to all (or filtered) members (MC) ──

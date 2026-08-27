@@ -2,8 +2,10 @@ import { stat } from 'node:fs/promises';
 
 const budgets = [
   ['public/assets/js/desktop-operations.js', 720_000],
+  ['public/assets/js/desktop-member-360.js', 20_000],
   ['public/assets/js/mobile-operations.js', 460_000],
   ['public/assets/css/desktop-operations.css', 130_000],
+  ['public/assets/css/desktop-member-360.css', 8_000],
   ['public/assets/css/mobile-operations.css', 150_000],
   ['public/dashboard.html', 210_000],
   ['public/index.html', 110_000],

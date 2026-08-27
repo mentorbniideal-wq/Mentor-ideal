@@ -14,6 +14,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/desktop-operations.css">
+<link rel="stylesheet" href="/assets/css/desktop-member-360.css">
 </head>
 <body>
 <main id="mainContent">
@@ -1828,7 +1829,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 </div>
 
 <!-- ── Member 360 Modal ── -->
-<div id="modal" onclick="if(event.target===this)closeModal()">
+<div id="modal" onclick="if(event.target===this)closeModal()" role="dialog" aria-modal="true" aria-labelledby="m360-name">
   <div class="mbox">
     <div class="mhdr">
       <span style="font-size:22px" id="m360-ico">👤</span>
@@ -2195,6 +2196,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 </div>
 
 <script src="/assets/js/desktop-operations.js" defer></script>
+<script src="/assets/js/desktop-member-360.js" defer></script>
 
 <!-- 8W Delete Confirm Modal -->
 <div id="nmcl-modal" onclick="if(event.target===this)closeNMCL()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9998;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 0">
