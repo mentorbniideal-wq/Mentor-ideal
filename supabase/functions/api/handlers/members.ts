@@ -20,13 +20,16 @@ const LT_ROLE_CATALOG = [
   { role: 'Growth Coordinator', label: 'Growth Coordinator', scopes: ['goal'] },
   { role: 'Web Master', label: 'Web Master', scopes: [] },
   { role: 'Network Education Coordinator', label: 'NEC · Network Education Coordinator', scopes: ['training'] },
-  { role: 'Mentor Co.', label: 'Mentor Co. · ผู้ดูแลหลัก', scopes: ['member_help', 'new_member'] },
-  { role: 'Mentor Team · TOOMTAM', label: 'Mentor หลัก · TOOMTAM', scopes: ['member_help'] },
-  { role: 'Mentor Team · Aof', label: 'Mentor หลัก · Aof', scopes: ['member_help'] },
-  { role: 'Mentor Team · Draft', label: 'Mentor หลัก · Draft', scopes: ['member_help'] },
-  { role: 'Mentor Team · PHAI', label: 'Mentor หลัก · PHAI', scopes: ['member_help'] },
-  { role: 'Mentor Team · AMP', label: 'Mentor หลัก · AMP', scopes: ['member_help'] },
-  { role: 'Mentor Support', label: 'Mentor Support · ช่วยดูแลทุกทีม', scopes: ['member_help'] },
+  { role: 'Mentor Co.', label: 'Mentor Co.', scopes: ['member_help', 'new_member'] },
+  // Durable role values keep historical team membership intact. The labels are
+  // human positions; Desktop derives each team name from the assigned Mentor.
+  { role: 'Mentor Team · TOOMTAM', label: 'Mentor member 1', scopes: ['member_help'] },
+  { role: 'Mentor Team · Aof', label: 'Mentor member 2', scopes: ['member_help'] },
+  { role: 'Mentor Team · Draft', label: 'Mentor member 3', scopes: ['member_help'] },
+  { role: 'Mentor Team · PHAI', label: 'Mentor member 4', scopes: ['member_help'] },
+  { role: 'Mentor Team · AMP', label: 'Mentor member 5', scopes: ['member_help'] },
+  { role: 'Mentor Support 1', label: 'Mentor support 1', scopes: ['member_help'] },
+  { role: 'Mentor Support 2', label: 'Mentor support 2', scopes: ['member_help'] },
 ] as const;
 
 type MemberRef = {
