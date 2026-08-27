@@ -62,7 +62,7 @@ export async function verifyToken(
   // Look up role_assignments by email (service client can read this)
   const { data: ra, error: raErr } = await supabase
     .from('role_assignments')
-    .select('role, display_name, team_name, member_id, is_mc, is_mentor, is_admin, admin_sections, admin_edit_access, capabilities')
+    .select('role, display_name, team_name, member_id, is_mc, is_mentor, is_admin, admin_sections, admin_edit_access, capabilities, access_status, access_expires_at')
     .ilike('email', email)
     .maybeSingle();
 
@@ -70,6 +70,12 @@ export async function verifyToken(
   if (!ra) return { ok: false, error: `ไม่มีสิทธิ์ใช้งาน (${email}) กรุณาติดต่อ MC` };
 
   const r = ra as Record<string, unknown>;
+  if (String(r.access_status || 'active') !== 'active') {
+    return { ok: false, error: 'บัญชีนี้ถูกระงับสิทธิ์ กรุณาติดต่อ Chapter Admin' };
+  }
+  if (r.access_expires_at && new Date(String(r.access_expires_at)).getTime() <= Date.now()) {
+    return { ok: false, error: 'สิทธิ์ของบัญชีนี้หมดอายุแล้ว กรุณาติดต่อ Chapter Admin' };
+  }
   const isAdmin = Boolean(r.is_admin) || String(r.role) === 'admin';
   const capabilities = Array.isArray(r.capabilities)
     ? r.capabilities.map(String)

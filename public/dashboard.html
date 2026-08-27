@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="/assets/css/desktop-operations.css">
 <link rel="stylesheet" href="/assets/css/desktop-member-360.css">
 <link rel="stylesheet" href="/assets/css/desktop-mobile-access.css">
+<link rel="stylesheet" href="/assets/css/chapter-operations-center.css">
 </head>
 <body>
 <main id="mainContent">
@@ -91,6 +92,7 @@
     <button class="tb-fold" id="mc-fold-btn" onclick="toggleTabFold('mc')" title="พับ/ขยาย Tab Bar">☰</button>
     <span class="tb-fold-label" id="mc-fold-label" style="display:none"></span>
     <button class="tb on" onclick="sw('mc-ov',this,'mc')">📊 Overview</button>
+    <button class="tb" data-admin-only="1" onclick="sw('mc-chapter-center',this,'mc');loadChapterOperationsCenter()">🏛 Chapter Center<span class="nb" id="badge-chapter-center"></span></button>
     <button class="tb" onclick="sw('mc-mem',this,'mc')">👥 สมาชิก</button>
     <button class="tb" onclick="sw('mc-team',this,'mc');loadMentorTeamManager();loadDesktopScorecard()">🏆 Mentor Teams</button>
     <button class="tb" onclick="sw('mc-lt-team',this,'mc');loadLtTeam()">🏛 LT TEAM<span class="nb" id="badge-lt-team"></span></button>
@@ -1513,6 +1515,11 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       </div>
     </div>
 
+    <div id="mc-chapter-center" class="sec">
+      <div class="coc-page-head"><div><div class="coc-eyebrow">CHAPTER ADMIN CONTROL PLANE</div><h2>🏛 Chapter Operations Center</h2><p>วาระ · สิทธิ์ · งานสมาชิก · คุณภาพข้อมูล · LINE · สุขภาพระบบ ในหน้าเดียว</p></div><button class="bsm" onclick="loadChapterOperationsCenter(true)">↻ ตรวจระบบใหม่</button></div>
+      <div id="coc-root"><div class="coc-state">กด Chapter Center เพื่อรวบรวมข้อมูลล่าสุด</div></div>
+    </div>
+
     <div id="mc-lt-team" class="sec">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px">
         <div>
@@ -2279,6 +2286,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 <div id="sc-export-wrap" style="position:fixed;left:-9999px;top:0;width:840px;pointer-events:none;z-index:-999;overflow:hidden"></div>
 <script src="/assets/js/desktop-term-wizard.js" defer></script>
 <script src="/assets/js/desktop-mobile-access.js" defer></script>
+<script src="/assets/js/chapter-operations-center.js" defer></script>
 <script src="/assets/js/desktop-one-to-one.js" defer></script>
 </main>
 </body>

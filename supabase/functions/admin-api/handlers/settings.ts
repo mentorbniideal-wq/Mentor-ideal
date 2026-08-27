@@ -166,6 +166,8 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     const member = (row.members || {}) as Record<string, unknown>;
     const displayName = String(member.nickname || member.name || googleUser.name).slice(0, 120);
     const isMentor = ['toomtam','aof','draft','phai','amp','mentor_support'].includes(role);
+    const { data: activeTerm } = await db.from('lt_terms').select('id,ends_on').eq('status', 'active').maybeSingle();
+    const termExpiry = activeTerm?.ends_on ? `${String(activeTerm.ends_on)}T23:59:59+07:00` : null;
 
     const { data: existingAssignment } = await db.from('role_assignments').select('email, role, member_id')
       .eq('email', googleUser.email).maybeSingle();
@@ -181,6 +183,9 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
       team_name: row.approved_team_name || null,
       is_mc: role === 'mc',
       is_mentor: isMentor,
+      access_status: 'active',
+      access_expires_at: termExpiry,
+      term_id: activeTerm?.id || null,
     }, { onConflict: 'email' });
     if (assignError) return errResponse(assignError.message);
 
@@ -224,7 +229,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
   if (action === 'getRoleAssignments') {
     const { data, error } = await db
       .from('role_assignments')
-      .select('email, role, display_name, team_name, member_id, is_mc, is_mentor, is_admin, admin_sections, admin_edit_access, capabilities, created_at')
+      .select('email, role, display_name, team_name, member_id, is_mc, is_mentor, is_admin, admin_sections, admin_edit_access, capabilities, access_status, access_expires_at, term_id, created_at, updated_at')
       .order('role');
     if (error) return errResponse(error.message);
     return jsonResponse({ ok: true, assignments: data || [] });
@@ -256,7 +261,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     const [{ data: member }, { data: assignment }, { data: invite }] = await Promise.all([
       db.from('members').select('id, name, nickname').eq('id', memberId).maybeSingle(),
       db.from('role_assignments')
-        .select('email, role, display_name, team_name, member_id, created_at')
+        .select('email, role, display_name, team_name, member_id, access_status, access_expires_at, term_id, created_at')
         .eq('member_id', memberId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
       db.from('mobile_access_invitations')
         .select('id, status, approved_role, approved_team_name, claimed_email, sent_at, claimed_at, expires_at, created_at')
@@ -272,7 +277,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     if (!memberId) return errResponse('กรุณาเลือกสมาชิก');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return errResponse('รูปแบบ Gmail ไม่ถูกต้อง');
     const { data: current, error: currentError } = await db.from('role_assignments')
-      .select('email, role, display_name, team_name, member_id, is_mc, is_mentor, is_admin, admin_sections, admin_edit_access, capabilities')
+      .select('email, role, display_name, team_name, member_id, is_mc, is_mentor, is_admin, admin_sections, admin_edit_access, capabilities, access_status, access_expires_at, term_id')
       .eq('member_id', memberId).order('created_at', { ascending: false }).limit(1).maybeSingle();
     if (currentError) return errResponse(currentError.message);
     if (!current) return errResponse('สมาชิกยังไม่เคยผูก Mentor Mobile กรุณาส่งคำเชิญครั้งแรกก่อน');

@@ -108,6 +108,8 @@ const ROUTES: Record<string, string> = {
   'getPassportCalendar': 'members',
   'getLtTeam': 'members', 'saveLtTeamAssignment': 'members',
   'previewLtTerm': 'members', 'createLtTerm': 'members',
+  'getChapterOperationsCenter': 'members', 'updateChapterHandoverItem': 'members',
+  'setChapterAccessStatus': 'members',
   'getMemberSignals': 'members', 'getMemberSignalHistory': 'members', 'updateMemberSignal': 'members',
   'addMemberSignalNote': 'members', 'reopenMemberSignal': 'members',
 
