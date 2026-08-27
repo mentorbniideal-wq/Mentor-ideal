@@ -167,10 +167,13 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     const displayName = String(member.nickname || member.name || googleUser.name).slice(0, 120);
     const isMentor = ['toomtam','aof','draft','phai','amp','mentor_support'].includes(role);
 
-    const { data: existingAssignment } = await db.from('role_assignments').select('email, role')
+    const { data: existingAssignment } = await db.from('role_assignments').select('email, role, member_id')
       .eq('email', googleUser.email).maybeSingle();
-    if (existingAssignment) return errResponse('Gmail นี้มีสิทธิ์ในระบบอยู่แล้ว กรุณาให้ Chapter Admin ตรวจสอบก่อน');
-    const { error: assignError } = await db.from('role_assignments').insert({
+    if (existingAssignment && String(existingAssignment.member_id || '') !== String(row.member_id)) {
+      return errResponse('Gmail นี้ผูกกับสมาชิกคนอื่นอยู่ กรุณาให้ Chapter Admin ตรวจสอบก่อน');
+    }
+    const createdNewAssignment = !existingAssignment;
+    const { error: assignError } = await db.from('role_assignments').upsert({
       email: googleUser.email,
       member_id: String(row.member_id),
       role,
@@ -178,7 +181,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
       team_name: row.approved_team_name || null,
       is_mc: role === 'mc',
       is_mentor: isMentor,
-    });
+    }, { onConflict: 'email' });
     if (assignError) return errResponse(assignError.message);
 
     const { data: claimed, error: claimError } = await db.from('mobile_access_invitations').update({
@@ -186,7 +189,9 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
       claimed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     }).eq('id', String(row.id)).eq('status', 'pending').select('id').maybeSingle();
     if (claimError || !claimed) {
-      await db.from('role_assignments').delete().eq('email', googleUser.email).eq('role', role);
+      if (createdNewAssignment) {
+        await db.from('role_assignments').delete().eq('email', googleUser.email).eq('role', role);
+      }
       return errResponse('ลิงก์ถูกใช้งานพร้อมกัน กรุณาติดต่อ Chapter Admin');
     }
     return jsonResponse({ ok: true, email: googleUser.email, role, displayName });
@@ -243,6 +248,49 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
       };
     }).filter(item => item.memberId && item.lineUserId);
     return jsonResponse({ ok: true, invites: invites || [], members });
+  }
+
+  if (action === 'getMentorMobileAccess') {
+    const memberId = String(p.memberId || '');
+    if (!memberId) return errResponse('กรุณาเลือกสมาชิก');
+    const [{ data: member }, { data: assignment }, { data: invite }] = await Promise.all([
+      db.from('members').select('id, name, nickname').eq('id', memberId).maybeSingle(),
+      db.from('role_assignments')
+        .select('email, role, display_name, team_name, member_id, created_at')
+        .eq('member_id', memberId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      db.from('mobile_access_invitations')
+        .select('id, status, approved_role, approved_team_name, claimed_email, sent_at, claimed_at, expires_at, created_at')
+        .eq('member_id', memberId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    if (!member) return errResponse('ไม่พบสมาชิก', 404);
+    return jsonResponse({ ok: true, member, assignment: assignment || null, latestInvite: invite || null });
+  }
+
+  if (action === 'updateMentorMobileEmail') {
+    const memberId = String(p.memberId || '');
+    const email = String(p.email || '').trim().toLowerCase();
+    if (!memberId) return errResponse('กรุณาเลือกสมาชิก');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return errResponse('รูปแบบ Gmail ไม่ถูกต้อง');
+    const { data: current, error: currentError } = await db.from('role_assignments')
+      .select('email, role, display_name, team_name, member_id, is_mc, is_mentor, is_admin, admin_sections, admin_edit_access, capabilities')
+      .eq('member_id', memberId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (currentError) return errResponse(currentError.message);
+    if (!current) return errResponse('สมาชิกยังไม่เคยผูก Mentor Mobile กรุณาส่งคำเชิญครั้งแรกก่อน');
+    if (String(current.email).toLowerCase() === email) return jsonResponse({ ok: true, email, unchanged: true });
+    const { data: occupied } = await db.from('role_assignments').select('email, display_name').eq('email', email).maybeSingle();
+    if (occupied) return errResponse('Gmail นี้มีสิทธิ์ในระบบอยู่แล้ว');
+    const replacement = { ...current, email } as Record<string, unknown>;
+    delete replacement.created_at;
+    const { error: insertError } = await db.from('role_assignments').insert(replacement);
+    if (insertError) return errResponse(insertError.message);
+    const { error: deleteError } = await db.from('role_assignments').delete().eq('email', String(current.email));
+    if (deleteError) {
+      await db.from('role_assignments').delete().eq('email', email);
+      return errResponse(deleteError.message);
+    }
+    await db.from('mobile_access_invitations').update({ claimed_email: email, updated_at: new Date().toISOString() })
+      .eq('member_id', memberId).eq('status', 'claimed');
+    return jsonResponse({ ok: true, email, previousEmail: current.email });
   }
 
   if (action === 'createMobileAccessInvite') {

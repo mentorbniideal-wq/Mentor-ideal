@@ -35,6 +35,7 @@ const ROUTES: Record<string, string> = {
   'getMobileAccessInvite': 'settings', 'claimMobileAccessInvite': 'settings',
   'getMobileAccessInvites': 'settings', 'createMobileAccessInvite': 'settings',
   'sendMobileAccessInvite': 'settings', 'revokeMobileAccessInvite': 'settings',
+  'getMentorMobileAccess': 'settings', 'updateMentorMobileEmail': 'settings',
 };
 
 const HANDLERS: Record<string, (p: Record<string, unknown>) => Promise<Response>> = {
