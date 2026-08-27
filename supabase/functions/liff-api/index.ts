@@ -13,6 +13,7 @@ import { canAccessPairProfile, member121ProfileCompleteness, normalizeMember121P
 import { buildGoalCoach } from '../_shared/goal-coach.ts';
 import { upsertMemberSignal } from '../_shared/member-signals.ts';
 import { helpRequestRoute } from '../_shared/help-request.ts';
+import { directoryProfileProjection, directoryResult, directorySearchScore, normalizeDirectoryQuery } from '../_shared/chapter-directory.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
 
@@ -106,6 +107,33 @@ Deno.serve(async (req: Request) => {
     if(!session)return {session:null,pair:null};
     const {pair}=await ownPair(String((session as Record<string,unknown>).pair_id));
     return {session:pair?session as Record<string,unknown>:null,pair};
+  }
+
+  if(action==='chapter-directory'){
+    const query=normalizeDirectoryQuery(body.query);
+    const [{data:people,error:peopleError},{data:profiles,error:profileError}]=await Promise.all([
+      db.from('members').select('id,name,nickname,profession,company_name').or('is_archived.eq.false,is_archived.is.null').order('name').limit(300),
+      db.from('member_one_to_one_profiles').select('member_id,share_directory,business_summary,target_clients,problems_solved,primary_services,differentiators,service_area,looking_for,ideal_client,referral_trigger,good_referral,not_a_fit,before_intro_question,promise_boundaries,credibility_story,introduction_script').eq('share_directory',true).limit(300),
+    ]);
+    if(peopleError||profileError)return response({ok:false,error:'ค้นหารายชื่อสมาชิกไม่สำเร็จ กรุณาลองใหม่'},500);
+    const profileByMember=new Map(((profiles||[]) as Record<string,unknown>[]).map(row=>[String(row.member_id),row]));
+    const rows=((people||[]) as Record<string,unknown>[]).map(person=>({member:person,profile:profileByMember.get(String(person.id))||null}));
+    const results=rows.map(row=>({score:directorySearchScore(row,query),result:directoryResult(row)})).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||a.result.name.localeCompare(b.result.name,'th')).slice(0,50).map(x=>x.result);
+    return response({ok:true,query,results,total:results.length,privacyNotice:'ข้อมูล Referral Focus แสดงเฉพาะสมาชิกที่เปิดแชร์ใน Chapter Directory'});
+  }
+
+  if(action==='chapter-directory-profile'){
+    const subjectId=String(body.memberId||'').trim();
+    if(!subjectId)return response({ok:false,error:'กรุณาเลือกสมาชิก'},400);
+    const [{data:person,error:personError},{data:profile,error:profileError},{pair}]=await Promise.all([
+      db.from('members').select('id,name,nickname,profession,company_name').eq('id',subjectId).or('is_archived.eq.false,is_archived.is.null').maybeSingle(),
+      db.from('member_one_to_one_profiles').select('member_id,share_directory,business_summary,target_clients,problems_solved,primary_services,differentiators,service_area,looking_for,ideal_client,referral_trigger,good_referral,not_a_fit,before_intro_question,promise_boundaries,credibility_story,introduction_script').eq('member_id',subjectId).eq('share_directory',true).maybeSingle(),
+      ownPair(),
+    ]);
+    if(personError||profileError)return response({ok:false,error:'เปิด Business Profile ไม่สำเร็จ กรุณาลองใหม่'},500);
+    if(!person)return response({ok:false,error:'ไม่พบสมาชิกที่เลือก'},404);
+    const pairIds=pair?[String(pair.member_a_id),String(pair.member_b_id)]:[];
+    return response({ok:true,member:directoryResult({member:person as Record<string,unknown>,profile:profile as Record<string,unknown>|null}),profile:directoryProfileProjection(profile as Record<string,unknown>|null),currentPairId:pairIds.includes(subjectId)?String(pair?.id||''):null,privacyNotice:'ใช้ข้อมูลนี้เพื่อมองเห็นโอกาส Referral กรุณาไม่ส่งต่อข้อมูลโดยไม่ได้รับอนุญาต'});
   }
 
   if(action==='training-calendar'){

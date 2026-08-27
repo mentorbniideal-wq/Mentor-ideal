@@ -12,14 +12,14 @@ export const MEMBER_121_TEXT_LIMITS: Record<string, number> = {
 
 export const MEMBER_121_VISIBILITY_FIELDS = [
   'share_business', 'share_referral_focus', 'share_goals', 'share_accomplishments',
-  'share_interests', 'share_networks', 'share_skills',
+  'share_interests', 'share_networks', 'share_skills', 'share_directory',
 ] as const;
 
 export function normalizeMember121Profile(input: unknown) {
   const source = input && typeof input === 'object' && !Array.isArray(input) ? input as Record<string, unknown> : {};
   const out: Record<string, unknown> = {};
   for (const [field, max] of Object.entries(MEMBER_121_TEXT_LIMITS)) out[field] = cleanGuidedText(source[field], max) || null;
-  for (const field of MEMBER_121_VISIBILITY_FIELDS) out[field] = field === 'share_networks' ? source[field] === true : source[field] !== false;
+  for (const field of MEMBER_121_VISIBILITY_FIELDS) out[field] = ['share_networks','share_directory'].includes(field) ? source[field] === true : source[field] !== false;
   return out;
 }
 

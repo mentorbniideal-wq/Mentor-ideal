@@ -8,6 +8,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="./chapter-home.css">
   <link rel="stylesheet" href="./help-center.css">
+  <link rel="stylesheet" href="./chapter-directory.css">
   <title>MY IDEAL · Action Center</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="./config.js"></script>
@@ -82,6 +83,7 @@
       <button class="tab member-tab" data-view="121">1-2-1</button>
       <button class="tab member-tab" data-view="goal">เป้าหมาย</button>
       <button class="tab member-tab" data-view="progress">📊 ความก้าวหน้า</button>
+      <button class="tab member-tab" data-view="directory">🔎 ค้นหาสมาชิก</button>
       <button class="tab member-tab" data-view="visitor">แขกพิเศษ</button>
       <button class="tab member-tab" data-view="issue">ช่วยเหลือ</button>
       <button class="tab member-tab" data-view="absence">ลา / ส่งแทน</button>
@@ -93,6 +95,14 @@
     <section class="card chapter-home" data-card="home">
       <div class="chapter-home-hero"><small>MY CHAPTER HOME</small><h2>วันนี้ควรทำอะไรต่อ?</h2><p>รวมเฉพาะเรื่องที่เกี่ยวกับคุณ เรียงจากสิ่งที่ควรทำก่อน</p></div>
       <div id="chapterHomeContent"><div class="loading" style="padding:28px 0">กำลังเตรียมหน้าของคุณ…</div></div>
+    </section>
+
+    <section class="card chapter-directory" data-card="directory">
+      <header class="directory-hero"><small>SMART CHAPTER DIRECTORY</small><h2>โอกาสนี้ควรนึกถึงใคร?</h2><p>ค้นจากธุรกิจ Looking for หรือสถานการณ์ที่เป็น Referral Trigger</p></header>
+      <label class="directory-search"><span>🔎</span><input id="directoryQuery" type="search" maxlength="80" autocomplete="off" placeholder="เช่น ร้านอาหาร, ขยายทีม, วางแผนภาษี"><button id="directoryClear" type="button" aria-label="ล้างคำค้น">×</button></label>
+      <div class="directory-chips" aria-label="คำค้นแนะนำ"><button type="button" onclick="directorySuggestion('เจ้าของธุรกิจ')">เจ้าของธุรกิจ</button><button type="button" onclick="directorySuggestion('อสังหาริมทรัพย์')">อสังหาริมทรัพย์</button><button type="button" onclick="directorySuggestion('สุขภาพ')">สุขภาพ</button><button type="button" onclick="directorySuggestion('การตลาด')">การตลาด</button></div>
+      <p class="directory-privacy">🔒 Referral Focus แสดงเฉพาะผู้ที่เปิดแชร์ใน Chapter Directory</p>
+      <div id="directoryResults"><div class="loading" style="padding:24px 0">กำลังเตรียมรายชื่อสมาชิก…</div></div>
     </section>
 
     <!-- ลา -->
@@ -226,9 +236,11 @@
 </main>
 <section id="profile121" class="p121" hidden role="dialog" aria-modal="true" aria-label="โปรไฟล์ 1-2-1"></section>
 <section id="guidedSession" class="guided" hidden role="dialog" aria-modal="true" aria-label="ผู้ช่วยนำทาง 1-2-1"></section>
+<section id="directoryProfile" class="directory-modal" hidden role="dialog" aria-modal="true" aria-label="Business Profile สมาชิก"></section>
 <section id="my121Tour" class="my121-tour" hidden role="dialog" aria-modal="true" aria-label="วิธีใช้ MY121"><div id="my121TourCard" class="my121-tour-card"></div></section>
 <script src="./chapter-home.js"></script>
 <script src="./help-center.js"></script>
+<script src="./chapter-directory.js"></script>
 <script>
 const cfg = window.BNI_LIFF_CONFIG || {};
 let accessToken = '', _role = 'member';
@@ -240,7 +252,7 @@ function getRequestedAction() {
   const q = new URLSearchParams(location.search);
   if (q.get('action')) return q.get('action');
   const pathAction = location.pathname.match(
-    /\/liff\/(mentor-log|follow-up|issue|renewal|assignments|absence|ceu|121|goal|visitor|progress)\/?$/,
+    /\/liff\/(mentor-log|follow-up|issue|renewal|assignments|absence|ceu|121|goal|visitor|progress|directory)\/?$/,
   );
   if (pathAction) return pathAction[1];
   const liffState = q.get('liff.state');
@@ -264,6 +276,7 @@ function show(view) {
   if (view === 'renewal')     loadRenewal();
   if (view === 'assignments') loadAssignments();
   if (view === 'progress')    loadProgress();
+  if (view === 'directory')   loadChapterDirectory();
   if (view === 'goal')        loadGoalCoach();
   if (view === 'ceu')         loadCeuCalendar();
   if (view === '121')         showMy121Page(getRequestedParam('section')||'pair',{updateUrl:false});
@@ -271,7 +284,7 @@ function show(view) {
   if (view === 'visitor')     loadPendingVisitors();
 }
 
-const apiReadActions=new Set(['member-home','renewal','training-calendar','get-my-one-to-one-system','get-my-one-to-one-history','get-my-one-to-one-profile','get-pair-121-profile','get-guided-session','get-pending-visitors']);
+const apiReadActions=new Set(['member-home','renewal','training-calendar','chapter-directory','chapter-directory-profile','get-my-one-to-one-system','get-my-one-to-one-history','get-my-one-to-one-profile','get-pair-121-profile','get-guided-session','get-pending-visitors']);
 const apiLatest=new Map();
 async function api(payload,options={}) {
   const key=options.latestKey||'',requestId=crypto.randomUUID();if(key)apiLatest.set(key,requestId);
@@ -506,8 +519,9 @@ let overlayReturnFocus=null;
 function close121Profile(){const root=$('#profile121');root.hidden=true;root.innerHTML='';document.body.style.overflow=$('#guidedSession')?.hidden?'':'hidden';overlayReturnFocus?.focus?.();}
 function p121Field(name,label,value,placeholder=''){return`<label>${label}</label><textarea data-p121="${name}" placeholder="${placeholder}">${escGuided(value||'')}</textarea>`;}
 function p121Share(name,label,checked){return`<label class="p121-share"><input type="checkbox" data-p121="${name}" ${checked!==false?'checked':''}><span>${label}</span></label>`;}
-async function openMy121Profile(){const root=$('#profile121');root.hidden=false;root.innerHTML='<div class="loading">กำลังเปิดโปรไฟล์ 1-2-1 ของคุณ…</div>';document.body.style.overflow='hidden';let r;if(new URLSearchParams(location.search).get('preview')==='1')r={ok:true,member:{nickname:'พีท',profession:'ที่ปรึกษาธุรกิจ',company_name:'Mentor Co.'},business:{description:'ช่วยเจ้าของธุรกิจวางระบบให้เติบโตอย่างเป็นขั้นตอน'},profile:{business_summary:'ช่วยเจ้าของธุรกิจวางระบบการทำงานและการเติบโต',target_clients:'เจ้าของธุรกิจที่มีทีม 5–50 คน',problems_solved:'งานติดเจ้าของ ระบบยังไม่ชัด และทีมทำงานไม่ต่อเนื่อง',looking_for:'เจ้าของธุรกิจที่กำลังขยายทีม',ideal_client:'ผู้บริหารที่พร้อมปรับระบบและลงมือทำ',referral_trigger:'ได้ยินว่า “งานทุกอย่างต้องผ่านผม”',gains_goals:'ช่วยธุรกิจสมาชิกเติบโตอย่างยั่งยืน',gains_interests:'เทคโนโลยี การออกแบบระบบ และการพัฒนาคน',gains_skills:'วางระบบ วิเคราะห์ปัญหา และจัดลำดับงาน',share_business:true,share_referral_focus:true,share_goals:true,share_accomplishments:true,share_interests:true,share_networks:false,share_skills:true},completeness:70};else r=await api({action:'get-my-121-profile'});if(!r.ok){root.innerHTML=`<div class="p121-wrap"><div class="oto-history-empty">${escGuided(r.error||'เปิดโปรไฟล์ไม่สำเร็จ')}</div><button class="p121-shortcut" onclick="close121Profile()">กลับ</button></div>`;return;}renderMy121Profile(r);}
-function renderMy121Profile(r){const root=$('#profile121'),p=r.profile||{},m=r.member||{},b=r.business||{};root.innerHTML=`<header class="p121-head"><button type="button" onclick="close121Profile()">‹</button><div><b>โปรไฟล์ 1-2-1 ของฉัน</b><small>แก้ไขได้ตลอดเวลา · คุณเลือกได้ว่าให้คู่เห็นอะไร</small></div></header><div class="p121-wrap"><div class="p121-hero"><small>ความพร้อมก่อนพบคู่</small><h2 style="margin:5px 0">${Number(r.completeness||0)}% พร้อมสำหรับ 1-2-1</h2><div class="p121-progress"><span style="width:${Math.max(0,Math.min(100,Number(r.completeness||0)))}%"></span></div></div>
+async function openMy121Profile(){const root=$('#profile121');root.hidden=false;root.innerHTML='<div class="loading">กำลังเปิดโปรไฟล์ 1-2-1 ของคุณ…</div>';document.body.style.overflow='hidden';let r;if(new URLSearchParams(location.search).get('preview')==='1')r={ok:true,member:{nickname:'พีท',profession:'ที่ปรึกษาธุรกิจ',company_name:'Mentor Co.'},business:{description:'ช่วยเจ้าของธุรกิจวางระบบให้เติบโตอย่างเป็นขั้นตอน'},profile:{business_summary:'ช่วยเจ้าของธุรกิจวางระบบการทำงานและการเติบโต',target_clients:'เจ้าของธุรกิจที่มีทีม 5–50 คน',problems_solved:'งานติดเจ้าของ ระบบยังไม่ชัด และทีมทำงานไม่ต่อเนื่อง',looking_for:'เจ้าของธุรกิจที่กำลังขยายทีม',ideal_client:'ผู้บริหารที่พร้อมปรับระบบและลงมือทำ',referral_trigger:'ได้ยินว่า “งานทุกอย่างต้องผ่านผม”',gains_goals:'ช่วยธุรกิจสมาชิกเติบโตอย่างยั่งยืน',gains_interests:'เทคโนโลยี การออกแบบระบบ และการพัฒนาคน',gains_skills:'วางระบบ วิเคราะห์ปัญหา และจัดลำดับงาน',share_business:true,share_referral_focus:true,share_goals:true,share_accomplishments:true,share_interests:true,share_networks:false,share_skills:true,share_directory:false},completeness:70};else r=await api({action:'get-my-121-profile'});if(!r.ok){root.innerHTML=`<div class="p121-wrap"><div class="oto-history-empty">${escGuided(r.error||'เปิดโปรไฟล์ไม่สำเร็จ')}</div><button class="p121-shortcut" onclick="close121Profile()">กลับ</button></div>`;return;}renderMy121Profile(r);}
+function renderMy121Profile(r){const root=$('#profile121'),p=r.profile||{},m=r.member||{},b=r.business||{};root.innerHTML=`<header class="p121-head"><button type="button" onclick="close121Profile()">‹</button><div><b>Business Profile ของฉัน</b><small>แก้ไขได้ตลอดเวลา · คุณเลือกได้ว่าให้ใครเห็นอะไร</small></div></header><div class="p121-wrap"><div class="p121-hero"><small>ความพร้อมก่อนพบคู่</small><h2 style="margin:5px 0">${Number(r.completeness||0)}% พร้อมสำหรับ 1-2-1</h2><div class="p121-progress"><span style="width:${Math.max(0,Math.min(100,Number(r.completeness||0)))}%"></span></div></div>
+  <section class="p121-section" style="padding:15px"><b>แสดงใน Smart Chapter Directory</b><p class="hint" style="margin:5px 0 8px">เมื่อเปิด สมาชิกจะค้นหาเฉพาะข้อมูลธุรกิจและ Referral Focus ของคุณได้ ส่วน GAINS, อีเมล และเบอร์โทรจะไม่แสดง</p>${p121Share('share_directory','อนุญาตให้สมาชิกใน Chapter ค้นหา Business Profile ของฉัน (ค่าเริ่มต้นปิด)',p.share_directory===true)}</section>
   <details class="p121-section" open><summary>ข้อมูลธุรกิจโดยย่อ</summary><div class="p121-fields"><label>หมวดอาชีพ</label><input data-p121="profession" value="${escGuided(m.profession||'')}"><label>ชื่อธุรกิจ/บริษัท</label><input data-p121="company_name" value="${escGuided(m.company_name||'')}">${p121Field('business_summary','ธุรกิจของคุณช่วยใครและทำอะไร',p.business_summary||b.description,'อธิบายสั้น ๆ ให้คนที่ไม่รู้จักธุรกิจเข้าใจได้')}${p121Field('target_clients','กลุ่มลูกค้าหลัก',p.target_clients,'บุคคล ตำแหน่ง บริษัท หรืออุตสาหกรรม')}${p121Field('problems_solved','ปัญหาที่คุณช่วยแก้',p.problems_solved)}${p121Field('primary_services','สินค้า/บริการหลัก',p.primary_services)}${p121Field('differentiators','จุดแตกต่าง',p.differentiators)}${p121Field('service_area','พื้นที่ให้บริการ',p.service_area)}${p121Share('share_business','เปิดข้อมูลธุรกิจส่วนนี้ให้คู่ 1-2-1 เห็น',p.share_business)}</div></details>
   <details class="p121-section"><summary>Referral Focus / LCD Focus</summary><div class="p121-fields">${p121Field('looking_for','Looking for ช่วงนี้',p.looking_for||b.looking_for)}${p121Field('ideal_client','Ideal Client',p.ideal_client||b.ideal_client)}${p121Field('referral_trigger','Referral Trigger',p.referral_trigger||b.referral_trigger_summary,'ได้ยินประโยคหรือพบสถานการณ์แบบไหนแล้วควรนึกถึงคุณ')}${p121Field('good_referral','Good Referral ควรเป็นแบบใด',p.good_referral)}${p121Field('not_a_fit','กรณีที่ยังไม่เหมาะ',p.not_a_fit)}${p121Field('before_intro_question','ก่อนแนะนำควรถามอะไร',p.before_intro_question)}${p121Field('promise_boundaries','สิ่งที่คู่ไม่ควรรับปากแทน',p.promise_boundaries)}${p121Field('credibility_story','Credibility Story',p.credibility_story,'สถานการณ์ ปัญหา วิธีช่วย และผลลัพธ์ โดยไม่เปิดเผยข้อมูลลูกค้า')}${p121Field('introduction_script','ประโยคแนะนำคุณให้ผู้อื่นรู้จัก',p.introduction_script)}${p121Share('share_referral_focus','เปิด Referral Focus ส่วนนี้ให้คู่ 1-2-1 เห็น',p.share_referral_focus)}</div></details>
   <details class="p121-section"><summary>GAINS — รู้จักตัวตนและเครือข่าย</summary><div class="p121-fields">${p121Field('gains_goals','Goals — เป้าหมาย',p.gains_goals)}${p121Share('share_goals','ให้คู่เห็น Goals',p.share_goals)}${p121Field('gains_accomplishments','Accomplishments — สิ่งที่ภูมิใจ',p.gains_accomplishments)}${p121Share('share_accomplishments','ให้คู่เห็น Accomplishments',p.share_accomplishments)}${p121Field('gains_interests','Interests — ความสนใจ',p.gains_interests)}${p121Share('share_interests','ให้คู่เห็น Interests',p.share_interests)}${p121Field('gains_networks','Networks — กลุ่มหรือเครือข่าย',p.gains_networks,'ไม่ควรใส่ชื่อหรือข้อมูลส่วนตัวของบุคคลที่สาม')}${p121Share('share_networks','ให้คู่เห็น Networks (ค่าเริ่มต้นปิด)',p.share_networks)}${p121Field('gains_skills','Skills — ทักษะที่ช่วยผู้อื่นได้',p.gains_skills)}${p121Share('share_skills','ให้คู่เห็น Skills',p.share_skills)}</div></details><p class="hint" style="margin:14px 4px">หลีกเลี่ยงชื่อลูกค้า เบอร์โทร และข้อมูลบุคคลที่สาม หากยังไม่ได้รับอนุญาต</p></div><div class="p121-save"><button type="button" onclick="saveMy121Profile()">บันทึกโปรไฟล์ของฉัน</button></div>`;}

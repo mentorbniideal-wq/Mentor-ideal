@@ -161,3 +161,11 @@ Subpages use `section=profile|prepare|history|actions`; the pair page omits the 
 The LIFF Goal page reuses `v_member_dashboard` as the current score/PALMS source of truth, `line_goals` for member-owned short goals, and `line_notif_settings.notif_type = 'score'` for the existing Thursday score summary and monthly report. It does not create a second goal store or a new notification schedule.
 
 Goal recommendations are guidance based on the current PALMS component gaps and official sustainable activity levels. Current values are labelled as cumulative round data, while goal units are explicitly weekly, monthly, or per round. Saving a goal never claims to recalculate the imported score immediately. Members may enable or mute the existing score summaries from the same page; existing cron idempotency, quota, and mute controls remain authoritative.
+
+## Smart Chapter Directory
+
+The LIFF `action=directory` route lets a linked active member search the Chapter roster by name, nickname, profession, and company. Business Profile and Referral Focus fields become searchable and visible only when their owner explicitly enables `share_directory`; the default is off. GAINS, email, phone, Mentor feedback, private notes, verification data, and third-party contact details are excluded from both the database query and API projection.
+
+Members can enable or disable Directory sharing from their own Business Profile at any time. Turning it off immediately removes the extended fields from subsequent Directory searches while the basic active-member roster remains available. A current 1-2-1 partner can continue from the Directory profile to MY121, but Directory access never grants Pair, history, question, or feedback access.
+
+Deploy migration `20260825000079_chapter_directory_consent.sql` before `liff-api`, then deploy the static LIFF site. Rollback the application by deploying the prior API/UI and leave the additive consent column in place. Do not default existing profiles to shared and do not backfill consent on behalf of members.
