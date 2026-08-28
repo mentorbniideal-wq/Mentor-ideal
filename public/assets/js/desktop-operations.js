@@ -269,6 +269,7 @@ function reload(){
 function manualReload(){
   // Force refresh = ล้าง server cache แล้วโหลดใหม่
   if(S.role==='mc'){loadMC(true);}else{loadGrowth();}
+  loadLineQuota(true);
   if(arActive)startAR();
 }
 
@@ -525,6 +526,7 @@ function loadLineQuota(force){
   var header=document.getElementById('header-line-quota');
   var headerRemaining=document.getElementById('hlq-remaining');
   var headerUsage=document.getElementById('hlq-usage');
+  var headerUpdated=document.getElementById('hlq-updated');
   if(usedEl)usedEl.textContent='...';
   if(headerRemaining)headerRemaining.textContent='กำลังตรวจ…';
   gsr('getLineQuota',{role:'mc'},function(r){
@@ -535,6 +537,7 @@ function loadLineQuota(force){
       if(header){header.className='header-line-quota unknown';header.title='ตรวจ LINE quota ไม่สำเร็จ · กดเพื่อเปิด LINE AUTO';}
       if(headerRemaining)headerRemaining.textContent='ตรวจไม่ได้';
       if(headerUsage)headerUsage.textContent='เปิด LINE AUTO';
+      if(headerUpdated)headerUpdated.textContent='ตรวจไม่สำเร็จ';
       return;
     }
     var unlimited=!!r.unlimited||r.type==='unlimited';
@@ -551,6 +554,7 @@ function loadLineQuota(force){
     if(header){header.className='header-line-quota '+tone;header.title='ส่งแล้ว '+r.used+(unlimited?' · Unlimited':' จาก '+r.limit+' ข้อความ')+' · กดเพื่อเปิด LINE AUTO';}
     if(headerRemaining)headerRemaining.textContent=unlimited?'ไม่จำกัด':Number(r.remaining||0).toLocaleString('th-TH')+' ข้อความ';
     if(headerUsage)headerUsage.textContent=unlimited?('ใช้แล้ว '+Number(r.used||0).toLocaleString('th-TH')):('ใช้ '+Number(r.used||0).toLocaleString('th-TH')+' / '+Number(r.limit||0).toLocaleString('th-TH'));
+    if(headerUpdated)headerUpdated.textContent='ล่าสุด '+new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
   });
 }
 

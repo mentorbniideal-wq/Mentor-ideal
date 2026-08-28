@@ -178,8 +178,9 @@ async function mondayMorningBrief(db: DB): Promise<void> {
   const weekKey = bangkokWeekKey();
   // MC detailed brief
   const mcId = await getMcLineId(db);
+  const mcDecision = await lineAutomationDecision(db, 'mondayBriefMc');
 
-  if (mcId) {
+  if (mcId && mcDecision.allowed) {
     const { data: counts } = await db.from('v_member_dashboard')
       .select('traffic_light').eq('is_archived', false);
     const tally = { green: 0, yellow: 0, red: 0, black: 0, none: 0 };
@@ -201,14 +202,15 @@ async function mondayMorningBrief(db: DB): Promise<void> {
       {
         db,
         idempotencyKey: `cron:monday-brief:mc:${weekKey}`,
-        notificationType: 'monday_brief',
+        notificationType: 'monday_brief_mc',
         source: 'cron-jobs',
       },
     );
   }
 
   // Short motivation to all registered members
-  const userIds = await getLineRecipients(db, 'monday_brief');
+  const memberDecision = await lineAutomationDecision(db, 'mondayBriefMembers');
+  const userIds = memberDecision.allowed ? await getLineRecipients(db, 'monday_brief_members') : [];
   if (userIds.length) {
     await lineMulticast(userIds,
       `🌅 สัปดาห์ใหม่ BNI IDEAL!\n` +
@@ -222,7 +224,7 @@ async function mondayMorningBrief(db: DB): Promise<void> {
       {
         db,
         idempotencyKey: `cron:monday-brief:members:${weekKey}`,
-        notificationType: 'monday_brief',
+        notificationType: 'monday_brief_members',
         source: 'cron-jobs',
       },
     );
@@ -303,7 +305,8 @@ async function thursdayBotPush(db: DB): Promise<void> {
 // ── Friday 13:00 TH: post-meeting recap + leaderboard ────────
 async function fridayEveningReminder(db: DB): Promise<void> {
   // 1. Post-meeting message to all members
-  const userIds = await getLineRecipients(db, 'post_meeting');
+  const memberDecision = await lineAutomationDecision(db, 'fridayRecapMembers');
+  const userIds = memberDecision.allowed ? await getLineRecipients(db, 'friday_recap_members') : [];
   if (userIds.length) {
     await lineMulticast(userIds,
       `🏆 BNI ประชุมเสร็จแล้ว! เยี่ยมมาก!\n` +
@@ -317,13 +320,15 @@ async function fridayEveningReminder(db: DB): Promise<void> {
       {
         db,
         idempotencyKey: `cron:friday-recap:members:${bangkokWeekKey()}`,
-        notificationType: 'post_meeting',
+        notificationType: 'friday_recap_members',
         source: 'cron-jobs',
       },
     );
   }
 
   // 2. Team leaderboard to MC
+  const leaderboardDecision = await lineAutomationDecision(db, 'fridayLeaderboardMc');
+  if (!leaderboardDecision.allowed) return;
   const mcId = await getMcLineId(db);
   if (!mcId) return;
 
@@ -345,7 +350,7 @@ async function fridayEveningReminder(db: DB): Promise<void> {
   await linePush(mcId, lines.join('\n────\n'), {
     db,
     idempotencyKey: `cron:friday-leaderboard:mc:${bangkokWeekKey()}`,
-    notificationType: 'chapter_pulse',
+    notificationType: 'friday_leaderboard_mc',
     source: 'cron-jobs',
   });
 }
