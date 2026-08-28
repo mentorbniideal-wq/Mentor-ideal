@@ -2455,7 +2455,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       const [controlsRes, deliveriesRes, recentRes, eventsRes, mutedRes, quota] = await Promise.all([
         db.from('line_automation_controls').select('*').order('value_score', { ascending: false }).order('name'),
         db.from('line_message_deliveries')
-          .select('member_id,notification_type,status,estimated_count,created_at,sent_at,source,suppression_reason')
+          .select('member_id,notification_type,status,estimated_count,created_at,sent_at,source,suppression_reason,message_preview')
           .gte('created_at', since).limit(5000),
         db.from('line_message_deliveries')
           .select('notification_type,status,estimated_count,created_at,sent_at,source,message_preview,last_error')
@@ -2478,10 +2478,10 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
           times.push(at); eventTimesByMember.set(memberId, times);
         }
       }
-      const aggregate: Record<string, { sent: number; failed: number; suppressed: number; total: number; lastSentAt: string; sources: Set<string>; recipients: Set<string>; acted: Set<string> }> = {};
+      const aggregate: Record<string, { sent: number; failed: number; suppressed: number; total: number; lastSentAt: string; latestPreview: string; sources: Set<string>; recipients: Set<string>; acted: Set<string> }> = {};
       for (const row of deliveries) {
         const type = txt(row.notification_type) || 'unknown';
-        const x = aggregate[type] ||= { sent: 0, failed: 0, suppressed: 0, total: 0, lastSentAt: '', sources: new Set<string>(), recipients: new Set<string>(), acted: new Set<string>() };
+        const x = aggregate[type] ||= { sent: 0, failed: 0, suppressed: 0, total: 0, lastSentAt: '', latestPreview: '', sources: new Set<string>(), recipients: new Set<string>(), acted: new Set<string>() };
         x.sources.add(txt(row.source) || 'unknown');
         const count = Math.max(1, num(row.estimated_count, 1));
         const status = txt(row.status);
@@ -2499,19 +2499,22 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         else if (status === 'failed') x.failed += count;
         else if (status === 'suppressed' || status === 'skipped') x.suppressed += count;
         const sentAt = txt(row.sent_at || row.created_at);
-        if (status === 'sent' && sentAt > x.lastSentAt) x.lastSentAt = sentAt;
+        if (status === 'sent' && sentAt > x.lastSentAt) {
+          x.lastSentAt = sentAt;
+          x.latestPreview = txt(row.message_preview);
+        }
       }
       const controls: Record<string, unknown>[] = ((controlsRes.data || []) as Record<string, unknown>[]).map((row) => ({
         ...row,
         stats: aggregate[txt(row.notification_type)]
           ? (() => { const a = aggregate[txt(row.notification_type)]; const recipients = a.recipients.size; return {
-              sent: a.sent, failed: a.failed, suppressed: a.suppressed, total: a.total, lastSentAt: a.lastSentAt,
+              sent: a.sent, failed: a.failed, suppressed: a.suppressed, total: a.total, lastSentAt: a.lastSentAt, latestPreview: a.latestPreview,
               sources: Array.from(a.sources), recipients, actions: a.acted.size,
               actionRate: recipients ? Math.round(a.acted.size / recipients * 100) : 0,
               muted: mutedRows.filter(m => ['all', txt(row.notification_type)].includes(txt(m.notif_type))).length,
               messagesPerAction: a.acted.size ? Number((a.sent / a.acted.size).toFixed(1)) : null,
             }; })()
-          : { sent: 0, failed: 0, suppressed: 0, total: 0, lastSentAt: '', sources: [], recipients: 0, actions: 0, actionRate: 0, muted: 0, messagesPerAction: null },
+          : { sent: 0, failed: 0, suppressed: 0, total: 0, lastSentAt: '', latestPreview: '', sources: [], recipients: 0, actions: 0, actionRate: 0, muted: 0, messagesPerAction: null },
       }));
       const knownTypes = new Set(controls.map(row => txt(row.notification_type)).filter(Boolean));
       for (const [type, stats] of Object.entries(aggregate)) {
@@ -2535,7 +2538,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
           recommendation: 'รายการนี้ค้นพบจาก Delivery Log หากต้องการปิดควรแก้ที่ workflow ต้นทางเพื่อไม่ให้กระทบงานสมาชิก',
           updated_at: '', updated_by: '',
           stats: { sent: stats.sent, failed: stats.failed, suppressed: stats.suppressed, total: stats.total,
-            lastSentAt: stats.lastSentAt, sources, recipients: stats.recipients.size, actions: stats.acted.size,
+            lastSentAt: stats.lastSentAt, latestPreview: stats.latestPreview, sources, recipients: stats.recipients.size, actions: stats.acted.size,
             actionRate: stats.recipients.size ? Math.round(stats.acted.size / stats.recipients.size * 100) : 0,
             muted: mutedRows.filter(m => ['all', type].includes(txt(m.notif_type))).length,
             messagesPerAction: stats.acted.size ? Number((stats.sent / stats.acted.size).toFixed(1)) : null },
