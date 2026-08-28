@@ -1,6 +1,8 @@
 (function(){
   'use strict';
-  var cache=null,loading=false,filters={kind:'all',status:'all',query:''};
+  // Start with the messages that can actually send. Disabled/legacy records remain
+  // available through the filter for audit, without overwhelming daily operators.
+  var cache=null,loading=false,filters={kind:'all',status:'on',query:''};
   function e(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];});}
   function date(v){if(!v)return'ยังไม่เคยส่ง';try{return new Date(v).toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'});}catch(_){return String(v);}}
   function kpi(label,value,sub,tone){return'<div class="lac-kpi"><small>'+e(label)+'</small><b class="'+(tone||'')+'">'+e(value)+'</b><span>'+e(sub||'')+'</span></div>';}

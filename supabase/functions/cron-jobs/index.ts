@@ -236,12 +236,13 @@ async function wednesdayNudge(db: DB, decision?: Record<string, any>): Promise<v
   const ids = await getLineRecipients(db, 'nudge');
   if (ids.length) {
     await lineMulticast(ids, lineAutomationMessage(decision,
-      `⏰ พรุ่งนี้วันศุกร์มีประชุม BNI IDEAL ครับ!\n` +
+      `📅 พรุ่งนี้ประชุม BNI IDEAL\n` +
       `────────────────────\n` +
-      `เตรียมอะไรไว้บ้างแล้ว?\n` +
-      `• Referral ✍️\n• Visitor 👥\n• 1-2-1 🤝\n` +
-      `────────────────────\n` +
-      `ดูคะแนน → พิมพ์ "สถานะ"`),
+      `ก่อนพักคืนนี้ เลือกเตรียมเพียง 1 เรื่อง:\n` +
+      `• Referral ที่ส่งต่อได้จริง\n` +
+      `• คนที่อยากนัด 1-2-1\n` +
+      `• Visitor ที่พร้อมเชิญ\n\n` +
+      `เตรียมครบแล้ว ไม่ต้องทำอะไรเพิ่มครับ`),
       {
         db,
         idempotencyKey: `cron:wednesday-nudge:${bangkokWeekKey()}`,
@@ -401,13 +402,14 @@ async function mentorTeamAlert(db: DB, decision?: Record<string, any>): Promise<
 
     if (!members?.length) continue;
 
-    const lines = [`⚠️ ทีม ${team.name} — สมาชิกที่ต้องดูแล:\n────────────────────`];
+    const lines = [`⚠️ Mentor Action · ทีม ${team.name}\nมี ${members.length} คนที่ควรเช็กอิน:\n────────────────────`];
     for (const m of members as { name: string; nickname: string; display_score: number; traffic_light: string }[]) {
       const icon = TL[m.traffic_light] || '⚫';
       lines.push(`${icon} ${m.nickname || m.name}: ${m.display_score}pt`);
     }
     lines.push('────────────────────');
-    lines.push('แนะนำนัด 1-2-1 เพื่อวาง Action Plan ครับ');
+    lines.push('เลือกติดต่อ 1 คนก่อนภายในสัปดาห์นี้');
+    lines.push('ดูรายละเอียดที่ Desktop → สมาชิก');
 
     const snapshotKey = await buildIdempotencyKey((members as {
       name: string; display_score: number; traffic_light: string;
@@ -440,9 +442,11 @@ async function line121AutoReminder(db: DB, decision?: Record<string, any>): Prom
     const userId = (lineLink as Record<string, string> | null)?.line_user_id;
     if (!userId) continue;
     await linePush(userId, lineAutomationMessage(decision,
-      `🤝 มีนัด 1-2-1 ที่ยังค้างอยู่ครับ\n` +
+      `🤝 1-2-1 ยังรอยืนยัน\n` +
       `────────────────────\n` +
-      `พิมพ์ "เจอแล้ว" หลังจากพบกันแล้วนะครับ`),
+      `ถ้าพบกันแล้ว กด “เจอแล้ว” ใน MY121\n` +
+      `ถ้ายังไม่ได้นัด เปิด MY121 เพื่อเลือกวัน\n\n` +
+      `ข้อความนี้ส่งเฉพาะรายการที่ค้างเกิน 7 วัน`),
       {
         db,
         idempotencyKey: `cron:121-reminder:${String(rec.id)}:${bangkokWeekKey()}`,
@@ -482,10 +486,8 @@ async function renewalPush(db: DB, decision?: Record<string, any>): Promise<void
     if (muted?.length) continue;
 
     const message = days < 0
-      ? `💳 คุณ${nick}: สมาชิกภาพหมดอายุแล้ว\nกรุณาติดต่อ MC เพื่อวางแผนขั้นตอนถัดไปครับ`
-      : days <= 14
-      ? `💳 คุณ${nick}: สมาชิกภาพเหลือ ${days} วัน ⚠️\nหากต้องการความช่วยเหลือเรื่องการต่ออายุ ติดต่อ Mentor หรือ MC ได้เลยครับ`
-      : `💳 คุณ${nick}: สมาชิกภาพเหลือ ${days} วัน\nเริ่มวางแผนการต่ออายุล่วงหน้าได้แล้วครับ`;
+      ? `🔁 Renewal · คุณ${nick}\nสมาชิกภาพหมดอายุแล้ว\n\nขั้นตอนถัดไป: ติดต่อ Mentor Co. เพื่อวางแผนการต่ออายุ\nถ้าดำเนินการแล้ว ไม่ต้องตอบข้อความนี้`
+      : `🔁 Renewal · คุณ${nick}\nสมาชิกภาพเหลือ ${days} วัน${days <= 14 ? ' ⚠️' : ''}\n\nขั้นตอนถัดไป: ติดต่อ Mentor Co. เพื่อยืนยันแผนต่ออายุ\nถ้าดำเนินการแล้ว ไม่ต้องตอบข้อความนี้`;
     await linePush(userId, lineAutomationMessage(decision, message), {
       db,
       idempotencyKey: `cron:renewal:${String(rec.member_id)}:${String(rec.expiry_date)}:${milestone}`,
@@ -540,14 +542,13 @@ async function passportLtReminder(db: DB, decision?: Record<string, any>): Promi
     const sessionTitle = String(s.title || s.lt_role || 'Passport Session');
 
     await linePush(userId, lineAutomationMessage(decision,
-      `🗓️ Passport to Success — แจ้งเตือน\n` +
+      `📅 นัด Passport ในอีก 2 วัน\n` +
       `────────────────────\n` +
-      (ltName ? `สวัสดีคุณ${ltName} 👋\n\n` : '') +
-      `อีก 2 วัน คุณมีนัดพบ New Member:\n\n` +
-      `👤 ${memberName}\n` +
-      `📋 ${sessionTitle}\n` +
-      `📅 ${targetDate}\n\n` +
-      `เจอกันที่ประชุม BNI IDEAL นะครับ 🙏`),
+      (ltName ? `ผู้รับผิดชอบ: ${ltName}\n` : '') +
+      `สมาชิก: ${memberName}\n` +
+      `หัวข้อ: ${sessionTitle}\n` +
+      `วันที่: ${targetDate}\n\n` +
+      `Action: กรุณายืนยันความพร้อมกับทีม`),
       {
         db,
         idempotencyKey: `passport-lt-reminder:${String(s.id)}:${targetDate}`,
@@ -653,11 +654,12 @@ async function visitorFollowUpReminder(db: DB, decision?: Record<string, any>): 
     const visitDate = String(v.visit_date || '');
 
     await linePush(userId, lineAutomationMessage(decision,
-      `👥 ติดตามแขกพิเศษ\n` +
+      `👥 Follow-up Visitor\n` +
       `────────────────────\n` +
-      `คุณพา "${visitorName}" มาร่วมประชุมเมื่อ ${visitDate}\n\n` +
-      `ผ่านมา 2 สัปดาห์แล้ว — เขา/เธอสนใจสมัครเป็นสมาชิกไหมครับ?\n\n` +
-      `ถ้าสนใจ แจ้ง MC ได้เลยนะครับ 🙏`),
+      `${visitorName} มาร่วมประชุมเมื่อ ${visitDate}\n\n` +
+      `ขั้นตอนถัดไป: อัปเดตผลว่า\n` +
+      `สนใจ / ขอเวลาตัดสินใจ / ไม่สนใจ\n\n` +
+      `เมื่ออัปเดตแล้ว ระบบจะหยุดเตือน`),
       {
         db,
         idempotencyKey: `cron:visitor-followup:${String(v.id)}:${visitDate}`,
