@@ -17,6 +17,7 @@
 <link rel="stylesheet" href="/assets/css/desktop-member-360.css">
 <link rel="stylesheet" href="/assets/css/desktop-mobile-access.css">
 <link rel="stylesheet" href="/assets/css/chapter-operations-center.css">
+<link rel="stylesheet" href="/assets/css/line-auto-control-center.css">
 </head>
 <body>
 <main id="mainContent">
@@ -93,6 +94,7 @@
     <span class="tb-fold-label" id="mc-fold-label" style="display:none"></span>
     <button class="tb on" onclick="sw('mc-ov',this,'mc')">📊 Overview</button>
     <button class="tb" data-admin-only="1" onclick="sw('mc-chapter-center',this,'mc');loadChapterOperationsCenter()">🏛 Chapter Center<span class="nb" id="badge-chapter-center"></span></button>
+    <button class="tb" onclick="sw('mc-line-auto',this,'mc');loadLineAutoControlCenter()">📨 LINE AUTO<span class="nb" id="badge-line-auto"></span></button>
     <button class="tb" onclick="sw('mc-mem',this,'mc')">👥 สมาชิก</button>
     <button class="tb" onclick="sw('mc-team',this,'mc');loadMentorTeamManager();loadDesktopScorecard()">🏆 Mentor Teams</button>
     <button class="tb" onclick="sw('mc-lt-team',this,'mc');loadLtTeam()">🏛 LT TEAM<span class="nb" id="badge-lt-team"></span></button>
@@ -1520,6 +1522,14 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       <div id="coc-root"><div class="coc-state">กด Chapter Center เพื่อรวบรวมข้อมูลล่าสุด</div></div>
     </div>
 
+    <div id="mc-line-auto" class="sec">
+      <div class="lac-head">
+        <div><div class="lac-eyebrow">LINE MESSAGE GOVERNANCE</div><h2>📨 LINE AUTO</h2><p>รวมข้อความอัตโนมัติทุกระบบไว้หน้าเดียว เห็นความถี่ ผู้รับ คุณค่า และโควตาที่ใช้จริง</p></div>
+        <button class="bsm" onclick="loadLineAutoControlCenter(true)">↻ ตรวจใหม่</button>
+      </div>
+      <div id="line-auto-root"><div class="lac-state">กด LINE AUTO เพื่อรวบรวมข้อความอัตโนมัติทั้งหมด</div></div>
+    </div>
+
     <div id="mc-lt-team" class="sec">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px">
         <div>
@@ -2287,6 +2297,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 <script src="/assets/js/desktop-term-wizard.js" defer></script>
 <script src="/assets/js/desktop-mobile-access.js" defer></script>
 <script src="/assets/js/chapter-operations-center.js" defer></script>
+<script src="/assets/js/line-auto-control-center.js" defer></script>
 <script src="/assets/js/desktop-one-to-one.js" defer></script>
 </main>
 </body>

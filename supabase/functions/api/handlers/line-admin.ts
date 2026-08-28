@@ -2445,6 +2445,138 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       });
     }
 
+    case 'getLineAutoControlCenter': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const days = Math.min(90, Math.max(7, Number(p.days) || 30));
+      const since = new Date(Date.now() - days * 86400000).toISOString();
+      const monthStart = new Date();
+      monthStart.setUTCDate(1); monthStart.setUTCHours(0, 0, 0, 0);
+      const [controlsRes, deliveriesRes, recentRes, quota] = await Promise.all([
+        db.from('line_automation_controls').select('*').order('value_score', { ascending: false }).order('name'),
+        db.from('line_message_deliveries')
+          .select('notification_type,status,estimated_count,created_at,sent_at,source,suppression_reason')
+          .gte('created_at', since).limit(5000),
+        db.from('line_message_deliveries')
+          .select('notification_type,status,estimated_count,created_at,sent_at,source,message_preview,last_error')
+          .eq('source', 'cron-jobs').order('created_at', { ascending: false }).limit(30),
+        getLineQuotaSnapshot(),
+      ]);
+      if (controlsRes.error) return errResponse(controlsRes.error.message);
+      if (deliveriesRes.error) return errResponse(deliveriesRes.error.message);
+      const deliveries = (deliveriesRes.data || []) as Record<string, unknown>[];
+      const aggregate: Record<string, { sent: number; failed: number; suppressed: number; total: number; lastSentAt: string; sources: Set<string> }> = {};
+      for (const row of deliveries) {
+        const type = txt(row.notification_type) || 'unknown';
+        const x = aggregate[type] ||= { sent: 0, failed: 0, suppressed: 0, total: 0, lastSentAt: '', sources: new Set<string>() };
+        x.sources.add(txt(row.source) || 'unknown');
+        const count = Math.max(1, num(row.estimated_count, 1));
+        const status = txt(row.status);
+        x.total += count;
+        if (status === 'sent') x.sent += count;
+        else if (status === 'failed') x.failed += count;
+        else if (status === 'suppressed' || status === 'skipped') x.suppressed += count;
+        const sentAt = txt(row.sent_at || row.created_at);
+        if (status === 'sent' && sentAt > x.lastSentAt) x.lastSentAt = sentAt;
+      }
+      const controls: Record<string, unknown>[] = ((controlsRes.data || []) as Record<string, unknown>[]).map((row) => ({
+        ...row,
+        stats: aggregate[txt(row.notification_type)]
+          ? { ...aggregate[txt(row.notification_type)], sources: Array.from(aggregate[txt(row.notification_type)].sources) }
+          : { sent: 0, failed: 0, suppressed: 0, total: 0, lastSentAt: '', sources: [] },
+      }));
+      const knownTypes = new Set(controls.map(row => txt(row.notification_type)).filter(Boolean));
+      for (const [type, stats] of Object.entries(aggregate)) {
+        if (knownTypes.has(type) || type === 'unknown') continue;
+        const sources = Array.from(stats.sources);
+        controls.push({
+          automation_key: `observed:${type}`,
+          name: `พบจากระบบ: ${type}`,
+          module: 'event/manual', notification_type: type, source: sources.join(', '),
+          schedule_label: 'เกิดตามเหตุการณ์หรือผู้ดูแลกดส่ง',
+          audience: 'ขึ้นอยู่กับเหตุการณ์',
+          purpose: 'แสดงเพื่อให้ตรวจสอบว่าข้อความจากระบบอื่นไม่ตกหล่น',
+          importance: 'normal', quota_impact: stats.sent > 30 ? 'high' : 'targeted',
+          decision: 'review', value_score: 50, duplicate_group: null,
+          duplicate_note: 'ยังไม่ได้จัดประเภท เพราะเพิ่งค้นพบจาก Delivery Log',
+          enabled: true, protected: true,
+          recommendation: 'รายการนี้ค้นพบจาก Delivery Log หากต้องการปิดควรแก้ที่ workflow ต้นทางเพื่อไม่ให้กระทบงานสมาชิก',
+          updated_at: '', updated_by: '',
+          stats: { ...stats, sources }, discovered: true,
+        });
+      }
+      const monthRows = deliveries.filter(row => txt(row.created_at) >= monthStart.toISOString());
+      const monthSent = monthRows.reduce((sum, row) => sum + (txt(row.status) === 'sent' ? Math.max(1, num(row.estimated_count, 1)) : 0), 0);
+      return jsonResponse({
+        ok: true,
+        canEdit: Boolean(auth.isAdmin),
+        days,
+        quota,
+        quotaGuard: lineQuotaMode(quota),
+        summary: {
+          total: controls.length,
+          enabled: controls.filter(x => Boolean(x.enabled)).length,
+          protected: controls.filter(x => Boolean(x.protected)).length,
+          broadEnabled: controls.filter(x => Boolean(x.enabled) && txt(x.quota_impact) === 'high').length,
+          monthSent,
+        },
+        controls,
+        recent: recentRes.data || [],
+      });
+    }
+
+    case 'setLineAutomationControl': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.isAdmin) return errResponse('เฉพาะ Chapter Admin เท่านั้นที่แก้การส่งอัตโนมัติได้', 403);
+      const automationKey = txt(p.automationKey);
+      if (!automationKey) return errResponse('automationKey required');
+      const { data: current, error: currentError } = await db.from('line_automation_controls')
+        .select('automation_key,name,enabled,protected').eq('automation_key', automationKey).maybeSingle();
+      if (currentError) return errResponse(currentError.message);
+      if (!current) return errResponse('ไม่พบรายการอัตโนมัตินี้');
+      if (Boolean((current as Record<string, unknown>).protected) && p.enabled === false) {
+        return errResponse('รายการนี้ป้องกันไว้เพราะเป็นข้อความสำคัญหรืองานระบบ');
+      }
+      const enabled = Boolean(p.enabled);
+      const actor = txt(auth.displayName || auth.role || 'admin');
+      const { error } = await db.from('line_automation_controls').update({
+        enabled, updated_at: new Date().toISOString(), updated_by: actor,
+      }).eq('automation_key', automationKey);
+      if (error) return errResponse(error.message);
+      await db.from('chapter_audit_events').insert({
+        event_type: 'line_automation_updated', actor_role: auth.role || 'admin', actor_ref: actor,
+        subject_type: 'line_automation', subject_ref: automationKey,
+        metadata: { enabled, previousEnabled: Boolean((current as Record<string, unknown>).enabled) },
+      });
+      return jsonResponse({ ok: true, automationKey, enabled });
+    }
+
+    case 'applyLineAutomationPreset': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.isAdmin) return errResponse('เฉพาะ Chapter Admin เท่านั้นที่เปลี่ยนรูปแบบการส่งได้', 403);
+      const preset = txt(p.preset);
+      if (!['essential', 'balanced', 'all'].includes(preset)) return errResponse('preset ไม่ถูกต้อง');
+      const { data: rows, error } = await db.from('line_automation_controls').select('automation_key,importance,decision,protected');
+      if (error) return errResponse(error.message);
+      const actor = txt(auth.displayName || auth.role || 'admin');
+      for (const row of (rows || []) as Record<string, unknown>[]) {
+        const importance = txt(row.importance);
+        const decision = txt(row.decision);
+        const enabled = Boolean(row.protected) || preset === 'all'
+          || (preset === 'balanced' && ['keep', 'limit', 'system'].includes(decision))
+          || (preset === 'essential' && ['keep', 'system'].includes(decision) && ['critical', 'high', 'system'].includes(importance));
+        await db.from('line_automation_controls').update({ enabled, updated_at: new Date().toISOString(), updated_by: actor })
+          .eq('automation_key', txt(row.automation_key));
+      }
+      await db.from('chapter_audit_events').insert({
+        event_type: 'line_automation_preset_applied', actor_role: auth.role || 'admin', actor_ref: actor,
+        subject_type: 'line_automation', subject_ref: preset, metadata: { preset },
+      });
+      return jsonResponse({ ok: true, preset });
+    }
+
     case 'getLineMemberJourney': {
       const auth = await requireAuth(db, p, ['mc', 'growth', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);

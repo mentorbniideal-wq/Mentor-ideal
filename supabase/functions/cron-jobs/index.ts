@@ -27,6 +27,7 @@ import {
   renewalMilestone,
 } from '../_shared/line.ts';
 import { provisionLineExperience } from '../_shared/line-provision.ts';
+import { lineAutomationDecision } from '../_shared/line-automation.ts';
 
 Deno.serve(async (req: Request) => {
   const authHeader = req.headers.get('Authorization') || '';
@@ -44,6 +45,13 @@ Deno.serve(async (req: Request) => {
   console.log(`[cron-jobs] Running job: ${job}`);
 
   try {
+    const decision = await lineAutomationDecision(db, job);
+    if (!decision.allowed) {
+      console.log(`[cron-jobs] Skipped ${job}: ${decision.reason}`);
+      return new Response(JSON.stringify({ ok: true, job, skipped: true, reason: decision.reason }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
     switch (job) {
       case 'mondayMorningBrief':      await mondayMorningBrief(db);      break;
       case 'wednesdayNudge':          await wednesdayNudge(db);           break;

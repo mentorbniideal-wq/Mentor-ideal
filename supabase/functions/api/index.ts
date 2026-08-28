@@ -198,6 +198,7 @@ const ROUTES: Record<string, string> = {
   'trigger121Reminder': 'line-admin', 'getAbsenceLogRecent': 'line-admin',
   'getLineHealth': 'line-admin', 'testLineCommand': 'line-admin',
   'getLineCommandGuide': 'line-admin', 'getLineAutomationLibrary': 'line-admin',
+  'getLineAutoControlCenter': 'line-admin', 'setLineAutomationControl': 'line-admin', 'applyLineAutomationPreset': 'line-admin',
   'getLineMemberJourney': 'line-admin',
 
   // AI Copilot (read-only recommendations; write actions require separate confirmation)
