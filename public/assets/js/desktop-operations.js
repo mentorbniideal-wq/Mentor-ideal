@@ -522,12 +522,19 @@ function loadLineQuota(force){
   var usedEl=document.getElementById('lq-used');
   var remEl=document.getElementById('lq-rem');
   var fill=document.getElementById('lq-fill');
+  var header=document.getElementById('header-line-quota');
+  var headerRemaining=document.getElementById('hlq-remaining');
+  var headerUsage=document.getElementById('hlq-usage');
   if(usedEl)usedEl.textContent='...';
+  if(headerRemaining)headerRemaining.textContent='กำลังตรวจ…';
   gsr('getLineQuota',{role:'mc'},function(r){
     _lqLoaded=true;
     if(!r||!r.ok){
       if(usedEl)usedEl.textContent='err';
       if(remEl)remEl.textContent='—';
+      if(header){header.className='header-line-quota unknown';header.title='ตรวจ LINE quota ไม่สำเร็จ · กดเพื่อเปิด LINE AUTO';}
+      if(headerRemaining)headerRemaining.textContent='ตรวจไม่ได้';
+      if(headerUsage)headerUsage.textContent='เปิด LINE AUTO';
       return;
     }
     var unlimited=!!r.unlimited||r.type==='unlimited';
@@ -540,6 +547,10 @@ function loadLineQuota(force){
       fill.style.width=unlimited?'100%':(Math.min(100,r.pct)+'%');
       fill.style.background=unlimited?'var(--gr)':(r.pct>=80?'var(--re)':r.pct>=60?'var(--ye)':'var(--gr)');
     }
+    var tone=unlimited?'safe':(r.remaining<50||r.pct>=90?'critical':r.remaining<100||r.pct>=75?'warning':'safe');
+    if(header){header.className='header-line-quota '+tone;header.title='ส่งแล้ว '+r.used+(unlimited?' · Unlimited':' จาก '+r.limit+' ข้อความ')+' · กดเพื่อเปิด LINE AUTO';}
+    if(headerRemaining)headerRemaining.textContent=unlimited?'ไม่จำกัด':Number(r.remaining||0).toLocaleString('th-TH')+' ข้อความ';
+    if(headerUsage)headerUsage.textContent=unlimited?('ใช้แล้ว '+Number(r.used||0).toLocaleString('th-TH')):('ใช้ '+Number(r.used||0).toLocaleString('th-TH')+' / '+Number(r.limit||0).toLocaleString('th-TH'));
   });
 }
 

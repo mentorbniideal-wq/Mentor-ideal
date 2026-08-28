@@ -71,6 +71,11 @@
       </div>
     </div>
     <span class="hbadge" id="hrole"></span>
+    <button id="header-line-quota" class="header-line-quota loading" type="button" onclick="sw('mc-line-auto',null,'mc');loadLineAutoControlCenter()" title="เปิดศูนย์ควบคุม LINE AUTO">
+      <span class="hlq-icon">LINE</span>
+      <span class="hlq-copy"><small>MESSAGE คงเหลือ</small><strong id="hlq-remaining">กำลังตรวจ…</strong></span>
+      <span class="hlq-usage" id="hlq-usage">—</span>
+    </button>
     <div class="gs-wrap" style="margin-left:auto">
       <input id="gs-input" type="text" placeholder="🔍 ค้นหาสมาชิก..." oninput="onGS(this.value)" onblur="setTimeout(closeGS,200)" autocomplete="off">
       <div class="gs-drop" id="gs-drop"></div>
