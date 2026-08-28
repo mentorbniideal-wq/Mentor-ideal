@@ -1433,7 +1433,13 @@ function _lineSetBizProfile(memberName, biz) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Feature A — Thursday Morning Bot Push
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function _lineLeanPolicyEnabled() {
+  var value = PropertiesService.getScriptProperties().getProperty('LINE_NOTIFICATION_POLICY');
+  return value !== 'legacy_verbose';
+}
+
 function thursdayBotPush() {
+  if (_lineLeanPolicyEnabled()) { Logger.log('LEAN: skip thursdayBotPush'); return; }
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📱 LINE MEMBERS');
   if (!sh || sh.getLastRow() < 2) return;
   var rows = sh.getRange(2, 1, sh.getLastRow()-1, 2).getValues();
@@ -1486,6 +1492,7 @@ function setupThursdayBotTrigger() {
 // Feature A2 — Friday Evening Reminder (Thursday 18:00 trigger → day before)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function fridayEveningReminder() {
+  if (_lineLeanPolicyEnabled()) { Logger.log('LEAN: skip legacy fridayEveningReminder'); return; }
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📱 LINE MEMBERS');
   if (!sh || sh.getLastRow() < 2) return;
   var rows = sh.getRange(2, 1, sh.getLastRow()-1, 2).getValues();
@@ -1778,6 +1785,7 @@ function apiGetAbsenceLog(p) {
 // Feature A7 — Chapter Pulse (Friday morning summary → MC)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function _lineChapterPulse() {
+  if (_lineLeanPolicyEnabled()) { Logger.log('LEAN: skip legacy chapter pulse'); return; }
   var mcId = _getLineId('mc');
   if (!mcId) return;
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -2193,6 +2201,7 @@ function _lineGoalsReply(member) {
 // Feature — Monday Morning Brief (จันทร์ 08:00)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function mondayMorningBrief() {
+  if (_lineLeanPolicyEnabled()) { Logger.log('LEAN: skip legacy monday brief'); return; }
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📱 LINE MEMBERS');
   if (!sh || sh.getLastRow() < 2) return;
   var rows = sh.getRange(2, 1, sh.getLastRow()-1, 8).getValues();
@@ -2262,6 +2271,7 @@ function mondayMorningBrief() {
 // Feature — Monthly Recap (จันทร์แรกของเดือน 09:00)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function monthlyRecap() {
+  if (_lineLeanPolicyEnabled()) { Logger.log('LEAN: skip legacy monthly recap'); return; }
   if (new Date().getDate() > 7) return; // only first Monday of month
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📱 LINE MEMBERS');
   if (!sh || sh.getLastRow() < 2) return;
@@ -2318,6 +2328,7 @@ function monthlyRecap() {
 // Feature — 1-2-1 Auto-Reminder (อังคาร 09:00)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function line121AutoReminder() {
+  if (_lineLeanPolicyEnabled()) { Logger.log('LEAN: skip legacy 1-2-1 reminder'); return; }
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var trackerSh = ss.getSheetByName('📊 1-2-1 TRACKER');
   var lineSh    = ss.getSheetByName('📱 LINE MEMBERS');
@@ -2442,6 +2453,7 @@ function apiSetupRichMenu(p) {
 // Feature D — Friday Team Leaderboard (ศุกร์ 07:30)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function fridayTeamLeaderboard() {
+  if (_lineLeanPolicyEnabled()) { Logger.log('LEAN: skip legacy team leaderboard'); return; }
   var ss  = SpreadsheetApp.getActiveSpreadsheet();
   var sh  = ss.getSheetByName('📱 LINE MEMBERS');
   if (!sh || sh.getLastRow() < 2) return;
@@ -2510,6 +2522,7 @@ function fridayTeamLeaderboard() {
 // Feature A8 — Friday Post-Meeting Prompt (ศุกร์ 13:00)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function fridayPostMeetingPrompt() {
+  if (_lineLeanPolicyEnabled()) { Logger.log('LEAN: skip legacy post-meeting prompt'); return; }
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('📱 LINE MEMBERS');
   if (!sh || sh.getLastRow() < 2) return;
   var rows = sh.getRange(2, 1, sh.getLastRow()-1, 7).getValues();
@@ -2560,6 +2573,7 @@ function fridayPostMeetingPrompt() {
 // Feature A9 — Wednesday Nudge (พุธ 10:00 — เฉพาะคนที่ขาด metric)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function wednesdayNudge() {
+  if (_lineLeanPolicyEnabled()) { Logger.log('LEAN: skip legacy Wednesday nudge'); return; }
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName('📱 LINE MEMBERS');
   if (!sh || sh.getLastRow() < 2) return;
@@ -2697,18 +2711,27 @@ function _getSmartQRButtons(memberName, myLF, selfTeam, ciLF, nickMap, teamMap, 
 
 function apiSetupAllTriggers(p) {
   if (p.role !== 'mc') return {ok:false,error:'MC only'};
+  return applyLeanLinePolicy();
+}
+
+// Keep only messages that are timely and cannot be replaced by Today/Dashboard.
+// This also removes duplicate legacy triggers left from previous deployments.
+function applyLeanLinePolicy() {
   var results = [];
+  var noisy = [
+    'thursdayBotPush','thursdayMorningAlert','fridayPostMeetingPrompt',
+    'wednesdayNudge','fridayTeamLeaderboard','mondayMorningBrief',
+    'monthlyRecap','line121AutoReminder','_lineChapterPulse','fridayEveningReminder'
+  ];
+  var existing = ScriptApp.getProjectTriggers();
+  existing.forEach(function(t) {
+    if (noisy.indexOf(t.getHandlerFunction()) >= 0) {
+      ScriptApp.deleteTrigger(t);
+      results.push('🛑 ปิด '+t.getHandlerFunction());
+    }
+  });
   var fns = [
-    {name:'thursdayBotPush',       day:ScriptApp.WeekDay.FRIDAY,    hour:7,  label:'Weekly Score Card (ศุกร์ 07:00)'},
-    {name:'thursdayMorningAlert',  day:ScriptApp.WeekDay.FRIDAY,    hour:7,  label:'Morning Alert (ศุกร์ 07:00)'},
-    {name:'fridayEveningReminder', day:ScriptApp.WeekDay.THURSDAY,  hour:18, label:'Check-In Reminder (พฤหัส 18:00)'},
-    {name:'_lineBNIAnniversary',   day:ScriptApp.WeekDay.FRIDAY,    hour:8,  label:'Anniversary Check (ศุกร์ 08:00)'},
-    {name:'fridayPostMeetingPrompt',day:ScriptApp.WeekDay.FRIDAY,   hour:13, label:'Post-Meeting Prompt (ศุกร์ 13:00)'},
-    {name:'wednesdayNudge',        day:ScriptApp.WeekDay.WEDNESDAY, hour:10, label:'Wednesday Nudge (พุธ 10:00)'},
-    {name:'fridayTeamLeaderboard', day:ScriptApp.WeekDay.FRIDAY,   hour:7, minute:30, label:'Team Leaderboard (ศุกร์ 07:30)'},
-    {name:'mondayMorningBrief',  day:ScriptApp.WeekDay.MONDAY,  hour:8,  label:'Monday Morning Brief (จันทร์ 08:00)'},
-    {name:'monthlyRecap',        day:ScriptApp.WeekDay.MONDAY,  hour:9,  label:'Monthly Recap (จันทร์แรกของเดือน 09:00)'},
-    {name:'line121AutoReminder', day:ScriptApp.WeekDay.TUESDAY, hour:9,  label:'1-2-1 Auto-Reminder (อังคาร 09:00)'}
+    {name:'_lineBNIAnniversary',   day:ScriptApp.WeekDay.FRIDAY,    hour:8,  label:'Anniversary Check (ส่งเฉพาะคนครบรอบ)'}
   ];
   fns.forEach(function(cfg) {
     try {
@@ -2723,7 +2746,8 @@ function apiSetupAllTriggers(p) {
       results.push('❌ ' + cfg.label + ': ' + e.message);
     }
   });
-  return {ok:true, results:results};
+  PropertiesService.getScriptProperties().setProperty('LINE_NOTIFICATION_POLICY','lean_action_first');
+  return {ok:true, policy:'lean_action_first', results:results};
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -72,6 +72,10 @@ function sendLineNotify(token, message) {
 // thursdayMorningAlert — เรียกโดย Trigger ทุกพฤหัส 07:00
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function thursdayMorningAlert() {
+  if (typeof _lineLeanPolicyEnabled === 'function' && _lineLeanPolicyEnabled()) {
+    Logger.log('LEAN: skip legacy thursdayMorningAlert');
+    return;
+  }
   var ss  = SpreadsheetApp.getActiveSpreadsheet();
   var now = new Date();
   var dateStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'dd MMM yyyy');
