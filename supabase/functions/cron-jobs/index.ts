@@ -27,7 +27,7 @@ import {
   renewalMilestone,
 } from '../_shared/line.ts';
 import { provisionLineExperience } from '../_shared/line-provision.ts';
-import { lineAutomationDecision } from '../_shared/line-automation.ts';
+import { lineAutomationDecision, lineAutomationMessage } from '../_shared/line-automation.ts';
 
 Deno.serve(async (req: Request) => {
   const authHeader = req.headers.get('Authorization') || '';
@@ -54,18 +54,18 @@ Deno.serve(async (req: Request) => {
     }
     switch (job) {
       case 'mondayMorningBrief':      await mondayMorningBrief(db);      break;
-      case 'wednesdayNudge':          await wednesdayNudge(db);           break;
-      case 'thursdayBotPush':         await thursdayBotPush(db);          break;
+      case 'wednesdayNudge':          await wednesdayNudge(db, decision); break;
+      case 'thursdayBotPush':         await thursdayBotPush(db, decision); break;
       case 'fridayEveningReminder':   await fridayEveningReminder(db);    break;
       case 'fridayTeamLeaderboard':   /* merged into fridayEveningReminder */ break;
-      case 'monthlyRecap':            await monthlyRecap(db);             break;
-      case 'mentorTeamAlert':         await mentorTeamAlert(db);          break;
-      case 'line121AutoReminder':     await line121AutoReminder(db);      break;
-      case 'renewalPush':             await renewalPush(db);              break;
+      case 'monthlyRecap':            await monthlyRecap(db, decision);   break;
+      case 'mentorTeamAlert':         await mentorTeamAlert(db, decision); break;
+      case 'line121AutoReminder':     await line121AutoReminder(db, decision); break;
+      case 'renewalPush':             await renewalPush(db, decision);    break;
       case 'purgeExpiredDismissals':  await purgeExpiredDismissals(db);   break;
-      case 'passportLtReminder':      await passportLtReminder(db);      break;
-      case 'monthlyPersonalReport':   await monthlyPersonalReport(db);   break;
-      case 'visitorFollowUpReminder': await visitorFollowUpReminder(db); break;
+      case 'passportLtReminder':      await passportLtReminder(db, decision); break;
+      case 'monthlyPersonalReport':   await monthlyPersonalReport(db, decision); break;
+      case 'visitorFollowUpReminder': await visitorFollowUpReminder(db, decision); break;
       case 'provisionLineExperience': {
         const result = await provisionLineExperience(db);
         console.log('[cron-jobs] LINE provisioned:', JSON.stringify(result));
@@ -189,7 +189,7 @@ async function mondayMorningBrief(db: DB): Promise<void> {
       if (k in tally) tally[k]++; else tally.none++;
     });
     const total = tally.green + tally.yellow + tally.red + tally.black + tally.none;
-    await linePush(mcId,
+    await linePush(mcId, lineAutomationMessage(mcDecision,
       `📊 BNI IDEAL — Monday Brief\n` +
       `────────────────────\n` +
       `🟢 เขียว : ${tally.green} คน\n` +
@@ -198,7 +198,7 @@ async function mondayMorningBrief(db: DB): Promise<void> {
       `⚫ ดำ   : ${tally.black} คน\n` +
       (tally.none ? `⬜ ยังไม่มีข้อมูล: ${tally.none} คน\n` : '') +
       `────────────────────\n` +
-      `รวม ${total} คน · ดูรายละเอียดใน Dashboard`,
+      `รวม ${total} คน · ดูรายละเอียดใน Dashboard`),
       {
         db,
         idempotencyKey: `cron:monday-brief:mc:${weekKey}`,
@@ -212,7 +212,7 @@ async function mondayMorningBrief(db: DB): Promise<void> {
   const memberDecision = await lineAutomationDecision(db, 'mondayBriefMembers');
   const userIds = memberDecision.allowed ? await getLineRecipients(db, 'monday_brief_members') : [];
   if (userIds.length) {
-    await lineMulticast(userIds,
+    await lineMulticast(userIds, lineAutomationMessage(memberDecision,
       `🌅 สัปดาห์ใหม่ BNI IDEAL!\n` +
       `────────────────────\n` +
       `3 เป้าหมายสัปดาห์นี้:\n` +
@@ -220,7 +220,7 @@ async function mondayMorningBrief(db: DB): Promise<void> {
       `🤝 นัด 1-2-1 อย่างน้อย 1 ครั้ง\n` +
       `👥 ชวน Visitor มาประชุมวันศุกร์\n` +
       `────────────────────\n` +
-      `พิมพ์ "สถานะ" ดูคะแนนของคุณ`,
+      `พิมพ์ "สถานะ" ดูคะแนนของคุณ`),
       {
         db,
         idempotencyKey: `cron:monday-brief:members:${weekKey}`,
@@ -232,16 +232,16 @@ async function mondayMorningBrief(db: DB): Promise<void> {
 }
 
 // ── Thursday evening TH: Friday meeting reminder ─────────────
-async function wednesdayNudge(db: DB): Promise<void> {
+async function wednesdayNudge(db: DB, decision?: Record<string, any>): Promise<void> {
   const ids = await getLineRecipients(db, 'nudge');
   if (ids.length) {
-    await lineMulticast(ids,
+    await lineMulticast(ids, lineAutomationMessage(decision,
       `⏰ พรุ่งนี้วันศุกร์มีประชุม BNI IDEAL ครับ!\n` +
       `────────────────────\n` +
       `เตรียมอะไรไว้บ้างแล้ว?\n` +
       `• Referral ✍️\n• Visitor 👥\n• 1-2-1 🤝\n` +
       `────────────────────\n` +
-      `ดูคะแนน → พิมพ์ "สถานะ"`,
+      `ดูคะแนน → พิมพ์ "สถานะ"`),
       {
         db,
         idempotencyKey: `cron:wednesday-nudge:${bangkokWeekKey()}`,
@@ -253,7 +253,7 @@ async function wednesdayNudge(db: DB): Promise<void> {
 }
 
 // ── Thursday 07:00 TH: personalized score + Friday meeting action ──
-async function thursdayBotPush(db: DB): Promise<void> {
+async function thursdayBotPush(db: DB, decision?: Record<string, any>): Promise<void> {
   const { data: lineMembers } = await db.from('line_members')
     .select('line_user_id, member_id, members(name, nickname)');
   if (!lineMembers?.length) return;
@@ -292,7 +292,7 @@ async function thursdayBotPush(db: DB): Promise<void> {
       .limit(1);
     if (muted?.length) continue;
 
-    await linePush(String(rec.line_user_id), msg, {
+    await linePush(String(rec.line_user_id), lineAutomationMessage(decision, msg), {
       db,
       idempotencyKey: `cron:thursday-score:${memberId}:${bangkokWeekKey()}`,
       memberId,
@@ -308,7 +308,7 @@ async function fridayEveningReminder(db: DB): Promise<void> {
   const memberDecision = await lineAutomationDecision(db, 'fridayRecapMembers');
   const userIds = memberDecision.allowed ? await getLineRecipients(db, 'friday_recap_members') : [];
   if (userIds.length) {
-    await lineMulticast(userIds,
+    await lineMulticast(userIds, lineAutomationMessage(memberDecision,
       `🏆 BNI ประชุมเสร็จแล้ว! เยี่ยมมาก!\n` +
       `────────────────────\n` +
       `อย่าลืม 3 ข้อครับ:\n` +
@@ -316,7 +316,7 @@ async function fridayEveningReminder(db: DB): Promise<void> {
       `🤝 จัดเวลา 1-2-1 กับเพื่อนที่นัดไว้\n` +
       `📝 ส่ง Thank You Note ให้คนที่ส่ง Ref ให้คุณ\n` +
       `────────────────────\n` +
-      `พิมพ์ "สถานะ" เพื่อดูคะแนนอัปเดต`,
+      `พิมพ์ "สถานะ" เพื่อดูคะแนนอัปเดต`),
       {
         db,
         idempotencyKey: `cron:friday-recap:members:${bangkokWeekKey()}`,
@@ -347,7 +347,7 @@ async function fridayEveningReminder(db: DB): Promise<void> {
     const b = (members as { traffic_light: string }[]).filter(m => m.traffic_light === 'black').length;
     lines.push(`${team.name}\nAvg ${avg}pt  🟢${g} 🟡${y} 🔴${r} ⚫${b}`);
   }
-  await linePush(mcId, lines.join('\n────\n'), {
+  await linePush(mcId, lineAutomationMessage(leaderboardDecision, lines.join('\n────\n')), {
     db,
     idempotencyKey: `cron:friday-leaderboard:mc:${bangkokWeekKey()}`,
     notificationType: 'friday_leaderboard_mc',
@@ -356,13 +356,13 @@ async function fridayEveningReminder(db: DB): Promise<void> {
 }
 
 // ── Monthly: brief summary to MC ─────────────────────────────
-async function monthlyRecap(db: DB): Promise<void> {
+async function monthlyRecap(db: DB, decision?: Record<string, any>): Promise<void> {
   const mcId = await getMcLineId(db);
   if (!mcId) return;
-  await linePush(mcId,
+  await linePush(mcId, lineAutomationMessage(decision,
     `📊 Monthly Recap\n────────────────────\n` +
     `เข้า Dashboard เพื่อดูสรุปประจำเดือน\n` +
-    `และวางแผน Coaching เดือนหน้าครับ`,
+    `และวางแผน Coaching เดือนหน้าครับ`),
     {
       db,
       idempotencyKey: `cron:monthly-recap:mc:${bangkokDateKey().slice(0, 7)}`,
@@ -373,7 +373,7 @@ async function monthlyRecap(db: DB): Promise<void> {
 }
 
 // ── Daily 17:00 TH: notify mentors when mentee is red/black ──
-async function mentorTeamAlert(db: DB): Promise<void> {
+async function mentorTeamAlert(db: DB, decision?: Record<string, any>): Promise<void> {
   // mentor_teams has: name, leader_name (text nick), no mentor_id UUID
   const { data: mentors } = await db.from('mentor_teams').select('name, leader_name');
   if (!mentors?.length) return;
@@ -412,7 +412,7 @@ async function mentorTeamAlert(db: DB): Promise<void> {
     const snapshotKey = await buildIdempotencyKey((members as {
       name: string; display_score: number; traffic_light: string;
     }[]).map((member) => `${member.name}:${member.display_score}:${member.traffic_light}`).sort());
-    await linePush(mentorUserId, lines.join('\n'), {
+    await linePush(mentorUserId, lineAutomationMessage(decision, lines.join('\n')), {
       db,
       idempotencyKey: `cron:mentor-alert:${team.name}:${bangkokWeekKey()}:${snapshotKey}`,
       memberId: String((mentorMember as { id: string }).id),
@@ -423,7 +423,7 @@ async function mentorTeamAlert(db: DB): Promise<void> {
 }
 
 // ── Daily 23:00 TH: remind pending 1-2-1 ─────────────────────
-async function line121AutoReminder(db: DB): Promise<void> {
+async function line121AutoReminder(db: DB, decision?: Record<string, any>): Promise<void> {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 7);
   const { data: pending } = await db.from('one_to_one_logs')
@@ -439,10 +439,10 @@ async function line121AutoReminder(db: DB): Promise<void> {
       .maybeSingle();
     const userId = (lineLink as Record<string, string> | null)?.line_user_id;
     if (!userId) continue;
-    await linePush(userId,
+    await linePush(userId, lineAutomationMessage(decision,
       `🤝 มีนัด 1-2-1 ที่ยังค้างอยู่ครับ\n` +
       `────────────────────\n` +
-      `พิมพ์ "เจอแล้ว" หลังจากพบกันแล้วนะครับ`,
+      `พิมพ์ "เจอแล้ว" หลังจากพบกันแล้วนะครับ`),
       {
         db,
         idempotencyKey: `cron:121-reminder:${String(rec.id)}:${bangkokWeekKey()}`,
@@ -455,7 +455,7 @@ async function line121AutoReminder(db: DB): Promise<void> {
 }
 
 // ── Daily: renewal expiry warnings ───────────────────────────
-async function renewalPush(db: DB): Promise<void> {
+async function renewalPush(db: DB, decision?: Record<string, any>): Promise<void> {
   const in45 = new Date(); in45.setDate(in45.getDate() + 45);
 
   const { data: expiring } = await db.from('renewals')
@@ -486,7 +486,7 @@ async function renewalPush(db: DB): Promise<void> {
       : days <= 14
       ? `💳 คุณ${nick}: สมาชิกภาพเหลือ ${days} วัน ⚠️\nหากต้องการความช่วยเหลือเรื่องการต่ออายุ ติดต่อ Mentor หรือ MC ได้เลยครับ`
       : `💳 คุณ${nick}: สมาชิกภาพเหลือ ${days} วัน\nเริ่มวางแผนการต่ออายุล่วงหน้าได้แล้วครับ`;
-    await linePush(userId, message, {
+    await linePush(userId, lineAutomationMessage(decision, message), {
       db,
       idempotencyKey: `cron:renewal:${String(rec.member_id)}:${String(rec.expiry_date)}:${milestone}`,
       memberId: String(rec.member_id),
@@ -503,7 +503,7 @@ async function purgeExpiredDismissals(db: DB): Promise<void> {
 }
 
 // ── Daily 07:00 TH: remind LT of passport sessions in 2 days ─
-async function passportLtReminder(db: DB): Promise<void> {
+async function passportLtReminder(db: DB, decision?: Record<string, any>): Promise<void> {
   const token = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || '';
   if (!token) return;
 
@@ -539,7 +539,7 @@ async function passportLtReminder(db: DB): Promise<void> {
     const ltName = String(s.assigned_lt_name || s.lt_role || '');
     const sessionTitle = String(s.title || s.lt_role || 'Passport Session');
 
-    await linePush(userId,
+    await linePush(userId, lineAutomationMessage(decision,
       `🗓️ Passport to Success — แจ้งเตือน\n` +
       `────────────────────\n` +
       (ltName ? `สวัสดีคุณ${ltName} 👋\n\n` : '') +
@@ -547,7 +547,7 @@ async function passportLtReminder(db: DB): Promise<void> {
       `👤 ${memberName}\n` +
       `📋 ${sessionTitle}\n` +
       `📅 ${targetDate}\n\n` +
-      `เจอกันที่ประชุม BNI IDEAL นะครับ 🙏`,
+      `เจอกันที่ประชุม BNI IDEAL นะครับ 🙏`),
       {
         db,
         idempotencyKey: `passport-lt-reminder:${String(s.id)}:${targetDate}`,
@@ -559,7 +559,7 @@ async function passportLtReminder(db: DB): Promise<void> {
 }
 
 // ── 1st of month 09:00 TH: personal monthly report to all LINE members ──
-async function monthlyPersonalReport(db: DB): Promise<void> {
+async function monthlyPersonalReport(db: DB, decision?: Record<string, any>): Promise<void> {
   const { data: lineMembers } = await db.from('line_members')
     .select('line_user_id, member_id, members(name, nickname)');
   if (!lineMembers?.length) return;
@@ -619,7 +619,7 @@ async function monthlyPersonalReport(db: DB): Promise<void> {
       `────────────────────\n` +
       `พิมพ์ "สถานะ" หรือเปิด LIFF ดูรายละเอียดครับ`;
 
-    await linePush(String(rec.line_user_id), msg, {
+    await linePush(String(rec.line_user_id), lineAutomationMessage(decision, msg), {
       db,
       idempotencyKey: `cron:monthly-personal:${memberId}:${monthKey}`,
       memberId,
@@ -630,7 +630,7 @@ async function monthlyPersonalReport(db: DB): Promise<void> {
 }
 
 // ── Daily 08:00 TH: visitor follow-up reminder (14 days after visit) ──
-async function visitorFollowUpReminder(db: DB): Promise<void> {
+async function visitorFollowUpReminder(db: DB, decision?: Record<string, any>): Promise<void> {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 14);
   const cutoffStr = cutoff.toISOString().split('T')[0];
@@ -652,12 +652,12 @@ async function visitorFollowUpReminder(db: DB): Promise<void> {
     const visitorName = String(v.visitor_name || 'แขก');
     const visitDate = String(v.visit_date || '');
 
-    await linePush(userId,
+    await linePush(userId, lineAutomationMessage(decision,
       `👥 ติดตามแขกพิเศษ\n` +
       `────────────────────\n` +
       `คุณพา "${visitorName}" มาร่วมประชุมเมื่อ ${visitDate}\n\n` +
       `ผ่านมา 2 สัปดาห์แล้ว — เขา/เธอสนใจสมัครเป็นสมาชิกไหมครับ?\n\n` +
-      `ถ้าสนใจ แจ้ง MC ได้เลยนะครับ 🙏`,
+      `ถ้าสนใจ แจ้ง MC ได้เลยนะครับ 🙏`),
       {
         db,
         idempotencyKey: `cron:visitor-followup:${String(v.id)}:${visitDate}`,

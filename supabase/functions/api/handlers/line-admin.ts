@@ -2592,6 +2592,30 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       return jsonResponse({ ok: true, automationKey, enabled });
     }
 
+    case 'setLineAutomationMessage': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.isAdmin) return errResponse('เฉพาะ Chapter Admin เท่านั้นที่แก้ข้อความอัตโนมัติได้', 403);
+      const automationKey = txt(p.automationKey);
+      if (!automationKey || automationKey.startsWith('observed:')) return errResponse('รายการนี้ต้องแก้จาก workflow ต้นทาง');
+      const customMessage = txt(p.customMessage).slice(0, 5000);
+      const actor = txt(auth.displayName || auth.role || 'admin');
+      const { data: current, error: readError } = await db.from('line_automation_controls')
+        .select('automation_key,name,custom_message').eq('automation_key', automationKey).maybeSingle();
+      if (readError) return errResponse(readError.message);
+      if (!current) return errResponse('ไม่พบรายการอัตโนมัตินี้');
+      const { error } = await db.from('line_automation_controls').update({
+        custom_message: customMessage || null, updated_at: new Date().toISOString(), updated_by: actor,
+      }).eq('automation_key', automationKey);
+      if (error) return errResponse(error.message);
+      await db.from('chapter_audit_events').insert({
+        event_type: 'line_automation_message_updated', actor_role: auth.role || 'admin', actor_ref: actor,
+        subject_type: 'line_automation', subject_ref: automationKey,
+        metadata: { custom: Boolean(customMessage), length: customMessage.length },
+      });
+      return jsonResponse({ ok: true, automationKey, customMessage: customMessage || null });
+    }
+
     case 'applyLineAutomationPreset': {
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
