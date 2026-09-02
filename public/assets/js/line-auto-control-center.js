@@ -17,7 +17,7 @@
       +'<span class="lac-tag decision-'+e(x.decision)+'">'+e(decisionLabel(x.decision))+' · '+e(x.value_score||0)+'/100</span>'
       +'<span class="lac-tag kind-'+e(x.delivery_kind)+'">'+e(kindLabel(x.delivery_kind))+'</span>'
       +'<span class="lac-tag '+e(x.importance)+'">'+e(x.importance)+'</span><span class="lac-tag">Quota '+e(x.quota_impact)+'</span>'+(x.custom_message?'<span class="lac-tag lac-custom">แก้ข้อความแล้ว</span>':'')+'</div></div>'
-      +'<button class="lac-toggle '+(enabled?'on':'')+'" '+((!canEdit||protectedFlag)?'disabled':'')+' onclick="lineAutoToggle(\''+e(x.automation_key)+'\','+(!enabled)+')">'+(protectedFlag?'🔒 จำเป็น':enabled?'เปิดอยู่':'ปิดอยู่')+'</button></div>'
+      +'<button class="lac-toggle '+(enabled?'on':'')+'" '+((!canEdit||protectedFlag)?'disabled':'')+' onclick="lineAutoToggle(\''+e(x.automation_key)+'\','+(!enabled)+')">'+(protectedFlag?(enabled?'🔒 งานระบบ':'🔒 ปิดตามนโยบาย'):enabled?'เปิดอยู่':'ปิดอยู่')+'</button></div>'
       +'<dl class="lac-detail"><dt>เวลา</dt><dd>'+e(x.schedule_label)+'</dd><dt>ผู้รับ</dt><dd>'+e(x.audience)+'</dd><dt>เหตุผล</dt><dd>'+e(x.purpose)+'</dd>'
       +'<dt>30 วัน</dt><dd>ส่ง '+e(s.sent||0)+' · ล้มเหลว '+e(s.failed||0)+' · ระงับ '+e(s.suppressed||0)+'</dd>'
       +'<dt>ผลต่อเนื่อง</dt><dd>'+e(s.actions||0)+' คนมี Action ภายใน 72 ชม. ('+e(s.actionRate||0)+'%)'+(s.messagesPerAction?' · '+e(s.messagesPerAction)+' msg/action':'')+'</dd>'

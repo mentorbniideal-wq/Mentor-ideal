@@ -1,9 +1,11 @@
 -- Essential-only LINE policy.
--- Keep system jobs and targeted workflows with a clear, time-sensitive action.
--- Broad informational summaries remain available in the Dashboard instead.
+-- Keep coordinator/system jobs enabled because they do not send messages themselves.
+-- Everything else starts disabled unless it has a clear, time-sensitive next action.
 
 UPDATE public.line_automation_controls
 SET enabled = automation_key IN (
+      'mondayMorningBrief',
+      'fridayEveningReminder',
       'wednesdayNudge',
       'mentorTeamAlert',
       'line121AutoReminder',
@@ -17,6 +19,8 @@ SET enabled = automation_key IN (
     updated_by = 'system:essential-only-policy'
 WHERE protected = false
    OR automation_key IN (
+      'mondayMorningBrief',
+      'fridayEveningReminder',
       'wednesdayNudge',
       'mentorTeamAlert',
       'line121AutoReminder',

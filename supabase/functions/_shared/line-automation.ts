@@ -8,8 +8,11 @@ export async function lineAutomationDecision(db: DbClient, automationKey: string
   // Fail open during migration rollout so a missing table never breaks critical jobs.
   if (error || !data) return { allowed: true, reason: error ? 'control_unavailable' : 'not_catalogued' };
   return {
-    allowed: Boolean(data.enabled) || Boolean(data.protected),
-    reason: data.enabled ? 'enabled' : data.protected ? 'protected' : 'disabled_by_admin',
+    // `protected` only locks the control against operator edits. It must not
+    // override `enabled`, otherwise a protected control displayed as OFF still
+    // executes and the control center ceases to be a reliable source of truth.
+    allowed: Boolean(data.enabled),
+    reason: data.enabled ? 'enabled' : data.protected ? 'disabled_by_policy' : 'disabled_by_admin',
     control: data,
   };
 }
