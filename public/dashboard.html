@@ -680,11 +680,13 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
             </div>
             <select id="line-activity-view" onchange="loadLineActivityTimeline(true)" style="background:var(--sf);border:1px solid var(--bd);border-radius:7px;color:var(--tx);padding:5px 9px;font-size:11px;outline:none">
               <option value="actionable">📥 Mentor Inbox · ต้องดูแล</option>
+              <option value="unrecognized">🧠 คำที่บอทไม่เข้าใจ</option>
               <option value="conversation">💬 คำสั่งและบทสนทนากับบอท</option>
               <option value="all">🗃 ประวัติระบบทั้งหมด</option>
             </select>
             <select id="line-activity-type" onchange="loadLineActivityTimeline(true)" style="background:var(--sf);border:1px solid var(--bd);border-radius:7px;color:var(--tx);padding:5px 9px;font-size:11px;outline:none">
               <option value="">ทุกประเภท</option>
+              <option value="unrecognized">คำที่บอทไม่เข้าใจ</option>
               <option value="command_received">Member พิมพ์</option>
               <option value="absence">แจ้งลา</option>
               <option value="substitute">ส่ง Sub</option>

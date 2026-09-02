@@ -948,7 +948,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       const limit = Math.min(160, Math.max(20, Number(p.limit) || 80));
       const filterType = String(p.type || '').trim();
       const filterTeam = String(p.team || '').trim();
-      const view = ['actionable', 'conversation', 'all'].includes(String(p.view || ''))
+      const view = ['actionable', 'unrecognized', 'conversation', 'all'].includes(String(p.view || ''))
         ? String(p.view)
         : 'actionable';
       const allowedTeam = auth.isMC || auth.role === 'growth'
@@ -1030,8 +1030,8 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
           ? 'command_replied'
           : 'command_received';
         const member = memberFromJoined(row);
-        const text = type === 'unrecognized'
-          ? 'ข้อความนี้ไม่ได้ส่งต่อให้ Mentor และไม่เก็บเนื้อหาใน Activity'
+        const text = type === 'unrecognized' && !props.textPreview
+          ? 'ข้อความเก่ารายการนี้เกิดก่อนระบบเริ่มเก็บคำที่บอทไม่เข้าใจ'
           : String(props.textPreview || props.replyPreview || props.commandName || eventName || '');
         pushItem({
           id: `evt:${row.id}`,
@@ -1046,7 +1046,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
           detail: text,
           status: type === 'unrecognized' ? 'ไม่ได้ส่งถึง Mentor'
             : eventName === 'line_command_received' && props.isRegistered === false ? 'ยังไม่เชื่อมบัญชี' : 'บันทึกแล้ว',
-          rawText: type === 'unrecognized' ? '' : String(props.textPreview || ''),
+          rawText: String(props.textPreview || ''),
           ...member,
         });
       }
@@ -1130,6 +1130,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       const visibleItems = items.filter(item => {
         const type = String(item.type || '');
         if (view === 'all') return true;
+        if (view === 'unrecognized') return type === 'unrecognized';
         if (view === 'conversation') {
           return ['command_received', 'command_replied', 'unrecognized', 'issue'].includes(type);
         }

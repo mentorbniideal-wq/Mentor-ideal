@@ -1760,8 +1760,10 @@ function lineActivityCard(it){
   var title=it.title||meta.hint;
   var detail=String(it.detail||'').trim();
   var raw=String(it.rawText||'').trim();
+  var isUnknown=String(it.type||'')==='unrecognized';
   var shortDetail=detail?esc(detail.slice(0,260)):'';
-  var rawLine=raw&&raw!==detail?'<div style="font-size:10px;color:var(--sub);margin-top:8px;line-height:1.5">พิมพ์จริง: <code style="background:var(--sf2);border:1px solid var(--bd);border-radius:6px;padding:2px 5px;color:var(--tx)">'+esc(raw.slice(0,120))+'</code></div>':'';
+  var unknownText=isUnknown&&raw?'<div style="margin-top:11px;background:rgba(251,146,60,.10);border:1px solid rgba(251,146,60,.38);border-radius:12px;padding:12px 13px"><div style="font-size:10px;font-weight:900;color:#fb923c;margin-bottom:5px">ข้อความที่ Member พิมพ์จริง</div><div style="font-size:20px;font-weight:900;color:var(--tx);line-height:1.45;white-space:pre-wrap;word-break:break-word">'+esc(raw.slice(0,300))+'</div></div>':'';
+  var rawLine=!isUnknown&&raw&&raw!==detail?'<div style="font-size:10px;color:var(--sub);margin-top:8px;line-height:1.5">พิมพ์จริง: <code style="background:var(--sf2);border:1px solid var(--bd);border-radius:6px;padding:2px 5px;color:var(--tx)">'+esc(raw.slice(0,120))+'</code></div>':'';
   var status=lineActivityStatusPill(it.status,meta.tone);
   var action=it.action==='followup'?'<button class="bsm" onclick="openActionCenter(\'inbox\')" style="margin-top:10px;color:#fbbf24;border-color:rgba(251,191,36,.4)">เปิด Follow-up Inbox →</button>':'';
   return '<article style="position:relative;background:var(--sf);border:1px solid var(--bd);border-left:4px solid '+meta.tone+';border-radius:14px;padding:13px 14px;box-shadow:0 10px 26px rgba(0,0,0,.10);overflow:hidden">'
@@ -1776,8 +1778,8 @@ function lineActivityCard(it){
         +'</div>'
         +'<div style="font-size:14px;font-weight:900;color:var(--tx);line-height:1.35;word-break:break-word">'+esc(name)+'</div>'
         +'<div style="font-size:11px;color:var(--sub);line-height:1.5;margin-top:3px">'+esc(title)+'</div>'
-        +(shortDetail?'<div style="margin-top:10px;background:var(--sf2);border:1px solid var(--bd);border-radius:11px;padding:9px 10px;font-size:12px;color:var(--tx);line-height:1.6;white-space:pre-wrap;word-break:break-word">'+shortDetail+'</div>':'')
-        +rawLine+action
+        +(!isUnknown&&shortDetail?'<div style="margin-top:10px;background:var(--sf2);border:1px solid var(--bd);border-radius:11px;padding:9px 10px;font-size:12px;color:var(--tx);line-height:1.6;white-space:pre-wrap;word-break:break-word">'+shortDetail+'</div>':'')
+        +unknownText+rawLine+action
       +'</div>'
       +(status?'<div style="flex:0 0 auto;position:relative">'+status+'</div>':'')
     +'</div>'

@@ -179,8 +179,9 @@ async function handleEvent(
     properties: {
       command: normalized.split(/\s+/)[0].slice(0, 30),
       commandName: parsedCommand.name,
-      // Free text is not a Mentor inbox. Keep support/unknown content out of analytics.
-      textPreview: ['unknown', 'contact-mentor'].includes(parsedCommand.name) ? '' : safeLineTextPreview(text),
+      // Unknown text is retained as a short admin-only learning sample. It is never
+      // forwarded to Mentor; contact-mentor content lives in the protected issue inbox.
+      textPreview: parsedCommand.name === 'contact-mentor' ? '' : safeLineTextPreview(text),
       argumentPreview: ['unknown', 'contact-mentor'].includes(parsedCommand.name) ? '' : safeLineTextPreview(parsedCommand.argument),
       textLength: text.length,
       isRegistered: Boolean(memberName),
