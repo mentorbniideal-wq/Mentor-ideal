@@ -144,6 +144,12 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
   }
 
   if (action === 'setWeekly121PairLock') { const id=String(p.pairId||'');const {data:pair}=await db.from('matching_pairs').select('round_id,matching_rounds!inner(status)').eq('id',id).maybeSingle();if(!pair)return errResponse('ไม่พบคู่');const relation=(pair as Record<string,unknown>).matching_rounds as Record<string,unknown>|null;if(String(relation?.status||'')!=='draft')return errResponse('ล็อกหรือปลดล็อกได้เฉพาะรอบร่าง');const {error}=await db.from('matching_pairs').update({is_locked:Boolean(p.locked)}).eq('id',id); return error?errResponse(error.message):jsonResponse({ok:true}); }
+  if(action==='setWeekly121RoundLock'){
+    const roundId=String(p.roundId||''),locked=Boolean(p.locked);const {data:round}=await db.from('matching_rounds').select('status').eq('id',roundId).maybeSingle();
+    if(!round)return errResponse('ไม่พบรอบจับคู่');if(String((round as Record<string,unknown>).status)!=='draft')return errResponse('ล็อกหรือปลดล็อกได้เฉพาะรอบร่าง');
+    const {count}=await db.from('matching_pairs').select('id',{count:'exact',head:true}).eq('round_id',roundId);if(!count)return errResponse('กรุณาสุ่มคู่ก่อน');
+    const {error}=await db.from('matching_pairs').update({is_locked:locked}).eq('round_id',roundId);return error?errResponse(error.message):jsonResponse({ok:true,locked,count});
+  }
   if(action==='getWeekly121MessageTemplates')return jsonResponse({ok:true,templates:MESSAGE_TEMPLATES});
   if(action==='setWeekly121MessageTemplate'){
     const roundId=String(p.roundId||''),key=templateKey(p.templateKey);const {data:round}=await db.from('matching_rounds').select('status').eq('id',roundId).maybeSingle();if(!round)return errResponse('ไม่พบรอบจับคู่');if(String((round as Record<string,unknown>).status)!=='draft')return errResponse('เปลี่ยน Template ได้เฉพาะรอบร่าง');const {error}=await db.from('matching_rounds').update({message_template_key:key}).eq('id',roundId);return error?errResponse(error.message):getRound(db,roundId);
@@ -265,7 +271,8 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
     const roundId=String(p.roundId||''); const dryRun=p.dryRun!==false; const testMode=Boolean(p.testMode);
     const detail=await loadDetail(db,roundId); if(!detail)return errResponse('ไม่พบรอบจับคู่');
     if(!dryRun && !Boolean(p.confirmed))return errResponse('ต้องยืนยันก่อนส่ง LINE');
-    const previews=buildPreviews(detail.pairs,detail.looking,String((detail.round as Record<string,unknown>).message_template_key||'growth_opportunity'));const guardedPreviews=await Promise.all(previews.map(async item=>({...item,guard:await evaluateNotificationGuard(db,{memberId:item.recipient.id,module:'one_to_one',category:testMode?'weekly_121_test':'weekly_121_matching',priority:'action_required'})})));
+    if(detail.pairs.some((pair:Record<string,unknown>)=>!pair.is_locked))return errResponse('กรุณากด “ล็อกคู่ทั้งหมด” ก่อน Preview และส่ง LINE',409);
+    const previews=buildPreviews(detail.pairs,detail.looking,String((detail.round as Record<string,unknown>).message_template_key||'growth_opportunity'));const guardedPreviews=await Promise.all(previews.map(async item=>{const guard=await evaluateNotificationGuard(db,{memberId:item.recipient.id,module:'one_to_one',category:testMode?'weekly_121_test':'weekly_121_matching',priority:'action_required'});return{...item,guard:guard.reason==='daily_cap'?{...guard,allowed:true,reason:'admin_confirmed_121'}:guard};}));
     if(dryRun)return jsonResponse({ok:true,dryRun:true,testMode,previews:guardedPreviews,messageCount:guardedPreviews.filter(x=>x.guard.allowed&&hasUsableLineId(x.lineUserId)).length,suppressed:guardedPreviews.filter(x=>!x.guard.allowed).map(x=>({name:x.recipient.name,reason:x.guard.reason})),unsendable:guardedPreviews.filter(x=>!hasUsableLineId(x.lineUserId)).map(x=>x.recipient.name),budget:guardedPreviews[0]?.guard||null});
     if(!guardedPreviews.length)return errResponse('รอบนี้ยังไม่มีคู่สำหรับส่ง LINE');
     if(!guardedPreviews.some(x=>x.guard.allowed&&hasUsableLineId(x.lineUserId)))return errResponse('ไม่มีผู้รับที่ผ่านเงื่อนไขการส่ง กรุณาตรวจ Pilot, LINE และ Message Guard',409);
