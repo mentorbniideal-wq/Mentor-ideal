@@ -205,6 +205,16 @@
       <!-- ─ Zone B : Today's Focus ─ -->
       <div id="mc-focus"></div>
 
+      <!-- Member requests submitted through LINE belong on the main dashboard. -->
+      <section style="background:var(--sf2);border:1px solid var(--bd);border-radius:14px;overflow:hidden;margin:0 0 20px">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px">
+          <span style="font-size:13px;font-weight:800;flex:1">⚠️ Core Issues · แจ้งผ่าน LINE</span>
+          <span style="font-size:11px;color:var(--ye);font-weight:800" id="line-issues-count">—</span>
+          <button class="bsm" onclick="loadLineIssues(true)" style="font-size:11px">↺</button>
+        </div>
+        <div id="line-issues-wrap"><div style="color:var(--sub);font-size:12px;text-align:center;padding:20px">กำลังโหลดเรื่องที่สมาชิกแจ้ง…</div></div>
+      </section>
+
       <hr class="ov-divider">
 
       <!-- ─ Zone C : Charts ─ -->
@@ -334,7 +344,7 @@
     <!-- MC Messages -->
     <div id="mc-msg" class="sec">
       <div class="mco">
-        <h3>📨 ส่งข้อความถึงสมาชิก</h3>
+        <h3>📤 ส่งข้อความส่วนตัว</h3>
         <div class="tmpl-bar">
           <span style="font-size:10px;color:var(--sub)">Templates:</span>
           <button class="tmpl-btn" onclick="useTmpl(0)">ขาดประชุม</button>
@@ -350,6 +360,17 @@
           <button class="bsend" id="bsnd" onclick="sendMsg()">ส่ง</button>
         </div>
         <div id="msgRes" style="font-size:12px;margin-top:7px"></div>
+      </div>
+      <div class="mco" style="margin-top:16px">
+        <h3>📢 Broadcast ทุกคน / ทีม</h3>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+          <select id="line-bc-team" style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;color:var(--tx);font-size:12px;outline:none">
+            <option value="">ทุกคนที่เชื่อม LINE</option>
+            <option>TOOMTAM</option><option>Aof</option><option>Draft</option><option>PHAI</option><option>AMP</option>
+          </select>
+          <textarea id="line-bc-text" rows="3" placeholder="ข้อความ Broadcast…" style="width:100%;box-sizing:border-box;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:9px 10px;color:var(--tx);font-size:12px;resize:vertical;outline:none;font-family:Sarabun,sans-serif"></textarea>
+          <button onclick="deskSendBroadcast()" style="align-self:flex-end;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.4);color:var(--ye);border-radius:8px;padding:7px 18px;font-size:12px;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif">ตรวจและส่ง Broadcast</button>
+        </div>
       </div>
       <div class="mco" style="margin-top:16px">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
@@ -775,89 +796,6 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
           </div>
           <div id="absence-wrap">
             <div style="color:var(--sub);font-size:12px;text-align:center;padding:20px">กด "📱 Activity" เพื่อโหลด</div>
-          </div>
-        </div>
-
-        <!-- ⚠️ LINE Issues -->
-        <div style="background:var(--sf2);border-radius:12px;overflow:hidden;margin-bottom:16px">
-          <div style="padding:12px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px">
-            <span style="font-size:13px;font-weight:700;flex:1">⚠️ Core Issues (แจ้งผ่าน LINE)</span>
-            <span style="font-size:11px;color:var(--ye);font-weight:700" id="line-issues-count">—</span>
-            <button class="bsm" onclick="loadLineIssues(true)" style="font-size:11px">↺</button>
-          </div>
-          <div id="line-issues-wrap">
-            <div style="color:var(--sub);font-size:12px;text-align:center;padding:20px">กด "📱 Activity" เพื่อโหลด</div>
-          </div>
-        </div>
-
-        <!-- 📊 1-2-1 Tracker -->
-        <div style="background:var(--sf2);border-radius:12px;overflow:hidden;margin-bottom:16px">
-          <div style="padding:12px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px">
-            <span style="font-size:13px;font-weight:700;flex:1">🤝 1-2-1 Tracker</span>
-            <span style="font-size:11px;color:#34d399;font-weight:700" id="tracker-121-count">—</span>
-            <button class="bsm" onclick="load121Tracker(true)" style="font-size:11px">↺</button>
-          </div>
-          <div id="tracker-121-stats" style="padding:10px 16px;display:none;gap:16px;flex-wrap:wrap"></div>
-          <div id="tracker-121-wrap">
-            <div style="color:var(--sub);font-size:12px;text-align:center;padding:20px">กด "📱 Activity" เพื่อโหลด</div>
-          </div>
-        </div>
-
-        <!-- 📤 Direct Message -->
-        <div style="background:var(--sf2);border-radius:12px;overflow:hidden;margin-bottom:16px">
-          <div style="padding:12px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px">
-            <span style="font-size:13px;font-weight:700;flex:1">📤 ส่งข้อความส่วนตัว</span>
-          </div>
-          <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">
-            <div style="display:flex;gap:8px;align-items:center">
-              <span style="font-size:12px;color:var(--sub);min-width:40px">ถึง:</span>
-              <select id="line-dm-member" style="flex:1;background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;color:var(--tx);font-size:12px;outline:none">
-                <option value="">— เลือกสมาชิก —</option>
-              </select>
-            </div>
-            <textarea id="line-dm-text" rows="3" placeholder="พิมพ์ข้อความ..." style="width:100%;box-sizing:border-box;background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;color:var(--tx);font-size:12px;resize:vertical;outline:none;font-family:Sarabun,sans-serif"></textarea>
-            <button onclick="deskSendDM()" style="align-self:flex-end;background:rgba(6,199,85,.15);border:1px solid rgba(6,199,85,.4);color:#06C755;border-radius:8px;padding:7px 18px;font-size:12px;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif">📤 ส่ง</button>
-          </div>
-        </div>
-
-        <!-- 📢 Broadcast -->
-        <div style="background:var(--sf2);border-radius:12px;overflow:hidden;margin-bottom:16px">
-          <div style="padding:12px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px">
-            <span style="font-size:13px;font-weight:700;flex:1">📢 Broadcast ทุกคน / ทีม</span>
-          </div>
-          <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">
-            <div style="display:flex;gap:8px;align-items:center">
-              <span style="font-size:12px;color:var(--sub);min-width:40px">ส่งถึง:</span>
-              <select id="line-bc-team" style="flex:1;background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;color:var(--tx);font-size:12px;outline:none">
-                <option value="">ทุกคน (All LINE Members)</option>
-                <option>TOOMTAM</option><option>Aof</option><option>Draft</option><option>PHAI</option><option>AMP</option>
-              </select>
-            </div>
-            <textarea id="line-bc-text" rows="3" placeholder="พิมพ์ข้อความ Broadcast..." style="width:100%;box-sizing:border-box;background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;color:var(--tx);font-size:12px;resize:vertical;outline:none;font-family:Sarabun,sans-serif"></textarea>
-            <button onclick="deskSendBroadcast()" style="align-self:flex-end;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.4);color:var(--ye);border-radius:8px;padding:7px 18px;font-size:12px;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif">📢 Broadcast</button>
-          </div>
-        </div>
-
-        <!-- 🤝 1-2-1 Introduction -->
-        <div style="background:var(--sf2);border-radius:12px;overflow:hidden;margin-bottom:16px">
-          <div style="padding:12px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px">
-            <span style="font-size:13px;font-weight:700;flex:1">🤝 แนะนำ 1-2-1</span>
-            <span style="font-size:11px;color:var(--sub)">ส่ง Introduction ให้ 2 คน</span>
-          </div>
-          <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">
-            <div style="display:flex;gap:8px;align-items:center">
-              <span style="font-size:12px;color:var(--sub);min-width:40px">คนที่ 1:</span>
-              <select id="line-intro-m1" style="flex:1;background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;color:var(--tx);font-size:12px;outline:none">
-                <option value="">— เลือกสมาชิก —</option>
-              </select>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center">
-              <span style="font-size:12px;color:var(--sub);min-width:40px">คนที่ 2:</span>
-              <select id="line-intro-m2" style="flex:1;background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;color:var(--tx);font-size:12px;outline:none">
-                <option value="">— เลือกสมาชิก —</option>
-              </select>
-            </div>
-            <button onclick="deskSendIntro()" style="align-self:flex-end;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818cf8;border-radius:8px;padding:7px 18px;font-size:12px;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif">🤝 ส่ง Introduction</button>
           </div>
         </div>
 

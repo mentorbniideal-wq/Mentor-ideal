@@ -502,6 +502,7 @@ function renderMCAll(){
   renderGWBadge();
   loadNotifications();
   loadLineQuota();
+  loadLineIssues();
   if(typeof loadUnifiedFollowUpInbox==='function')loadUnifiedFollowUpInbox();
   if(S.isAdmin)loadChapterOpsOverview();
 }
@@ -995,13 +996,10 @@ function renderCommandRail(riskCount,reportCount,renewalCount,lineIssueCount){
 }
 
 function openLineIssueCenter(){
-  var tab=null;
-  document.querySelectorAll('#mc-tabs .tb').forEach(function(t){if(t.textContent.indexOf('Activity')>=0)tab=t;});
-  if(tab)sw('mc-usage',tab,'mc');
-  var lineTab=document.getElementById('act-tab-line');
-  if(lineTab)actSw('line',lineTab);
+  var tab=document.querySelector('#mc-tabs .tb');
+  sw('mc-ov',tab,'mc');
   loadLineIssues(true);
-  loadLineActivityTimeline(true);
+  setTimeout(function(){var el=document.getElementById('line-issues-wrap');if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},80);
 }
 
 // ══ ZONE D: Intelligence Grid ══════════════════════════════
@@ -1549,8 +1547,6 @@ function loadUsageLog(force){
   loadLineActivityTimeline(force);
   loadOnboardingStatus(force);
   loadAbsenceLog(force);
-  loadLineIssues(force);
-  load121Tracker(force);
 }
 
 // ════════ DESKTOP CHECK-IN ════════
@@ -9537,7 +9533,7 @@ function loadDeskLineMembers() {
 
 function _populateLineMemberSelects() {
   var names = Object.keys(D.lineMembers||{}).sort();
-  ['line-dm-member','line-intro-m1','line-intro-m2','mc-line-id-member'].forEach(function(id) {
+  ['mc-line-id-member'].forEach(function(id) {
     var sel = document.getElementById(id);
     if (!sel) return;
     var first = sel.options[0];
@@ -9552,19 +9548,6 @@ function _populateLineMemberSelects() {
   _populateLinkMemberSelect();
 }
 
-function deskSendDM() {
-  var member = (document.getElementById('line-dm-member').value||'').trim();
-  var text   = (document.getElementById('line-dm-text').value||'').trim();
-  if (!member) { toast('เลือกสมาชิกก่อนครับ','err'); return; }
-  if (!text)   { toast('พิมพ์ข้อความก่อนครับ','err'); return; }
-  gsr('sendLineMessage',{role:S.role,memberName:member,message:text},function(r){
-    if (!r.ok) { toast(r.error||'ส่งไม่สำเร็จ','err'); return; }
-    if (!r.sent) { toast('⚠️ '+member+' ยังไม่ได้ลงทะเบียน LINE Bot ครับ','err'); return; }
-    toast('📲 ส่งถึง '+member+' แล้ว ✅','ok');
-    document.getElementById('line-dm-text').value='';
-  });
-}
-
 function deskSendBroadcast() {
   var team = (document.getElementById('line-bc-team').value||'').trim();
   var text = (document.getElementById('line-bc-text').value||'').trim();
@@ -9575,18 +9558,6 @@ function deskSendBroadcast() {
     if (!r.ok) { toast(r.error||'ส่งไม่สำเร็จ','err'); return; }
     toast('📢 ส่งถึง '+(r.sentCount||r.sent||0)+' คน ✅','ok');
     document.getElementById('line-bc-text').value='';
-  });
-}
-
-function deskSendIntro() {
-  var m1 = (document.getElementById('line-intro-m1').value||'').trim();
-  var m2 = (document.getElementById('line-intro-m2').value||'').trim();
-  if (!m1 || !m2) { toast('เลือกสมาชิก 2 คนก่อนครับ','err'); return; }
-  if (m1===m2) { toast('ต้องเลือกคนละคนครับ','err'); return; }
-  gsr('sendLineIntro',{role:S.role,name1:m1,name2:m2},function(r){
-    if (!r.ok) { toast(r.error||'ส่งไม่สำเร็จ','err'); return; }
-    if (!r.sent) { toast('⚠️ ไม่พบ LINE ID ของสมาชิกทั้งคู่ครับ','err'); return; }
-    toast('🤝 แนะนำ '+(r.sentTo||[]).join(' & ')+' แล้ว ✅','ok');
   });
 }
 
@@ -9662,51 +9633,6 @@ function deskTriggerChapterPulse() {
   gsr('triggerChapterPulse',{role:S.role},function(r){
     if (r&&r.ok) toast('🏆 Chapter Pulse ส่งให้ MC แล้ว ✅','ok');
     else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');
-  });
-}
-
-var _tracker121Loaded = false;
-function load121Tracker(force) {
-  if (_tracker121Loaded && !force) return;
-  document.getElementById('tracker-121-wrap').innerHTML='<div style="color:var(--sub);font-size:12px;text-align:center;padding:20px">⏳ กำลังโหลด...</div>';
-  gsr('get121Tracker',{role:S.role},function(r){
-    _tracker121Loaded = true;
-    var wrap  = document.getElementById('tracker-121-wrap');
-    var cntEl = document.getElementById('tracker-121-count');
-    var statsEl = document.getElementById('tracker-121-stats');
-    if (!r||!r.ok){ wrap.innerHTML='<div style="color:var(--re);padding:16px;font-size:12px">❌ '+(r&&r.error||'error')+'</div>'; return; }
-    var list = r.list||[]; var stats = r.stats||{};
-    cntEl.textContent = list.length+' ครั้ง';
-    if (stats.total) {
-      statsEl.style.display='flex';
-      statsEl.innerHTML = [
-        {v:stats.total,    l:'ทั้งหมด', c:'var(--sub)'},
-        {v:stats.pending,  l:'รอยืนยัน',c:'var(--ye)'},
-        {v:stats.met,      l:'เจอแล้ว', c:'#60a5fa'},
-        {v:stats.gotRef,   l:'ได้ Ref',  c:'var(--gr)'},
-        {v:(stats.convRate||0)+'%', l:'Conversion', c:'#a78bfa'}
-      ].map(function(s){
-        return '<div style="background:var(--sf);border-radius:8px;padding:6px 10px;text-align:center;flex:1;min-width:60px">'
-          +'<div style="font-size:15px;font-weight:700;color:'+s.c+'">'+s.v+'</div>'
-          +'<div style="font-size:9px;color:var(--sub)">'+s.l+'</div></div>';
-      }).join('');
-    }
-    if (!list.length) { wrap.innerHTML='<div style="color:var(--sub);font-size:12px;text-align:center;padding:20px">ยังไม่มีการบันทึก 1-2-1</div>'; return; }
-    var statusColor={'นัดแล้ว':'var(--ye)','เจอแล้ว':'#60a5fa','ยกเลิก':'var(--sub)'};
-    var outcomeIcon={'ได้ Referral':'🎊','มีโอกาส':'🌱','ยังคุยอยู่':'💬','ไม่ได้อะไร':'📝',''  :'—'};
-    var rows = list.slice(0,30).map(function(i){
-      var sc = statusColor[i.status]||'var(--sub)';
-      var oi = outcomeIcon[i.outcome]!==undefined ? outcomeIcon[i.outcome] : '📝';
-      return '<tr>'
-        +'<td style="font-size:11px;color:var(--sub)">'+esc(i.date.slice(0,10))+'</td>'
-        +'<td style="font-weight:600;font-size:12px">'+esc(i.nick||i.name.split(' ')[0])+'</td>'
-        +'<td style="font-size:10px;font-weight:700;color:#fb923c">'+esc(i.team)+'</td>'
-        +'<td style="font-size:12px">'+esc(i.partner.split(' ')[0])+'<br><span style="font-size:9px;color:var(--sub)">'+esc(i.partnerTeam)+'</span></td>'
-        +'<td><span style="font-size:10px;font-weight:700;color:'+sc+'">'+esc(i.status)+'</span></td>'
-        +'<td style="font-size:13px;text-align:center">'+oi+'<br><span style="font-size:9px;color:var(--sub)">'+esc(i.outcome||'—')+'</span></td>'
-        +'</tr>';
-    }).join('');
-    wrap.innerHTML='<table class="usage-log-tbl"><thead><tr><th>วันที่</th><th>สมาชิก</th><th>ทีม</th><th>นัดกับ</th><th>สถานะ</th><th>ผล</th></tr></thead><tbody>'+rows+'</tbody></table>';
   });
 }
 
