@@ -15,6 +15,7 @@ import {
   type RichMenuRole,
 } from '../../_shared/line-rich-menu.ts';
 import { trackLineEvent } from '../../_shared/analytics.ts';
+import { lineAutomationDefaultPreview } from '../../_shared/line-automation-preview.ts';
 
 // ── Unified LINE Push helper — no-op when token is absent (dev mode) ──
 const LINE_TOKEN = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || '';
@@ -2506,6 +2507,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       }
       const controls: Record<string, unknown>[] = ((controlsRes.data || []) as Record<string, unknown>[]).map((row) => ({
         ...row,
+        ...lineAutomationDefaultPreview(txt(row.automation_key)),
         stats: aggregate[txt(row.notification_type)]
           ? (() => { const a = aggregate[txt(row.notification_type)]; const recipients = a.recipients.size; return {
               sent: a.sent, failed: a.failed, suppressed: a.suppressed, total: a.total, lastSentAt: a.lastSentAt, latestPreview: a.latestPreview,
@@ -2536,6 +2538,9 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
           duplicate_note: 'ยังไม่ได้จัดประเภท เพราะเพิ่งค้นพบจาก Delivery Log',
           enabled: true, protected: true,
           recommendation: 'รายการนี้ค้นพบจาก Delivery Log หากต้องการปิดควรแก้ที่ workflow ต้นทางเพื่อไม่ให้กระทบงานสมาชิก',
+          defaultPreview: stats.latestPreview || 'พบการส่งข้อความจากระบบ แต่ยังไม่มีตัวอย่างข้อความที่บันทึกไว้',
+          previewNote: stats.latestPreview ? 'ตัวอย่างจากข้อความที่ส่งจริงล่าสุด' : 'พบจาก Delivery Log · ยังไม่มีข้อความตัวอย่าง',
+          sendsLine: true,
           updated_at: '', updated_by: '',
           stats: { sent: stats.sent, failed: stats.failed, suppressed: stats.suppressed, total: stats.total,
             lastSentAt: stats.lastSentAt, latestPreview: stats.latestPreview, sources, recipients: stats.recipients.size, actions: stats.acted.size,
@@ -2598,6 +2603,9 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       if (!auth.isAdmin) return errResponse('เฉพาะ Chapter Admin เท่านั้นที่แก้ข้อความอัตโนมัติได้', 403);
       const automationKey = txt(p.automationKey);
       if (!automationKey || automationKey.startsWith('observed:')) return errResponse('รายการนี้ต้องแก้จาก workflow ต้นทาง');
+      if (!lineAutomationDefaultPreview(automationKey).sendsLine) {
+        return errResponse('รายการนี้เป็นงานระบบเบื้องหลังและไม่มีข้อความ LINE ให้แก้ไข');
+      }
       const customMessage = txt(p.customMessage).slice(0, 5000);
       const actor = txt(auth.displayName || auth.role || 'admin');
       const { data: current, error: readError } = await db.from('line_automation_controls')
