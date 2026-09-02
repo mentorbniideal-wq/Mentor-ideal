@@ -25,13 +25,16 @@ export function oneToOneGoogleCalendarUrl(event: CalendarEvent121): string {
   return `https://calendar.google.com/calendar/render?${query}`;
 }
 
-export function notificationBudgetDecision(input:{monthlyUsed:number;monthlyQuota:number;priority:'critical'|'action_required'|'reminder'|'informational';dailyCount:number;weeklyReminderCount:number;hoursSinceLast:number;quietHours:boolean;duplicate:boolean;actionComplete:boolean}) {
+export function notificationBudgetDecision(input:{monthlyUsed:number;monthlyQuota:number;priority:'critical'|'action_required'|'reminder'|'informational';dailyCount:number;weeklyReminderCount:number;hoursSinceLast:number;quietHours:boolean;duplicate:boolean;actionComplete:boolean;dailyCap?:number;weeklyReminderCap?:number;cooldownHours?:number}) {
+  const dailyCap = Math.max(1, Number(input.dailyCap ?? 1));
+  const weeklyReminderCap = Math.max(1, Number(input.weeklyReminderCap ?? 3));
+  const cooldownHours = Math.max(0, Number(input.cooldownHours ?? 20));
   if (input.actionComplete) return {allowed:false,reason:'action_completed'};
   if (input.duplicate) return {allowed:false,reason:'duplicate'};
   if (input.quietHours && input.priority !== 'critical') return {allowed:false,reason:'quiet_hours'};
-  if (input.dailyCount >= 1 && input.priority !== 'critical') return {allowed:false,reason:'daily_cap'};
-  if (input.priority === 'reminder' && input.weeklyReminderCount >= 3) return {allowed:false,reason:'weekly_cap'};
-  if (input.hoursSinceLast < 20 && !['critical','action_required'].includes(input.priority)) return {allowed:false,reason:'cooldown'};
+  if (input.dailyCount >= dailyCap && input.priority !== 'critical') return {allowed:false,reason:'daily_cap'};
+  if (input.priority === 'reminder' && input.weeklyReminderCount >= weeklyReminderCap) return {allowed:false,reason:'weekly_cap'};
+  if (input.hoursSinceLast < cooldownHours && !['critical','action_required'].includes(input.priority)) return {allowed:false,reason:'cooldown'};
   const usage = input.monthlyQuota > 0 ? input.monthlyUsed / input.monthlyQuota : 1;
   if (usage >= .95) return {allowed:false,reason:'admin_approval_required'};
   if (usage >= .9 && !['critical','action_required'].includes(input.priority)) return {allowed:false,reason:'quota_90'};

@@ -223,8 +223,14 @@ async function sendLineRequest(
   }
 
   try {
+    const estimatedCount = channel === 'multicast' && Array.isArray(body.to)
+      ? Math.max(1, body.to.length)
+      : 1;
     await updateDelivery(options.db, claim.deliveryId, {
       message_payload: messages.slice(0, 5),
+      // LINE bills multicast by recipient, not by HTTP request. Keeping this
+      // value accurate makes quota dashboards and budget guards trustworthy.
+      estimated_count: estimatedCount,
     });
     const retryKey = await lineRetryKeyFor(options, channel);
     const response = await fetch(`${LINE_API}/${channel}`, {

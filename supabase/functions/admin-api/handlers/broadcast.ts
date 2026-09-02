@@ -1,6 +1,6 @@
 import { requireAdminAccess } from '../../_shared/admin-auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
-import { lineMulticast, linePush } from '../../_shared/line.ts';
+import { lineMulticast, linePush, sha256Hex } from '../../_shared/line.ts';
 
 export async function handleAdminBroadcast(p: Record<string, unknown>): Promise<Response> {
   const db   = getServiceClient();
@@ -33,7 +33,11 @@ export async function handleAdminBroadcast(p: Record<string, unknown>): Promise<
 
     if (Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN')) {
       try {
-        const sendKey = `admin-broadcast:${crypto.randomUUID()}`;
+        // Treat retries/double-clicks with the same payload in a five-minute
+        // window as one send while still allowing a deliberate later resend.
+        const windowKey = Math.floor(Date.now() / 300000);
+        const digest = await sha256Hex(`${targetScope}|${targetUserId}|${message}`);
+        const sendKey = `admin-broadcast:${digest.slice(0, 24)}:${windowKey}`;
 
         if (targetUserId) {
           const result = await linePush(targetUserId, message, {
@@ -41,6 +45,9 @@ export async function handleAdminBroadcast(p: Record<string, unknown>): Promise<
             idempotencyKey: sendKey,
             notificationType: 'admin_broadcast',
             source: 'admin-api/broadcast',
+            module: 'manual',
+            category: 'admin_broadcast',
+            priority: 'informational',
           });
           lineDelivered = result.sent || result.skipped;
           recipientCount = lineDelivered ? 1 : 0;
@@ -55,6 +62,9 @@ export async function handleAdminBroadcast(p: Record<string, unknown>): Promise<
             idempotencyKey: sendKey,
             notificationType: 'admin_broadcast',
             source: 'admin-api/broadcast',
+            module: 'manual',
+            category: 'admin_broadcast',
+            priority: 'informational',
           });
           lineDelivered = results.length > 0 && results.every((result) => result.sent || result.skipped);
           recipientCount = lineDelivered ? userIds.length : 0;

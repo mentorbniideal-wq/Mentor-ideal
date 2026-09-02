@@ -1593,6 +1593,7 @@ function apiTriggerScoreAlert(p) {
 // Feature A4 — BNI Anniversary Alert (30 days before renewal)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function _lineBNIAnniversary() {
+  if (_lineLeanPolicyEnabled()) { Logger.log('SUPABASE_ONLY: skip legacy _lineBNIAnniversary'); return; }
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var lineSh = ss.getSheetByName('📱 LINE MEMBERS');
   var renSh = ss.getSheetByName('💳 RENEWAL');
@@ -2721,7 +2722,8 @@ function applyLeanLinePolicy() {
   var noisy = [
     'thursdayBotPush','thursdayMorningAlert','fridayPostMeetingPrompt',
     'wednesdayNudge','fridayTeamLeaderboard','mondayMorningBrief',
-    'monthlyRecap','line121AutoReminder','_lineChapterPulse','fridayEveningReminder'
+    'monthlyRecap','line121AutoReminder','_lineChapterPulse','fridayEveningReminder',
+    '_lineBNIAnniversary'
   ];
   var existing = ScriptApp.getProjectTriggers();
   existing.forEach(function(t) {
@@ -2730,9 +2732,9 @@ function applyLeanLinePolicy() {
       results.push('🛑 ปิด '+t.getHandlerFunction());
     }
   });
-  var fns = [
-    {name:'_lineBNIAnniversary',   day:ScriptApp.WeekDay.FRIDAY,    hour:8,  label:'Anniversary Check (ส่งเฉพาะคนครบรอบ)'}
-  ];
+  // Supabase is now the only scheduler. Do not recreate any GAS LINE trigger;
+  // even a useful message must be catalogued and governed centrally first.
+  var fns = [];
   fns.forEach(function(cfg) {
     try {
       ScriptApp.getProjectTriggers().forEach(function(t) {
@@ -2746,8 +2748,8 @@ function applyLeanLinePolicy() {
       results.push('❌ ' + cfg.label + ': ' + e.message);
     }
   });
-  PropertiesService.getScriptProperties().setProperty('LINE_NOTIFICATION_POLICY','lean_action_first');
-  return {ok:true, policy:'lean_action_first', results:results};
+  PropertiesService.getScriptProperties().setProperty('LINE_NOTIFICATION_POLICY','supabase_only');
+  return {ok:true, policy:'supabase_only', results:results};
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -3570,6 +3572,14 @@ function dispatch(payload) {
     if (a==='sendLineMessage')      return apiSendLineMessage(payload);
     if (a==='sendLineBroadcast')    return apiSendLineBroadcast(payload);
     if (a==='sendLineIntro')        return apiSendLineIntro(payload);
+    if ([
+      'triggerScoreAlert','triggerAnniversary','triggerCheckinReminder',
+      'triggerChapterPulse','triggerPostMeetingPrompt','triggerWednesdayNudge',
+      'triggerTeamLeaderboard','triggerMondayBrief','triggerMonthlyRecap',
+      'trigger121Reminder','triggerWeeklyScorePush'
+    ].indexOf(a) >= 0) {
+      return {ok:false,error:'คำสั่งส่ง LINE รุ่นเก่าถูกปิดแล้ว กรุณาใช้ LINE AUTO ใน MC Desktop'};
+    }
     if (a==='triggerScoreAlert')    return apiTriggerScoreAlert(payload);
     if (a==='triggerAnniversary')   return apiTriggerAnniversary(payload);
     if (a==='triggerCheckinReminder') return (function(){ if(payload.role!=='mc') return {ok:false,error:'MC only'}; try{ fridayEveningReminder(); return {ok:true}; }catch(e){ return {ok:false,error:e.message}; } })();

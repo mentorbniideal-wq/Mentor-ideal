@@ -547,6 +547,21 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
   const db     = getServiceClient();
   const action = String(p.action || '');
 
+  // These endpoints predate the governed cron-jobs pipeline. Keeping them
+  // callable would let an operator (or an old UI) bypass automation controls,
+  // quiet hours, quota policy and stable idempotency keys.
+  const retiredLegacySendActions = new Set([
+    'triggerScoreAlert', 'triggerWednesdayNudge', 'triggerCheckinReminder',
+    'triggerAnniversary', 'triggerWeeklyScorePush', 'triggerChapterPulse',
+    'triggerPostMeetingPrompt', 'triggerTeamLeaderboard', 'triggerMondayBrief',
+    'triggerMonthlyRecap', 'trigger121Reminder',
+  ]);
+  if (retiredLegacySendActions.has(action)) {
+    const auth = await requireAuth(db, p, ['mc']);
+    if (!auth.ok) return errResponse(auth.error!);
+    return errResponse('คำสั่งส่ง LINE รุ่นเก่าถูกปิดแล้ว กรุณาใช้ Message → LINE Auto Control Center หรือระบบ 1-2-1', 410);
+  }
+
   switch (action) {
 
     // ── SECURE LINK: create one-time member link token (MC only) ─
@@ -843,8 +858,11 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       if (!userId) return jsonResponse({ ok: true, sent: false });
 
       const memberId = await findMemberId(db, memberName);
+      const messageDigest = await sha256Hex(message);
+      const windowKey = Math.floor(Date.now() / 300000);
       const sent = await sendLineMsg(userId, message, {
         db,
+        idempotencyKey: `manual-member:${memberId || userId}:${messageDigest.slice(0,24)}:${windowKey}`,
         memberId,
         notificationType: 'manual_member_message',
         source: 'desktop/member-360',
@@ -874,7 +892,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
       const { data, error } = await db
         .from('line_members')
-        .select('line_user_id, members(mentor_team)');
+        .select('line_user_id, member_id, members(mentor_team)');
       if (error) return errResponse(error.message);
 
       let rows = (data || []) as Record<string, unknown>[];
@@ -886,9 +904,24 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       }
 
       let sentCount = 0;
+      const windowKey = Math.floor(Date.now() / 300000);
+      const digest = await sha256Hex(`${targetRole || 'all'}|${message}`);
       for (const row of rows) {
         const uid = String(row.line_user_id || '');
-        if (uid) { await sendLineMsg(uid, message); sentCount++; }
+        const memberId = String(row.member_id || '');
+        if (uid) {
+          await sendLineMsg(uid, message, {
+            db,
+            idempotencyKey: `desktop-broadcast:${digest.slice(0,24)}:${windowKey}:${memberId || uid}`,
+            memberId: memberId || null,
+            notificationType: 'manual_team_broadcast',
+            source: 'desktop/message',
+            module: 'manual',
+            category: 'manual_team_broadcast',
+            priority: 'informational',
+          });
+          sentCount++;
+        }
       }
 
       return jsonResponse({ ok: true, sent: sentCount, sentCount });
@@ -1584,13 +1617,27 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
       const { data: lineRows } = await db
         .from('line_members')
-        .select('line_user_id')
+        .select('line_user_id, member_id')
         .in('member_id', memberIds);
 
       let sentCount = 0;
+      const messageDigest = await sha256Hex(`${teamName}|${message}`);
+      const windowKey = Math.floor(Date.now() / 300000);
       for (const row of ((lineRows || []) as Record<string, unknown>[])) {
         const uid = String(row.line_user_id || '');
-        if (uid) { await sendLineMsg(uid, message); sentCount++; }
+        if (uid) {
+          await sendLineMsg(uid, message, {
+            db,
+            idempotencyKey: `mentor-broadcast:${messageDigest.slice(0,24)}:${windowKey}:${uid}`,
+            memberId: String(row.member_id || '') || null,
+            notificationType: 'manual_mentor_broadcast',
+            source: 'mentor-mobile/message',
+            module: 'manual',
+            category: 'manual_mentor_broadcast',
+            priority: 'informational',
+          });
+          sentCount++;
+        }
       }
 
       return jsonResponse({ ok: true, sentCount });
@@ -2581,10 +2628,11 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         .select('automation_key,name,enabled,protected').eq('automation_key', automationKey).maybeSingle();
       if (currentError) return errResponse(currentError.message);
       if (!current) return errResponse('ไม่พบรายการอัตโนมัตินี้');
-      if (Boolean((current as Record<string, unknown>).protected) && p.enabled === false) {
-        return errResponse('รายการนี้ป้องกันไว้เพราะเป็นข้อความสำคัญหรืองานระบบ');
-      }
       const enabled = Boolean(p.enabled);
+      if (Boolean((current as Record<string, unknown>).protected)
+          && enabled !== Boolean((current as Record<string, unknown>).enabled)) {
+        return errResponse('รายการนี้ถูกล็อกตามนโยบายระบบและไม่อนุญาตให้เปลี่ยนสถานะ');
+      }
       const actor = txt(auth.displayName || auth.role || 'admin');
       const { error } = await db.from('line_automation_controls').update({
         enabled, updated_at: new Date().toISOString(), updated_by: actor,
@@ -2631,13 +2679,15 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       if (!auth.isAdmin) return errResponse('เฉพาะ Chapter Admin เท่านั้นที่เปลี่ยนรูปแบบการส่งได้', 403);
       const preset = txt(p.preset);
       if (!['essential', 'balanced', 'all'].includes(preset)) return errResponse('preset ไม่ถูกต้อง');
-      const { data: rows, error } = await db.from('line_automation_controls').select('automation_key,importance,decision,protected');
+      const { data: rows, error } = await db.from('line_automation_controls').select('automation_key,importance,decision,protected,enabled');
       if (error) return errResponse(error.message);
       const actor = txt(auth.displayName || auth.role || 'admin');
       for (const row of (rows || []) as Record<string, unknown>[]) {
         const importance = txt(row.importance);
         const decision = txt(row.decision);
-        const enabled = Boolean(row.protected) || preset === 'all'
+        // Protected means immutable, not always-on. This preserves both
+        // essential locked-on jobs and legacy/policy locked-off jobs.
+        const enabled = Boolean(row.protected) ? Boolean(row.enabled) : preset === 'all'
           || (preset === 'balanced' && ['keep', 'limit', 'system'].includes(decision))
           || (preset === 'essential' && ['keep', 'system'].includes(decision) && ['critical', 'high', 'system'].includes(importance));
         await db.from('line_automation_controls').update({ enabled, updated_at: new Date().toISOString(), updated_by: actor })
