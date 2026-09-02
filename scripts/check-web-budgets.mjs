@@ -16,6 +16,7 @@ const budgets = [
   ['public/liff/help-center.js', 10_000],
   ['public/liff/chapter-directory.css', 8_000],
   ['public/liff/chapter-directory.js', 14_000],
+  ['public/liff/chapter-directory-interactions.js', 4_000],
 ];
 
 let failed = false;

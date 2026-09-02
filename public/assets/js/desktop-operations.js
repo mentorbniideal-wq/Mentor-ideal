@@ -273,6 +273,17 @@ function manualReload(){
   if(arActive)startAR();
 }
 
+function renderDirectoryRolloutReview(data){
+  var el=document.getElementById('directory-rollout-review');if(!el||!S.isAdmin){if(el)el.style.display='none';return;}
+  data=data||{};var review=String(data.reviewDate||''),phase=Number(data.phase||1),decision=String(data.decision||'pending');
+  if(!review||decision!=='pending'){el.style.display='none';return;}
+  var today=new Date();today.setHours(0,0,0,0);var due=new Date(review+'T00:00:00');if(isNaN(due.getTime())){el.style.display='none';return;}
+  var days=Math.ceil((due.getTime()-today.getTime())/86400000);if(days>2){el.style.display='none';return;}
+  var state=days<0?'เลยกำหนด '+Math.abs(days)+' วัน':days===0?'ถึงวันทบทวนแล้ว':days===1?'ทบทวนพรุ่งนี้':'เหลือ '+days+' วัน';
+  el.className='directory-rollout-review '+(days<0?'is-overdue':days===0?'is-due':'');el.style.display='grid';
+  el.innerHTML='<div><small>SMART CHAPTER DIRECTORY · PHASE '+phase+'</small><h3>'+state+'</h3><p>ตรวจ Stage Gate และผล Pilot ก่อนอนุมัติ Phase ถัดไป ระบบจะไม่เลื่อน Phase อัตโนมัติ</p></div><button type="button" onclick="window.open(\'/liff/?action=directory\',\'_blank\')">เปิด Directory เพื่อตรวจ</button>';
+}
+
 // ── Monthly Sync ──────────────────────────────────────────────
 function openSyncModal(){
   // Reset state
@@ -361,7 +372,7 @@ function loadMC(forceRefresh){
   function chk(){done++;if(done===3){clearTimeout(guard);ld(false);updateBadges();}}
   gsr('getDesktopDashboard',{role:S.role,forceRefresh:!!forceRefresh},function(r){
     try{
-      if(r.ok){D.mem=r.members||[];D.ren=r.renewal||[];D.sm=r.summary||{};D.teams=r.teams||[];D.health=r.health||{};
+      if(r.ok){D.mem=r.members||[];D.ren=r.renewal||[];D.sm=r.summary||{};D.teams=r.teams||[];D.health=r.health||{};renderDirectoryRolloutReview(r.directoryRollout);
         if(r.nmList&&r.nmList.length){G.nm=r.nmList;}
         var upLabel='อัพเดท: '+(r.updatedAt||'—')+(r.fromCache?' ⚡ cached':'');
         document.getElementById('hup').textContent=upLabel;

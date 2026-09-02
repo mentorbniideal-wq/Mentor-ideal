@@ -515,7 +515,17 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       }));
 
       summary['total'] = members.length;
-      return jsonResponse({ ok: true, members, summary, teams, renewal, health, nmList, updatedAt: new Date().toISOString() });
+      const { data: directorySettingRows } = auth.isMC
+        ? await db.from('settings').select('key,value').in('key', ['CHAPTER_DIRECTORY_PHASE','CHAPTER_DIRECTORY_PHASE_STATUS','CHAPTER_DIRECTORY_REVIEW_DATE','CHAPTER_DIRECTORY_REVIEW_DECISION'])
+        : { data: [] };
+      const directorySettings = new Map(((directorySettingRows || []) as Record<string, unknown>[]).map(row => [String(row.key), String(row.value)]));
+      const directoryRollout = auth.isMC ? {
+        phase: Number(directorySettings.get('CHAPTER_DIRECTORY_PHASE') || 1),
+        status: directorySettings.get('CHAPTER_DIRECTORY_PHASE_STATUS') || 'in_progress',
+        reviewDate: directorySettings.get('CHAPTER_DIRECTORY_REVIEW_DATE') || '',
+        decision: directorySettings.get('CHAPTER_DIRECTORY_REVIEW_DECISION') || 'pending',
+      } : null;
+      return jsonResponse({ ok: true, members, summary, teams, renewal, health, nmList, directoryRollout, updatedAt: new Date().toISOString() });
     }
 
     case 'getMemberDetail': {

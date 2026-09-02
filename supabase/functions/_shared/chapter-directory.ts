@@ -5,6 +5,19 @@ export type DirectoryRow = {
   profile?: Record<string, unknown> | null;
 };
 
+const referralReadinessFields = [
+  'business_summary','target_clients','primary_services','looking_for','ideal_client',
+  'referral_trigger','good_referral','before_intro_question','introduction_script',
+];
+
+const searchableGroups = [
+  { label: 'ชื่อสมาชิก', fields: ['name','nickname'], source: 'member' },
+  { label: 'อาชีพ/บริษัท', fields: ['profession','company_name'], source: 'member' },
+  { label: 'ธุรกิจที่ให้บริการ', fields: ['business_summary','target_clients','problems_solved','primary_services','differentiators','service_area'], source: 'profile' },
+  { label: 'Looking for', fields: ['looking_for','ideal_client','good_referral'], source: 'profile' },
+  { label: 'Referral Trigger', fields: ['referral_trigger','before_intro_question'], source: 'profile' },
+] as const;
+
 export function normalizeDirectoryQuery(value: unknown) {
   return cleanGuidedText(value, 80).toLocaleLowerCase('th-TH').replace(/\s+/g, ' ').trim();
 }
@@ -43,6 +56,26 @@ export function directorySearchScore(row: DirectoryRow, query: string) {
   return 40;
 }
 
+export function directoryMatchReasons(row: DirectoryRow, query: string) {
+  const q = normalizeDirectoryQuery(query);
+  if (!q) return [];
+  const member = row.member || {};
+  const profile = directoryProfileProjection(row.profile);
+  return searchableGroups.filter(group => {
+    if (group.source === 'profile' && !profile) return false;
+    const source = group.source === 'member' ? member : profile || {};
+    return group.fields.some(field => normalizeDirectorySearchText(source[field]).includes(q));
+  }).map(group => group.label);
+}
+
+export function directoryReferralReadiness(profile: Record<string, unknown> | null | undefined) {
+  const visible = directoryProfileProjection(profile);
+  if (!visible) return { percent: 0, status: 'not_shared', completed: 0, total: referralReadinessFields.length };
+  const completed = referralReadinessFields.filter(field => normalizeDirectorySearchText(visible[field]).length > 0).length;
+  const percent = Math.round(completed * 100 / referralReadinessFields.length);
+  return { percent, status: percent >= 75 ? 'ready' : percent >= 40 ? 'developing' : 'starting', completed, total: referralReadinessFields.length };
+}
+
 export function directoryResult(row: DirectoryRow) {
   const member = row.member || {};
   const profile = directoryProfileProjection(row.profile);
@@ -52,5 +85,7 @@ export function directoryResult(row: DirectoryRow) {
     directoryOptIn: Boolean(profile), businessSummary: String(profile?.business_summary || ''),
     lookingFor: String(profile?.looking_for || ''), idealClient: String(profile?.ideal_client || ''),
     referralTrigger: String(profile?.referral_trigger || ''),
+    referralReadiness: directoryReferralReadiness(row.profile),
+    profileUpdatedAt: profile ? String(row.profile?.updated_at || row.profile?.published_at || '') : '',
   };
 }

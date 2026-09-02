@@ -1,5 +1,6 @@
 let chapterDirectoryLoaded=false;
 let chapterDirectoryTimer=0;
+let chapterDirectoryFilter='ready';
 
 const directoryPreviewRows=[
   {id:'preview-1',name:'มินตรา วัฒนกิจ',nickname:'มิ้นท์',profession:'นักวางแผนการเงิน',companyName:'Ideal Wealth',directoryOptIn:true,businessSummary:'ช่วยเจ้าของธุรกิจวางแผนการเงินส่วนตัวและธุรกิจให้ไปด้วยกันได้',lookingFor:'เจ้าของธุรกิจที่กำลังขยายทีม หรือเตรียมส่งต่อกิจการ',idealClient:'ผู้บริหารอายุ 35–55 ปีที่พร้อมวางแผนระยะยาว',referralTrigger:'ได้ยินว่า “เงินบริษัทกับเงินส่วนตัวยังปนกันอยู่”'},
@@ -11,10 +12,11 @@ function directoryInitial(value){return String(value||'?').trim().charAt(0).toLo
 function directoryMeta(row){return [row.profession,row.companyName].filter(Boolean).join(' · ')||'สมาชิก Chapter';}
 function directoryMatchesPreview(row,query){const q=String(query||'').trim().toLocaleLowerCase('th-TH');if(!q)return true;return [row.name,row.nickname,row.profession,row.companyName,row.businessSummary,row.lookingFor,row.idealClient,row.referralTrigger].join(' ').toLocaleLowerCase('th-TH').includes(q);}
 
-function renderChapterDirectory(rows,notice){
+function renderChapterDirectory(rows,notice,total=rows.length,savedCount=0){
   const box=$('#directoryResults');if(!box)return;
+  const status=$('#directoryStatus');if(status)status.textContent=chapterDirectoryFilter==='saved'?`บันทึก ${total} คน`:`พบ ${total} คน${savedCount?` · บันทึก ${savedCount}`:''}`;
   if(!rows.length){box.innerHTML='<div class="directory-empty"><b>ยังไม่พบสมาชิกที่ตรงคำค้น</b>ลองใช้ชื่อ อาชีพ ปัญหาของลูกค้า หรือคำที่ได้ยินจากลูกค้า</div>';return;}
-  box.innerHTML=`<div class="directory-list">${rows.map(row=>`<article class="directory-item"><div class="directory-person"><span class="directory-avatar">${escHtml(directoryInitial(row.nickname||row.name))}</span><div><b>${escHtml(row.nickname?`คุณ ${row.nickname}`:row.name||'สมาชิก')}</b><small>${escHtml(directoryMeta(row))}</small></div><button type="button" onclick="openDirectoryProfile('${escHtml(row.id)}')">ดูข้อมูล</button></div>${row.businessSummary?`<p class="directory-summary">${escHtml(row.businessSummary)}</p>`:''}${row.directoryOptIn?`<div class="directory-signals">${row.lookingFor?`<div class="directory-signal"><b>Looking for</b> · ${escHtml(row.lookingFor)}</div>`:''}${row.referralTrigger?`<div class="directory-signal"><b>Referral Trigger</b> · ${escHtml(row.referralTrigger)}</div>`:''}</div>`:'<p class="directory-locked">🔒 สมาชิกท่านนี้ยังไม่ได้เปิดแชร์ Referral Focus</p>'}</article>`).join('')}</div>${notice?`<p class="directory-privacy">${escHtml(notice)}</p>`:''}`;
+  box.innerHTML=`<div class="directory-list">${rows.map(row=>{const readiness=Number(row.referralReadiness?.percent||0),updated=directoryUpdatedText(row.profileUpdatedAt),matches=row.matchReasons||[];return `<article class="directory-item"><div class="directory-person"><span class="directory-avatar">${escHtml(directoryInitial(row.nickname||row.name))}</span><div><b>${escHtml(row.nickname?`คุณ ${row.nickname}`:row.name||'สมาชิก')}</b><small>${escHtml(directoryMeta(row))}</small></div></div>${matches.length?`<div class="directory-match">${matches.map(x=>`<span>ตรงกับ · ${escHtml(x)}</span>`).join('')}</div>`:''}${row.businessSummary?`<p class="directory-summary">${escHtml(row.businessSummary)}</p>`:''}${row.directoryOptIn?`<div class="directory-signals">${row.lookingFor?`<div class="directory-signal"><b>Looking for</b> · ${escHtml(row.lookingFor)}</div>`:''}${row.referralTrigger?`<div class="directory-signal"><b>Referral Trigger</b> · ${escHtml(row.referralTrigger)}</div>`:''}</div><div class="directory-readiness"><span>${escHtml(directoryReadinessText(row))} ${readiness}%</span><i style="--readiness:${readiness}%"></i>${updated?`<span class="directory-updated">${escHtml(updated)}</span>`:''}</div>`:'<p class="directory-locked">🔒 สมาชิกท่านนี้ยังไม่ได้เปิดแชร์ Referral Focus</p>'}<div class="directory-card-actions"><button type="button" onclick="openDirectoryProfile('${escHtml(row.id)}')">${row.directoryOptIn?'ดู Referral Focus':'ดูข้อมูลพื้นฐาน'}</button><button type="button" class="directory-bookmark ${row.isBookmarked?'on':''}" aria-label="${row.isBookmarked?'นำออกจากรายการที่บันทึก':'บันทึกคนนี้ไว้'}" onclick="toggleDirectoryBookmark('${escHtml(row.id)}',${!row.isBookmarked},this)">${row.isBookmarked?'★':'☆'}</button></div></article>`;}).join('')}</div>${notice?`<p class="directory-privacy">${escHtml(notice)}</p>`:''}`;
 }
 
 async function loadChapterDirectory(force=false){
@@ -22,11 +24,11 @@ async function loadChapterDirectory(force=false){
   const query=String(input?.value||'').trim();if(chapterDirectoryLoaded&&!force&&!query)return;
   box.innerHTML='<div class="loading" style="padding:24px 0">กำลังค้นหาโอกาสใน Chapter…</div>';
   let r;
-  if(new URLSearchParams(location.search).get('preview')==='1')r={ok:true,results:directoryPreviewRows.filter(row=>directoryMatchesPreview(row,query)),privacyNotice:'ข้อมูล Referral Focus แสดงเฉพาะสมาชิกที่เปิดแชร์ใน Chapter Directory'};
-  else r=await api({action:'chapter-directory',query},{latestKey:'chapter-directory'});
+  if(new URLSearchParams(location.search).get('preview')==='1'){let rows=directoryPreviewRows.filter(row=>directoryMatchesPreview(row,query)).map(row=>({...row,referralReadiness:{percent:row.directoryOptIn?78:0},profileUpdatedAt:new Date().toISOString(),matchReasons:query?['ข้อมูลธุรกิจ']:[],isBookmarked:row.id==='preview-1'}));rows=rows.filter(row=>chapterDirectoryFilter==='all'||chapterDirectoryFilter==='ready'&&row.directoryOptIn||chapterDirectoryFilter==='saved'&&row.isBookmarked);r={ok:true,results:rows,total:rows.length,savedCount:1};}
+  else r=await api({action:'chapter-directory',query,filter:chapterDirectoryFilter},{latestKey:'chapter-directory'});
   if(r.stale)return;
   if(!r.ok){box.innerHTML=`<div class="directory-empty"><b>ค้นหารายชื่อไม่สำเร็จ</b>${escHtml(r.error||'กรุณาลองใหม่')}<br><button class="oto-history-refresh" style="margin-top:10px" onclick="loadChapterDirectory(true)">ลองใหม่</button></div>`;return;}
-  chapterDirectoryLoaded=true;renderChapterDirectory(r.results||[],r.privacyNotice||'');
+  chapterDirectoryLoaded=true;renderChapterDirectory(r.results||[],r.privacyNotice||'',Number(r.total||0),Number(r.savedCount||0));
 }
 
 function directorySuggestion(value){const input=$('#directoryQuery');if(!input)return;input.value=value;input.focus();loadChapterDirectory(true);}

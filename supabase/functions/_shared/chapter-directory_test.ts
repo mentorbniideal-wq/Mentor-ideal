@@ -1,4 +1,4 @@
-import { directoryProfileProjection, directoryResult, directorySearchScore } from './chapter-directory.ts';
+import { directoryMatchReasons, directoryProfileProjection, directoryReferralReadiness, directoryResult, directorySearchScore } from './chapter-directory.ts';
 
 function assertEquals(actual: unknown, expected: unknown) {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error(`Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
@@ -25,4 +25,17 @@ Deno.test('directory result exposes basic roster but hides referral fields witho
   assertEquals(result.directoryOptIn, false);
   assertEquals(result.lookingFor, '');
   assertEquals(result.profession, 'ที่ปรึกษาธุรกิจ');
+});
+
+Deno.test('directory explains matches without reading hidden profile fields', () => {
+  assertEquals(directoryMatchReasons({ member, profile }, 'ขยายทีม'), ['Looking for']);
+  assertEquals(directoryMatchReasons({ member, profile: { ...profile, share_directory: false } }, 'ขยายทีม'), []);
+  assertEquals(directoryMatchReasons({ member, profile }, 'พีท'), ['ชื่อสมาชิก']);
+});
+
+Deno.test('directory readiness is guidance and requires directory consent', () => {
+  assertEquals(directoryReferralReadiness({ ...profile, share_directory: false }).status, 'not_shared');
+  const readiness = directoryReferralReadiness(profile);
+  assertEquals(readiness.completed, 3);
+  assertEquals(readiness.total, 9);
 });
