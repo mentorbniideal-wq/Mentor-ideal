@@ -7,6 +7,15 @@ export function normalize121Name(value: string): string {
   return value.replace(/^\uFEFF/, '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-US');
 }
 
+export function hasUsableLineId(value: unknown): boolean {
+  const id = String(value ?? '').trim();
+  return Boolean(id) && id !== 'null' && id !== 'undefined';
+}
+
+export function oneToOneRoundDeliveryStatus(sent: number, failed: number, skipped: number): 'sent' | 'partially_failed' {
+  return sent > 0 && failed === 0 && skipped === 0 ? 'sent' : 'partially_failed';
+}
+
 function parseCsvMatrix(text: string): string[][] {
   const input = text.replace(/^\uFEFF/, '');
   const rows: string[][] = []; let row: string[] = []; let field = ''; let quoted = false;

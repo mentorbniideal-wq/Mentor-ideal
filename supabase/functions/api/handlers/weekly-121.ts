@@ -1,6 +1,6 @@
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
-import { createOneToOneMatches, fullyDeliveredOneToOnePairIds, normalize121Name, parseWeekly121Csv, weekly121Message, weekly121TestMessage, type MatchingStrategy } from '../../_shared/weekly-121.ts';
+import { createOneToOneMatches, fullyDeliveredOneToOnePairIds, hasUsableLineId, normalize121Name, oneToOneRoundDeliveryStatus, parseWeekly121Csv, weekly121Message, weekly121TestMessage, type MatchingStrategy } from '../../_shared/weekly-121.ts';
 import { linePush } from '../../_shared/line.ts';
 import { evaluateNotificationGuard, logSuppressedNotification } from '../../_shared/notification-orchestrator.ts';
 import { generateHandshakeCode, handshakeCodeHash } from '../../_shared/one-to-one.ts';
@@ -75,7 +75,7 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
       ids.length ? db.from('line_members').select('member_id,line_user_id').in('member_id', ids) : Promise.resolve({data:[]}),
       ids.length ? db.from('biz_profiles').select('member_id,description').in('member_id', ids) : Promise.resolve({data:[]}),
     ]);
-    const lineBy = new Map(((links||[]) as Record<string,unknown>[]).map(x => [String(x.member_id),String(x.line_user_id)]));
+    const lineBy = new Map(((links||[]) as Record<string,unknown>[]).filter(x => hasUsableLineId(x.line_user_id)).map(x => [String(x.member_id),String(x.line_user_id).trim()]));
     const bizBy = new Map(((biz||[]) as Record<string,unknown>[]).map(x => [String(x.member_id),String(x.description)]));
     const byName = new Map<string,Record<string,unknown>[]>();
     memberRows.forEach(m => { const k=normalize121Name(String(m.name||'')); byName.set(k,[...(byName.get(k)||[]),m]); });
@@ -95,9 +95,9 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
     const { data: round, error:rErr } = await db.from('matching_rounds').insert({meeting_date:meetingDate,source_file_name:fileName,repeat_window_weeks:Number(p.repeatWindowWeeks||12),created_by:String(auth.displayName||auth.role),system_version:2,feature_flag:'one_to_one_system',message_template_key:templateKey(p.messageTemplateKey),timezone:'Asia/Bangkok',opt_in_closes_at:new Date(saturday.getTime()+5*60*60*1000).toISOString(),starts_at:saturday.toISOString(),ends_at:thursday.toISOString()}).select('id').single();
     if (rErr||!round) return errResponse(rErr?.message||'สร้างรอบไม่สำเร็จ'); const roundId=String((round as Record<string,unknown>).id);
     const inserts=reconciled.map(r=>({round_id:roundId,row_number:r.rowNumber,first_name_en:r.firstName,last_name_en:r.lastName,normalized_name:r.normalizedName,substitute_name:r.substituteFor||null,looking_for:r.lookingFor||null,checkin_date:isoDate(r.date),checkin_time:r.time||null,matched_member_id:r.member ? String((r.member as Record<string,unknown>).id) : null,import_status:r.status,validation_message:r.message}));
-    const { error:iErr }=await db.from('matching_import_rows').insert(inserts); if(iErr)return errResponse(iErr.message);
+    const { error:iErr }=await db.from('matching_import_rows').insert(inserts); if(iErr){await db.from('matching_rounds').delete().eq('id',roundId);return errResponse(iErr.message);}
     const eligibility=reconciled.filter(r=>r.member&&!['substitute','duplicate','excluded'].includes(r.status)).map(r=>({round_id:roundId,member_id:String((r.member as Record<string,unknown>).id),source:'attendee',status:r.status==='ready'?'eligible':'excluded',reason:r.message}));
-    if(eligibility.length){const {error:eErr}=await db.from('round_eligibility').upsert(eligibility,{onConflict:'round_id,member_id'});if(eErr)return errResponse(eErr.message);}
+    if(eligibility.length){const {error:eErr}=await db.from('round_eligibility').upsert(eligibility,{onConflict:'round_id,member_id'});if(eErr){await db.from('matching_rounds').delete().eq('id',roundId);return errResponse(eErr.message);}}
     return jsonResponse({ok:true,roundId,meetingDate:selectedDate,dates:parsed.dates,rows:reconciled,memberOptions:memberRows.map(m=>({id:m.id,name:m.name,nickname:m.nickname})),summary:Object.fromEntries(['ready','no_line','not_found','ambiguous','substitute','duplicate'].map(s=>[s,reconciled.filter(r=>r.status===s).length]))});
   }
 
@@ -143,7 +143,7 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
     return getRound(db,roundId);
   }
 
-  if (action === 'setWeekly121PairLock') { const id=String(p.pairId||''); const {error}=await db.from('matching_pairs').update({is_locked:Boolean(p.locked)}).eq('id',id); return error?errResponse(error.message):jsonResponse({ok:true}); }
+  if (action === 'setWeekly121PairLock') { const id=String(p.pairId||'');const {data:pair}=await db.from('matching_pairs').select('round_id,matching_rounds!inner(status)').eq('id',id).maybeSingle();if(!pair)return errResponse('ไม่พบคู่');const relation=(pair as Record<string,unknown>).matching_rounds as Record<string,unknown>|null;if(String(relation?.status||'')!=='draft')return errResponse('ล็อกหรือปลดล็อกได้เฉพาะรอบร่าง');const {error}=await db.from('matching_pairs').update({is_locked:Boolean(p.locked)}).eq('id',id); return error?errResponse(error.message):jsonResponse({ok:true}); }
   if(action==='getWeekly121MessageTemplates')return jsonResponse({ok:true,templates:MESSAGE_TEMPLATES});
   if(action==='setWeekly121MessageTemplate'){
     const roundId=String(p.roundId||''),key=templateKey(p.templateKey);const {data:round}=await db.from('matching_rounds').select('status').eq('id',roundId).maybeSingle();if(!round)return errResponse('ไม่พบรอบจับคู่');if(String((round as Record<string,unknown>).status)!=='draft')return errResponse('เปลี่ยน Template ได้เฉพาะรอบร่าง');const {error}=await db.from('matching_rounds').update({message_template_key:key}).eq('id',roundId);return error?errResponse(error.message):getRound(db,roundId);
@@ -155,7 +155,7 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
     const roundId=String(p.roundId||''), rowNumber=Number(p.rowNumber), memberId=String(p.memberId||'');
     if(!roundId||!rowNumber||!memberId)return errResponse('กรุณาเลือกรายการและสมาชิก');
     const {data:link}=await db.from('line_members').select('line_user_id').eq('member_id',memberId).maybeSingle();
-    const status=link?'ready':'no_line';
+    const status=hasUsableLineId((link as Record<string,unknown>|null)?.line_user_id)?'ready':'no_line';
     const {error}=await db.from('matching_import_rows').update({matched_member_id:memberId,import_status:status,validation_message:status==='ready'?'Admin ยืนยันสมาชิกแล้ว':'Admin ยืนยันแล้ว แต่สมาชิกยังไม่มี LINE'}).eq('round_id',roundId).eq('row_number',rowNumber);
     return error?errResponse(error.message):jsonResponse({ok:true,status});
   }
@@ -170,7 +170,8 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
     else{const {error}=await db.from('matching_pairs').update({member_a_id:remaining[0],member_b_id:remaining[1],optional_member_c_id:remaining[2]||null}).eq('id',pairId);pairError=error;}
     if(pairError)return errResponse(pairError.message);
     const {error:rowError}=await db.from('matching_import_rows').update({import_status:'excluded',validation_message:'Admin นำออกจากการจับคู่'}).eq('round_id',roundId).eq('matched_member_id',memberId);
-    return rowError?errResponse(rowError.message):getRound(db,roundId);
+    if(rowError)return errResponse(rowError.message);const {error:eligibilityError}=await db.from('round_eligibility').update({status:'excluded',reason:'Admin นำออกจากการจับคู่'}).eq('round_id',roundId).eq('member_id',memberId);
+    return eligibilityError?errResponse(eligibilityError.message):getRound(db,roundId);
   }
   if (action === 'swapWeekly121Members') {
     const roundId=String(p.roundId||''), firstPairId=String(p.firstPairId||''), secondPairId=String(p.secondPairId||''), firstMemberId=String(p.firstMemberId||''), secondMemberId=String(p.secondMemberId||'');
@@ -265,12 +266,14 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
     const detail=await loadDetail(db,roundId); if(!detail)return errResponse('ไม่พบรอบจับคู่');
     if(!dryRun && !Boolean(p.confirmed))return errResponse('ต้องยืนยันก่อนส่ง LINE');
     const previews=buildPreviews(detail.pairs,detail.looking,String((detail.round as Record<string,unknown>).message_template_key||'growth_opportunity'));const guardedPreviews=await Promise.all(previews.map(async item=>({...item,guard:await evaluateNotificationGuard(db,{memberId:item.recipient.id,module:'one_to_one',category:testMode?'weekly_121_test':'weekly_121_matching',priority:'action_required'})})));
-    if(dryRun)return jsonResponse({ok:true,dryRun:true,testMode,previews:guardedPreviews,messageCount:guardedPreviews.filter(x=>x.guard.allowed&&x.lineUserId).length,suppressed:guardedPreviews.filter(x=>!x.guard.allowed).map(x=>({name:x.recipient.name,reason:x.guard.reason})),unsendable:guardedPreviews.filter(x=>!x.lineUserId).map(x=>x.recipient.name),budget:guardedPreviews[0]?.guard||null});
+    if(dryRun)return jsonResponse({ok:true,dryRun:true,testMode,previews:guardedPreviews,messageCount:guardedPreviews.filter(x=>x.guard.allowed&&hasUsableLineId(x.lineUserId)).length,suppressed:guardedPreviews.filter(x=>!x.guard.allowed).map(x=>({name:x.recipient.name,reason:x.guard.reason})),unsendable:guardedPreviews.filter(x=>!hasUsableLineId(x.lineUserId)).map(x=>x.recipient.name),budget:guardedPreviews[0]?.guard||null});
+    if(!guardedPreviews.length)return errResponse('รอบนี้ยังไม่มีคู่สำหรับส่ง LINE');
+    if(!guardedPreviews.some(x=>x.guard.allowed&&hasUsableLineId(x.lineUserId)))return errResponse('ไม่มีผู้รับที่ผ่านเงื่อนไขการส่ง กรุณาตรวจ Pilot, LINE และ Message Guard',409);
     if(!testMode)await db.from('matching_rounds').update({status:'sending',confirmed_by:String(auth.displayName||auth.role),confirmed_at:new Date().toISOString()}).eq('id',roundId).eq('status','draft');
     let sent=0,failed=0,skipped=0;
-    for(const item of guardedPreviews){if(!item.lineUserId){failed++;continue;}const key=`weekly-121${testMode?'-test':''}:${roundId}:${item.recipient.id}`;if(!item.guard.allowed){skipped++;await logSuppressedNotification(db,{memberId:item.recipient.id,module:'one_to_one',category:testMode?'weekly_121_test':'weekly_121_matching',priority:'action_required'},item.guard,key,item.lineUserId);continue;}try{const outgoing=testMode?weekly121TestMessage(item.message):item.message;const result=await linePush(item.lineUserId,outgoing,{db,idempotencyKey:key,memberId:item.recipient.id,notificationType:testMode?'weekly_121_test':'weekly_121_matching',source:'api/weekly-121'});if(result.skipped)skipped++;else sent++;if(result.deliveryId)await db.from('line_message_deliveries').update({matching_round_id:roundId,matching_pair_id:item.pairId,module:'one_to_one',category:testMode?'weekly_121_test':'weekly_121_matching',priority:'action_required',estimated_count:1}).eq('id',result.deliveryId);}catch(e){failed++;console.error('[weekly-121-send]',roundId,item.recipient.id,e);}}
+    for(const item of guardedPreviews){if(!hasUsableLineId(item.lineUserId)){failed++;continue;}const key=`weekly-121${testMode?'-test':''}:${roundId}:${item.recipient.id}`;if(!item.guard.allowed){skipped++;await logSuppressedNotification(db,{memberId:item.recipient.id,module:'one_to_one',category:testMode?'weekly_121_test':'weekly_121_matching',priority:'action_required'},item.guard,key,item.lineUserId);continue;}try{const outgoing=testMode?weekly121TestMessage(item.message):item.message;const result=await linePush(item.lineUserId,outgoing,{db,idempotencyKey:key,memberId:item.recipient.id,notificationType:testMode?'weekly_121_test':'weekly_121_matching',source:'api/weekly-121'});if(result.skipped)skipped++;else sent++;if(result.deliveryId)await db.from('line_message_deliveries').update({matching_round_id:roundId,matching_pair_id:item.pairId,module:'one_to_one',category:testMode?'weekly_121_test':'weekly_121_matching',priority:'action_required',estimated_count:1}).eq('id',result.deliveryId);}catch(e){failed++;console.error('[weekly-121-send]',roundId,item.recipient.id,e);}}
     if(testMode)return jsonResponse({ok:true,testMode:true,status:failed?'partially_failed':'tested',sent,failed,skipped});
-    const status=failed?'partially_failed':'sent';await db.from('matching_rounds').update({status}).eq('id',roundId);
+    const status=oneToOneRoundDeliveryStatus(sent,failed,skipped);await db.from('matching_rounds').update({status}).eq('id',roundId);
     return jsonResponse({ok:true,testMode:false,status,sent,failed,skipped});
   }
   return errResponse(`Unknown weekly 1-2-1 action: ${action}`);

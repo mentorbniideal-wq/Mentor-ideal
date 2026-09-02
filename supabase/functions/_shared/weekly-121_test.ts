@@ -1,4 +1,4 @@
-import { createOneToOneMatches, createWeekly121Matches, fullyDeliveredOneToOnePairIds, normalize121Name, parseWeekly121Csv, weekly121Message, weekly121PairScore, weekly121TestMessage } from './weekly-121.ts';
+import { createOneToOneMatches, createWeekly121Matches, fullyDeliveredOneToOnePairIds, hasUsableLineId, normalize121Name, oneToOneRoundDeliveryStatus, parseWeekly121Csv, weekly121Message, weekly121PairScore, weekly121TestMessage } from './weekly-121.ts';
 const eq = (a: unknown, b: unknown) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${JSON.stringify(a)} != ${JSON.stringify(b)}`); };
 Deno.test('CSV รองรับ BOM ไทย quoted comma และ multiline', () => {
   const csv = '\uFEFF"ชื่อผู้เข้าประชุม (ภาษาอังกฤษ)","นามสกุล (ภาษาอังกฤษ)",มาประชุมแทน,"Looking for",date,time,user_role\nMayuree,Issard,,"โรงแรม, ขอนแก่น\nแห่งใหม่",18/08/2026,07:49:02,member';
@@ -63,4 +63,13 @@ Deno.test('Template มาตรฐานทั้งห้าแบบสร้
 Deno.test('กำลังดำเนินการต้องส่ง LINE จริงสำเร็จครบทั้งคู่',()=>{
   const rows=[{matching_pair_id:'complete',member_id:'a',status:'sent',notification_type:'weekly_121_matching'},{matching_pair_id:'complete',member_id:'b',status:'sent',notification_type:'weekly_121_matching'},{matching_pair_id:'one-sided',member_id:'c',status:'sent',notification_type:'weekly_121_matching'},{matching_pair_id:'test-only',member_id:'d',status:'sent',notification_type:'weekly_121_test'},{matching_pair_id:'test-only',member_id:'e',status:'sent',notification_type:'weekly_121_test'},{matching_pair_id:'failed',member_id:'f',status:'failed',notification_type:'weekly_121_matching'},{matching_pair_id:'failed',member_id:'g',status:'sent',notification_type:'weekly_121_matching'}];
   eq(fullyDeliveredOneToOnePairIds(rows),['complete']);
+});
+Deno.test('LINE ID ต้องมีค่าจริง ไม่รับ null หรือช่องว่าง',()=>{
+  eq([hasUsableLineId(null),hasUsableLineId(''),hasUsableLineId('  '),hasUsableLineId('null'),hasUsableLineId('undefined'),hasUsableLineId('U123')],[false,false,false,false,false,true]);
+});
+Deno.test('รอบขึ้นว่าส่งแล้วเฉพาะเมื่อส่งครบโดยไม่ถูกข้ามหรือล้มเหลว',()=>{
+  eq(oneToOneRoundDeliveryStatus(18,0,0),'sent');
+  eq(oneToOneRoundDeliveryStatus(2,0,16),'partially_failed');
+  eq(oneToOneRoundDeliveryStatus(0,0,18),'partially_failed');
+  eq(oneToOneRoundDeliveryStatus(17,1,0),'partially_failed');
 });
