@@ -7,6 +7,22 @@
 
   window.ADMIN_API = ADMIN_API;
 
+  var _oauthClient = null;
+  function oauthClient() {
+    if (!_oauthClient && window.supabase && window.supabase.createClient) {
+      _oauthClient = window.supabase.createClient(
+        'https://itwyjhlfemxsfbimshby.supabase.co', SUPABASE_ANON,
+        { auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true } }
+      );
+    }
+    return _oauthClient;
+  }
+  async function getGoogleSession() {
+    var client = oauthClient();
+    if (!client) return null;
+    try { return (await client.auth.getSession()).data.session || null; } catch (_) { return null; }
+  }
+
   // ── Session helpers ─────────────────────────────────────────
   function getStoredSession() {
     try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; }
@@ -20,13 +36,16 @@
 
   // ── adminCall: send pin+role with every request ─────────────
   async function adminCall(payload) {
+    const google = await getGoogleSession();
     const sess = getStoredSession();
-    if (!sess) { redirectToLogin(); return null; }
-    const body = Object.assign({}, payload, { role: sess.role, pin: sess.pin });
+    if (!google && !sess) { showPinModal(window._adminAuthResolve); return null; }
+    const body = google
+      ? Object.assign({}, payload, { token: google.access_token })
+      : Object.assign({}, payload, { role: sess.role, pin: sess.pin });
     const res = await fetch(ADMIN_API, { method: 'POST', headers: API_HEADERS, body: JSON.stringify(body) });
     const r = await res.json();
     // Session expired / invalid PIN → force re-login
-    if (!r.ok && r.error && /(PIN|ไม่ถูกต้อง|Authentication failed|Admin access required)/i.test(r.error)) {
+    if (!google && !r.ok && r.error && /(PIN|ไม่ถูกต้อง|Authentication failed|Admin access required)/i.test(r.error)) {
       clearStoredSession();
       showPinModal(window._adminAuthResolve);
     }
@@ -35,7 +54,7 @@
   window.adminCall = adminCall;
 
   // ── Logout ──────────────────────────────────────────────────
-  window.adminLogout = function () { clearStoredSession(); redirectToLogin(); };
+  window.adminLogout = async function () { clearStoredSession();var client=oauthClient();if(client)await client.auth.signOut();redirectToLogin(); };
 
   function redirectToLogin() { window.location.href = '/admin/index.html'; }
 
@@ -153,6 +172,22 @@
   // ── checkAdminAuth: called by every admin page on load ───────
   async function checkAdminAuth() {
     return new Promise(function (resolve) {
+      getGoogleSession().then(function(google){
+        if(!google)return false;
+        return fetch(ADMIN_API, {method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'getAdminSessionInfo',token:google.access_token})})
+          .then(function(res){return res.json();}).then(function(r){
+            if(!r.ok)return false;
+            var page=(window.location.pathname.split('/').pop()||'index.html').replace('.html','');
+            var pageSection=page==='index'?'dashboard':page;
+            var canAccess=r.isAdmin||r.isMC||(r.adminSections||[]).includes(pageSection);
+            if(!canAccess){window.location.href='/dashboard.html';resolve(null);return true;}
+            window.ADMIN_SESSION={token:google.access_token,role:r.role,displayName:r.displayName||r.role,isMC:Boolean(r.isMC),isAdmin:Boolean(r.isAdmin),sections:r.adminSections||[],editAccess:Boolean(r.adminEditAccess)};
+            var nameEl=document.getElementById('adminName');if(nameEl)nameEl.textContent=window.ADMIN_SESSION.displayName;
+            if(!r.isAdmin&&!r.isMC&&r.adminSections)_applyNavRestrictions(r.adminSections);
+            if(r.isAdmin||r.isMC)_loadRequestBadge();
+            resolve(window.ADMIN_SESSION);return true;
+          }).catch(function(){return false;});
+      }).then(function(handled){if(handled)return;
       var sess = getStoredSession();
       if (sess && sess.pin && sess.role) {
         // Restore session from storage (no re-verify needed — next API call will fail if PIN changed)
@@ -191,6 +226,7 @@
       } else {
         showPinModal(resolve);
       }
+      });
     });
   }
   window.checkAdminAuth = checkAdminAuth;
@@ -217,14 +253,6 @@
 
   // Keep getSbAuth for any page that still imports Supabase SDK (e.g. request-access.html)
   window.getSbAuth = function () {
-    if (window.supabase && window.supabase.createClient) {
-      if (!window._sbAuthClient) {
-        window._sbAuthClient = window.supabase.createClient(
-          'https://itwyjhlfemxsfbimshby.supabase.co', SUPABASE_ANON
-        );
-      }
-      return window._sbAuthClient;
-    }
-    return null;
+    return oauthClient();
   };
 })();
