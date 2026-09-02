@@ -151,6 +151,34 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
     const {error}=await db.from('matching_pairs').update({is_locked:locked}).eq('round_id',roundId);return error?errResponse(error.message):jsonResponse({ok:true,locked,count});
   }
   if(action==='getWeekly121MessageTemplates')return jsonResponse({ok:true,templates:MESSAGE_TEMPLATES});
+  if(action==='deleteWeekly121Draft'){
+    if(!auth.isAdmin)return errResponse('เฉพาะ Chapter Admin เท่านั้นที่ลบรอบทดสอบได้',403);
+    const roundId=String(p.roundId||'');const {data:round}=await db.from('matching_rounds').select('status').eq('id',roundId).maybeSingle();
+    if(!round)return errResponse('ไม่พบรอบจับคู่');if(String((round as Record<string,unknown>).status)!=='draft')return errResponse('ลบได้เฉพาะรอบที่ยังไม่ส่ง LINE');
+    const {error}=await db.from('matching_rounds').delete().eq('id',roundId).eq('status','draft');return error?errResponse(error.message):jsonResponse({ok:true,deleted:true});
+  }
+  if(action==='cancelWeekly121Round'){
+    if(!auth.isAdmin)return errResponse('เฉพาะ Chapter Admin เท่านั้นที่ยกเลิกรอบและสร้างรอบใหม่ได้',403);
+    const roundId=String(p.roundId||''),reason=String(p.reason||'ส่งหรือจับคู่ผิด').trim().slice(0,500);const {data:round}=await db.from('matching_rounds').select('*').eq('id',roundId).maybeSingle();
+    if(!round)return errResponse('ไม่พบรอบจับคู่');const rv=round as Record<string,unknown>,status=String(rv.status||'');if(status==='draft')return errResponse('รอบนี้ยังไม่ส่ง LINE กรุณาใช้ “ลบรอบทดสอบ”');if(status==='cancelled')return errResponse('รอบนี้ถูกยกเลิกแล้ว');
+    const now=new Date().toISOString(),actor=String(auth.displayName||auth.role||'Chapter Admin');
+    const {error:cancelError}=await db.from('matching_rounds').update({status:'cancelled',cancelled_at:now,cancelled_by:actor,cancellation_reason:reason}).eq('id',roundId);if(cancelError)return errResponse(cancelError.message);
+    await Promise.all([
+      db.from('matching_pairs').update({status:'cancelled',archived_at:now}).eq('round_id',roundId),
+      db.from('pairing_waitlist').update({status:'withdrawn',resolved_at:now}).eq('round_id',roundId).in('status',['waiting','proposed','carried']),
+      db.from('one_to_one_schedules').update({status:'cancelled',updated_at:now}).in('pair_id',(await db.from('matching_pairs').select('id').eq('round_id',roundId)).data?.map((x:Record<string,unknown>)=>String(x.id))||[]),
+    ]);
+    if(!Boolean(p.createReplacement))return jsonResponse({ok:true,cancelled:true,replacementRoundId:null});
+    const {data:replacement,error:replacementError}=await db.from('matching_rounds').insert({meeting_date:rv.meeting_date,source_file_name:`ส่งใหม่ · ${String(rv.source_file_name||'1-2-1')}`,matching_type:rv.matching_type,repeat_window_weeks:rv.repeat_window_weeks,status:'draft',created_by:actor,system_version:rv.system_version,timezone:rv.timezone,opt_in_closes_at:rv.opt_in_closes_at,starts_at:rv.starts_at,ends_at:rv.ends_at,cross_pool_enabled:rv.cross_pool_enabled,feature_flag:rv.feature_flag,message_template_key:rv.message_template_key,replaces_round_id:roundId}).select('id').single();
+    if(replacementError||!replacement)return errResponse(`ยกเลิกรอบเดิมแล้ว แต่สร้างรอบใหม่ไม่สำเร็จ: ${replacementError?.message||'unknown'}`);
+    const replacementId=String((replacement as Record<string,unknown>).id);const [{data:imports},{data:eligibility},{data:pairs}]=await Promise.all([db.from('matching_import_rows').select('*').eq('round_id',roundId),db.from('round_eligibility').select('*').eq('round_id',roundId),db.from('matching_pairs').select('*').eq('round_id',roundId)]);
+    const omit=(row:Record<string,unknown>,extra:Record<string,unknown>)=>{const {id,created_at,updated_at,archived_at,...rest}=row;return{...rest,...extra};};
+    if((imports||[]).length)await db.from('matching_import_rows').insert((imports as Record<string,unknown>[]).map(x=>omit(x,{round_id:replacementId})));
+    if((eligibility||[]).length)await db.from('round_eligibility').insert((eligibility as Record<string,unknown>[]).map(x=>omit(x,{round_id:replacementId,status:String(x.status)==='waiting'?'eligible':x.status})));
+    if((pairs||[]).length)await db.from('matching_pairs').insert((pairs as Record<string,unknown>[]).map(x=>omit(x,{round_id:replacementId,is_locked:false,status:'matched'})));
+    await db.from('one_to_one_status_events').insert({round_id:replacementId,event_type:'replacement_round_created',actor_type:'admin',actor_ref:actor,metadata:{replacesRoundId:roundId,reason}});
+    return jsonResponse({ok:true,cancelled:true,replacementRoundId:replacementId});
+  }
   if(action==='setWeekly121MessageTemplate'){
     const roundId=String(p.roundId||''),key=templateKey(p.templateKey);const {data:round}=await db.from('matching_rounds').select('status').eq('id',roundId).maybeSingle();if(!round)return errResponse('ไม่พบรอบจับคู่');if(String((round as Record<string,unknown>).status)!=='draft')return errResponse('เปลี่ยน Template ได้เฉพาะรอบร่าง');const {error}=await db.from('matching_rounds').update({message_template_key:key}).eq('id',roundId);return error?errResponse(error.message):getRound(db,roundId);
   }

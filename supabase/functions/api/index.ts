@@ -226,6 +226,7 @@ const ROUTES: Record<string, string> = {
   'importWeekly121Csv': 'weekly-121', 'generateWeekly121Matches': 'weekly-121',
   'getWeekly121Round': 'weekly-121', 'getWeekly121History': 'weekly-121',
   'setWeekly121PairLock': 'weekly-121', 'setWeekly121RoundLock': 'weekly-121', 'sendWeekly121Round': 'weekly-121',
+  'deleteWeekly121Draft': 'weekly-121', 'cancelWeekly121Round': 'weekly-121',
   'resolveWeekly121ImportRow': 'weekly-121', 'removeWeekly121Member': 'weekly-121',
   'swapWeekly121Members': 'weekly-121',
   'getOneToOneOverview': 'weekly-121',
