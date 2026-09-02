@@ -87,10 +87,9 @@ Deno.serve(async (req: Request) => {
     const control = new Map(((controls || []) as Record<string, unknown>[]).map(row => [String(row.key), String(row.value)]));
     let pilotIds: string[] = [];
     try { pilotIds = JSON.parse(control.get('ONE_TO_ONE_PILOT_MEMBER_IDS') || '[]'); } catch { pilotIds = []; }
-    const access=evaluateOneToOneAccess({featureEnabled:control.get('FEATURE_ONE_TO_ONE_SYSTEM')==='true',emergencyStop:control.get('ONE_TO_ONE_EMERGENCY_STOP')==='true',enforcePilotAccess:control.get('ONE_TO_ONE_ENFORCE_PILOT_ACCESS')==='true',pilotIds},memberId,new Set(['one-to-one-bootstrap','get-my-121-profile','get-pair-121-profile','get-my-one-to-one-history','guided-session-bootstrap','get-one-to-one-calendar']).has(action));
-    if (!access.allowed&&access.reason==='pilot_only') {
-      return response({ ok: false, error: 'ระบบ 1-2-1 อยู่ในช่วงทดลองสำหรับสมาชิกที่ได้รับเลือก กรุณาติดต่อ MC' }, 403);
-    }
+    // A linked LINE identity is the MY121 access boundary. Pilot membership only
+    // limits rollout notifications; it must never hide a member's own workspace.
+    const access=evaluateOneToOneAccess({featureEnabled:control.get('FEATURE_ONE_TO_ONE_SYSTEM')==='true',emergencyStop:control.get('ONE_TO_ONE_EMERGENCY_STOP')==='true',enforcePilotAccess:false,pilotIds},memberId,new Set(['one-to-one-bootstrap','get-my-121-profile','get-pair-121-profile','get-my-one-to-one-history','guided-session-bootstrap','get-one-to-one-calendar']).has(action));
     if (!access.allowed&&access.reason==='emergency_stop') {
       return response({ ok: false, error: 'ระบบหยุดการบันทึกชั่วคราวเพื่อดูแลข้อมูล คุณยังเปิดดูคู่และประวัติได้' }, 503);
     }
