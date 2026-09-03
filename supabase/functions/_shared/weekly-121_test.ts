@@ -1,4 +1,4 @@
-import { createOneToOneMatches, createWeekly121Matches, fullyDeliveredOneToOnePairIds, hasUsableLineId, normalize121Name, oneToOneRoundDeliveryStatus, parseWeekly121Csv, weekly121Message, weekly121PairScore, weekly121TestMessage } from './weekly-121.ts';
+import { createOneToOneMatches, createWeekly121Matches, fullyDeliveredOneToOnePairIds, hasUsableLineId, normalize121Name, oneToOneRoundDeliveryStatus, parseWeekly121Csv, weekly121Message, weekly121PairScore, weekly121RealDeliveryByMember, weekly121TestMessage } from './weekly-121.ts';
 const eq = (a: unknown, b: unknown) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${JSON.stringify(a)} != ${JSON.stringify(b)}`); };
 Deno.test('CSV รองรับ BOM ไทย quoted comma และ multiline', () => {
   const csv = '\uFEFF"ชื่อผู้เข้าประชุม (ภาษาอังกฤษ)","นามสกุล (ภาษาอังกฤษ)",มาประชุมแทน,"Looking for",date,time,user_role\nMayuree,Issard,,"โรงแรม, ขอนแก่น\nแห่งใหม่",18/08/2026,07:49:02,member';
@@ -72,4 +72,10 @@ Deno.test('รอบขึ้นว่าส่งแล้วเฉพาะเ
   eq(oneToOneRoundDeliveryStatus(2,0,16),'partially_failed');
   eq(oneToOneRoundDeliveryStatus(0,0,18),'partially_failed');
   eq(oneToOneRoundDeliveryStatus(17,1,0),'partially_failed');
+});
+Deno.test('Live delivery ไม่ใช้ผลส่งทดสอบแทนผลส่งจริง',()=>{
+  const rows=[{member_id:'a',notification_type:'weekly_121_test',status:'sent'},{member_id:'a',notification_type:'weekly_121_matching',status:'failed'},{member_id:'b',notification_type:'weekly_121_test',status:'sent'}];
+  const byMember=weekly121RealDeliveryByMember(rows);
+  eq(byMember.get('a')?.status,'failed');
+  eq(byMember.has('b'),false);
 });

@@ -1,6 +1,6 @@
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
-import { createOneToOneMatches, fullyDeliveredOneToOnePairIds, hasUsableLineId, normalize121Name, oneToOneRoundDeliveryStatus, parseWeekly121Csv, weekly121Message, weekly121TestMessage, type MatchingStrategy } from '../../_shared/weekly-121.ts';
+import { createOneToOneMatches, fullyDeliveredOneToOnePairIds, hasUsableLineId, normalize121Name, oneToOneRoundDeliveryStatus, parseWeekly121Csv, weekly121Message, weekly121RealDeliveryByMember, weekly121TestMessage, type MatchingStrategy } from '../../_shared/weekly-121.ts';
 import { linePush } from '../../_shared/line.ts';
 import { evaluateNotificationGuard, logSuppressedNotification } from '../../_shared/notification-orchestrator.ts';
 import { generateHandshakeCode, handshakeCodeHash } from '../../_shared/one-to-one.ts';
@@ -221,7 +221,8 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
     const roundId=String(p.roundId||'');if(!roundId)return errResponse('roundId required');
     const detail=await loadDetail(db,roundId);if(!detail)return errResponse('ไม่พบรอบจับคู่');
     const roundStatus=String((detail.round as Record<string,unknown>).status||'draft');
-    const recipients=detail.pairs.flatMap((pair:Record<string,unknown>)=>((pair.members||[]) as Record<string,unknown>[]).map(member=>{const delivery=(member.delivery||{}) as Record<string,unknown>,partner=((pair.members||[]) as Record<string,unknown>[]).filter(x=>String(x.id)!==String(member.id)).map(x=>String(x.nickname||x.name||'สมาชิก')).join(','),fallbackStatus=roundStatus==='partially_failed'?'failed':'queued';return{memberId:String(member.id),name:String(member.nickname||member.name||'สมาชิก'),partner,pairId:String(pair.id),status:String(delivery.status||fallbackStatus),sentAt:delivery.sent_at||null,lastError:delivery.last_error||(fallbackStatus==='failed'?'ไม่พบ Delivery record — กรุณาตรวจ LINE ID และ Function log':null),responseStatus:delivery.response_status||null};}));
+    const realDeliveryByMember=weekly121RealDeliveryByMember((detail.deliveries||[]) as Record<string,unknown>[]);
+    const recipients=detail.pairs.flatMap((pair:Record<string,unknown>)=>((pair.members||[]) as Record<string,unknown>[]).map(member=>{const delivery=realDeliveryByMember.get(String(member.id))||{},partner=((pair.members||[]) as Record<string,unknown>[]).filter(x=>String(x.id)!==String(member.id)).map(x=>String(x.nickname||x.name||'สมาชิก')).join(', '),fallbackStatus=roundStatus==='partially_failed'?'failed':'queued';return{memberId:String(member.id),name:String(member.nickname||member.name||'สมาชิก'),partner,pairId:String(pair.id),status:String(delivery.status||fallbackStatus),sentAt:delivery.sent_at||null,lastError:delivery.last_error||(fallbackStatus==='failed'?'ไม่พบ Delivery record — กรุณาตรวจ LINE ID และ Function log':null),responseStatus:delivery.response_status||null};}));
     const counts={queued:recipients.filter(x=>x.status==='queued').length,pending:recipients.filter(x=>x.status==='pending').length,sent:recipients.filter(x=>x.status==='sent').length,failed:recipients.filter(x=>x.status==='failed').length,skipped:recipients.filter(x=>x.status==='skipped').length};
     return jsonResponse({ok:true,roundId,roundStatus,total:recipients.length,counts,recipients,serverTime:new Date().toISOString()});
   }

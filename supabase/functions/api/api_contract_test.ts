@@ -17,36 +17,35 @@ function routeActions(indexSource: string): Set<string> {
 }
 
 function handlerCases(source: string): string[] {
-  return [...source.matchAll(/case\s+'([^']+)'/g)].map(match => match[1]);
+  return [
+    ...[...source.matchAll(/case\s+['"]([^'"]+)['"]/g)].map(match => match[1]),
+    ...[...source.matchAll(/\baction\s*===\s*['"]([^'"]+)['"]/g)].map(match => match[1]),
+  ];
 }
 
 function frontendActions(source: string): string[] {
-  return [...source.matchAll(/\b(?:gsr|call)\(\s*['"]([A-Za-z0-9_]+)['"]/g)]
+  return [...source.matchAll(/\b(?:gsr|call|[A-Za-z][A-Za-z0-9_]*Call)\(\s*['"]([A-Za-z0-9_]+)['"]/g)]
     .map(match => match[1]);
+}
+
+async function filesUnder(relativeDir: string, extensions: string[]): Promise<string[]> {
+  const found: string[] = [];
+  async function walk(relativePath: string): Promise<void> {
+    const directory = new URL(`../../../${relativePath}`, import.meta.url);
+    for await (const entry of Deno.readDir(directory)) {
+      const child = `${relativePath}/${entry.name}`;
+      if (entry.isDirectory) await walk(child);
+      else if (!entry.name.startsWith('_') && extensions.some(extension => entry.name.endsWith(extension))) found.push(child);
+    }
+  }
+  await walk(relativeDir);
+  return found.sort();
 }
 
 Deno.test('every API handler case is registered in the unified router', async () => {
   const indexSource = await read('supabase/functions/api/index.ts');
   const routes = routeActions(indexSource);
-  const handlerFiles = [
-    'supabase/functions/api/handlers/auth.ts',
-    'supabase/functions/api/handlers/dashboard.ts',
-    'supabase/functions/api/handlers/public.ts',
-    'supabase/functions/api/handlers/members.ts',
-    'supabase/functions/api/handlers/coaching.ts',
-    'supabase/functions/api/handlers/checkin.ts',
-    'supabase/functions/api/handlers/renewal.ts',
-    'supabase/functions/api/handlers/growth.ts',
-    'supabase/functions/api/handlers/power-teams.ts',
-    'supabase/functions/api/handlers/121.ts',
-    'supabase/functions/api/handlers/alerts.ts',
-    'supabase/functions/api/handlers/meetings.ts',
-    'supabase/functions/api/handlers/comms.ts',
-    'supabase/functions/api/handlers/line-admin.ts',
-    'supabase/functions/api/handlers/usage.ts',
-    'supabase/functions/api/handlers/notifications.ts',
-    'supabase/functions/api/handlers/copilot.ts',
-  ];
+  const handlerFiles = await filesUnder('supabase/functions/api/handlers', ['.ts']);
 
   const missing: string[] = [];
   for (const file of handlerFiles) {
@@ -60,16 +59,10 @@ Deno.test('every API handler case is registered in the unified router', async ()
 });
 
 Deno.test('dashboard frontend only calls actions registered in the unified router', async () => {
-  const [indexSource, dashboardSource, lineAdminSource] = await Promise.all([
-    read('supabase/functions/api/index.ts'),
-    read('public/dashboard.html'),
-    read('public/admin/line.html'),
-  ]);
+  const indexSource = await read('supabase/functions/api/index.ts');
+  const frontendFiles = await filesUnder('public', ['.html', '.js']);
   const routes = routeActions(indexSource);
-  const actions = unique([
-    ...frontendActions(dashboardSource),
-    ...frontendActions(lineAdminSource),
-  ]);
+  const actions = unique((await Promise.all(frontendFiles.map(read))).flatMap(frontendActions));
   const missing = actions.filter(action => !routes.has(action));
 
   assert(missing.length === 0, `Frontend API calls missing from ROUTES:\n${missing.join('\n')}`);

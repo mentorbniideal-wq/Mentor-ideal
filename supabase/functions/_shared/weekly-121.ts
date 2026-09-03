@@ -254,3 +254,12 @@ ${opportunities}
 export function weekly121TestMessage(message: string): string {
   return `🧪 นี่คือการทดลองระบบ\nข้อความนี้ใช้สำหรับทดสอบระบบ Weekly 1-2-1 เท่านั้น\n\n${message}`;
 }
+
+export function weekly121RealDeliveryByMember(rows: Record<string, unknown>[]): Map<string, Record<string, unknown>> {
+  const byMember = new Map<string, Record<string, unknown>>();
+  rows.filter(row => String(row.notification_type || '') === 'weekly_121_matching').forEach(row => {
+    const memberId = String(row.member_id || '');
+    if (memberId && !byMember.has(memberId)) byMember.set(memberId, row);
+  });
+  return byMember;
+}
