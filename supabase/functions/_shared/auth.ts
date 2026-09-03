@@ -11,6 +11,7 @@ export interface AuthResult {
   isMC?: boolean;
   isMentor?: boolean;
   isAdmin?: boolean;
+  isSystemOwner?: boolean;
   adminSections?: string[];
   adminEditAccess?: boolean;
   capabilities?: string[];
@@ -18,6 +19,7 @@ export interface AuthResult {
 }
 
 const DEV_MODE = String(Deno.env.get('DEV_MODE') || 'false').toLowerCase() === 'true';
+export const SYSTEM_OWNER_EMAIL = 'phitarn.p@gmail.com';
 
 const ROLE_INFO: Record<string, { displayName: string; teamName: string | null; isMC: boolean; isMentor: boolean; isAdmin?: boolean }> = {
   admin:   { displayName: 'Chapter Admin', teamName: null, isMC: true, isMentor: false, isAdmin: true },
@@ -76,10 +78,13 @@ export async function verifyToken(
   if (r.access_expires_at && new Date(String(r.access_expires_at)).getTime() <= Date.now()) {
     return { ok: false, error: 'สิทธิ์ของบัญชีนี้หมดอายุแล้ว กรุณาติดต่อ Chapter Admin' };
   }
-  const isAdmin = Boolean(r.is_admin) || String(r.role) === 'admin';
-  const capabilities = Array.isArray(r.capabilities)
-    ? r.capabilities.map(String)
-    : defaultCapabilities(String(r.role), isAdmin);
+  // Full, unrestricted access is deliberately tied to one verified Google
+  // identity. Database flags cannot accidentally promote another account.
+  const isSystemOwner = email === SYSTEM_OWNER_EMAIL;
+  const isAdmin = isSystemOwner;
+  const capabilities = isSystemOwner
+    ? defaultCapabilities('admin', true)
+    : (Array.isArray(r.capabilities) ? r.capabilities.map(String).filter(x => x !== '*') : []);
   return {
     ok:          true,
     role:        String(r.role),
@@ -89,6 +94,7 @@ export async function verifyToken(
     isMC:        Boolean(r.is_mc),
     isMentor:    Boolean(r.is_mentor),
     isAdmin,
+    isSystemOwner,
     adminSections: Array.isArray(r.admin_sections) ? r.admin_sections.map(String) : [],
     adminEditAccess: Boolean(r.admin_edit_access),
     capabilities,
@@ -111,6 +117,9 @@ export async function verifyPin(
 
   if (!pin) {
     return { ok: false, error: 'PIN is required' };
+  }
+  if (r === 'admin') {
+    return { ok: false, error: 'Full Access ต้องเข้าสู่ระบบด้วย Google บัญชีเจ้าของระบบเท่านั้น' };
   }
 
   const { data, error } = await _supabase
