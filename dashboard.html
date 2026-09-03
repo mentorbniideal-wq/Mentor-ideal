@@ -8209,16 +8209,17 @@ function doDeskSendLine() {
   var text = (document.getElementById('desk-line-txt').value||'').trim();
   if (!text) { toast('กรุณาพิมพ์ข้อความครับ','err'); return; }
   var t = _dLineTarget; if (!t) return;
+  var edited=prompt('ตรวจข้อความก่อนส่ง — แก้ไขได้',text);if(edited===null)return;edited=String(edited||'').trim();if(!edited){toast('กรุณาพิมพ์ข้อความก่อนส่ง','err');return;}if(!confirm('ยืนยันส่ง LINE ถึง '+(t.broadcast?'ทีม '+t.teamName:(t.nick||t.name))+'?\n\n'+edited))return;
   var btn = document.getElementById('desk-line-send-btn');
   btn.disabled=true; btn.textContent='⏳ กำลังส่ง...';
   if (t.broadcast) {
-    gsr('sendLineBroadcast',{role:S.role,pin:S.pin,teamName:t.teamName,message:text},function(r){
+    gsr('sendLineBroadcast',{role:S.role,pin:S.pin,teamName:t.teamName,message:edited,confirmed:true},function(r){
       btn.disabled=false; btn.textContent='📤 ส่ง LINE';
       if (!r.ok){toast(r.error||'ส่งไม่สำเร็จ','err');return;}
       toast('📢 ส่งถึง '+r.sent+' คน ✅','ok'); closeDeskLine();
     });
   } else {
-    gsr('sendLineMessage',{role:S.role,pin:S.pin,memberName:t.name,message:text},function(r){
+    gsr('sendLineMessage',{role:S.role,pin:S.pin,memberName:t.name,message:edited,confirmed:true},function(r){
       btn.disabled=false; btn.textContent='📤 ส่ง LINE';
       if (!r.ok){toast(r.error||'ส่งไม่สำเร็จ','err');return;}
       toast('📲 ส่งสำเร็จ ✅','ok'); closeDeskLine();
@@ -8256,7 +8257,8 @@ function deskSendDM() {
   var text   = (document.getElementById('line-dm-text').value||'').trim();
   if (!member) { toast('เลือกสมาชิกก่อนครับ','err'); return; }
   if (!text)   { toast('พิมพ์ข้อความก่อนครับ','err'); return; }
-  gsr('sendLineMessage',{role:S.role,pin:S.pin,memberName:member,message:text},function(r){
+  var edited=prompt('ตรวจข้อความก่อนส่ง — แก้ไขได้',text);if(edited===null)return;edited=String(edited||'').trim();if(!edited)return;if(!confirm('ยืนยันส่ง LINE ถึง '+member+'?\n\n'+edited))return;
+  gsr('sendLineMessage',{role:S.role,pin:S.pin,memberName:member,message:edited,confirmed:true},function(r){
     if (!r.ok) { toast(r.error||'ส่งไม่สำเร็จ','err'); return; }
     toast('📲 ส่งถึง '+member+' แล้ว ✅','ok');
     document.getElementById('line-dm-text').value='';
@@ -8267,9 +8269,9 @@ function deskSendBroadcast() {
   var team = (document.getElementById('line-bc-team').value||'').trim();
   var text = (document.getElementById('line-bc-text').value||'').trim();
   if (!text) { toast('พิมพ์ข้อความก่อนครับ','err'); return; }
-  var label = team || 'ทุกคน';
-  if (!confirm('ส่ง Broadcast ถึง ' + label + '?')) return;
-  gsr('sendLineBroadcast',{role:S.role,pin:S.pin,teamName:team||null,message:text},function(r){
+  var label = team || 'ทุกคน',edited=prompt('ตรวจ Broadcast ก่อนส่ง — แก้ไขได้',text);if(edited===null)return;edited=String(edited||'').trim();if(!edited)return;
+  if (!confirm('ยืนยันส่ง Broadcast ถึง ' + label + '?\n\n'+edited)) return;
+  gsr('sendLineBroadcast',{role:S.role,pin:S.pin,teamName:team||null,message:edited,confirmed:true},function(r){
     if (!r.ok) { toast(r.error||'ส่งไม่สำเร็จ','err'); return; }
     toast('📢 ส่งถึง '+r.sent+' คน ✅','ok');
     document.getElementById('line-bc-text').value='';
@@ -8505,11 +8507,12 @@ function deskTrigger121Reminder() {
 function deskMentorBroadcast() {
   var msg = (document.getElementById('mentor-broadcast-msg').value||'').trim();
   if (!msg) { toast('กรุณาพิมพ์ข้อความก่อนครับ','err'); return; }
+  var edited=prompt('ตรวจ Mentor Broadcast ก่อนส่ง — แก้ไขได้',msg);if(edited===null)return;edited=String(edited||'').trim();if(!edited)return;
   var confirmTxt = S.role==='mc'
-    ? 'ส่งข้อความนี้ไปยังสมาชิกทุกคน ('+msg.slice(0,40)+(msg.length>40?'…':'')+') ใช่ไหมครับ?'
-    : 'ส่งข้อความนี้ไปยังทีม '+S.role+' ('+msg.slice(0,40)+(msg.length>40?'…':'')+') ใช่ไหมครับ?';
+    ? 'ยืนยันส่งข้อความนี้ไปยังสมาชิกทุกคน?\n\n'+edited
+    : 'ยืนยันส่งข้อความนี้ไปยังทีม '+S.role+'?\n\n'+edited;
   if (!confirm(confirmTxt)) return;
-  gsr('mentorBroadcast',{role:S.role,pin:S.pin,message:msg},function(r){
+  gsr('mentorBroadcast',{role:S.role,pin:S.pin,message:edited,confirmed:true},function(r){
     if (r&&r.ok) {
       toast('📢 ส่งแล้ว '+r.sent+'/'+r.total+' คน ✅','ok');
       document.getElementById('mentor-broadcast-msg').value='';

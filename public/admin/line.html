@@ -321,7 +321,10 @@ function replyIssue(id,isOpen){
   var text=prompt('พิมพ์ข้อความตอบกลับสมาชิกทาง LINE');
   if(!text||!text.trim())return;
   var closeIssue=confirm('ตอบแล้วต้องการปิดเคสนี้เลยไหม?');
-  adminCall({action:'replyLineIssue',issueId:id,response:text.trim(),closeIssue:closeIssue}).then(function(r){
+  var edited=prompt('ตรวจข้อความก่อนส่ง — แก้ไขได้',text.trim());
+  if(edited===null||!edited.trim())return;
+  if(!confirm('ยืนยันส่งข้อความนี้ทาง LINE จริง?\n\n'+edited.trim()))return;
+  adminCall({action:'replyLineIssue',issueId:id,response:edited.trim(),closeIssue:closeIssue,confirmed:true}).then(function(r){
     if(!r||!r.ok){toast('❌ '+(r&&r.error||'ตอบกลับไม่สำเร็จ'));return;}
     toast('✅ ส่งคำตอบแล้ว'+(r.closed?' และปิดเคสแล้ว':''));
     loadIssues();

@@ -27,6 +27,7 @@ export async function handleAdminBroadcast(p: Record<string, unknown>): Promise<
     const targetUserId= String(p.targetUserId|| '').trim();
 
     if (!message) return errResponse('message required');
+    if (!Boolean(p.confirmed)) return errResponse('ต้องตรวจข้อความและยืนยันก่อนส่ง LINE');
 
     let lineDelivered   = false;
     let recipientCount  = 0;

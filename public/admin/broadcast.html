@@ -37,6 +37,7 @@
   .badge-fail{color:var(--red);font-size:11px}
   .msg-preview{max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
   .loading{color:var(--muted);text-align:center;padding:40px}
+  .send-review{display:none;margin-top:16px;padding:16px;border:1px solid rgba(52,211,153,.45);border-radius:10px;background:#10243d}.send-review.on{display:block}.send-review b{display:block;color:var(--green);font-size:13px;margin-bottom:5px}.send-review small{display:block;color:var(--muted);margin-bottom:9px}.send-review textarea{width:100%;min-height:170px;background:#09182b;border:1px solid #2a4a6c;color:var(--text);padding:12px;border-radius:8px;font:13px/1.65 inherit;resize:vertical}.send-review-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}.send-review-actions button{min-height:42px;padding:0 16px;border-radius:7px;font-weight:700;cursor:pointer}.review-back{background:transparent;border:1px solid #2a4a6c;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -70,9 +71,10 @@
       <input id="bUserId" type="text" placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
     </div>
     <div class="compose-btns">
-      <button class="btn-send" id="sendBtn" onclick="sendBroadcast()">📤 ส่งข้อความ</button>
+      <button class="btn-send" id="sendBtn" onclick="sendBroadcast()">👁 ตรวจข้อความก่อนส่ง</button>
       <div class="send-msg" id="sendMsg"></div>
     </div>
+    <div id="bReview" class="send-review"><b>ตัวอย่างก่อนส่ง</b><small id="bReviewAudience">—</small><textarea id="bReviewMsg" maxlength="5000"></textarea><div class="send-review-actions"><button class="review-back" onclick="closeBroadcastReview()">← กลับไปแก้</button><button class="btn-send" id="confirmSendBtn" onclick="confirmBroadcastSend()">📤 ยืนยันส่ง LINE</button></div></div>
   </div>
 
   <h2>ประวัติการส่ง</h2>
@@ -93,7 +95,8 @@ document.getElementById('bScope').addEventListener('change', function() {
   document.getElementById('userIdRow').style.display = this.value === 'specific' ? '' : 'none';
 });
 
-async function sendBroadcast() {
+let pendingBroadcast = null;
+function sendBroadcast() {
   const message     = document.getElementById('bMsg').value.trim();
   const title       = document.getElementById('bTitle').value.trim();
   const targetScope = document.getElementById('bScope').value;
@@ -102,11 +105,25 @@ async function sendBroadcast() {
   if (!message) { setMsg('กรุณาพิมพ์ข้อความ', 'var(--red)'); return; }
   if (targetScope === 'specific' && !targetUserId) { setMsg('กรุณาระบุ LINE User ID', 'var(--red)'); return; }
 
-  const btn = document.getElementById('sendBtn');
-  btn.disabled = true;
-  setMsg('กำลังส่ง...', 'var(--muted)');
+  pendingBroadcast={title,targetScope,targetUserId};
+  document.getElementById('bReviewMsg').value=message;
+  document.getElementById('bReviewAudience').textContent='ส่งถึง: '+(targetScope==='specific'?targetUserId:'สมาชิกทุกคน')+' · แก้ไขข้อความด้านล่างได้';
+  document.getElementById('bReview').classList.add('on');
+  document.getElementById('bReviewMsg').focus();
+  setMsg('ยังไม่มีการส่ง กรุณาตรวจข้อความแล้วกดยืนยัน', 'var(--yellow)');
+}
 
-  const r = await adminCall({ action: 'sendAdminBroadcast', message, title, targetScope, targetUserId });
+function closeBroadcastReview(){document.getElementById('bReview').classList.remove('on');pendingBroadcast=null;setMsg('กลับมาแก้ไขข้อความได้', 'var(--muted)');document.getElementById('bMsg').focus();}
+
+async function confirmBroadcastSend() {
+  if(!pendingBroadcast)return;
+  const message=document.getElementById('bReviewMsg').value.trim();
+  if(!message){setMsg('กรุณาพิมพ์ข้อความ', 'var(--red)');return;}
+  const {title,targetScope,targetUserId}=pendingBroadcast;
+  const btn = document.getElementById('confirmSendBtn');
+  btn.disabled = true;setMsg('กำลังส่ง...', 'var(--muted)');
+
+  const r = await adminCall({ action: 'sendAdminBroadcast', message, title, targetScope, targetUserId, confirmed:true });
   btn.disabled = false;
   if (!r || !r.ok) { setMsg('❌ ' + (r?.error||'ส่งไม่สำเร็จ'), 'var(--red)'); return; }
 
@@ -114,6 +131,7 @@ async function sendBroadcast() {
   setMsg(lineStatus, r.lineDelivered ? 'var(--green)' : 'var(--yellow)');
   document.getElementById('bMsg').value  = '';
   document.getElementById('bTitle').value= '';
+  document.getElementById('bReview').classList.remove('on');pendingBroadcast=null;
   updateChar();
   loadHistory();
 }

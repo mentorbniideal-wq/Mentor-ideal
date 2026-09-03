@@ -7276,20 +7276,21 @@ function openLineBroadcast(teamName) {
 
 function closeLineModal() { document.getElementById('lineModal').style.display = 'none'; }
 
-function doSendLine() {
+async function doSendLine() {
   var text = (document.getElementById('line-msg-txt').value||'').trim();
   if (!text) { toast('กรุณาพิมพ์ข้อความครับ','err'); return; }
   var t = _lineTarget; if (!t) return;
+  var edited=await mobileTextInput(t.broadcast?'ตรวจ Broadcast ก่อนส่ง':'ตรวจข้อความก่อนส่ง',text);if(edited===null)return;edited=String(edited||'').trim();if(!edited){toast('กรุณาพิมพ์ข้อความก่อนส่ง','err');return;}if(!confirm('ยืนยันส่ง LINE ถึง '+(t.broadcast?(t.teamName?'ทีม '+t.teamName:'สมาชิกทุกคน'):(t.nick||t.name))+'?\n\n'+edited))return;
   var btn = document.getElementById('line-send-btn');
   btn.disabled = true; btn.textContent = '⏳ กำลังส่ง...';
   if (t.broadcast) {
-    call('sendLineBroadcast', {teamName:t.teamName||'', message:text}, function(err,r){
+    call('sendLineBroadcast', {teamName:t.teamName||'', message:edited, confirmed:true}, function(err,r){
       btn.disabled=false; btn.textContent='📤 ส่ง LINE';
       if (err||!r.ok) { toast((r&&r.error)||'ส่งไม่สำเร็จ','err'); return; }
       toast('📢 ส่งถึง '+r.sent+' คน ✅','ok'); closeLineModal();
     });
   } else {
-    call('sendLineMessage', {memberName:t.name, message:text}, function(err,r){
+    call('sendLineMessage', {memberName:t.name, message:edited, confirmed:true}, function(err,r){
       btn.disabled=false; btn.textContent='📤 ส่ง LINE';
       if (err||!r.ok) { toast((r&&r.error)||'ส่งไม่สำเร็จ','err'); return; }
       toast('📲 ส่งสำเร็จ ✅','ok'); closeLineModal();

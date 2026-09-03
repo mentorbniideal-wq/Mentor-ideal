@@ -268,9 +268,14 @@ async function createMobileInvite() {
 }
 
 async function sendMobileInvite(){
-  if(!_mobileInviteDraft)return; if(!confirm('ยืนยันส่งลิงก์ตั้งค่า Mentor Mobile ผ่าน LINE ให้สมาชิกคนนี้?'))return;
+  if(!_mobileInviteDraft)return;
+  const pre=await adminCall({action:'sendMobileAccessInvite',inviteId:_mobileInviteDraft.inviteId,inviteToken:_mobileInviteDraft.inviteToken,dryRun:true});
+  if(!pre?.ok){document.getElementById('maiMsg').textContent='❌ '+(pre?.error||'เปิดตัวอย่างไม่ได้');return;}
+  const edited=prompt('ตรวจและแก้ไขข้อความก่อนส่ง\n\nต้องเก็บลิงก์ตั้งค่าไว้ในข้อความ',pre.message||'');
+  if(edited===null||!edited.trim())return;
+  if(!confirm('ยืนยันส่ง LINE ถึง '+(pre.audience||'สมาชิก')+'?'))return;
   const btn=document.getElementById('maiSend');btn.disabled=true;btn.textContent='กำลังส่ง…';
-  const r=await adminCall({action:'sendMobileAccessInvite',inviteId:_mobileInviteDraft.inviteId,inviteToken:_mobileInviteDraft.inviteToken});
+  const r=await adminCall({action:'sendMobileAccessInvite',inviteId:_mobileInviteDraft.inviteId,inviteToken:_mobileInviteDraft.inviteToken,dryRun:false,confirmed:true,customMessage:edited.trim()});
   btn.disabled=false;btn.textContent='ส่งลิงก์ผ่าน LINE';
   if(!r?.ok){document.getElementById('maiMsg').textContent='❌ '+(r?.error||'ส่งไม่ได้');return;}
   document.getElementById('maiPreview').style.display='none';_mobileInviteDraft=null;document.getElementById('maiMsg').textContent='✅ ส่งคำเชิญผ่าน LINE แล้ว';loadMobileInvites();

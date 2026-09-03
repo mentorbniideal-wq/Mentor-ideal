@@ -338,7 +338,11 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     const name = String(member.nickname || member.name || 'สมาชิก');
     const appUrl = String(Deno.env.get('PUBLIC_APP_URL') || 'https://bni-mentor-system.vercel.app').replace(/\/$/, '');
     const inviteUrl = `${appUrl}/mobile-access.html?invite=${encodeURIComponent(rawToken)}`;
-    const message = `🔐 คำเชิญเข้า Mentor Mobile\n\nสวัสดีครับคุณ${name}\nChapter Admin ได้เตรียมสิทธิ์ ${String(invite.approved_team_name || invite.approved_role)} ให้แล้ว\n\nกดลิงก์เพื่อผูก Gmail และตั้ง PIN 4 ตัวสำหรับเครื่องนี้:\n${inviteUrl}\n\nลิงก์ใช้ได้ครั้งเดียวและหมดอายุภายใน 7 วัน หากไม่ได้ร้องขอ ไม่ต้องกดลิงก์นี้ครับ`;
+    const defaultMessage = `🔐 คำเชิญเข้า Mentor Mobile\n\nสวัสดีครับคุณ${name}\nChapter Admin ได้เตรียมสิทธิ์ ${String(invite.approved_team_name || invite.approved_role)} ให้แล้ว\n\nกดลิงก์เพื่อผูก Gmail และตั้ง PIN 4 ตัวสำหรับเครื่องนี้:\n${inviteUrl}\n\nลิงก์ใช้ได้ครั้งเดียวและหมดอายุภายใน 7 วัน หากไม่ได้ร้องขอ ไม่ต้องกดลิงก์นี้ครับ`;
+    if (p.dryRun !== false) return jsonResponse({ ok: true, dryRun: true, audience: name, message: defaultMessage, inviteUrl });
+    if (p.confirmed !== true) return errResponse('กรุณาตรวจข้อความและยืนยันก่อนส่ง LINE');
+    const message = String(p.customMessage || defaultMessage).trim().slice(0, 5000);
+    if (!message.includes(inviteUrl)) return errResponse('ข้อความต้องมีลิงก์ตั้งค่า Mentor Mobile');
     const result = await linePushMessages(String(invite.line_user_id), [{ type: 'text', text: message }], {
       db, memberId: String(invite.member_id), notificationType: 'mobile_access_invite',
       source: 'admin-api/mobile-access', idempotencyKey: `mobile-access:${inviteId}`,

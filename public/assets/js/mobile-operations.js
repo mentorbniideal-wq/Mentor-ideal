@@ -1656,7 +1656,7 @@ function mobileTextInput(title,placeholder){return new Promise(function(resolve)
 function mentor121CareAction(id,status){call('updateMentorOneToOneCare',{id:id,status:status,resolution:status==='reviewed'?'Mentor รับเรื่องแล้ว':'นัดติดตามวันถัดไป'},function(err,r){if(!err&&r&&r.ok){toast('อัปเดต 1-2-1 Care แล้ว');_mentor121Data=null;loadMentor121Care(true);loadMentorWorkHub();}});}
 async function mentor121Resolve(id){var note=await mobileTextInput('สรุปการช่วยเหลือ','สิ่งที่ช่วยแล้ว และ Next Action');if(note===null)return;call('updateMentorOneToOneCare',{id:id,status:'resolved',resolution:note||'Mentor ติดต่อและดูแลแล้ว'},function(err,r){if(!err&&r&&r.ok){toast('ปิดเคสและบันทึก Mentor Log แล้ว');_mentor121Data=null;loadMentor121Care(true);loadMentorWorkHub();}});}
 async function mentor121Escalate(id){var note=await mobileTextInput('ส่งต่อให้ MC','เหตุผลหรือสิ่งที่ต้องการให้ MC ช่วย');if(note===null)return;call('updateMentorOneToOneCare',{id:id,status:'escalated',resolution:note||'ขอให้ MC ร่วมดูแลเคสนี้'},function(err,r){if(!err&&r&&r.ok){toast('ส่งต่อ MC และบันทึก Mentor Log แล้ว');_mentor121Data=null;loadMentor121Care(true);loadMentorWorkHub();}});}
-function mentor121Remind(pairId,memberId){if(!confirm('ส่ง LINE เตือนสมาชิกให้ดำเนินการ 1-2-1 ต่อ?'))return;call('remindMentorOneToOneMember',{pairId:pairId,memberId:memberId},function(err,r){toast(!err&&r&&r.ok?'ส่งคำเตือนแล้ว':'ส่งไม่ได้: '+((r&&r.error)||'error'));});}
+function mentor121Remind(pairId,memberId){call('remindMentorOneToOneMember',{pairId:pairId,memberId:memberId,dryRun:true},async function(err,pre){if(err||!pre||!pre.ok){toast('เปิดตัวอย่างไม่ได้: '+((err&&err.message)||(pre&&pre.error)||'error'));return;}if(pre.allowed===false){toast('ยังส่งไม่ได้: '+(pre.reason||'ติด Message Guard'));return;}var edited=await mobileTextInput('ตรวจข้อความก่อนส่ง',pre.message||'');if(edited===null)return;edited=String(edited||'').trim();if(!edited){toast('กรุณาพิมพ์ข้อความก่อนส่ง');return;}if(!confirm('ยืนยันส่ง LINE ถึง '+(pre.audience||'สมาชิก')+'?\n\n'+edited))return;call('remindMentorOneToOneMember',{pairId:pairId,memberId:memberId,dryRun:false,confirmed:true,customMessage:edited},function(sendErr,r){toast(!sendErr&&r&&r.ok?'ส่งคำเตือนแล้ว':'ส่งไม่ได้: '+((sendErr&&sendErr.message)||(r&&r.error)||'error'));});});}
 function mentor121Reissue(pairId,memberId,name){if(!confirm('ออกโค้ดใหม่ให้ '+name+'? รหัสเดิมจะใช้ไม่ได้ทันที'))return;call('reissueMentorOneToOneCode',{pairId:pairId,memberId:memberId},function(err,r){if(!err&&r&&r.ok){navigator.clipboard.writeText(String(r.code)).then(function(){toast('ออกโค้ดใหม่และคัดลอกแล้ว: '+r.code);}).catch(function(){toast('โค้ดใหม่ของ '+name+': '+r.code);});}else toast('ออกโค้ดไม่ได้: '+((r&&r.error)||'error'));});}
 function mentor121Timeline(memberId){var el=document.getElementById('mentor-121-care-list');el.innerHTML='<div class="lt">⏳ กำลังโหลด Timeline...</div>';call('getMentorOneToOneMemberTimeline',{memberId:memberId},function(err,r){if(err||!r||!r.ok){el.innerHTML='<div class="empty">โหลด Timeline ไม่ได้</div>';return;}var m=r.member||{},s=r.stats||{};el.innerHTML='<button class="dp-back" onclick="renderMentor121Care()">← 1-2-1 Care</button><div class="card"><div class="ct">'+mentor121Name(m)+' · 1-2-1 Journey</div><div class="mobile-metric-grid"><div class="mobile-metric"><b>'+Number(s.total||0)+'</b><span>ทั้งหมด</span></div><div class="mobile-metric"><b>'+Number(s.completed||0)+'</b><span>สำเร็จ</span></div><div class="mobile-metric"><b>'+Number(s.pending||0)+'</b><span>ค้าง</span></div></div></div>'+(r.timeline||[]).map(function(x){var g=x.guided||null,c=g&&g.shared_content||{},tr=g&&g.referralTriggers||[];return '<article class="mobile-follow-card"><div class="mobile-follow-title">กับ '+mentor121Name(x.partner)+'</div><div class="mobile-follow-meta">'+escHtml((x.round||{}).meeting_date||'')+' · '+escHtml(x.status||'')+'</div>'+(g?'<div class="mobile-mini-note" style="margin-top:8px"><b>Guided · '+escHtml(g.session_mode||'discover')+'</b> · '+Math.round(Number(g.duration_seconds||0)/60)+' นาที'+(c.introductionScript?'<br>ประโยคแนะนำ: '+escHtml(c.introductionScript):'')+(tr.length?'<br>Referral Trigger: '+tr.map(function(t){return escHtml(t.trigger_text);}).join(' · '):'')+'</div>':'')+'</article>';}).join('');});}
 function copyMentor121Summary(){var d=_mentor121Data||{},s=d.stats||{};var text=['🤝 1-2-1 Weekly Summary · ทีม '+(d.team||S.teamName||''),'กำลังดำเนินการ '+Number(s.active||0)+' คู่','ต้องช่วย '+Number(s.attention||0)+' รายการ','ติดขั้นตอน '+Number(s.stalled||0)+' คู่','Follow-up '+Number(s.followUp||0)+' รายการ','Referral Opportunity '+Number(s.referrals||0)+' รายการ','','Next: รับเรื่องเร่งด่วนและช่วยกำหนดเจ้าของ/วันที่ของ Next Action'].join('\n');navigator.clipboard.writeText(text).then(function(){toast('Copy Weekly Summary แล้ว');}).catch(function(){prompt('Copy Summary:',text);});}
@@ -6580,20 +6580,24 @@ function openLineBroadcast(teamName) {
 
 function closeLineModal() { document.getElementById('lineModal').style.display = 'none'; }
 
-function doSendLine() {
+async function doSendLine() {
   var text = (document.getElementById('line-msg-txt').value||'').trim();
   if (!text) { toast('กรุณาพิมพ์ข้อความครับ','err'); return; }
   var t = _lineTarget; if (!t) return;
+  var edited=await mobileTextInput(t.broadcast?'ตรวจ Broadcast ก่อนส่ง':'ตรวจข้อความก่อนส่ง',text);
+  if(edited===null)return;edited=String(edited||'').trim();if(!edited){toast('กรุณาพิมพ์ข้อความก่อนส่ง','err');return;}
+  var audience=t.broadcast?(t.teamName?'ทีม '+t.teamName:'สมาชิกทุกคน'):(t.nick||t.name);
+  if(!confirm('ยืนยันส่ง LINE ถึง '+audience+'?\n\n'+edited))return;
   var btn = document.getElementById('line-send-btn');
   btn.disabled = true; btn.textContent = '⏳ กำลังส่ง...';
   if (t.broadcast) {
-    call('sendLineBroadcast', {teamName:t.teamName||'', message:text}, function(err,r){
+    call('sendLineBroadcast', {teamName:t.teamName||'', message:edited, confirmed:true}, function(err,r){
       btn.disabled=false; btn.textContent='📤 ส่ง LINE';
       if (err||!r.ok) { toast((r&&r.error)||'ส่งไม่สำเร็จ','err'); return; }
       toast('📢 ส่งถึง '+r.sent+' คน ✅','ok'); closeLineModal();
     });
   } else {
-    call('sendLineMessage', {memberName:t.name, message:text}, function(err,r){
+    call('sendLineMessage', {memberName:t.name, message:edited, confirmed:true}, function(err,r){
       btn.disabled=false; btn.textContent='📤 ส่ง LINE';
       if (err||!r.ok) { toast((r&&r.error)||'ส่งไม่สำเร็จ','err'); return; }
       toast('📲 ส่งสำเร็จ ✅','ok'); closeLineModal();

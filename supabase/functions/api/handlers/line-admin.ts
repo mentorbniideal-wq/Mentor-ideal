@@ -853,6 +853,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       const memberName = String(p.memberName || '').trim();
       const message    = String(p.message || '').trim();
       if (!memberName || !message) return errResponse('memberName and message required');
+      if (!Boolean(p.confirmed)) return errResponse('ต้องตรวจข้อความและยืนยันก่อนส่ง LINE');
 
       const userId = await findLineUserId(db, memberName);
       if (!userId) return jsonResponse({ ok: true, sent: false });
@@ -889,6 +890,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       // Accept teamName (from LINE activity panel) or targetRole (legacy)
       const targetRole = (p.teamName ? String(p.teamName) : p.targetRole ? String(p.targetRole) : '').trim() || null;
       if (!message) return errResponse('message required');
+      if (!Boolean(p.confirmed)) return errResponse('ต้องตรวจข้อความและยืนยันก่อนส่ง LINE');
 
       const { data, error } = await db
         .from('line_members')
@@ -1288,6 +1290,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       const closeIssue = Boolean(p.closeIssue);
       if (!issueId) return errResponse('issueId required');
       if (!responseText) return errResponse('response required');
+      if (!Boolean(p.confirmed)) return errResponse('ต้องตรวจข้อความและยืนยันก่อนส่ง LINE');
 
       const { data: issue, error: issueErr } = await db
         .from('line_issues')
@@ -1604,6 +1607,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       const teamName = String(auth.teamName || p.teamName || '').trim();
       if (!message) return errResponse('message required');
       if (!teamName) return errResponse('ไม่พบทีม — mentorBroadcast ต้องการ role ที่เป็น mentor');
+      if (!Boolean(p.confirmed)) return errResponse('ต้องตรวจข้อความและยืนยันก่อนส่ง LINE');
 
       // Get all members in this team who have LINE IDs
       const { data: memberRows } = await db

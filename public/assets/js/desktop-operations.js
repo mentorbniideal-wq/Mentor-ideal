@@ -2810,11 +2810,9 @@ function inviteLtMentor(index){
   if(!access||!memberId){toast('❌ กรุณาเลือกและบันทึกผู้รับผิดชอบหลักก่อน','err');return;}
   var member=(d.members||[]).find(function(m){return m.id===memberId;})||{};
   if(!member.lineLinked){toast('❌ สมาชิกคนนี้ยังไม่ได้เชื่อม LINE','err');return;}
-  if(!confirm('สร้างคำเชิญ Mentor Mobile ให้ '+(member.nickname||member.name)+'\nตำแหน่ง '+item.label+' ?'))return;
   ld(true);adminCall({action:'createMobileAccessInvite',memberId:memberId,approvedRole:access.role,teamName:access.team},function(r){
     ld(false);if(!r||!r.ok){toast('❌ '+(r&&r.error||'สร้างคำเชิญไม่ได้'),'err');return;}
-    if(!confirm('ตรวจสอบก่อนส่ง\n\nผู้รับ: '+(member.nickname||member.name)+'\nตำแหน่ง: '+item.label+'\nหมดอายุ: '+new Date(r.expiresAt).toLocaleString('th-TH')+'\n\nกด OK เพื่อส่งผ่าน LINE'))return;
-    ld(true);adminCall({action:'sendMobileAccessInvite',inviteId:r.inviteId,inviteToken:r.inviteToken},function(sent){ld(false);toast(sent&&sent.ok?'✅ ส่งคำเชิญ Mentor Mobile แล้ว':'❌ '+(sent&&sent.error||'ส่งไม่ได้'),sent&&sent.ok?'ok':'err');});
+    adminCall({action:'sendMobileAccessInvite',inviteId:r.inviteId,inviteToken:r.inviteToken,dryRun:true},function(pre){if(!pre||!pre.ok){toast('❌ '+(pre&&pre.error||'เปิดตัวอย่างไม่ได้'),'err');return;}openLineSendReview({title:'ตรวจคำเชิญ Mentor Mobile',audience:pre.audience||member.nickname||member.name,message:pre.message||'',onConfirm:function(edited,finish){ld(true);adminCall({action:'sendMobileAccessInvite',inviteId:r.inviteId,inviteToken:r.inviteToken,dryRun:false,confirmed:true,customMessage:edited},function(sent){ld(false);finish();toast(sent&&sent.ok?'✅ ส่งคำเชิญ Mentor Mobile แล้ว':'❌ '+(sent&&sent.error||'ส่งไม่ได้'),sent&&sent.ok?'ok':'err');});}});});
   });
 }
 function createLtTerm(){
@@ -9508,26 +9506,25 @@ function openDeskLineBroadcast(teamName) {
 
 function closeDeskLine() { document.getElementById('desk-line-modal').style.display='none'; }
 
+var _lineReviewConfirm=null;
+function openLineSendReview(options){
+  options=options||{};var shade=document.getElementById('line-send-review'),message=document.getElementById('line-review-message');
+  if(!shade||!message)return;
+  document.getElementById('line-review-title').textContent=options.title||'ตรวจข้อความก่อนส่ง';
+  document.getElementById('line-review-audience').textContent=options.audience||'สมาชิก';
+  message.value=String(options.message||'');_lineReviewConfirm=typeof options.onConfirm==='function'?options.onConfirm:null;
+  shade.hidden=false;document.body.style.overflow='hidden';updateLineReviewCount();setTimeout(function(){message.focus();message.setSelectionRange(message.value.length,message.value.length);},30);
+}
+function updateLineReviewCount(){var el=document.getElementById('line-review-message'),count=document.getElementById('line-review-chars');if(el&&count)count.textContent=el.value.length.toLocaleString('th-TH')+' / 5,000 ตัวอักษร';}
+function closeLineSendReview(){var shade=document.getElementById('line-send-review'),drawer=document.getElementById('w121-pair-shade');if(shade)shade.hidden=true;document.body.style.overflow=drawer&&drawer.classList.contains('on')?'hidden':'';_lineReviewConfirm=null;}
+function confirmLineSendReview(){var el=document.getElementById('line-review-message'),message=String(el&&el.value||'').trim(),done=_lineReviewConfirm;if(!message){toast('กรุณาพิมพ์ข้อความก่อนส่ง','err');return;}if(!done)return;_lineReviewConfirm=null;var btn=document.getElementById('line-review-confirm');btn.disabled=true;btn.textContent='⏳ กำลังส่ง...';done(message,function(){btn.disabled=false;btn.textContent='📲 ยืนยันส่ง LINE';closeLineSendReview();});}
+document.addEventListener('input',function(e){if(e.target&&e.target.id==='line-review-message')updateLineReviewCount();});
+
 function doDeskSendLine() {
   var text = (document.getElementById('desk-line-txt').value||'').trim();
   if (!text) { toast('กรุณาพิมพ์ข้อความครับ','err'); return; }
   var t = _dLineTarget; if (!t) return;
-  var btn = document.getElementById('desk-line-send-btn');
-  btn.disabled=true; btn.textContent='⏳ กำลังส่ง...';
-  if (t.broadcast) {
-    gsr('sendLineBroadcast',{role:S.role,teamName:t.teamName,message:text},function(r){
-      btn.disabled=false; btn.textContent='📤 ส่ง LINE';
-      if (!r.ok){toast(r.error||'ส่งไม่สำเร็จ','err');return;}
-      toast('📢 ส่งถึง '+(r.sentCount||r.sent||0)+' คน ✅','ok'); closeDeskLine();
-    });
-  } else {
-    gsr('sendLineMessage',{role:S.role,memberName:t.name,message:text},function(r){
-      btn.disabled=false; btn.textContent='📤 ส่ง LINE';
-      if (!r.ok){toast(r.error||'ส่งไม่สำเร็จ','err');return;}
-      if (!r.sent){toast('⚠️ '+t.name+' ยังไม่ได้ลงทะเบียน LINE Bot ครับ','err');return;}
-      toast('📲 ส่งสำเร็จ ✅','ok'); closeDeskLine();
-    });
-  }
+  openLineSendReview({title:t.broadcast?'ตรวจ Broadcast ก่อนส่ง':'ตรวจข้อความก่อนส่ง',audience:t.broadcast?'ทีม '+t.teamName:(t.nick||t.name),message:text,onConfirm:function(edited,finish){var btn=document.getElementById('desk-line-send-btn');btn.disabled=true;btn.textContent='⏳ กำลังส่ง...';var action=t.broadcast?'sendLineBroadcast':'sendLineMessage',payload=t.broadcast?{role:S.role,teamName:t.teamName,message:edited,confirmed:true}:{role:S.role,memberName:t.name,message:edited,confirmed:true};gsr(action,payload,function(r){btn.disabled=false;btn.textContent='📤 ส่ง LINE';finish();if(!r||!r.ok){toast((r&&r.error)||'ส่งไม่สำเร็จ','err');return;}if(!t.broadcast&&!r.sent){toast('⚠️ '+t.name+' ยังไม่ได้ลงทะเบียน LINE Bot ครับ','err');return;}toast(t.broadcast?'📢 ส่งถึง '+(r.sentCount||r.sent||0)+' คน ✅':'📲 ส่งสำเร็จ ✅','ok');closeDeskLine();});}});
 }
 
 function loadDeskLineMembers() {
@@ -9563,13 +9560,8 @@ function deskSendBroadcast() {
   var team = (document.getElementById('line-bc-team').value||'').trim();
   var text = (document.getElementById('line-bc-text').value||'').trim();
   if (!text) { toast('พิมพ์ข้อความก่อนครับ','err'); return; }
-  var label = team || 'ทุกคน';
-  if (!confirm('ส่ง Broadcast ถึง ' + label + '?')) return;
-  gsr('sendLineBroadcast',{role:S.role,teamName:team||null,message:text},function(r){
-    if (!r.ok) { toast(r.error||'ส่งไม่สำเร็จ','err'); return; }
-    toast('📢 ส่งถึง '+(r.sentCount||r.sent||0)+' คน ✅','ok');
-    document.getElementById('line-bc-text').value='';
-  });
+  var label = team || 'สมาชิกทุกคน';
+  openLineSendReview({title:'ตรวจ Broadcast ก่อนส่ง',audience:label,message:text,onConfirm:function(edited,finish){gsr('sendLineBroadcast',{role:S.role,teamName:team||null,message:edited,confirmed:true},function(r){finish();if(!r||!r.ok){toast((r&&r.error)||'ส่งไม่สำเร็จ','err');return;}toast('📢 ส่งถึง '+(r.sentCount||r.sent||0)+' คน ✅','ok');document.getElementById('line-bc-text').value='';});}});
 }
 
 function deskTriggerCheckinReminder() {
@@ -9704,12 +9696,7 @@ function lineIssueReply(issueId,memberName,closeIssue){
   if(msg===null)return;
   msg=String(msg||'').trim();
   if(!msg){toast('กรุณาพิมพ์ข้อความตอบกลับ','err');return;}
-  gsr('replyLineIssue',{role:S.role,issueId:issueId,response:msg,closeIssue:!!closeIssue},function(r){
-    if(!r||!r.ok){toast('❌ '+(r&&r.error||'ตอบกลับไม่สำเร็จ'),'err',5000);return;}
-    toast(closeIssue?'💬 ตอบกลับและปิดเคสแล้ว ✅':'💬 ตอบกลับแล้ว ✅','ok');
-    _lineIssuesLoaded=false;_lineActivityLoaded=false;
-    loadLineIssues(true);loadLineActivityTimeline(true);loadLineIssueBadge(true);
-  });
+  openLineSendReview({title:closeIssue?'ตรวจข้อความตอบกลับและปิดเคส':'ตรวจข้อความตอบกลับ',audience:memberName,message:msg,onConfirm:function(edited,finish){gsr('replyLineIssue',{role:S.role,issueId:issueId,response:edited,closeIssue:!!closeIssue,confirmed:true},function(r){finish();if(!r||!r.ok){toast('❌ '+(r&&r.error||'ตอบกลับไม่สำเร็จ'),'err',5000);return;}toast(closeIssue?'💬 ตอบกลับและปิดเคสแล้ว ✅':'💬 ตอบกลับแล้ว ✅','ok');_lineIssuesLoaded=false;_lineActivityLoaded=false;loadLineIssues(true);loadLineActivityTimeline(true);loadLineIssueBadge(true);});}});
 }
 function lineIssueClose(issueId){
   if(!confirm('ปิดเคสนี้โดยไม่ส่งข้อความหา member?'))return;
@@ -9819,16 +9806,8 @@ function deskCopyLineCommandGuide() {
 function deskMentorBroadcast() {
   var msg = (document.getElementById('mentor-broadcast-msg').value||'').trim();
   if (!msg) { toast('กรุณาพิมพ์ข้อความก่อนครับ','err'); return; }
-  var confirmTxt = S.role==='mc'
-    ? 'ส่งข้อความนี้ไปยังสมาชิกทุกคน ('+msg.slice(0,40)+(msg.length>40?'…':'')+') ใช่ไหมครับ?'
-    : 'ส่งข้อความนี้ไปยังทีม '+S.role+' ('+msg.slice(0,40)+(msg.length>40?'…':'')+') ใช่ไหมครับ?';
-  if (!confirm(confirmTxt)) return;
-  gsr('mentorBroadcast',{role:S.role,message:msg},function(r){
-    if (r&&r.ok) {
-      toast('📢 ส่งแล้ว '+(r.sentCount||0)+' คน ✅','ok');
-      document.getElementById('mentor-broadcast-msg').value='';
-    } else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');
-  });
+  var audience=S.role==='mc'?'สมาชิกทุกคน':'ทีม '+S.role;
+  openLineSendReview({title:'ตรวจ Mentor Broadcast ก่อนส่ง',audience:audience,message:msg,onConfirm:function(edited,finish){gsr('mentorBroadcast',{role:S.role,message:edited,confirmed:true},function(r){finish();if(r&&r.ok){toast('📢 ส่งแล้ว '+(r.sentCount||0)+' คน ✅','ok');document.getElementById('mentor-broadcast-msg').value='';}else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');});}});
 }
 
 function deskTestLineToken() {
