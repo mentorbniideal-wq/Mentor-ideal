@@ -303,13 +303,28 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
     const detail=await loadDetail(db,roundId); if(!detail)return errResponse('ไม่พบรอบจับคู่');
     if(!dryRun && !Boolean(p.confirmed))return errResponse('ต้องยืนยันก่อนส่ง LINE');
     if(detail.pairs.some((pair:Record<string,unknown>)=>!pair.is_locked))return errResponse('กรุณากด “ล็อกคู่ทั้งหมด” ก่อน Preview และส่ง LINE',409);
-    const previews=buildPreviews(detail.pairs,detail.looking,String((detail.round as Record<string,unknown>).message_template_key||'growth_opportunity'));const guardedPreviews=await Promise.all(previews.map(async item=>{const guard=await evaluateNotificationGuard(db,{memberId:item.recipient.id,module:'one_to_one',category:testMode?'weekly_121_test':'weekly_121_matching',priority:'action_required'});return{...item,guard:guard.reason==='daily_cap'?{...guard,allowed:true,reason:'admin_confirmed_121'}:guard};}));
+    const previews=buildPreviews(detail.pairs,detail.looking,String((detail.round as Record<string,unknown>).message_template_key||'growth_opportunity')),guardedPreviews:Array<(typeof previews)[number]&{guard:Awaited<ReturnType<typeof evaluateNotificationGuard>>}>=[];
+    // Guard evaluation performs multiple reads per member. Bound concurrency so
+    // a full chapter launch does not overwhelm PostgREST before the send starts.
+    for(let offset=0;offset<previews.length;offset+=10){const guardedBatch=await Promise.all(previews.slice(offset,offset+10).map(async item=>{const guard=await evaluateNotificationGuard(db,{memberId:item.recipient.id,module:'one_to_one',category:testMode?'weekly_121_test':'weekly_121_matching',priority:'action_required'});return{...item,guard:['daily_cap','quiet_hours'].includes(guard.reason)?{...guard,allowed:true,reason:'admin_confirmed_121'}:guard};}));guardedPreviews.push(...guardedBatch);}
     if(dryRun)return jsonResponse({ok:true,dryRun:true,testMode,previews:guardedPreviews,messageCount:guardedPreviews.filter(x=>x.guard.allowed&&hasUsableLineId(x.lineUserId)).length,suppressed:guardedPreviews.filter(x=>!x.guard.allowed).map(x=>({name:x.recipient.name,reason:x.guard.reason})),unsendable:guardedPreviews.filter(x=>!hasUsableLineId(x.lineUserId)).map(x=>x.recipient.name),budget:guardedPreviews[0]?.guard||null});
     if(!guardedPreviews.length)return errResponse('รอบนี้ยังไม่มีคู่สำหรับส่ง LINE');
     if(!guardedPreviews.some(x=>x.guard.allowed&&hasUsableLineId(x.lineUserId)))return errResponse('ไม่มีผู้รับที่ผ่านเงื่อนไขการส่ง กรุณาตรวจ Pilot, LINE และ Message Guard',409);
     if(!testMode)await db.from('matching_rounds').update({status:'sending',confirmed_by:String(auth.displayName||auth.role),confirmed_at:new Date().toISOString()}).eq('id',roundId).eq('status','draft');
     let sent=0,failed=0,skipped=0;
-    for(const item of guardedPreviews){if(!hasUsableLineId(item.lineUserId)){failed++;continue;}const key=`weekly-121${testMode?'-test':''}:${roundId}:${item.recipient.id}`;if(!item.guard.allowed){skipped++;await logSuppressedNotification(db,{memberId:item.recipient.id,module:'one_to_one',category:testMode?'weekly_121_test':'weekly_121_matching',priority:'action_required'},item.guard,key,item.lineUserId);continue;}try{const outgoing=testMode?weekly121TestMessage(item.message):item.message;const result=await linePush(item.lineUserId,outgoing,{db,idempotencyKey:key,memberId:item.recipient.id,notificationType:testMode?'weekly_121_test':'weekly_121_matching',source:'api/weekly-121'});if(result.skipped)skipped++;else sent++;if(result.deliveryId)await db.from('line_message_deliveries').update({matching_round_id:roundId,matching_pair_id:item.pairId,module:'one_to_one',category:testMode?'weekly_121_test':'weekly_121_matching',priority:'action_required',estimated_count:1}).eq('id',result.deliveryId);}catch(e){failed++;console.error('[weekly-121-send]',roundId,item.recipient.id,e);}}
+    // Each recipient receives personalized copy, so multicast cannot be used.
+    // Send in bounded parallel batches to finish a chapter round within seconds
+    // without creating an uncontrolled burst against LINE or the delivery ledger.
+    const batchSize=10;
+    for(let offset=0;offset<guardedPreviews.length;offset+=batchSize){
+      const results=await Promise.all(guardedPreviews.slice(offset,offset+batchSize).map(async item=>{
+        if(!hasUsableLineId(item.lineUserId))return'failed' as const;
+        const key=`weekly-121${testMode?'-test':''}:${roundId}:${item.recipient.id}`;
+        if(!item.guard.allowed){await logSuppressedNotification(db,{memberId:item.recipient.id,module:'one_to_one',category:testMode?'weekly_121_test':'weekly_121_matching',priority:'action_required'},item.guard,key,item.lineUserId);return'skipped' as const;}
+        try{const outgoing=testMode?weekly121TestMessage(item.message):item.message;const result=await linePush(item.lineUserId,outgoing,{db,idempotencyKey:key,memberId:item.recipient.id,notificationType:testMode?'weekly_121_test':'weekly_121_matching',source:'api/weekly-121'});if(result.deliveryId)await db.from('line_message_deliveries').update({matching_round_id:roundId,matching_pair_id:item.pairId,module:'one_to_one',category:testMode?'weekly_121_test':'weekly_121_matching',priority:'action_required',estimated_count:1}).eq('id',result.deliveryId);return result.skipped?'skipped' as const:'sent' as const;}catch(e){console.error('[weekly-121-send]',roundId,item.recipient.id,e);return'failed' as const;}
+      }));
+      sent+=results.filter(x=>x==='sent').length;skipped+=results.filter(x=>x==='skipped').length;failed+=results.filter(x=>x==='failed').length;
+    }
     if(testMode)return jsonResponse({ok:true,testMode:true,status:failed?'partially_failed':'tested',sent,failed,skipped});
     const status=oneToOneRoundDeliveryStatus(sent,failed,skipped);await db.from('matching_rounds').update({status}).eq('id',roundId);
     return jsonResponse({ok:true,testMode:false,status,sent,failed,skipped});
