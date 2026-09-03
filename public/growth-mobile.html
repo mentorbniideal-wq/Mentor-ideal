@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#10231f">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <title>Growth Mobile · BNI IDEAL</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/growth-mobile.css?v=20260903a">
+</head>
+<body>
+  <div id="gm-toast" class="gm-toast" role="status" aria-live="polite"></div>
+  <main>
+    <section id="gm-login" class="gm-login">
+      <div class="gm-login-card">
+        <a class="gm-back" href="/">← หน้าหลัก</a>
+        <div class="gm-mark">↗</div>
+        <p class="gm-eyebrow">BNI IDEAL · GROWTH</p>
+        <h1>Growth Mobile</h1>
+        <p class="gm-sub">ภาพรวม Chapter และงาน Growth ที่ต้องจัดการ ออกแบบสำหรับมือถือโดยเฉพาะ</p>
+        <div class="gm-scope"><b>สิทธิ์เฉพาะ Growth</b><span>รหัสนี้ไม่เปิดหน้า Mentor, MC หรือ Admin</span></div>
+        <form id="gm-login-form">
+          <label for="gm-pin">รหัส Growth</label>
+          <input id="gm-pin" type="password" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="8" autocomplete="current-password" placeholder="••••" required>
+          <button id="gm-login-btn" class="gm-primary" type="submit">เข้าสู่ Growth</button>
+          <p id="gm-login-error" class="gm-error" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
+
+    <section id="gm-app" class="gm-app" hidden>
+      <header class="gm-header">
+        <div><p class="gm-eyebrow">BNI IDEAL</p><h1>Growth</h1></div>
+        <div class="gm-header-actions"><button class="gm-icon-btn" id="gm-refresh" aria-label="รีเฟรชข้อมูล">↻</button><button class="gm-icon-btn" id="gm-logout" aria-label="ออกจากระบบ">ออก</button></div>
+      </header>
+      <div id="gm-freshness" class="gm-freshness">กำลังโหลดข้อมูล…</div>
+
+      <div class="gm-content">
+        <section id="gm-view-today" class="gm-view is-active">
+          <div class="gm-hero"><p>GROWTH TODAY</p><h2>วันนี้ควรดูแลอะไร?</h2><div id="gm-kpis" class="gm-kpis"></div></div>
+          <div class="gm-section-head"><h2>ต้องจัดการก่อน</h2><button data-go="tasks">ดูงานทั้งหมด</button></div>
+          <div id="gm-focus" class="gm-list"></div>
+          <div class="gm-section-head"><h2>Referral Balance</h2><button data-go="members">ดูสมาชิก</button></div>
+          <div id="gm-balance" class="gm-list"></div>
+        </section>
+
+        <section id="gm-view-members" class="gm-view">
+          <div class="gm-page-head"><p>CHAPTER</p><h2>สมาชิกทั้งหมด</h2></div>
+          <label class="gm-search"><span>⌕</span><input id="gm-member-search" type="search" placeholder="ค้นหาชื่อ ชื่อเล่น หรือทีม"></label>
+          <div class="gm-filter-row" id="gm-member-filters">
+            <button class="is-active" data-zone="all">ทั้งหมด</button><button data-zone="highGiverLowRecv">ต้องช่วย</button><button data-zone="lowGiverHighRecv">ควรกระตุ้น</button><button data-zone="balanced">สมดุล</button><button data-zone="insufficient">ข้อมูลไม่พอ</button>
+          </div>
+          <p id="gm-member-count" class="gm-count"></p><div id="gm-members" class="gm-list"></div>
+        </section>
+
+        <section id="gm-view-tasks" class="gm-view">
+          <div class="gm-page-head"><p>ACTION CENTER</p><h2>Growth Tasks</h2></div>
+          <div class="gm-filter-row" id="gm-task-filters"><button class="is-active" data-task="open">งานเปิด</button><button data-task="overdue">เกินกำหนด</button><button data-task="done">เสร็จแล้ว</button><button data-task="all">ทั้งหมด</button></div>
+          <div id="gm-tasks" class="gm-list"></div>
+        </section>
+      </div>
+
+      <nav class="gm-nav" aria-label="เมนู Growth">
+        <button class="is-active" data-view="today"><span>⌂</span>วันนี้</button>
+        <button data-view="members"><span>◎</span>สมาชิก</button>
+        <button data-view="tasks"><span>✓</span>งาน</button>
+      </nav>
+    </section>
+  </main>
+
+  <div id="gm-sheet" class="gm-sheet-backdrop" hidden><article class="gm-sheet"><button id="gm-sheet-close" class="gm-sheet-close" aria-label="ปิด">×</button><div id="gm-sheet-body"></div></article></div>
+  <script src="/assets/js/growth-mobile.js?v=20260903a" defer></script>
+</body>
+</html>
