@@ -6584,10 +6584,14 @@ async function doSendLine() {
   var text = (document.getElementById('line-msg-txt').value||'').trim();
   if (!text) { toast('กรุณาพิมพ์ข้อความครับ','err'); return; }
   var t = _lineTarget; if (!t) return;
-  var edited=await mobileTextInput(t.broadcast?'ตรวจ Broadcast ก่อนส่ง':'ตรวจข้อความก่อนส่ง',text);
+  var pre=await new Promise(function(resolve){call('previewManualLineSend',{scope:t.broadcast?(t.teamName?'team':'all'):'member',teamName:t.teamName||'',memberName:t.name||'',message:text},function(err,r){resolve(err?{ok:false,error:err.message}:r);});});
+  if(!pre||!pre.ok){toast('เปิดตัวอย่างไม่ได้: '+(pre&&pre.error||'error'),'err');return;}
+  if(!Number(pre.recipientCount||0)){toast('ไม่พบผู้รับที่เชื่อม LINE','err');return;}
+  var edited=await mobileTextInput(t.broadcast?'ตรวจ Broadcast ก่อนส่ง':'ตรวจข้อความก่อนส่ง',pre.message||text);
   if(edited===null)return;edited=String(edited||'').trim();if(!edited){toast('กรุณาพิมพ์ข้อความก่อนส่ง','err');return;}
   var audience=t.broadcast?(t.teamName?'ทีม '+t.teamName:'สมาชิกทุกคน'):(t.nick||t.name);
-  if(!confirm('ยืนยันส่ง LINE ถึง '+audience+'?\n\n'+edited))return;
+  var quota=pre.quota||{},remaining=quota.unlimited?'ไม่จำกัด':quota.remaining!==undefined?Number(quota.remaining).toLocaleString('th-TH'):'ตรวจไม่ได้',duplicate=Number(pre.recentDuplicateCount||0);
+  if(!confirm('ยืนยันส่ง LINE ถึง '+audience+'?\nผู้รับจริง: '+pre.recipientCount+' คน · ใช้ประมาณ '+pre.estimatedMessages+' ข้อความ\nQuota คงเหลือ: '+remaining+(duplicate?'\n⚠️ พบข้อความเหมือนกันใน 24 ชม. '+duplicate+' รายการ':'')+'\n\n'+edited))return;
   var btn = document.getElementById('line-send-btn');
   btn.disabled = true; btn.textContent = '⏳ กำลังส่ง...';
   if (t.broadcast) {
@@ -6901,9 +6905,13 @@ function _fmtB(v){var n=Number(v)||0;return n>=1000000?(n/1000000).toFixed(1)+'M
 
 // ── LINE Onboarding Sender ───────────────────────────────────
 function nmSendWeek(memberName, weekNum, btn){
-  if(!confirm('ส่งข้อความ Onboarding Week '+weekNum+' ให้ '+memberName+' ผ่าน LINE?'))return;
+  call('sendOnboardingWeek',{memberName:memberName,weekNum:weekNum,dryRun:true},async function(preErr,pre){
+  if(preErr||!pre||!pre.ok){toast('เปิดตัวอย่างไม่ได้: '+(preErr?preErr.message:(pre&&pre.error)||'error'));return;}
+  if(!pre.lineReady){toast('สมาชิกยังไม่ได้เชื่อม LINE');return;}
+  var edited=await mobileTextInput('ตรวจ Onboarding Week '+weekNum,pre.message||'');if(edited===null)return;edited=String(edited||'').trim();if(!edited){toast('กรุณาพิมพ์ข้อความก่อนส่ง');return;}
+  if(!confirm('ยืนยันส่ง LINE ถึง '+(pre.audience||memberName)+'?'))return;
   if(btn){btn.disabled=true;btn.textContent='⏳...';}
-  call('sendOnboardingWeek',{memberName:memberName,weekNum:weekNum},function(err,r){
+  call('sendOnboardingWeek',{memberName:memberName,weekNum:weekNum,dryRun:false,confirmed:true,customMessage:edited},function(err,r){
     if(err||!r||!r.ok){
       if(btn){btn.disabled=false;btn.textContent='Week '+weekNum;}
       alert('❌ '+(err?err.message:(r&&r.error)||'ส่งไม่ได้'));
@@ -6936,5 +6944,5 @@ function nmSendWeek(memberName, weekNum, btn){
         }
       });
     }
-  });
+  });});
 }

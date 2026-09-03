@@ -3415,9 +3415,18 @@ function deskSendOnboardWeek(name, currentWeek){
     +'<select id="_ob_week_sel" style="width:100%;padding:8px;background:#1a1a2e;color:#e2e8f0;border:1px solid var(--bd);border-radius:8px;font-size:13px;margin-bottom:12px">'+opts+'</select>'
     +'<div style="display:flex;gap:8px;justify-content:flex-end">'
     +'<button class="bsm" onclick="this.closest(\'div[style*=fixed]\').remove()">ยกเลิก</button>'
-    +'<button class="bsm" style="background:rgba(245,158,11,.2);border-color:rgba(245,158,11,.4);color:#fbbf24" onclick="(function(){var w=parseInt(document.getElementById(\'_ob_week_sel\').value);document.querySelector(\'div[style*=fixed][style*=9999]\').remove();gsr(\'sendOnboardingWeek\',{role:S.role,pin:S.pin,memberName:\''+esc(name.replace(/'/g,"\\'"))+'\',week:w},function(r){if(r&&r.ok){toast(\'✅ \'+r.message);loadOnboardingStatus(true);}else toast(\'❌ \'+(r&&r.error||\'error\'));});})()">📤 ส่งเลย</button>'
+    +'<button class="bsm" style="background:rgba(245,158,11,.2);border-color:rgba(245,158,11,.4);color:#fbbf24" onclick="deskLegacySendOnboardingWeek(this.dataset.name,parseInt(document.getElementById(\'_ob_week_sel\').value))" data-name="'+esc(name)+'">👁 ตรวจข้อความ</button>'
     +'</div></div>';
   document.body.appendChild(modal);
+}
+function deskLegacySendOnboardingWeek(name,week){
+  var picker=document.getElementById('_ob_week_sel'),overlay=picker&&picker.closest('div[style*=fixed]');if(overlay)overlay.remove();
+  gsr('getOnboardingPreview',{role:S.role,pin:S.pin,nick:name,weekNum:week},function(pre){
+    if(!pre||!pre.ok){toast('❌ เปิดตัวอย่างไม่ได้');return;}
+    var edited=prompt('ตรวจและแก้ไข Onboarding Week '+week+' ก่อนส่ง',pre.preview||'');if(edited===null||!edited.trim())return;
+    if(!confirm('ยืนยันส่ง LINE ถึง '+name+'?\n\n'+edited.trim()))return;
+    gsr('sendOnboardingWeek',{role:S.role,pin:S.pin,memberName:name,week:week,message:edited.trim(),confirmed:true},function(r){if(r&&r.ok){toast('✅ '+r.message);loadOnboardingStatus(true);}else toast('❌ '+(r&&r.error||'ส่งไม่ได้'));});
+  });
 }
 function deskEnrollNewOnboard(){
   var names=(D.mem||[]).map(function(m){return m.name;}).sort();

@@ -181,7 +181,7 @@ const ROUTES: Record<string, string> = {
   'createLineLinkToken': 'line-admin', 'revokeLineLinkTokens': 'line-admin', 'unlinkLineMember': 'line-admin',
   'getLineMembers': 'line-admin', 'getLineMembersDetail': 'line-admin',
   'getLineActivityTimeline': 'line-admin', 'getUnifiedFollowUpInbox': 'line-admin',
-  'sendLineMessage': 'line-admin', 'sendLineBroadcast': 'line-admin',
+  'previewManualLineSend': 'line-admin', 'testManualLineMessage': 'line-admin', 'sendLineMessage': 'line-admin', 'sendLineBroadcast': 'line-admin',
   'sendLineIntro': 'line-admin', 'setMCLineId': 'line-admin',
   'getAbsenceLog': 'line-admin', 'getLineIssues': 'line-admin',
   'replyLineIssue': 'line-admin', 'updateLineIssueStatus': 'line-admin',

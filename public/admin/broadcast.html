@@ -96,7 +96,7 @@ document.getElementById('bScope').addEventListener('change', function() {
 });
 
 let pendingBroadcast = null;
-function sendBroadcast() {
+async function sendBroadcast() {
   const message     = document.getElementById('bMsg').value.trim();
   const title       = document.getElementById('bTitle').value.trim();
   const targetScope = document.getElementById('bScope').value;
@@ -105,9 +105,13 @@ function sendBroadcast() {
   if (!message) { setMsg('กรุณาพิมพ์ข้อความ', 'var(--red)'); return; }
   if (targetScope === 'specific' && !targetUserId) { setMsg('กรุณาระบุ LINE User ID', 'var(--red)'); return; }
 
+  setMsg('กำลังตรวจผู้รับจริง...', 'var(--muted)');
+  const pre=await adminCall({action:'sendAdminBroadcast',message,title,targetScope,targetUserId,dryRun:true});
+  if(!pre?.ok){setMsg('❌ '+(pre?.error||'เปิดตัวอย่างไม่ได้'),'var(--red)');return;}
+  if(!Number(pre.recipientCount||0)){setMsg('❌ ไม่พบผู้รับที่เชื่อม LINE','var(--red)');return;}
   pendingBroadcast={title,targetScope,targetUserId};
-  document.getElementById('bReviewMsg').value=message;
-  document.getElementById('bReviewAudience').textContent='ส่งถึง: '+(targetScope==='specific'?targetUserId:'สมาชิกทุกคน')+' · แก้ไขข้อความด้านล่างได้';
+  document.getElementById('bReviewMsg').value=pre.message||message;
+  document.getElementById('bReviewAudience').textContent='ส่งถึง: '+(targetScope==='specific'?targetUserId:'สมาชิกทุกคน')+' · '+pre.recipientCount+' คน · ใช้ประมาณ '+pre.estimatedMessages+' ข้อความ'+(pre.recentDuplicateCount?' · ⚠️ ซ้ำใน 24 ชม. '+pre.recentDuplicateCount+' ครั้ง':'');
   document.getElementById('bReview').classList.add('on');
   document.getElementById('bReviewMsg').focus();
   setMsg('ยังไม่มีการส่ง กรุณาตรวจข้อความแล้วกดยืนยัน', 'var(--yellow)');
@@ -123,7 +127,7 @@ async function confirmBroadcastSend() {
   const btn = document.getElementById('confirmSendBtn');
   btn.disabled = true;setMsg('กำลังส่ง...', 'var(--muted)');
 
-  const r = await adminCall({ action: 'sendAdminBroadcast', message, title, targetScope, targetUserId, confirmed:true });
+  const r = await adminCall({ action: 'sendAdminBroadcast', message, title, targetScope, targetUserId, dryRun:false, confirmed:true });
   btn.disabled = false;
   if (!r || !r.ok) { setMsg('❌ ' + (r?.error||'ส่งไม่สำเร็จ'), 'var(--red)'); return; }
 

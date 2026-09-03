@@ -27,6 +27,16 @@ export async function handleAdminBroadcast(p: Record<string, unknown>): Promise<
     const targetUserId= String(p.targetUserId|| '').trim();
 
     if (!message) return errResponse('message required');
+    if (p.dryRun !== false) {
+      let recipientCount = targetUserId ? 1 : 0;
+      if (!targetUserId) {
+        const { count } = await db.from('line_members').select('line_user_id', { count: 'exact', head: true }).not('line_user_id', 'is', null);
+        recipientCount = count || 0;
+      }
+      const since = new Date(Date.now() - 86400000).toISOString();
+      const { count: duplicateCount } = await db.from('broadcasts').select('id', { count: 'exact', head: true }).eq('message', message).gte('sent_at', since);
+      return jsonResponse({ ok: true, dryRun: true, message, recipientCount, estimatedMessages: recipientCount, recentDuplicateCount: duplicateCount || 0 });
+    }
     if (!Boolean(p.confirmed)) return errResponse('ต้องตรวจข้อความและยืนยันก่อนส่ง LINE');
 
     let lineDelivered   = false;

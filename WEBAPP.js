@@ -3365,6 +3365,7 @@ function apiEnrollOnboarding(p) {
 
 function apiSendOnboardingWeek(p) {
   if (p.role !== 'mc') return {ok:false,error:'MC only'};
+  if (p.confirmed !== true) return {ok:false,error:'กรุณาตรวจข้อความและยืนยันก่อนส่ง LINE'};
   if (!p.memberName) return {ok:false,error:'ไม่มีชื่อสมาชิก'};
   var week = parseInt(p.week);
   if (!week || week < 1 || week > 8) return {ok:false,error:'week ต้องเป็น 1-8'};
@@ -3372,7 +3373,7 @@ function apiSendOnboardingWeek(p) {
   if (!userId) return {ok:false,error:'สมาชิกยังไม่ได้ลงทะเบียน LINE Bot'};
   var d = _lineGetMemberData(p.memberName);
   var nick = (d&&d.nick)||p.memberName.split(' ')[0];
-  var msg = _getOnboardMsg(week, nick);
+  var msg = String(p.message||'').trim() || _getOnboardMsg(week, nick);
   if (!msg) return {ok:false,error:'ไม่พบ content สำหรับ week '+week};
   _sendLineMsg(userId, msg);
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(_ONBOARD_SHEET);

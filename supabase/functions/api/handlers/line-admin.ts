@@ -564,6 +564,62 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
   switch (action) {
 
+    // ── PREVIEW: resolve real recipients and delivery risk before a manual send ──
+    case 'previewManualLineSend': {
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const message = String(p.message || '').trim().slice(0, 5000);
+      const scope = String(p.scope || 'member');
+      const memberName = String(p.memberName || '').trim();
+      const requestedTeam = String(p.teamName || '').trim();
+      if (!message) return errResponse('message required');
+      if (!['member', 'team', 'all'].includes(scope)) return errResponse('scope ไม่ถูกต้อง');
+      if (scope === 'all' && auth.role !== 'mc') return errResponse('เฉพาะ MC ที่ส่งถึงสมาชิกทุกคนได้', 403);
+
+      let query = db.from('line_members').select('line_user_id, member_id, members(name,nickname,mentor_team,is_archived)');
+      const { data, error } = await query;
+      if (error) return errResponse(error.message);
+      const actorTeam = String(auth.teamName || '').trim();
+      const team = auth.role === 'mc' ? requestedTeam : actorTeam;
+      let rows = ((data || []) as Record<string, unknown>[]).filter(row => {
+        const member = (row.members || {}) as Record<string, unknown>;
+        if (Boolean(member.is_archived)) return false;
+        if (scope === 'member') return [member.name, member.nickname].some(v => String(v || '').toLowerCase() === memberName.toLowerCase());
+        if (scope === 'team') return String(member.mentor_team || '').toLowerCase() === team.toLowerCase();
+        return true;
+      });
+      if (scope === 'member' && auth.role !== 'mc') rows = rows.filter(row => String(((row.members || {}) as Record<string, unknown>).mentor_team || '').toLowerCase() === actorTeam.toLowerCase());
+      const recipients = rows.filter(row => String(row.line_user_id || '').trim()).map(row => {
+        const member = (row.members || {}) as Record<string, unknown>;
+        return { memberId: String(row.member_id || ''), name: String(member.nickname || member.name || 'สมาชิก'), team: String(member.mentor_team || '') };
+      });
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { count: recentDuplicateCount } = await db.from('line_message_deliveries').select('id', { count: 'exact', head: true })
+        .eq('message_preview', message.slice(0, 500)).gte('created_at', since).in('status', ['pending', 'sent']);
+      const quota = await getLineQuotaSnapshot();
+      const bangkokHour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Bangkok', hour: '2-digit', hourCycle: 'h23' }).format(new Date()));
+      return jsonResponse({ ok: true, scope, team: team || null, recipients, recipientCount: recipients.length,
+        estimatedMessages: recipients.length, recentDuplicateCount: recentDuplicateCount || 0, quota,
+        quietHoursWarning: bangkokHour >= 20 || bangkokHour < 8, message });
+    }
+
+    case 'testManualLineMessage': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      if (p.confirmed !== true) return errResponse('กรุณายืนยันการส่งทดสอบก่อน');
+      const message = String(p.message || '').trim().slice(0, 5000);
+      if (!message) return errResponse('message required');
+      const { data: setting } = await db.from('settings').select('value').eq('key', 'MC_LINE_ID').maybeSingle();
+      const userId = String((setting as Record<string, unknown> | null)?.value || '').trim();
+      if (!userId) return errResponse('ยังไม่ได้ตั้งค่า LINE ของ Mentor Co. สำหรับรับข้อความทดสอบ');
+      const digest = await sha256Hex(message);
+      const result = await linePush(userId, `🧪 TEST MESSAGE — ยังไม่ได้ส่งให้สมาชิกจริง\n\n${message}`, {
+        db, idempotencyKey: `manual-test:${digest.slice(0, 24)}:${Math.floor(Date.now() / 300000)}`,
+        notificationType: 'manual_test_message', source: 'desktop/line-review', module: 'manual', category: 'manual_test_message', priority: 'informational',
+      });
+      return jsonResponse({ ok: true, sent: result.sent, skipped: result.skipped });
+    }
+
     // ── SECURE LINK: create one-time member link token (MC only) ─
     case 'createLineLinkToken': {
       const auth = await requireAuth(db, p, ['mc']);
@@ -1554,13 +1610,6 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       if (!memberName || !weekNum) return errResponse('memberName and weekNum required');
 
       const memberId = await findMemberId(db, memberName);
-      // Auto-enroll if not already enrolled (mentor convenience)
-      if (memberId) {
-        await db.from('onboarding_schedule').upsert(
-          { member_id: memberId, enrolled_at: new Date().toISOString(), removed_at: null },
-          { onConflict: 'member_id' },
-        );
-      }
       if (!memberId) return errResponse(`ไม่พบสมาชิก: ${memberName}`);
 
       // Get message template
@@ -1570,7 +1619,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         .eq('week_number', weekNum)
         .maybeSingle();
 
-      const msgText = msgRow
+      const defaultMessage = msgRow
         ? String((msgRow as Record<string, unknown>).message_text || '')
         : `[Week ${weekNum} onboarding message]`;
 
@@ -1582,10 +1631,18 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         .maybeSingle();
 
       const userId = lmRow ? String((lmRow as Record<string, unknown>).line_user_id || '') : null;
+      const message = String(p.customMessage || defaultMessage).trim().slice(0, 5000);
+      if (p.dryRun !== false) return jsonResponse({ ok: true, dryRun: true, audience: memberName, weekNum, message, lineReady: Boolean(userId), recipientCount: userId ? 1 : 0 });
+      if (p.confirmed !== true) return errResponse('กรุณาตรวจข้อความและยืนยันก่อนส่ง LINE');
+      // Enroll only after the operator confirms the real send.
+      await db.from('onboarding_schedule').upsert(
+        { member_id: memberId, enrolled_at: new Date().toISOString(), removed_at: null },
+        { onConflict: 'member_id' },
+      );
       let sent = false;
 
       if (userId) {
-        await sendLineMsg(userId, msgText);
+        await sendLineMsg(userId, message, { db, memberId, notificationType: 'manual_onboarding_week', source: 'onboarding/manual', module: 'onboarding', category: 'manual_onboarding_week', priority: 'action_required' });
         sent = true;
       }
 
