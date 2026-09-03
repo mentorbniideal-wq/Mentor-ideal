@@ -890,7 +890,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
 
     // ── Growth Data / Sheet (Growth Coordinator) ──────────────
     case 'getGrowthData': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
       // Flat member list for MC/mentor dashboard (not the growth sheet UI)
       const { data: rows, error } = await db
@@ -945,7 +945,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         const absent   = Number(m.absent)        || 0;
         const attend   = Number(m.attend)        || 0;
 
-        totalTYFCB    += tyfcb || given;
+        totalTYFCB    += tyfcb;
         totalVisitors += vis;
         total121      += r121;
         chapterAttend += attend;
@@ -1338,13 +1338,27 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const memberName  = String(p.memberName || '').trim();
       const taskType    = String(p.taskType || 'ทั่วไป').trim();
       const priority    = String(p.priority || '📋');
+      const requestedMemberId = String(p.memberId || '').trim();
+      const dueDate = String(p.dueDate || '').trim();
+      const ownerEmail = String(p.assignedOwnerEmail || '').trim().toLowerCase();
       if (!assignedTo) return errResponse('assignedTo or teamName required');
+      if (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return errResponse('dueDate ไม่ถูกต้อง');
 
       // Look up member_id if memberName provided
       let memberId: string | null = null;
-      if (memberName) {
-        const { data: mem } = await db.from('members').select('id').eq('name', memberName).maybeSingle();
+      if (requestedMemberId || memberName) {
+        let memberQuery = db.from('members').select('id,name,nickname,mentor_team').eq('is_archived', false);
+        memberQuery = requestedMemberId ? memberQuery.eq('id', requestedMemberId) : memberQuery.eq('name', memberName);
+        const { data: mem } = await memberQuery.maybeSingle();
         if (mem) memberId = (mem as Record<string, unknown>).id as string;
+        if (!mem) return errResponse('ไม่พบสมาชิกที่เลือก');
+      }
+
+      let ownerName: string | null = null;
+      if (ownerEmail) {
+        const { data: owner } = await db.from('role_assignments').select('email,display_name,access_status').ilike('email', ownerEmail).eq('access_status','active').maybeSingle();
+        if (!owner) return errResponse('ไม่พบผู้รับผิดชอบที่มีสิทธิ์ใช้งาน');
+        ownerName = String((owner as Record<string,unknown>).display_name || ownerEmail);
       }
 
       const { error } = await db.from('growth_tasks').insert({
@@ -1355,6 +1369,10 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         member_name: memberName || null,
         task_type:   taskType,
         priority,
+        status: 'new',
+        due_date: dueDate || null,
+        assigned_owner_email: ownerEmail || null,
+        assigned_owner_name: ownerName,
       });
       if (error) return errResponse(error.message);
       return jsonResponse({ ok: true });
@@ -1366,12 +1384,12 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const role = String(auth.role || '').toLowerCase();
       const statusFilter = String(p.statusFilter || 'all');
 
-      let query = db.from('growth_tasks').select('id, created_by, assigned_to, task_text, response, responded_at, created_at, priority, task_type, member_name');
+      let query = db.from('growth_tasks').select('id, created_by, assigned_to, task_text, response, responded_at, created_at, priority, task_type, member_name, member_id, status, due_date, assigned_owner_email, assigned_owner_name, started_at, completed_at, updated_at');
       // Mentors only see tasks assigned to them; MC/growth see all
       if (role !== 'mc' && role !== 'growth') query = query.eq('assigned_to', role);
       // Status filter
-      if (statusFilter === 'open')  query = query.is('responded_at', null);
-      if (statusFilter === 'done')  query = query.not('responded_at', 'is', null);
+      if (statusFilter === 'open') query = query.in('status',['new','accepted','in_progress','waiting_member']);
+      if (statusFilter === 'done') query = query.in('status',['completed','cancelled']);
 
       const { data, error } = await query.order('created_at', { ascending: false }).limit(50);
       if (error) return errResponse(error.message);
@@ -1383,13 +1401,27 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         taskType:    t.task_type    || 'ทั่วไป',
         note:        t.task_text    || '',
         priority:    t.priority     || '📋',
-        status:      t.responded_at ? 'done' : 'open',
+        status:      String(t.status || (t.responded_at ? 'completed' : 'new')),
+        dueDate:     t.due_date || null,
+        assignedOwnerEmail: t.assigned_owner_email || '',
+        assignedOwnerName: t.assigned_owner_name || '',
+        memberId: t.member_id || null,
         response:    t.response     || '',
         respondedAt: t.responded_at ? String(t.responded_at).split('T')[0] : '',
         createdAt:   t.created_at   ? String(t.created_at).split('T')[0] : '',
       }));
-
-      return jsonResponse({ ok: true, tasks });
+      const { data: assignees } = (role === 'mc' || role === 'growth' || auth.isAdmin)
+        ? await db.from('role_assignments').select('email,display_name,role,team_name').eq('access_status','active').or('is_mc.eq.true,is_mentor.eq.true,role.eq.growth').order('display_name')
+        : { data: [] };
+      return jsonResponse({
+        ok: true,
+        tasks,
+        assignees: (assignees || []).map((a: Record<string, unknown>) => ({
+          email: String(a.email || ''),
+          name: String(a.display_name || a.email || ''),
+          role: String(a.role || a.team_name || ''),
+        })),
+      });
     }
 
     case 'respondGrowthTask': {
@@ -1397,18 +1429,25 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       if (!auth.ok) return errResponse(auth.error!);
       const taskId   = String(p.taskId || p.id || '');
       const response = String(p.response || '').trim();
+      const nextStatus = String(p.status || 'completed');
+      if (!['accepted','in_progress','waiting_member','completed','cancelled'].includes(nextStatus)) return errResponse('สถานะ Growth Task ไม่ถูกต้อง');
       if (!taskId) return errResponse('taskId required');
       const { data: task, error: taskError } = await db.from('growth_tasks')
-        .select('assigned_to').eq('id', taskId).maybeSingle();
+        .select('assigned_to,assigned_owner_email').eq('id', taskId).maybeSingle();
       if (taskError) return errResponse(taskError.message);
       if (!task) return errResponse('ไม่พบ Growth Task');
       const assignedTo = String((task as Record<string, unknown>).assigned_to || '').toLowerCase();
       const role = String(auth.role || '').toLowerCase();
-      if (!auth.isMC && role !== 'growth' && assignedTo !== role) {
+      const ownerEmail=String((task as Record<string,unknown>).assigned_owner_email||'').toLowerCase();
+      if (!auth.isMC && role !== 'growth' && assignedTo !== role && ownerEmail !== String(auth.email||'').toLowerCase()) {
         return errResponse('ไม่มีสิทธิ์ตอบ Growth Task ของทีมอื่น', 403);
       }
+      const now=new Date().toISOString(),changes:Record<string,unknown>={status:nextStatus,response:response||null};
+      if(['accepted','in_progress'].includes(nextStatus))changes.started_at=now;
+      if(nextStatus==='completed'){changes.responded_at=now;changes.completed_at=now;}
+      if(nextStatus==='cancelled')changes.completed_at=now;
       const { error } = await db.from('growth_tasks')
-        .update({ response, responded_at: new Date().toISOString() })
+        .update(changes)
         .eq('id', taskId);
       if (error) return errResponse(error.message);
       return jsonResponse({ ok: true });

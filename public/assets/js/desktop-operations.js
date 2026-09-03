@@ -1,5 +1,5 @@
 var D={mem:[],ren:[],sm:{},teams:[],msgs:[],reps:[],health:{},lineIssues:[],lineIssueOpen:0};
-var G={mem:[],sm:{},tasks:[],nm:[],dec:[]};
+var G={mem:[],sm:{},tasks:[],nm:[],dec:[],assignees:[]};
 var S={role:'',token:null,sr:''};
 var mzf='all',ftf='all',rff='all',gzf='all',tsf='all';
 var gwModeFilter='all'; // 'all' | 'active' | 'growth_watch'
@@ -429,7 +429,7 @@ function loadGrowth(){
     }finally{chk();}
   });
   gsr('getGrowthTasks',{statusFilter:'all'},function(r){
-    try{if(r.ok){G.tasks=r.tasks||[];renderTasks();}}
+    try{if(r.ok){G.tasks=r.tasks||[];G.assignees=r.assignees||[];buildGrowthTaskOptions();renderTasks();renderGrowthToday();}}
     catch(e){console.error('[dashboard] growth tasks render failed',e);}
     finally{chk();}
   });
@@ -437,7 +437,7 @@ function loadGrowth(){
     try{
       if(r.ok){G.nm=r.members||[];renderNM();renderChapterPulse();}
       gsr('getRiskMembers',{},function(r2){
-        try{if(r2.ok){G.dec=r2.risks||[];renderDec();}}
+        try{if(r2.ok){G.dec=r2.risks||[];renderDec();renderGrowthToday();}}
         catch(e){console.error('[dashboard] growth risk render failed',e);}
       });
     }catch(e){
@@ -4950,7 +4950,24 @@ function buildGrowthFilters(){
   });
 }
 
-function renderGrowthAll(){renderHealthScore();renderGKPI();renderJIBar();renderGOvActivity();renderGOvBalance();renderBal();renderTop();renderGoals();renderTrendChart();buildHeatmapFilters();renderTrendSection();}
+function buildGrowthTaskOptions(){
+  var member=document.getElementById('tf-member'),owner=document.getElementById('tf-owner');
+  if(member){var selected=member.value;member.innerHTML='<option value="">เลือกสมาชิก</option>'+G.mem.slice().sort(function(a,b){return(a.nick||a.name).localeCompare(b.nick||b.name,'th');}).map(function(m){return'<option value="'+esc(m.id||m.memberId||'')+'" data-name="'+esc(m.name)+'" data-team="'+esc(m.mentor||'')+'">'+esc(m.nick||m.name)+' · '+esc(m.mentor||'ยังไม่มีทีม')+'</option>';}).join('');member.value=selected;member.onchange=function(){var o=member.options[member.selectedIndex];if(o&&o.dataset.team)document.getElementById('tf-team').value=o.dataset.team;};}
+  if(owner){var ownerSelected=owner.value;owner.innerHTML='<option value="">ผู้รับผิดชอบ (เลือกภายหลังได้)</option>'+(G.assignees||[]).map(function(a){return'<option value="'+esc(a.email||'')+'">'+esc(a.name||a.email)+' · '+esc(a.role||'')+'</option>';}).join('');owner.value=ownerSelected;}
+}
+
+function renderGrowthToday(){
+  var el=document.getElementById('growth-today');if(!el)return;
+  var open=(G.tasks||[]).filter(function(t){return ['new','accepted','in_progress','waiting_member','open'].indexOf(t.status)>=0;});
+  var today=new Date();today.setHours(0,0,0,0);
+  var overdue=open.filter(function(t){return t.dueDate&&new Date(t.dueDate+'T00:00:00')<today;});
+  var risk=(G.mem||[]).filter(function(m){return m.tl==='red'||m.tl==='black'||m.absent>4;});
+  var declining=(G.dec||[]).slice(0,5);
+  var focus=risk.slice(0,5).map(function(m){return'<button class="bsm" style="background:none;color:var(--tx)" onclick="openIMD(\''+esc(m.name)+'\')">'+esc(m.nick||m.name)+' · '+esc(m.mentor||'ไม่มีทีม')+'</button>';}).join('');
+  el.innerHTML='<div class="cc" style="border-color:rgba(96,165,250,.35)"><div class="sh"><h2>☀️ Growth Today</h2><span style="font-size:11px;color:var(--sub)">สิ่งที่ควรจัดการก่อน</span></div><div class="kgrid" style="margin-bottom:12px"><div class="kc pu"><div class="kl">งานเปิด</div><div class="kv">'+open.length+'</div><div class="ks">Growth Tasks</div></div><div class="kc re"><div class="kl">เกินกำหนด</div><div class="kv">'+overdue.length+'</div><div class="ks">ควรติดตามวันนี้</div></div><div class="kc ye"><div class="kl">สมาชิกต้องดูแล</div><div class="kv">'+risk.length+'</div><div class="ks">Red / Black / ขาดสูง</div></div><div class="kc bl"><div class="kl">แนวโน้มลดลง</div><div class="kv">'+declining.length+'</div><div class="ks">จากข้อมูลล่าสุด</div></div></div><div style="display:flex;gap:7px;flex-wrap:wrap">'+(focus||'<span style="font-size:12px;color:var(--gr)">✅ ไม่มีสมาชิกเร่งด่วน</span>')+'</div></div>';
+}
+
+function renderGrowthAll(){renderGrowthToday();renderHealthScore();renderGKPI();renderJIBar();renderGOvActivity();renderGOvBalance();renderBal();renderTop();renderGoals();renderTrendChart();buildHeatmapFilters();renderTrendSection();}
 
 function renderGKPI(){
   var sm=G.sm;
@@ -5026,7 +5043,7 @@ function renderBal(){
   var se=document.getElementById('gbs').value.trim().toLowerCase();
   var tm=document.getElementById('gbteam').value;
   var so=document.getElementById('gbsort').value;
-  var zoneOrder={highGiverLowRecv:0,lowGiverHighRecv:1,inactive:2,balanced:3};
+  var zoneOrder={highGiverLowRecv:0,lowGiverHighRecv:1,insufficient:2,balanced:3};
   var list=G.mem.filter(function(m){
     if(se&&(m.name||'').toLowerCase().indexOf(se)===-1&&(m.nick||'').toLowerCase().indexOf(se)===-1)return false;
     if(tm&&m.mentor!==tm)return false;
@@ -5041,12 +5058,12 @@ function renderBal(){
     if(so==='absent-d')return b.absent-a.absent;
     return a.score-b.score;
   });
-  var zoneLabel={highGiverLowRecv:'🔴 ให้เยอะ',lowGiverHighRecv:'🟡 รับเยอะ',balanced:'✅ สมดุล',inactive:'⚪ Inactive'};
-  var zoneBadge={highGiverLowRecv:'b-re',lowGiverHighRecv:'b-ye',balanced:'b-gr',inactive:'b-gy'};
+  var zoneLabel={highGiverLowRecv:'🔴 ให้เยอะ',lowGiverHighRecv:'🟡 รับเยอะ',balanced:'✅ สมดุล',insufficient:'⚪ ข้อมูลยังไม่พอ'};
+  var zoneBadge={highGiverLowRecv:'b-re',lowGiverHighRecv:'b-ye',balanced:'b-gr',insufficient:'b-gy'};
   document.getElementById('baltb').innerHTML=list.length?list.map(function(m,i){
     var gp=Math.round(m.giveRatio);var rp=100-gp;
     return'<tr><td style="color:var(--sub);font-size:10px">'+(i+1)+'</td>'+
-      '<td><div style="font-weight:600">'+esc(m.name)+'</div><div style="font-size:11px;color:var(--sub)">'+esc(m.nick||'')+'</div></td>'+
+      '<td><button style="background:none;border:0;padding:0;color:var(--tx);text-align:left;cursor:pointer;font:inherit" onclick="openIMD(\''+esc(m.name)+'\')"><div style="font-weight:700">'+esc(m.name)+'</div><div style="font-size:11px;color:var(--sub)">'+esc(m.nick||'')+'</div></button></td>'+
       '<td style="font-size:12px;color:var(--sub)">'+esc(m.mentor||'—')+'</td>'+
       '<td><span class="badge '+(zoneBadge[m.zone]||'b-gy')+'">'+esc(zoneLabel[m.zone]||m.zone)+'</span></td>'+
       '<td style="font-weight:700;color:var(--bl)">'+m.rgCount+'</td>'+
@@ -5067,17 +5084,20 @@ function renderBal(){
 function toggleTaskForm(){var f=document.getElementById('taskForm');f.style.display=f.style.display==='block'?'none':'block';}
 function createTask(){
   var tm=document.getElementById('tf-team').value;
-  var mn=document.getElementById('tf-member').value.trim();
+  var memberEl=document.getElementById('tf-member'),memberOpt=memberEl.options[memberEl.selectedIndex];
+  var memberId=memberEl.value,mn=memberOpt&&memberOpt.dataset.name||'';
   var tp=document.getElementById('tf-type').value;
   var pr=document.getElementById('tf-pri').value;
   var nt=document.getElementById('tf-note').value.trim();
+  var owner=document.getElementById('tf-owner').value;
+  var due=document.getElementById('tf-due').value;
   var res=document.getElementById('tf-res');
-  if(!tm||!mn){res.style.color='var(--re)';res.textContent='กรุณาเลือกทีมและใส่ชื่อสมาชิก';return;}
+  if(!tm||!memberId){res.style.color='var(--re)';res.textContent='กรุณาเลือกทีมและสมาชิก';return;}
   res.style.color='var(--sub)';res.textContent='กำลังส่ง...';
-  gsr('createGrowthTask',{teamName:tm,memberName:mn,taskType:tp,priority:pr,note:nt},function(r){
+  gsr('createGrowthTask',{teamName:tm,memberId:memberId,memberName:mn,taskType:tp,priority:pr,note:nt,dueDate:due,assignedOwnerEmail:owner},function(r){
     if(r.ok){res.style.color='var(--gr)';res.textContent='✓ สร้าง Task แล้ว';
-      document.getElementById('tf-member').value='';document.getElementById('tf-note').value='';
-      gsr('getGrowthTasks',{statusFilter:'all'},function(r2){if(r2.ok){G.tasks=r2.tasks||[];renderTasks();}});
+      document.getElementById('tf-member').value='';document.getElementById('tf-note').value='';document.getElementById('tf-due').value='';
+      gsr('getGrowthTasks',{statusFilter:'all'},function(r2){if(r2.ok){G.tasks=r2.tasks||[];G.assignees=r2.assignees||G.assignees;renderTasks();renderGrowthToday();}});
     }else{res.style.color='var(--re)';res.textContent='ผิดพลาด: '+(r.error||'');}
   });
 }
@@ -5086,24 +5106,36 @@ function renderTasks(){
   var tm=document.getElementById('task-tf').value;
   var list=G.tasks.filter(function(t){
     if(tm&&t.team!==tm)return false;
-    if(tsf!=='all'&&t.status!==tsf)return false;
+    var isDone=t.status==='completed'||t.status==='cancelled'||t.status==='done';
+    if(tsf==='open'&&isDone)return false;
+    if(tsf==='done'&&!isDone)return false;
     return true;
   });
   document.getElementById('taskn').textContent=list.length;
   document.getElementById('tasklist').innerHTML=list.length?list.map(function(t){
-    return'<div class="task-card '+t.status+'">'+
+    var done=t.status==='completed'||t.status==='cancelled'||t.status==='done';
+    var statusLabel={new:'ใหม่',accepted:'รับงานแล้ว',in_progress:'กำลังดูแล',waiting_member:'รอสมาชิก',completed:'เสร็จแล้ว',cancelled:'ยกเลิก',open:'เปิด',done:'เสร็จแล้ว'}[t.status]||t.status;
+    var actions=done?'':'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px"><button class="bsm" onclick="updateGrowthTask(\''+esc(t.id)+'\',\'in_progress\')">▶ เริ่มดูแล</button><button class="bsm" onclick="updateGrowthTask(\''+esc(t.id)+'\',\'waiting_member\')">⏳ รอสมาชิก</button><button class="bsm bac" onclick="updateGrowthTask(\''+esc(t.id)+'\',\'completed\')">✓ เสร็จแล้ว</button></div>';
+    return'<div class="task-card '+(done?'done':'open')+'">'+
       '<div class="task-hdr">'+
         '<span style="font-size:16px">'+esc(t.priority||'📋')+'</span>'+
         '<span style="font-weight:700">'+esc(t.memberName)+'</span>'+
         '<span class="badge b-pu" style="font-size:10px">'+esc(t.team)+'</span>'+
-        '<span class="badge '+(t.status==='done'?'b-gr':'b-ye')+'" style="font-size:10px">'+esc(t.taskType||'')+'</span>'+
+        '<span class="badge '+(done?'b-gr':'b-ye')+'" style="font-size:10px">'+esc(t.taskType||'')+'</span>'+
         '<span style="font-size:10px;color:var(--gy);margin-left:auto">'+esc(t.createdAt)+'</span>'+
-        (t.status==='done'?'<span class="badge b-gr" style="font-size:10px">✅ เสร็จ</span>':'<span class="badge b-ye" style="font-size:10px">🟡 เปิด</span>')+
+        '<span class="badge '+(done?'b-gr':'b-ye')+'" style="font-size:10px">'+esc(statusLabel)+'</span>'+
       '</div>'+
+      '<div style="font-size:11px;color:var(--sub);margin-top:5px">ผู้รับผิดชอบ: '+esc(t.assignedOwnerName||t.assignedOwnerEmail||'ยังไม่มอบหมาย')+(t.dueDate?' · กำหนด '+esc(t.dueDate):'')+'</div>'+
       (t.note?'<div class="task-note">'+esc(t.note)+'</div>':'')+
       (t.response?'<div class="task-resp"><span style="font-size:9px;color:var(--ac2);font-weight:600;text-transform:uppercase;display:block;margin-bottom:3px">Mentor Response — '+esc(t.respondedAt)+'</span>'+esc(t.response)+'</div>':'')+
+      actions+
     '</div>';
   }).join(''):'<div class="es">ไม่มี Task ในกลุ่มนี้</div>';
+}
+
+function updateGrowthTask(id,status){
+  var response=status==='completed'?(prompt('สรุปผลสั้น ๆ (เว้นว่างได้)')||''):'';
+  gsr('respondGrowthTask',{taskId:id,status:status,response:response},function(r){if(!r||!r.ok){toast('อัปเดตงานไม่สำเร็จ: '+(r&&r.error||''),'err');return;}gsr('getGrowthTasks',{statusFilter:'all'},function(r2){if(r2&&r2.ok){G.tasks=r2.tasks||[];renderTasks();renderGrowthToday();toast('อัปเดตสถานะงานแล้ว');}});});
 }
 
 // ── New Members ───────────────────────────────────

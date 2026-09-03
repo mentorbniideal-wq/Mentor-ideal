@@ -933,6 +933,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 
     <!-- Growth Overview -->
     <div id="gr-ov" class="sec">
+      <div id="growth-today" style="margin-bottom:16px"></div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
         <h2 style="font-size:14px;font-weight:700">🎯 Chapter Goals</h2>
         <button class="bsm bac" onclick="toggleGoalEdit()" style="font-size:11px">✏️ ตั้งเป้า</button>
@@ -985,7 +986,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         <button class="zp" data-z="highGiverLowRecv" onclick="sgz('highGiverLowRecv',this)" style="background:transparent;border-color:var(--re)">🔴 ให้เยอะ</button>
         <button class="zp" data-z="lowGiverHighRecv" onclick="sgz('lowGiverHighRecv',this)" style="background:transparent;border-color:var(--ye)">🟡 รับเยอะ</button>
         <button class="zp" data-z="balanced" onclick="sgz('balanced',this)" style="background:transparent;border-color:var(--gr)">✅ สมดุล</button>
-        <button class="zp" data-z="inactive" onclick="sgz('inactive',this)">⚪ Inactive</button>
+        <button class="zp" data-z="insufficient" onclick="sgz('insufficient',this)">⚪ ข้อมูลยังไม่พอ</button>
         <select id="gbsort" onchange="renderBal();saveFilters()">
           <option value="zone">เรียงตาม Zone</option><option value="give-d">Ref ให้ ↓</option>
           <option value="recv-d">Ref รับ ↓</option><option value="tyfcb-d">TYFCB ↓</option>
@@ -1021,7 +1022,11 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
             <option value="อื่นๆ">📋 อื่นๆ</option>
           </select>
         </div>
-        <input type="text" id="tf-member" placeholder="ชื่อสมาชิก">
+        <select id="tf-member"><option value="">เลือกสมาชิก</option></select>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <select id="tf-owner"><option value="">ผู้รับผิดชอบ (เลือกภายหลังได้)</option></select>
+          <input type="date" id="tf-due" aria-label="กำหนดเสร็จ">
+        </div>
         <select id="tf-pri"><option value="🔴">🔴 สำคัญมาก</option><option value="🟡" selected>🟡 ปานกลาง</option><option value="📋">📋 ทั่วไป</option></select>
         <textarea id="tf-note" placeholder="รายละเอียด / หมายเหตุ..." rows="3"></textarea>
         <div style="display:flex;gap:7px">
@@ -2155,7 +2160,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
   <button class="bk-btn" style="background:transparent;color:var(--sub);border:1px solid var(--bd)" onclick="clearBulk()">✕ ยกเลิก</button>
 </div>
 
-<script src="/assets/js/desktop-operations.js?v=20260903c" defer></script>
+<script src="/assets/js/desktop-operations.js?v=20260903d" defer></script>
 <script src="/assets/js/desktop-member-360.js" defer></script>
 
 <!-- 8W Delete Confirm Modal -->

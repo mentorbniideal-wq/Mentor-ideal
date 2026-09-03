@@ -4,6 +4,7 @@ import { defaultCapabilities } from './capabilities.ts';
 
 export interface AuthResult {
   ok: boolean;
+  email?: string;
   role?: string;
   displayName?: string;
   teamName?: string | null;
@@ -87,6 +88,7 @@ export async function verifyToken(
     : (Array.isArray(r.capabilities) ? r.capabilities.map(String).filter(x => x !== '*') : []);
   return {
     ok:          true,
+    email,
     role:        String(r.role),
     displayName: String(r.display_name || r.role),
     teamName:    r.team_name != null ? String(r.team_name) : null,
