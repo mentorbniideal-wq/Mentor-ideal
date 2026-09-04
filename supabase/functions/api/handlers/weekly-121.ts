@@ -192,10 +192,28 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
   if (action === 'resolveWeekly121ImportRow') {
     const roundId=String(p.roundId||''), rowNumber=Number(p.rowNumber), memberId=String(p.memberId||'');
     if(!roundId||!rowNumber||!memberId)return errResponse('กรุณาเลือกรายการและสมาชิก');
+    const {data:round}=await db.from('matching_rounds').select('status').eq('id',roundId).maybeSingle();
+    if(!round||String((round as Record<string,unknown>).status)!=='draft')return errResponse('แก้รายชื่อได้เฉพาะรอบร่าง');
+    const {data:duplicate}=await db.from('matching_import_rows').select('row_number').eq('round_id',roundId).eq('matched_member_id',memberId).eq('import_status','ready').neq('row_number',rowNumber).limit(1).maybeSingle();
+    if(duplicate)return errResponse(`สมาชิกคนนี้อยู่ในรายชื่อพร้อมจับคู่แล้ว (แถว ${String((duplicate as Record<string,unknown>).row_number)}) กรุณาเลือกคนอื่นหรือยืนยันว่ารายการนี้ซ้ำ`);
     const {data:link}=await db.from('line_members').select('line_user_id').eq('member_id',memberId).maybeSingle();
     const status=hasUsableLineId((link as Record<string,unknown>|null)?.line_user_id)?'ready':'no_line';
     const {error}=await db.from('matching_import_rows').update({matched_member_id:memberId,import_status:status,validation_message:status==='ready'?'Admin ยืนยันสมาชิกแล้ว':'Admin ยืนยันแล้ว แต่สมาชิกยังไม่มี LINE'}).eq('round_id',roundId).eq('row_number',rowNumber);
-    return error?errResponse(error.message):jsonResponse({ok:true,status});
+    if(error)return errResponse(error.message);
+    const {error:eligibilityError}=await db.from('round_eligibility').upsert({round_id:roundId,member_id:memberId,source:'attendee',status:status==='ready'?'eligible':'excluded',reason:status==='ready'?'แก้ไขรายชื่อโดย MC':'ยังไม่เชื่อม LINE',updated_at:new Date().toISOString()},{onConflict:'round_id,member_id'});
+    return eligibilityError?errResponse(eligibilityError.message):jsonResponse({ok:true,status});
+  }
+  if(action==='excludeWeekly121ImportRow'){
+    const roundId=String(p.roundId||''),rowNumber=Number(p.rowNumber),reason=String(p.reason||'ยืนยันว่าเป็นรายการซ้ำ');
+    if(!roundId||!rowNumber)return errResponse('ไม่พบรายการที่ต้องการนำออก');
+    const {data:round}=await db.from('matching_rounds').select('status').eq('id',roundId).maybeSingle();
+    if(!round||String((round as Record<string,unknown>).status)!=='draft')return errResponse('นำรายชื่อออกได้เฉพาะรอบร่าง');
+    const {data:row}=await db.from('matching_import_rows').select('matched_member_id').eq('round_id',roundId).eq('row_number',rowNumber).maybeSingle();
+    const {error}=await db.from('matching_import_rows').update({import_status:'excluded',validation_message:reason}).eq('round_id',roundId).eq('row_number',rowNumber);
+    if(error)return errResponse(error.message);
+    const memberId=String((row as Record<string,unknown>|null)?.matched_member_id||'');
+    if(memberId)await db.from('round_eligibility').update({status:'excluded',reason,updated_at:new Date().toISOString()}).eq('round_id',roundId).eq('member_id',memberId);
+    return jsonResponse({ok:true,status:'excluded'});
   }
   if (action === 'removeWeekly121Member') {
     const roundId=String(p.roundId||''), pairId=String(p.pairId||''), memberId=String(p.memberId||'');
@@ -247,13 +265,25 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
   }
   if(action==='getOneToOneQueues'){
     const {data:deliveryRows,error:deliveryError}=await db.from('line_message_deliveries').select('matching_pair_id,member_id,status,notification_type').eq('module','one_to_one').eq('status','sent').eq('notification_type','weekly_121_matching').not('matching_pair_id','is',null);if(deliveryError)return errResponse(deliveryError.message);const deliveredPairIds=fullyDeliveredOneToOnePairIds((deliveryRows||[]) as Record<string,unknown>[]),deliveryMembers=new Map<string,Set<string>>();((deliveryRows||[]) as Record<string,unknown>[]).forEach(x=>{const pairId=String(x.matching_pair_id||''),memberId=String(x.member_id||'');if(!pairId||!memberId)return;if(!deliveryMembers.has(pairId))deliveryMembers.set(pairId,new Set());deliveryMembers.get(pairId)!.add(memberId);});const activePromise=db.from('matching_pairs').select('id,status,created_at,round:matching_rounds(meeting_date,ends_at,status),member_a:members!matching_pairs_member_a_id_fkey(id,name,nickname,mentor_team),member_b:members!matching_pairs_member_b_id_fkey(id,name,nickname,mentor_team),member_c:members!matching_pairs_optional_member_c_id_fkey(id,name,nickname,mentor_team),schedules:one_to_one_schedules(id,starts_at,status,meeting_mode)').is('archived_at',null).neq('status','verified').neq('status','late_verified').order('created_at',{ascending:false}).limit(100);
-    const [{data:active},{data:waiting},{data:followUps},{data:attention},{data:budgets}]=await Promise.all([
+    const [{data:active},{data:waiting},{data:followUps},{data:attention},{data:budgets},{data:latestRound},{data:candidateMembers},{data:candidateLinks}]=await Promise.all([
       activePromise,
       db.from('pairing_waitlist').select('id,status,priority_points,reason,created_at,round:matching_rounds(meeting_date),member:members(id,name,nickname,mentor_team)').eq('status','waiting').order('priority_points',{ascending:false}).limit(100),
       db.from('one_to_one_follow_up_actions').select('id,action_type,description,due_date,status,outcome,owner:members!one_to_one_follow_up_actions_owner_member_id_fkey(id,name,nickname,mentor_team),related:members!one_to_one_follow_up_actions_related_member_id_fkey(id,name,nickname)').in('status',['pending','in_progress','overdue']).order('due_date',{ascending:true}).limit(100),
       db.from('one_to_one_attention_items').select('id,level,reason,evidence,positive_context,suggested_action,assigned_role,due_date,status,member:members(id,name,nickname,mentor_team),pair_id').in('status',['open','reviewed','snoozed']).order('created_at',{ascending:false}).limit(100),
       db.from('notification_budget_config').select('*').order('module'),
-    ]);const visibleActive=((active||[]) as Record<string,unknown>[]).filter(x=>String(((x.round||{}) as Record<string,unknown>).status||'')!=='cancelled').map(x=>{const required=x.member_c?3:2,delivered=deliveryMembers.get(String(x.id))?.size||0;return{...x,lineDelivered:delivered===required,lineDelivery:{delivered,required}};});return jsonResponse({ok:true,active:visibleActive,waiting:waiting||[],followUps:followUps||[],attention:attention||[],budgets:budgets||[],activeDefinition:'all_non_cancelled_pairs_with_line_delivery_status'});
+      db.from('matching_rounds').select('id,meeting_date,status').neq('status','cancelled').order('meeting_date',{ascending:false}).order('created_at',{ascending:false}).limit(1).maybeSingle(),
+      db.from('members').select('id,name,nickname,mentor_team').eq('is_archived',false).order('name'),
+      db.from('line_members').select('member_id,line_user_id'),
+    ]);
+    const visibleActive=((active||[]) as Record<string,unknown>[]).filter(x=>String(((x.round||{}) as Record<string,unknown>).status||'')!=='cancelled').map(x=>{const required=x.member_c?3:2,delivered=deliveryMembers.get(String(x.id))?.size||0;return{...x,lineDelivered:delivered===required,lineDelivery:{delivered,required}};});
+    const latest=latestRound as Record<string,unknown>|null;let actionRequired:Record<string,unknown>[]=[];
+    if(latest&&String(latest.status)==='draft'){
+      const {data:issues}=await db.from('matching_import_rows').select('row_number,first_name_en,last_name_en,matched_member_id,import_status,validation_message,member:members(id,name,nickname,mentor_team)').eq('round_id',String(latest.id)).in('import_status',['no_line','not_found','ambiguous','duplicate']).order('row_number');
+      actionRequired=((issues||[]) as Record<string,unknown>[]).map(x=>({...x,roundId:String(latest.id),meetingDate:String(latest.meeting_date||'')}));
+    }
+    const linked=new Set(((candidateLinks||[]) as Record<string,unknown>[]).filter(x=>hasUsableLineId(x.line_user_id)).map(x=>String(x.member_id)));
+    const memberOptions=((candidateMembers||[]) as Record<string,unknown>[]).map(x=>({...x,lineReady:linked.has(String(x.id))}));
+    return jsonResponse({ok:true,active:visibleActive,waiting:waiting||[],followUps:followUps||[],attention:attention||[],budgets:budgets||[],actionRequired,memberOptions,activeDefinition:'all_non_cancelled_pairs_with_line_delivery_status'});
   }
   if(action==='reissueOneToOneVerificationCode'){
     const pairId=String(p.pairId||''),memberId=String(p.memberId||'');
