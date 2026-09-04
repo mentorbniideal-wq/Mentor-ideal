@@ -46,7 +46,7 @@ var SUPABASE_API='https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
 var SUPABASE_ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
 var SUPABASE_URL_AUTH='https://itwyjhlfemxsfbimshby.supabase.co';
 var API_HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_ANON};
-var APP_STATIC_VERSION='2026.09.04-viewer-pin.2';
+var APP_STATIC_VERSION='2026.09.04-viewer-read.1';
 try{
   var _svKey='bni_dashboard_static_version';
   var _prevSv=localStorage.getItem(_svKey)||'';
@@ -160,7 +160,11 @@ function gsr(a,p,cb){
   var payload=Object.assign({action:a},p||{});
   if(S&&S.token)payload.token=S.token;
   if(S&&S.pin)payload.pin=S.pin;
-  if(S&&(S.actualRole||S.role)&&!payload.role)payload.role=S.actualRole||S.role;
+  // Several legacy read loaders explicitly pass role:"mc". A PIN session must
+  // always authenticate with the role that owns that PIN; otherwise a Viewer
+  // PIN is incorrectly verified as an MC PIN and every read returns empty.
+  if(S&&S.isViewer)payload.role='viewer';
+  else if(S&&(S.actualRole||S.role)&&!payload.role)payload.role=S.actualRole||S.role;
   fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify(payload)}).then(function(r){return r.json();}).then(function(r){cb(r);}).catch(function(e){cb({ok:false,error:e.message});});
 }
 function call(a,p,cb){gsr(a,p,cb||function(){});}
