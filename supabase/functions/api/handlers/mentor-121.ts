@@ -17,9 +17,9 @@ export async function handleMentor121(p:Record<string,unknown>):Promise<Response
 
   if(action==='getOneToOnePairAction'){
     const pairId=String(p.pairId||'');
-    const {data:pair}=await db.from('matching_pairs').select('id,round_id,status,created_at,member_a_id,member_b_id,member_a:members!matching_pairs_member_a_id_fkey(id,name,nickname,profession,company_name,mentor_team),member_b:members!matching_pairs_member_b_id_fkey(id,name,nickname,profession,company_name,mentor_team),round:matching_rounds(meeting_date,ends_at)').eq('id',pairId).is('archived_at',null).maybeSingle();
-    const row=pair as Record<string,unknown>|null;if(!row||(!inScope(row.member_a as Record<string,unknown>)&&!inScope(row.member_b as Record<string,unknown>)))return errResponse('ไม่พบคู่ในขอบเขตที่คุณดูแล',403);
-    const ids=[String(row.member_a_id),String(row.member_b_id)];
+    const {data:pair}=await db.from('matching_pairs').select('id,round_id,status,created_at,member_a_id,member_b_id,optional_member_c_id,member_a:members!matching_pairs_member_a_id_fkey(id,name,nickname,profession,company_name,mentor_team),member_b:members!matching_pairs_member_b_id_fkey(id,name,nickname,profession,company_name,mentor_team),member_c:members!matching_pairs_optional_member_c_id_fkey(id,name,nickname,profession,company_name,mentor_team),round:matching_rounds(meeting_date,ends_at)').eq('id',pairId).is('archived_at',null).maybeSingle();
+    const row=pair as Record<string,unknown>|null;if(!row||(!inScope(row.member_a as Record<string,unknown>)&&!inScope(row.member_b as Record<string,unknown>)&&!inScope(row.member_c as Record<string,unknown>)))return errResponse('ไม่พบคู่ในขอบเขตที่คุณดูแล',403);
+    const ids=[row.member_a_id,row.member_b_id,row.optional_member_c_id].filter(Boolean).map(String);
     const [{data:deliveries},{data:schedules},{data:verifications},{data:guided},{data:feedback},{data:followups},{data:attention},{data:events},{data:questions}]=await Promise.all([
       db.from('line_message_deliveries').select('id,member_id,status,notification_type,sent_at,created_at,suppression_reason,last_error').eq('matching_pair_id',pairId).eq('module','one_to_one').order('created_at',{ascending:false}).limit(50),
       db.from('one_to_one_schedules').select('id,starts_at,status,proposed_by,confirmed_by_a_at,confirmed_by_b_at,updated_at').eq('pair_id',pairId).order('updated_at',{ascending:false}).limit(5),

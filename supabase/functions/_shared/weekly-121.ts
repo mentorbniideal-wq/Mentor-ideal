@@ -63,7 +63,7 @@ export function fullyDeliveredOneToOnePairIds(deliveries: Array<Record<string, u
   return [...recipientsByPair.entries()].filter(([,recipients])=>recipients.size>=2).map(([pairId])=>pairId);
 }
 export type MatchMember = { id: string; name: string; checkinOrder?: number; lookingFor?: string; business?: string; mentorTeam?: string; waitingPriority?: number; completionRate?: number };
-export type MatchGroup = { members: MatchMember[]; locked?: boolean };
+export type MatchGroup = { id?: string; members: MatchMember[]; locked?: boolean };
 export type MatchResult = { groups: MatchGroup[]; waiting: MatchMember | null };
 const pairKey = (a: string, b: string) => [a, b].sort().join('|');
 
@@ -124,27 +124,27 @@ export function createWeekly121Matches(
   return [...locked, ...result];
 }
 
-/** New-system matcher. It never creates a trio; one fair-rotation member waits. */
+/** New-system matcher. Odd pools use exactly one exceptional trio so nobody is left without a match. */
 export function createOneToOneMatches(
   members: MatchMember[], blockedKeys: Set<string>, locked: MatchGroup[] = [], random: () => number = Math.random,
   strategy: MatchingStrategy = 'random',
 ): MatchResult {
   const lockedIds = new Set(locked.flatMap(group => group.members.map(member => member.id)));
   const available = members.filter(member => !lockedIds.has(member.id));
-  let waiting: MatchMember | null = null;
-  if (available.length % 2 === 1) {
-    // A higher carry priority means this person waited before and should be paired now.
-    // Choose among the lowest priority first, using check-in order then randomness as ties.
-    waiting = available.slice().sort((a, b) =>
-      Number(a.waitingPriority || 0) - Number(b.waitingPriority || 0)
-      || Number(b.checkinOrder || 0) - Number(a.checkinOrder || 0)
-      || random() - .5
-    )[0];
+  if (available.length === 1) {
+    const lone=available[0],host=locked.find(group=>group.members.length===2&&group.members.every(member=>!blockedKeys.has(pairKey(member.id,lone.id))));
+    if(host)return{groups:locked.map(group=>group===host?{...group,members:[...group.members,lone]}:group),waiting:null};
+    return { groups: locked, waiting: lone };
   }
-  const pairable = waiting ? members.filter(member => member.id !== waiting!.id) : members;
-  const groups = createWeekly121Matches(pairable, blockedKeys, locked, random, strategy);
-  if (groups.some(group => group.members.length !== 2)) throw new Error('ระบบป้องกันกลุ่มสาม: คู่ใหม่ต้องมีสมาชิก 2 คนเท่านั้น');
-  return { groups, waiting };
+  if (available.length % 2 === 0) return { groups: createWeekly121Matches(members, blockedKeys, locked, random, strategy), waiting: null };
+  const ranked=available.slice().sort((a,b)=>Number(b.waitingPriority||0)-Number(a.waitingPriority||0)||Number(a.checkinOrder||0)-Number(b.checkinOrder||0)||random()-.5);
+  for(let i=0;i<ranked.length;i++)for(let j=i+1;j<ranked.length;j++)for(let k=j+1;k<ranked.length;k++){
+    const trio=[ranked[i],ranked[j],ranked[k]];
+    if(trio.some((member,index)=>trio.slice(index+1).some(other=>blockedKeys.has(pairKey(member.id,other.id)))))continue;
+    const trioIds=new Set(trio.map(member=>member.id)),remaining=members.filter(member=>!trioIds.has(member.id));
+    try{return{groups:[...createWeekly121Matches(remaining,blockedKeys,locked,random,strategy),{members:trio}],waiting:null};}catch{/* try another compatible trio */}
+  }
+  throw new Error('ไม่สามารถสร้างกลุ่มพิเศษ 3 คนภายใต้เงื่อนไขคู่ซ้ำ/คู่ห้ามได้ กรุณาลดระยะเวลาหรือปรับรายชื่อ');
 }
 
 function compact121(value: string | undefined, fallback = ''): string {

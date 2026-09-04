@@ -55,6 +55,13 @@ export async function handshakeCodeHash(pairId:string,ownerMemberId:string,code:
   return [...new Uint8Array(digest)].map(value=>value.toString(16).padStart(2,'0')).join('');
 }
 
+export async function sharedTrioHandshakeCode(pairId:string,pepper:string):Promise<string>{
+  const bytes=new TextEncoder().encode(`trio:${pairId}:${pepper}`);
+  const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
+  const value=((digest[0]<<24)>>>0)+(digest[1]<<16)+(digest[2]<<8)+digest[3];
+  return String(value%1_000_000).padStart(6,'0');
+}
+
 export function safeHashEqual(left:string,right:string):boolean{
   if(left.length!==right.length)return false;let difference=0;
   for(let index=0;index<left.length;index++)difference|=left.charCodeAt(index)^right.charCodeAt(index);

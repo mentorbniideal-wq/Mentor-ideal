@@ -5,18 +5,23 @@ Deno.test('CSV รองรับ BOM ไทย quoted comma และ multiline
   const out = parseWeekly121Csv(csv); eq(out.rows.length, 1); eq(out.rows[0].lookingFor, 'โรงแรม, ขอนแก่น\nแห่งใหม่');
 });
 Deno.test('normalize ชื่อ', () => eq(normalize121Name('  MAYUREE   Issard '), 'mayuree issard'));
-Deno.test('ระบบใหม่สร้างคู่ละ 2 คนและเลขคี่เข้า Waiting List', () => {
+Deno.test('ระบบใหม่สร้างกลุ่มพิเศษ 3 คนเมื่อจำนวนผู้เข้าร่วมเป็นเลขคี่', () => {
   const ms = ['a','b','c','d','e'].map(id => ({ id, name: id }));
   const result = createOneToOneMatches(ms, new Set(), [], () => .5);
-  eq(result.groups.map(g => g.members.length), [2,2]);
-  if (!result.waiting) throw new Error('odd member must wait');
-  eq(new Set([...result.groups.flatMap(g => g.members.map(m => m.id)),result.waiting.id]).size, 5);
+  eq(result.groups.map(g => g.members.length).sort(), [2,3]);
+  if (result.waiting) throw new Error('odd pool must use a trio');
+  eq(new Set(result.groups.flatMap(g => g.members.map(m => m.id))).size, 5);
 });
-Deno.test('Waiting priority ทำให้คนที่เคยรอได้จับคู่ก่อน', () => {
+Deno.test('กลุ่มพิเศษรวมสมาชิกที่เคยรอเข้าด้วย', () => {
   const ms = [{id:'a',name:'A',waitingPriority:4},{id:'b',name:'B',waitingPriority:0},{id:'c',name:'C',waitingPriority:0}];
   const result=createOneToOneMatches(ms,new Set(),[],()=>.5);
-  if(result.waiting?.id==='a')throw new Error('carry-priority member must not wait again');
-  if(!result.groups[0].members.some(member=>member.id==='a'))throw new Error('priority member must be paired');
+  eq(result.groups[0].members.length,3);
+  if(!result.groups[0].members.some(member=>member.id==='a'))throw new Error('priority member must be included');
+});
+Deno.test('คนเหลือหนึ่งคนถูกเติมเข้าคู่ที่ล็อกเป็นกลุ่มพิเศษโดยไม่รื้อคู่เดิม',()=>{
+  const members=['a','b','c'].map(id=>({id,name:id})),locked=[{id:'pair-1',locked:true,members:members.slice(0,2)}];
+  const result=createOneToOneMatches(members,new Set(),locked,()=>.5);
+  eq(result.waiting,null);eq(result.groups[0].id,'pair-1');eq(result.groups[0].members.map(x=>x.id),['a','b','c']);
 });
 Deno.test('ระบบเดิมที่เรียก matcher ด้วยจำนวนคู่ยังได้เฉพาะคู่', () => {
   const groups=createWeekly121Matches(['a','b','c','d'].map(id=>({id,name:id})),new Set(),[],()=>.5);
