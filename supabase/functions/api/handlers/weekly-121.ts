@@ -349,7 +349,7 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
     const previews=buildPreviews(detail.pairs,detail.looking,String((detail.round as Record<string,unknown>).message_template_key||'growth_opportunity')),guardedPreviews:Array<(typeof previews)[number]&{guard:Awaited<ReturnType<typeof evaluateNotificationGuard>>}>=[];
     // Guard evaluation performs multiple reads per member. Bound concurrency so
     // a full chapter launch does not overwhelm PostgREST before the send starts.
-    for(let offset=0;offset<previews.length;offset+=10){const guardedBatch=await Promise.all(previews.slice(offset,offset+10).map(async item=>{const guard=await evaluateNotificationGuard(db,{memberId:item.recipient.id,module:'one_to_one',category:testMode?'weekly_121_test':'weekly_121_matching',priority:'action_required'});return{...item,guard:['daily_cap','quiet_hours'].includes(guard.reason)?{...guard,allowed:true,reason:'admin_confirmed_121'}:guard};}));guardedPreviews.push(...guardedBatch);}
+    for(let offset=0;offset<previews.length;offset+=10){const guardedBatch=await Promise.all(previews.slice(offset,offset+10).map(async item=>{const guard=await evaluateNotificationGuard(db,{memberId:item.recipient.id,module:'one_to_one',category:testMode?'weekly_121_test':'weekly_121_matching',priority:'action_required'});return{...item,guard:['daily_cap','quiet_hours','duplicate'].includes(guard.reason)?{...guard,allowed:true,reason:'admin_confirmed_121'}:guard};}));guardedPreviews.push(...guardedBatch);}
     if(dryRun)return jsonResponse({ok:true,dryRun:true,testMode,previews:guardedPreviews,messageCount:guardedPreviews.filter(x=>x.guard.allowed&&hasUsableLineId(x.lineUserId)).length,suppressed:guardedPreviews.filter(x=>!x.guard.allowed).map(x=>({name:x.recipient.name,reason:x.guard.reason})),unsendable:guardedPreviews.filter(x=>!hasUsableLineId(x.lineUserId)).map(x=>x.recipient.name),budget:guardedPreviews[0]?.guard||null});
     if(!guardedPreviews.length)return errResponse('รอบนี้ยังไม่มีคู่สำหรับส่ง LINE');
     if(!guardedPreviews.some(x=>x.guard.allowed&&hasUsableLineId(x.lineUserId)))return errResponse('ไม่มีผู้รับที่ผ่านเงื่อนไขการส่ง กรุณาตรวจ Pilot, LINE และ Message Guard',409);
@@ -369,8 +369,10 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
       sent+=results.filter(x=>x==='sent').length;skipped+=results.filter(x=>x==='skipped').length;failed+=results.filter(x=>x==='failed').length;
     }
     if(testMode)return jsonResponse({ok:true,testMode:true,status:failed?'partially_failed':'tested',sent,failed,skipped});
-    const status=oneToOneRoundDeliveryStatus(sent,failed,skipped);await db.from('matching_rounds').update({status}).eq('id',roundId);
-    return jsonResponse({ok:true,testMode:false,status,sent,failed,skipped});
+    const {data:roundDeliveries}=await db.from('line_message_deliveries').select('member_id,status').eq('matching_round_id',roundId).eq('notification_type','weekly_121_matching').eq('status','sent');
+    const deliveredMembers=new Set(((roundDeliveries||[]) as Record<string,unknown>[]).map(x=>String(x.member_id||'')).filter(Boolean));
+    const status=deliveredMembers.size===previews.length?'sent':oneToOneRoundDeliveryStatus(deliveredMembers.size,failed,Math.max(0,previews.length-deliveredMembers.size-failed));await db.from('matching_rounds').update({status}).eq('id',roundId);
+    return jsonResponse({ok:true,testMode:false,status,sent,failed,skipped,delivered:deliveredMembers.size,total:previews.length});
   }
   return errResponse(`Unknown weekly 1-2-1 action: ${action}`);
 }
