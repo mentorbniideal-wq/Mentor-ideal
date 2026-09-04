@@ -657,9 +657,9 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         </div>
       </section>
       <section data-w121-section="rounds" style="display:none"><div class="w121-steps"><div class="w121-step active"><b>1</b><span>เตรียมรายชื่อ<small>อัปโหลดและตรวจ CSV</small></span></div><div class="w121-step"><b>2</b><span>จัดคู่<small>สุ่มและตรวจสมาชิก</small></span></div><div class="w121-step"><b>3</b><span>ยืนยันความพร้อม<small>ล็อกคู่และ Preview</small></span></div><div class="w121-step"><b>4</b><span>ส่ง LINE<small>ยืนยันก่อนส่งจริง</small></span></div></div>
-      <details class="w121-advanced"><summary>เครื่องมือทดลองเพิ่มเติม · จับคู่เอง 2 คน</summary><div class="w121-panel" style="margin-top:10px;border-color:rgba(251,191,36,.35)"><div class="w121-panel-head"><div><div class="w121-panel-title">🧪 จับคู่เอง 2 คน</div><div class="w121-panel-sub">ใช้เมื่อต้องการทดลองกับคนเพียงหนึ่งคู่ โดยไม่ต้อง Import CSV</div></div><span style="font-size:9px;color:#fbbf24;border:1px solid rgba(251,191,36,.4);padding:4px 8px;border-radius:99px">MANUAL PILOT</span></div>
+      <details class="w121-advanced"><summary>จับคู่เอง 2 คน · ส่ง LINE แจ้งทั้งคู่ได้</summary><div class="w121-panel" style="margin-top:10px;border-color:rgba(251,191,36,.35)"><div class="w121-panel-head"><div><div class="w121-panel-title">🤝 จับคู่เอง 2 คน</div><div class="w121-panel-sub">สร้างคู่โดยไม่ต้อง Import CSV แล้วตรวจ Preview ก่อนส่ง LINE แจ้งทั้งสองคน</div></div><span style="font-size:9px;color:#fbbf24;border:1px solid rgba(251,191,36,.4);padding:4px 8px;border-radius:99px">MANUAL PAIR</span></div>
         <div class="w121-form-grid"><label class="w121-field">คนที่ 1<select class="w121-control" id="w121-manual-a"><option value="">กำลังโหลดสมาชิก…</option></select></label><label class="w121-field">คนที่ 2<select class="w121-control" id="w121-manual-b"><option value="">กำลังโหลดสมาชิก…</option></select></label><label class="w121-field">วันที่เริ่มรอบ<input class="w121-control" id="w121-manual-date" type="date"></label></div>
-        <div style="display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap"><button class="btn" onclick="w121CreateManualPair()" style="width:auto;padding:9px 18px">🤝 สร้างคู่ที่เลือก</button><span id="w121-manual-status" style="font-size:11px;color:var(--sub)">เลือกเฉพาะสมาชิกที่เชื่อม LINE แล้ว</span></div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap"><button class="btn" onclick="w121CreateManualPair()" style="width:auto;padding:9px 18px">🤝 สร้างคู่และไปตรวจข้อความ →</button><span id="w121-manual-status" style="font-size:11px;color:var(--sub)">ระบบให้เลือกเฉพาะสมาชิกที่เชื่อม LINE แล้ว · ขั้นตอนนี้ยังไม่ส่งทันที</span></div>
       </div></details>
       <div class="w121-panel" style="margin-top:12px"><div class="w121-panel-head"><div><div class="w121-panel-title">📥 เริ่มรอบใหม่</div><div class="w121-panel-sub">ผู้มาประชุมเข้ารอบอัตโนมัติ · ผู้ส่งตัวแทนไม่เข้ารอบ · จำนวนคี่เข้า Waiting List</div></div></div>
         <div class="w121-simple-upload">
@@ -2247,7 +2247,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 <script src="/assets/js/desktop-mobile-access.js?v=20260903b" defer></script>
 <script src="/assets/js/chapter-operations-center.js" defer></script>
 <script src="/assets/js/line-auto-control-center.js?v=20260902b" defer></script>
-<script src="/assets/js/desktop-one-to-one.js?v=20260904d" defer></script>
+<script src="/assets/js/desktop-one-to-one.js?v=20260904e" defer></script>
 </main>
 </body>
 </html>
