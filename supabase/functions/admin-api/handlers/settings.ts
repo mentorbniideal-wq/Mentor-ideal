@@ -574,11 +574,13 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
 
     const appUrl = String(Deno.env.get('PUBLIC_APP_URL') || 'https://bni-mentor-system.vercel.app')
       .replace(/\/$/, '');
-    const [{ data: settings }, { data: lineMembers }, { data: teams }] = await Promise.all([
+    const [{ data: settings }, { data: lineMembers }, { data: teams }, { data: jobRuns }, { data: latestScore }] = await Promise.all([
       db.from('settings').select('key, value')
         .or('key.like.LINE_ID_%,key.like.LINE_RICH_MENU_%,key.eq.LINE_PROVISIONED_AT'),
       db.from('line_members').select('line_user_id, member_id, members(name, nickname)').limit(300),
       db.from('mentor_teams').select('name, leader_name').order('name'),
+      db.from('system_job_runs').select('job_name,status,started_at,finished_at,duration_ms,error,reason').order('started_at', { ascending: false }).limit(100),
+      db.from('monthly_scores').select('year,month,created_at').order('year', { ascending: false }).order('month', { ascending: false }).limit(1).maybeSingle(),
     ]);
 
     const settingMap: Record<string, string> = {};
@@ -687,6 +689,18 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
       settingMap[`LINE_RICH_MENU_${role.toUpperCase()}`] || null,
     ]));
     const allAssignments = [...checkedAssignments, ...missingAssignments];
+    const latestRunByJob = new Map<string, Record<string, unknown>>();
+    for (const run of (jobRuns || []) as Record<string, unknown>[]) {
+      const name = String(run.job_name || '');
+      if (name && !latestRunByJob.has(name)) latestRunByJob.set(name, run);
+    }
+    const failedJobs = ((jobRuns || []) as Record<string, unknown>[]).filter(run =>
+      String(run.status) === 'failed' && new Date(String(run.started_at)).getTime() >= Date.now() - 24 * 60 * 60_000
+    );
+    const runningStale = ((jobRuns || []) as Record<string, unknown>[]).filter(run =>
+      String(run.status) === 'running' && new Date(String(run.started_at)).getTime() < Date.now() - 15 * 60_000
+    );
+    const scorePeriod = latestScore ? `${String((latestScore as Record<string, unknown>).month).padStart(2, '0')}/${String((latestScore as Record<string, unknown>).year)}` : null;
     return jsonResponse({
       ok: true,
       summary: {
@@ -697,6 +711,9 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
         errors: allAssignments.filter(row => row.status === 'error').length,
         urlsOk: urlChecks.filter(row => row.ok).length,
         urlsTotal: urlChecks.length,
+        cronHealthy: failedJobs.length === 0 && runningStale.length === 0,
+        cronFailed24h: failedJobs.length,
+        cronStale: runningStale.length,
       },
       assignments: allAssignments,
       menus,
@@ -705,6 +722,12 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
       provisionedAt: settingMap.LINE_PROVISIONED_AT || null,
       appUrl,
       urlChecks,
+      cron: {
+        latest: [...latestRunByJob.values()],
+        failed24h: failedJobs,
+        staleRunning: runningStale,
+      },
+      dataFreshness: { palmsPeriod: scorePeriod },
     });
   }
 

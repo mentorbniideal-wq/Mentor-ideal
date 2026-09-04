@@ -46,7 +46,7 @@ var SUPABASE_API='https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
 var SUPABASE_ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
 var SUPABASE_URL_AUTH='https://itwyjhlfemxsfbimshby.supabase.co';
 var API_HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_ANON};
-var APP_STATIC_VERSION='2026.09.04-backend-stability.1';
+var APP_STATIC_VERSION='2026.09.04-operations-health.1';
 try{
   var _svKey='bni_dashboard_static_version';
   var _prevSv=localStorage.getItem(_svKey)||'';
@@ -3483,7 +3483,9 @@ function loadLineHealth(){
       lineHealthCard('Healthy',String(s.healthy||0),'var(--gr)'),
       lineHealthCard('Menu Drift',String(s.drift||0),(s.drift||0)?'var(--ye)':'var(--gr)'),
       lineHealthCard('ยังไม่ผูก',String(s.missing||0),(s.missing||0)?'var(--ye)':'var(--gr)'),
-      lineHealthCard('URL ผ่าน',(s.urlsOk||0)+'/'+(s.urlsTotal||0),(s.urlsOk===s.urlsTotal)?'var(--gr)':'var(--re)')
+      lineHealthCard('URL ผ่าน',(s.urlsOk||0)+'/'+(s.urlsTotal||0),(s.urlsOk===s.urlsTotal)?'var(--gr)':'var(--re)'),
+      lineHealthCard('Cron 24 ชม.',(s.cronFailed24h||0)+' failed · '+(s.cronStale||0)+' ค้าง',s.cronHealthy?'var(--gr)':'var(--re)'),
+      lineHealthCard('PALMS ล่าสุด',String((r.dataFreshness||{}).palmsPeriod||'ยังไม่มีข้อมูล'),(r.dataFreshness||{}).palmsPeriod?'var(--gr)':'var(--ye)')
     ].join('');
     var rows=(r.assignments||[]).map(function(a){
       var st=lineHealthStatusMeta(a.status);
@@ -3516,6 +3518,7 @@ function loadLineHealth(){
       +'<th style="padding:6px 9px;text-align:left;color:var(--sub)">สถานะ</th><th></th>'
       +'</tr></thead><tbody>'+rows+'</tbody></table></div>'
       +'<div style="font-size:10px;color:var(--sub);margin-top:10px">Menu '+escH(r.menuVersion||'—')+' · ตรวจล่าสุด '+escH(r.provisionedAt||'—')+'</div>'
+      +'<div style="font-size:10px;color:'+(s.cronHealthy?'var(--gr)':'var(--re)')+';margin-top:6px">'+(s.cronHealthy?'✅ Scheduled jobs ไม่พบความล้มเหลวใน 24 ชั่วโมง':'⚠️ Cron failed '+Number(s.cronFailed24h||0)+' · ค้าง '+Number(s.cronStale||0))+'</div>'
       +urlNote;
   });
 }

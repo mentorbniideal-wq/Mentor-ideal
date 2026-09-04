@@ -41,6 +41,17 @@ Deno.serve(async (req: Request) => {
 
   const db  = getServiceClient();
   const job = body.job;
+  const startedAt = Date.now();
+  const { data: runRow } = await db.from('system_job_runs').insert({
+    job_name: job || 'missing', status: 'running', metadata: { source: 'cron-jobs' },
+  }).select('id').maybeSingle();
+  const runId = String((runRow as Record<string, unknown> | null)?.id || '');
+  const finishRun = async (status: 'succeeded' | 'failed' | 'skipped', fields: Record<string, unknown> = {}) => {
+    if (!runId) return;
+    await db.from('system_job_runs').update({
+      status, finished_at: new Date().toISOString(), duration_ms: Date.now() - startedAt, ...fields,
+    }).eq('id', runId);
+  };
 
   console.log(`[cron-jobs] Running job: ${job}`);
 
@@ -48,6 +59,7 @@ Deno.serve(async (req: Request) => {
     const decision = await lineAutomationDecision(db, job);
     if (!decision.allowed) {
       console.log(`[cron-jobs] Skipped ${job}: ${decision.reason}`);
+      await finishRun('skipped', { reason: decision.reason || 'notification_guard' });
       return new Response(JSON.stringify({ ok: true, job, skipped: true, reason: decision.reason }), {
         headers: { 'Content-Type': 'application/json' },
       });
@@ -71,14 +83,15 @@ Deno.serve(async (req: Request) => {
         console.log('[cron-jobs] LINE provisioned:', JSON.stringify(result));
         break;
       }
-      default:
-        console.warn(`[cron-jobs] Unknown job: ${job}`);
+      default: throw new Error(`Unknown cron job: ${job}`);
     }
+    await finishRun('succeeded');
     return new Response(JSON.stringify({ ok: true, job }), {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (e) {
     console.error(`[cron-jobs] ${job} failed:`, e);
+    await finishRun('failed', { error: (e as Error).message.slice(0, 2000) });
     return new Response(JSON.stringify({ ok: false, job, error: (e as Error).message }), {
       status: 500, headers: { 'Content-Type': 'application/json' },
     });
