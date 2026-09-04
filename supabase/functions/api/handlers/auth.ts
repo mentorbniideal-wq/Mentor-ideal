@@ -33,6 +33,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
       teamName:    auth.teamName,
       displayName: auth.displayName,
       capabilities: auth.capabilities || [],
+      isViewer:     Boolean(auth.isViewer),
       version,
     });
   }
@@ -45,7 +46,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
     const explicitRole = String(p.targetRole || p.role || '').toLowerCase();
     const roles = explicitRole
       ? [explicitRole]
-      : ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'mentor_support', 'growth'];
+      : ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'mentor_support', 'growth', 'viewer'];
 
     for (const role of roles) {
       const auth = await verifyPin(db, role, pin);
@@ -63,6 +64,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
           teamName:    auth.teamName,
           displayName: auth.displayName,
           capabilities: auth.capabilities || [],
+          isViewer:     Boolean(auth.isViewer),
           version,
         });
       }

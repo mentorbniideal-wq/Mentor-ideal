@@ -56,7 +56,7 @@ try{
 var DESKTOP_ROLE_TARGET=(function(){
   try{
     var r=(new URLSearchParams(window.location.search).get('role')||'').toLowerCase();
-    return (r==='mc'||r==='growth')?r:'';
+    return (r==='mc'||r==='growth'||r==='viewer')?r:'';
   }catch(e){return '';}
 })();
 var _sbAuth=null;
@@ -87,7 +87,7 @@ function getDashSession(){try{return JSON.parse(sessionStorage.getItem(DSH_SESSI
 function storeDashSession(s){try{sessionStorage.setItem(DSH_SESSION_KEY,JSON.stringify(s));}catch{}}
 function clearDashSession(){try{sessionStorage.removeItem(DSH_SESSION_KEY);}catch{}}
 function oauthRedirectUrl(){return window.location.origin+window.location.pathname+(DESKTOP_ROLE_TARGET?'?role='+encodeURIComponent(DESKTOP_ROLE_TARGET):'');}
-function showDesktopLoginError(message){var el=document.getElementById('lerr');if(el)el.textContent=message||'';document.getElementById('login').style.display='flex';}
+function showDesktopLoginError(message){var el=document.getElementById('lerr');if(el)el.textContent=message||'';if(DESKTOP_ROLE_TARGET==='viewer'){var sel=document.getElementById('d-role-sel');if(sel)sel.value='viewer';}document.getElementById('login').style.display='flex';}
 function desktopTimeout(promise,ms,message){return Promise.race([promise,new Promise(function(_,reject){setTimeout(function(){reject(new Error(message||'หมดเวลารอการตอบกลับ'));},ms);})]);}
 function requestDesktopRole(token){var controller=typeof AbortController!=='undefined'?new AbortController():null,timer=controller?setTimeout(function(){controller.abort();},12000):null;return fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'getMyRole',token:token}),signal:controller?controller.signal:undefined}).then(function(res){if(!res.ok)throw new Error('ระบบยืนยันสิทธิ์ตอบกลับ '+res.status);return res.json();}).finally(function(){if(timer)clearTimeout(timer);});}
 function checkDesktopGoogleSession(){
@@ -156,10 +156,11 @@ function prepareDesktopGoogleSession(){
   loadSupabaseSdk().then(checkDesktopGoogleSession).catch(function(e){ld(false);showDesktopLoginError(e.message||'โหลดระบบ Google Login ไม่สำเร็จ');});
 }
 function gsr(a,p,cb){
+  if(S&&S.isViewer&&String(a||'').indexOf('get')!==0){var denied={ok:false,error:'Viewer เปิดดูข้อมูลได้เท่านั้น ไม่สามารถแก้ไขหรือส่งข้อความได้'};if(typeof toast==='function')toast('🔒 '+denied.error,'err');(cb||function(){})(denied);return;}
   var payload=Object.assign({action:a},p||{});
   if(S&&S.token)payload.token=S.token;
   if(S&&S.pin)payload.pin=S.pin;
-  if(S&&S.role&&!payload.role)payload.role=S.role;
+  if(S&&(S.actualRole||S.role)&&!payload.role)payload.role=S.actualRole||S.role;
   fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify(payload)}).then(function(r){return r.json();}).then(function(r){cb(r);}).catch(function(e){cb({ok:false,error:e.message});});
 }
 function call(a,p,cb){gsr(a,p,cb||function(){});}
@@ -177,8 +178,12 @@ function setDesktopTabs(role){
 
 // ── Login: now handled by Google OAuth ────────────────────────
 function enterApp(r){
-  S.actualRole=r.role;S.isAdmin=!!r.isAdmin||r.role==='admin';S.role=r.role==='admin'?'mc':r.role;S.isMC=r.isMC;S.teamName=r.teamName;S.displayName=r.displayName;
-  S.canRoleSwitch=S.canRoleSwitch||S.isMC||S.role==='toomtam';
+  S.actualRole=r.role;S.isViewer=!!r.isViewer||r.role==='viewer';S.isAdmin=!!r.isAdmin||r.role==='admin'||S.isViewer;S.role=(r.role==='admin'||r.role==='viewer')?'mc':r.role;S.isMC=r.isMC;S.teamName=r.teamName;S.displayName=r.displayName;
+  document.body.classList.toggle('viewer-mode',S.isViewer);
+  var viewerBanner=document.getElementById('viewer-mode-banner');
+  if(!viewerBanner){viewerBanner=document.createElement('div');viewerBanner.id='viewer-mode-banner';viewerBanner.className='viewer-mode-banner';viewerBanner.textContent='👁 VIEWER · โหมดดูอย่างเดียว — ไม่สามารถแก้ไขข้อมูลหรือส่ง LINE';document.body.prepend(viewerBanner);}
+  viewerBanner.style.display=S.isViewer?'block':'none';
+  S.canRoleSwitch=!S.isViewer&&(S.canRoleSwitch||S.isMC||S.role==='toomtam');
   if(DESKTOP_ROLE_TARGET&&DESKTOP_ROLE_TARGET!==S.role&&(S.isMC||S.role==='toomtam')){
     var target=DESKTOP_ROLE_TARGET;
     DESKTOP_ROLE_TARGET='';
@@ -187,7 +192,7 @@ function enterApp(r){
   }
   DESKTOP_ROLE_TARGET='';
   gsr('logUsage',{role:S.role,team:r.teamName||S.role,platform:'desktop',logAction:'login',detail:r.displayName||S.role},function(){});
-  var nm={mc:'👑 Mentor Co',growth:'📈 Growth Committee',admin:'🛡 Chapter Admin'},shownRole=S.isAdmin?'admin':S.role;
+  var nm={mc:'👑 Mentor Co',growth:'📈 Growth Committee',admin:'🛡 Chapter Admin',viewer:'👁 Viewer · Read only'},shownRole=S.isViewer?'viewer':(S.isAdmin?'admin':S.role);
   document.getElementById('hrole').textContent=nm[shownRole]||shownRole;
   var mini=document.getElementById('cc-role-mini');if(mini)mini.textContent=nm[shownRole]||shownRole;
   document.getElementById('login').style.display='none';
@@ -195,8 +200,8 @@ function enterApp(r){
   setDesktopTabs(S.role);
   restoreTabFold(S.role==='mc'?'mc':'gr');
   var meetingBtn=document.getElementById('btn-meeting');if(meetingBtn)meetingBtn.style.display=S.role==='mc'?'':'none';
-  document.getElementById('btn-monthly-sync').style.display=S.isAdmin?'':'none';
-  document.getElementById('btn-admin-settings').style.display=S.isAdmin?'':'none';
+  document.getElementById('btn-monthly-sync').style.display=(S.isAdmin&&!S.isViewer)?'':'none';
+  document.getElementById('btn-admin-settings').style.display=(S.isAdmin&&!S.isViewer)?'':'none';
   document.querySelectorAll('[data-admin-only="1"]').forEach(function(el){el.style.display=S.isAdmin?'':'none';});
   document.getElementById('btn-role-growth').style.display=(S.canRoleSwitch&&S.role==='mc')?'':'none';
   document.getElementById('btn-role-mc').style.display=(S.canRoleSwitch&&S.role==='growth')?'':'none';

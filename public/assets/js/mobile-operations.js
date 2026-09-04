@@ -117,7 +117,7 @@ function signInWithGoogle(){
 // ── PIN Login UI ──────────────────────────────────────────────
 function pinSelectRole(role){
   _pinRole=role;_pinVal='';
-  var labels={mc:'Mentor Co.',toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP',growth:'Growth'};
+  var labels={mc:'Mentor Co.',toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP',growth:'Growth',viewer:'Viewer · Read only'};
   document.getElementById('pin-role-label').textContent=labels[role]||role.toUpperCase();
   document.getElementById('pin-entry-panel').style.display='';
   document.getElementById('pin-role-panel').style.display='none';

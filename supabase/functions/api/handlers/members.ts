@@ -6,6 +6,8 @@ import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts
 import { canAccessTeam } from '../../_shared/authorization.ts';
 import { calcPalmsScore } from '../../_shared/palms.ts';
 import { canManageMemberSignal, canTransitionMemberSignal, canViewMemberSignal } from '../../_shared/member-signal-access.ts';
+import { linePush, sha256Hex } from '../../_shared/line.ts';
+import { evaluateNotificationGuard, logSuppressedNotification } from '../../_shared/notification-orchestrator.ts';
 
 const VALID_TEAMS = new Set(['TOOMTAM', 'Aof', 'Draft', 'PHAI', 'AMP']);
 const GROWTH_WATCH_MIN_SCORE = 65;
@@ -58,6 +60,34 @@ type ParsedRosterReport = {
   memberCountLabel: number | null;
   rows: RosterMemberRow[];
 };
+
+async function buildLtHandoverLinePreview(db: ReturnType<typeof getServiceClient>, termId: string) {
+  const [{ data: term }, { data: assignments }, { data: items }, { data: links }, { data: members }] = await Promise.all([
+    db.from('lt_terms').select('id,name,starts_on,ends_on,status').eq('id', termId).maybeSingle(),
+    db.from('passport_lt_assignments').select('lt_role,assigned_member_id').eq('term_id', termId),
+    db.from('lt_role_handover_items').select('lt_role,label,status,due_at,incoming_member_id').eq('to_term_id', termId),
+    db.from('line_members').select('member_id,line_user_id'),
+    db.from('members').select('id,name,nickname'),
+  ]);
+  if (!term) return { error: 'ไม่พบวาระ' };
+  const nameById = new Map(((members || []) as Record<string, unknown>[]).map(row => [String(row.id), String(row.nickname || row.name || 'สมาชิก')]));
+  const lineById = new Map(((links || []) as Record<string, unknown>[]).map(row => [String(row.member_id), String(row.line_user_id || '')]));
+  const rolesByMember = new Map<string, string[]>();
+  for (const row of (assignments || []) as Record<string, unknown>[]) {
+    const memberId = String(row.assigned_member_id || '');
+    if (memberId) (rolesByMember.get(memberId) || rolesByMember.set(memberId, []).get(memberId)!).push(String(row.lt_role || ''));
+  }
+  const itemRows = (items || []) as Record<string, unknown>[];
+  const recipients = [...rolesByMember.entries()].map(([memberId, roles]) => {
+    const pending = itemRows.filter(row => roles.includes(String(row.lt_role)) && !['ready','not_applicable'].includes(String(row.status)));
+    const name = nameById.get(memberId) || 'สมาชิก';
+    const taskLines = pending.slice(0, 6).map(row => `• ${String(row.lt_role)} — ${String(row.label)}`);
+    const message = `🤝 ส่งมอบวาระ LT · ${String((term as Record<string, unknown>).name)}\n\nสวัสดีครับคุณ${name}\nตำแหน่งของคุณ: ${roles.join(', ')}\nเริ่มวาระ: ${String((term as Record<string, unknown>).starts_on)}\n\n${taskLines.length ? `รายการที่ต้องรับมอบ\n${taskLines.join('\n')}` : 'รายการส่งมอบของคุณพร้อมแล้ว'}\n\nกรุณาเปิด Chapter Center เพื่อตรวจรายละเอียดและยืนยันรับมอบครับ`;
+    return { memberId, name, roles, pendingCount: pending.length, lineUserId: lineById.get(memberId) || '', message };
+  });
+  const previewToken = await sha256Hex(JSON.stringify({ termId, recipients: recipients.map(row => [row.memberId, row.lineUserId, row.message]) }));
+  return { term, recipients, previewToken };
+}
 
 type PalmsSummaryRow = {
   rawName: string;
@@ -807,10 +837,10 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)).toISOString();
       const [termResult, assignmentsResult, membersResult, linksResult, accessResult, signalsResult, deliveriesResult, budgetsResult, profilesResult, auditResult] = await Promise.all([
         db.from('lt_terms').select('id,name,starts_on,ends_on,status,created_by,created_at,updated_at').order('starts_on', { ascending: false }).limit(12),
-        db.from('passport_lt_assignments').select('id,lt_role,assigned_member_id,assigned_name,fallback_member_id,term_id,notification_scopes,is_active').eq('is_active', true).order('lt_role'),
+        db.from('passport_lt_assignments').select('id,lt_role,assigned_member_id,assigned_name,fallback_member_id,term_id,notification_scopes,is_active,term_start,term_end').order('lt_role'),
         db.from('members').select('id,name,nickname,email,mentor_team,is_archived').eq('is_archived', false).order('name'),
         db.from('line_members').select('member_id,line_user_id'),
-        db.from('role_assignments').select('email,role,display_name,team_name,member_id,is_mc,is_mentor,is_admin,admin_sections,admin_edit_access,capabilities,access_status,access_expires_at,term_id,created_at,updated_at').order('role'),
+        db.from('role_assignments').select('email,role,display_name,team_name,member_id,is_mc,is_mentor,is_admin,admin_sections,admin_edit_access,capabilities,access_status,access_starts_at,access_expires_at,read_only_after,term_id,created_at,updated_at').order('role'),
         db.from('member_signals').select('id,member_id,signal_type,status,priority,assigned_role,assigned_member_id,sla_due_at,target_roles,created_at').in('status', ['new','acknowledged','in_progress']).order('created_at', { ascending: false }).limit(500),
         db.from('line_message_deliveries').select('id,member_id,module,category,priority,status,suppression_reason,attempts,created_at,sent_at,last_error').gte('created_at', monthStart).order('created_at', { ascending: false }).limit(2500),
         db.from('notification_budget_config').select('*').order('module'),
@@ -821,6 +851,10 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       if (firstError) return errResponse(firstError.message);
       const terms = (termResult.data || []) as Record<string, unknown>[];
       const activeTerm = terms.find(row => String(row.status) === 'active') || null;
+      const targetTerm = terms.find(row => String(row.status) === 'draft') || activeTerm;
+      const previousTerm = targetTerm
+        ? terms.find(row => String(row.id) !== String(targetTerm.id) && String(row.ends_on || '') < String(targetTerm.starts_on || '')) || null
+        : null;
       const assignments = (assignmentsResult.data || []) as Record<string, unknown>[];
       const members = (membersResult.data || []) as Record<string, unknown>[];
       const links = (linksResult.data || []) as Record<string, unknown>[];
@@ -831,7 +865,9 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       const linkedIds = new Set(links.map(row => String(row.member_id || '')).filter(Boolean));
       const accessByMember = new Map(access.filter(row => row.member_id).map(row => [String(row.member_id), row]));
       const profileByMember = new Map(profiles.map(row => [String(row.member_id), row]));
-      const activeAssignments = assignments.filter(row => !activeTerm || !row.term_id || String(row.term_id) === String(activeTerm.id));
+      const activeAssignments = assignments.filter(row => !activeTerm || String(row.term_id || '') === String(activeTerm.id));
+      const targetAssignments = assignments.filter(row => targetTerm && String(row.term_id || '') === String(targetTerm.id));
+      const previousAssignments = assignments.filter(row => previousTerm && String(row.term_id || '') === String(previousTerm.id));
       const mentorRoles = new Set(['Mentor Co.','Mentor Team · TOOMTAM','Mentor Team · Aof','Mentor Team · Draft','Mentor Team · PHAI','Mentor Team · AMP','Mentor Support 1','Mentor Support 2']);
       const assignedIds = activeAssignments.map(row => String(row.assigned_member_id || '')).filter(Boolean);
       const mentorAssignedIds = activeAssignments.filter(row => mentorRoles.has(String(row.lt_role))).map(row => String(row.assigned_member_id || '')).filter(Boolean);
@@ -853,9 +889,48 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       ];
       let handover: Record<string, unknown>[] = [];
       if (activeTerm?.id) {
-        await db.from('lt_term_handover_items').upsert(checklistDefaults.map(item => ({ term_id: activeTerm.id, item_key: item[0], category: item[1], label: item[2] })), { onConflict: 'term_id,item_key', ignoreDuplicates: true });
+        if (!auth.isViewer) await db.from('lt_term_handover_items').upsert(checklistDefaults.map(item => ({ term_id: activeTerm.id, item_key: item[0], category: item[1], label: item[2] })), { onConflict: 'term_id,item_key', ignoreDuplicates: true });
         const { data } = await db.from('lt_term_handover_items').select('*').eq('term_id', String(activeTerm.id)).order('category').order('item_key');
         handover = (data || []) as Record<string, unknown>[];
+      }
+      let roleHandover: Record<string, unknown>[] = [];
+      let snapshots: Record<string, unknown>[] = [];
+      if (targetTerm?.id) {
+        const roleDefaults = [
+          ['open_work','work','ส่งมอบงานค้างและสมาชิกที่ต้องติดตาม'],
+          ['documents','knowledge','ส่งมอบเอกสาร ลิงก์ และวิธีทำงานสำคัญ'],
+          ['access','access','ตรวจ LINE, Mobile และสิทธิ์ที่จำเป็น'],
+        ];
+        const targetByRole = new Map(targetAssignments.map(row => [String(row.lt_role || ''), row]));
+        const previousByRole = new Map(previousAssignments.map(row => [String(row.lt_role || ''), row]));
+        const seeded = LT_ROLE_CATALOG.flatMap(role => roleDefaults.map(item => ({
+          from_term_id: previousTerm?.id || null, to_term_id: targetTerm.id,
+          lt_role: role.role, item_key: item[0], category: item[1], label: item[2],
+          outgoing_member_id: previousByRole.get(role.role)?.assigned_member_id || null,
+          incoming_member_id: targetByRole.get(role.role)?.assigned_member_id || null,
+          due_at: `${String(targetTerm.starts_on)}T09:00:00+07:00`,
+        })));
+        if (!auth.isViewer) {
+          await db.from('lt_role_handover_items').upsert(seeded, { onConflict: 'to_term_id,lt_role,item_key', ignoreDuplicates: true });
+          for (const role of LT_ROLE_CATALOG) {
+            await db.from('lt_role_handover_items').update({
+              outgoing_member_id: previousByRole.get(role.role)?.assigned_member_id || null,
+              incoming_member_id: targetByRole.get(role.role)?.assigned_member_id || null,
+              updated_at: new Date().toISOString(),
+            }).eq('to_term_id', String(targetTerm.id)).eq('lt_role', role.role);
+          }
+        }
+        const [{ data: roleRows }, { data: snapshotRows }] = await Promise.all([
+          db.from('lt_role_handover_items').select('*').eq('to_term_id', String(targetTerm.id)).order('lt_role').order('item_key'),
+          db.from('lt_term_snapshots').select('id,term_id,snapshot_type,created_by,created_at').eq('term_id', String(targetTerm.id)).order('created_at', { ascending: false }),
+        ]);
+        const names = new Map(members.map(row => [String(row.id), String(row.nickname || row.name || 'สมาชิก')]));
+        roleHandover = ((roleRows || []) as Record<string, unknown>[]).map(row => ({
+          ...row,
+          outgoing_name: row.outgoing_member_id ? names.get(String(row.outgoing_member_id)) || 'ไม่พบชื่อ' : null,
+          incoming_name: row.incoming_member_id ? names.get(String(row.incoming_member_id)) || 'ไม่พบชื่อ' : null,
+        }));
+        snapshots = (snapshotRows || []) as Record<string, unknown>[];
       }
       const readinessFacts = {
         positionsReady: activeAssignments.filter(row => row.assigned_member_id).length,
@@ -875,7 +950,7 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
         ...(failedDeliveries.length ? [{ level: 'critical', area: 'LINE Delivery', message: `ข้อความล้มเหลวเดือนนี้ ${failedDeliveries.length} รายการ` }] : []),
         ...(profileRows.filter(row => row.completion < 60).length ? [{ level: 'info', area: 'Member Data', message: `สมาชิก ${profileRows.filter(row => row.completion < 60).length} คนมี Business Profile ต่ำกว่า 60%` }] : []),
       ];
-      return jsonResponse({ ok: true, generatedAt: new Date().toISOString(), activeTerm, terms, readinessFacts, handover,
+      return jsonResponse({ ok: true, generatedAt: new Date().toISOString(), activeTerm, targetTerm, previousTerm, terms, readinessFacts, handover, roleHandover, snapshots,
         permissions: access, workspace: { open: signals.length, overdue: overdueSignals.length, signals },
         memberCoverage: { total: members.length, lineLinked: profileRows.filter(row => row.lineLinked).length, emailReady: profileRows.filter(row => row.hasEmail).length, profilePublished: profiles.filter(row => row.published_at).length, profiles: profileRows },
         notifications: { monthStart, total: deliveries.length, failed: failedDeliveries.length, suppressed: suppressedDeliveries.length, moduleSummary, budgets: budgetsResult.data || [], recentFailures: failedDeliveries.slice(0, 20) },
@@ -893,6 +968,119 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       if (error || !data) return errResponse(error?.message || 'ไม่พบรายการส่งมอบ');
       await db.from('chapter_audit_events').insert({ event_type: 'handover_item_updated', actor_role: auth.role, actor_ref: actor, subject_type: 'lt_handover', subject_ref: id, metadata: { status, note: note || null } });
       return jsonResponse({ ok: true, item: data });
+    }
+
+    case 'updateLtRoleHandoverItem': {
+      const auth = await requireAuth(db, p, ['admin']);
+      if (!auth.ok || !auth.isAdmin) return errResponse('เฉพาะ Chapter Admin เท่านั้น', 403);
+      const id = textValue(p.id), status = textValue(p.status), side = textValue(p.side);
+      const note = textValue(p.note).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 1200);
+      if (!id || !['pending','in_progress','ready','blocked','not_applicable'].includes(status)) return errResponse('สถานะการส่งมอบไม่ถูกต้อง');
+      if (side && !['outgoing','incoming'].includes(side)) return errResponse('ผู้ยืนยันไม่ถูกต้อง');
+      const now = new Date().toISOString();
+      const { data: current } = await db.from('lt_role_handover_items').select('*').eq('id', id).maybeSingle();
+      if (!current) return errResponse('ไม่พบรายการส่งมอบ', 404);
+      const changes: Record<string, unknown> = { status, note: note || null, reviewed_by: String(auth.displayName || auth.role || 'Chapter Admin'), updated_at: now };
+      if (side === 'outgoing') changes.outgoing_accepted_at = now;
+      if (side === 'incoming') changes.incoming_accepted_at = now;
+      const outgoingAccepted = Boolean((current as Record<string, unknown>).outgoing_accepted_at) || side === 'outgoing' || !(current as Record<string, unknown>).outgoing_member_id;
+      const incomingAccepted = Boolean((current as Record<string, unknown>).incoming_accepted_at) || side === 'incoming' || !(current as Record<string, unknown>).incoming_member_id;
+      if ((status === 'ready' || status === 'not_applicable') && outgoingAccepted && incomingAccepted) changes.completed_at = now;
+      else changes.completed_at = null;
+      const { data, error } = await db.from('lt_role_handover_items').update(changes).eq('id', id).select('*').single();
+      if (error) return errResponse(error.message);
+      await db.from('chapter_audit_events').insert({ event_type: 'role_handover_updated', actor_role: auth.role, actor_ref: String(auth.displayName || 'Chapter Admin'), subject_type: 'lt_role_handover', subject_ref: id, metadata: { status, side: side || null } });
+      return jsonResponse({ ok: true, item: data });
+    }
+
+    case 'createLtTermSnapshot': {
+      const auth = await requireAuth(db, p, ['admin']);
+      if (!auth.ok || !auth.isAdmin) return errResponse('เฉพาะ Chapter Admin เท่านั้น', 403);
+      const termId = textValue(p.termId), snapshotType = textValue(p.snapshotType || 'handover');
+      if (!termId || !['baseline','handover','closing'].includes(snapshotType)) return errResponse('ข้อมูล Snapshot ไม่ถูกต้อง');
+      const [{ data: term }, { data: assignments }, { data: handover }, { data: openSignals }, { data: members }] = await Promise.all([
+        db.from('lt_terms').select('*').eq('id', termId).maybeSingle(),
+        db.from('passport_lt_assignments').select('lt_role,assigned_member_id,assigned_name,fallback_member_id,notification_scopes').eq('term_id', termId),
+        db.from('lt_role_handover_items').select('lt_role,item_key,status,note,outgoing_member_id,incoming_member_id,outgoing_accepted_at,incoming_accepted_at,completed_at').eq('to_term_id', termId),
+        db.from('member_signals').select('id,member_id,signal_type,status,priority,assigned_role,assigned_member_id,sla_due_at,created_at').in('status', ['new','acknowledged','in_progress']),
+        db.from('members').select('id,name,nickname,mentor_team,is_archived'),
+      ]);
+      if (!term) return errResponse('ไม่พบวาระ', 404);
+      const snapshot = { schemaVersion: 1, capturedAt: new Date().toISOString(), term, assignments: assignments || [], handover: handover || [], openWork: openSignals || [], members: members || [] };
+      const { data, error } = await db.from('lt_term_snapshots').insert({ term_id: termId, snapshot_type: snapshotType, snapshot, created_by: String(auth.displayName || auth.role || 'Chapter Admin') }).select('id,term_id,snapshot_type,created_by,created_at').single();
+      if (error) return errResponse(error.code === '23505' ? 'Snapshot ประเภทนี้ถูกบันทึกแล้วและไม่สามารถเขียนทับได้' : error.message);
+      await db.from('chapter_audit_events').insert({ event_type: 'term_snapshot_created', actor_role: auth.role, actor_ref: String(auth.displayName || 'Chapter Admin'), subject_type: 'lt_term', subject_ref: termId, metadata: { snapshot_type: snapshotType } });
+      return jsonResponse({ ok: true, snapshot: data });
+    }
+
+    case 'applyLtAccessLifecycle': {
+      const auth = await requireAuth(db, p, ['admin']);
+      if (!auth.ok || !auth.isAdmin) return errResponse('เฉพาะ Chapter Admin เท่านั้น', 403);
+      const { data, error } = await db.rpc('fn_apply_lt_access_lifecycle');
+      if (error) return errResponse(error.message);
+      await db.from('chapter_audit_events').insert({ event_type: 'access_lifecycle_applied', actor_role: auth.role, actor_ref: String(auth.displayName || 'Chapter Admin'), subject_type: 'lt_term', metadata: { result: data || [] } });
+      return jsonResponse({ ok: true, result: data || [] });
+    }
+
+    case 'previewLtHandoverLine': {
+      const auth = await requireAuth(db, p, ['admin']);
+      if (!auth.ok || !auth.isAdmin) return errResponse('เฉพาะ Chapter Admin เท่านั้น', 403);
+      const termId = textValue(p.termId);
+      if (!termId) return errResponse('กรุณาเลือกวาระ');
+      const preview = await buildLtHandoverLinePreview(db, termId);
+      if ('error' in preview) return errResponse(String(preview.error || 'สร้าง Preview ไม่สำเร็จ'));
+      return jsonResponse({ ok: true, dryRun: true, ...preview, summary: {
+        total: preview.recipients.length,
+        ready: preview.recipients.filter(row => row.lineUserId).length,
+        missingLine: preview.recipients.filter(row => !row.lineUserId).length,
+      }});
+    }
+
+    case 'sendLtHandoverLine': {
+      const auth = await requireAuth(db, p, ['admin']);
+      if (!auth.ok || !auth.isAdmin) return errResponse('เฉพาะ Chapter Admin เท่านั้น', 403);
+      if (p.confirmed !== true) return errResponse('ต้อง Preview และยืนยันก่อนส่ง LINE');
+      const termId = textValue(p.termId), suppliedToken = textValue(p.previewToken);
+      const preview = await buildLtHandoverLinePreview(db, termId);
+      if ('error' in preview) return errResponse(String(preview.error || 'สร้าง Preview ไม่สำเร็จ'));
+      if (!suppliedToken || suppliedToken !== preview.previewToken) return errResponse('ข้อมูลเปลี่ยนหลัง Preview กรุณาตรวจ Preview ใหม่');
+      const batchId = crypto.randomUUID(), results: Record<string, unknown>[] = [];
+      for (const row of preview.recipients) {
+        if (!row.lineUserId) { results.push({ memberId: row.memberId, name: row.name, status: 'missing_line' }); continue; }
+        const input = { memberId: row.memberId, module: 'chapter_handover', category: 'lt_handover_summary', priority: 'action_required' as const };
+        const guard = await evaluateNotificationGuard(db, input);
+        const key = `lt-handover:${termId}:${row.memberId}:${batchId}`;
+        if (!guard.allowed) {
+          await logSuppressedNotification(db, input, guard, key, row.lineUserId);
+          results.push({ memberId: row.memberId, name: row.name, status: 'suppressed', reason: guard.reason });
+          continue;
+        }
+        try {
+          const sent = await linePush(row.lineUserId, row.message, { db, memberId: row.memberId, idempotencyKey: key, notificationType: 'lt_handover_summary', source: 'api/lt-handover' });
+          results.push({ memberId: row.memberId, name: row.name, status: sent.skipped ? 'skipped' : 'sent', deliveryId: sent.deliveryId || null });
+        } catch (error) {
+          results.push({ memberId: row.memberId, name: row.name, status: 'failed', error: error instanceof Error ? error.message : 'LINE send failed' });
+        }
+      }
+      const sentCount = results.filter(row => row.status === 'sent').length;
+      await db.from('chapter_audit_events').insert({ event_type: 'lt_handover_line_batch', actor_role: auth.role, actor_ref: String(auth.displayName || 'Chapter Admin'), subject_type: 'lt_term', subject_ref: termId, metadata: { batch_id: batchId, total: results.length, sent: sentCount, failed: results.length - sentCount } });
+      return jsonResponse({ ok: true, batchId, total: results.length, sent: sentCount, results });
+    }
+
+    case 'getLtTermComparison': {
+      const auth = await requireAuth(db, p, ['admin']);
+      if (!auth.ok || !auth.isAdmin) return errResponse('เฉพาะ Chapter Admin เท่านั้น', 403);
+      const termId = textValue(p.termId);
+      const { data, error } = await db.from('lt_term_snapshots').select('snapshot_type,snapshot,created_at').eq('term_id', termId).in('snapshot_type', ['baseline','closing']);
+      if (error) return errResponse(error.message);
+      const rows = (data || []) as Record<string, unknown>[], baseline = rows.find(row => row.snapshot_type === 'baseline'), closing = rows.find(row => row.snapshot_type === 'closing');
+      if (!baseline || !closing) return jsonResponse({ ok: true, ready: false, missing: [!baseline ? 'baseline' : '', !closing ? 'closing' : ''].filter(Boolean) });
+      const summarize = (source: Record<string, unknown>) => {
+        const snap = source.snapshot as Record<string, unknown> || {}, work = (snap.openWork || []) as Record<string, unknown>[], people = (snap.members || []) as Record<string, unknown>[], handover = (snap.handover || []) as Record<string, unknown>[];
+        return { members: people.filter(row => !row.is_archived).length, openWork: work.length, overdue: work.filter(row => row.sla_due_at && new Date(String(row.sla_due_at)).getTime() < new Date(String(snap.capturedAt || source.created_at)).getTime()).length, handoverComplete: handover.filter(row => row.completed_at).length, handoverTotal: handover.length };
+      };
+      const before = summarize(baseline), after = summarize(closing);
+      return jsonResponse({ ok: true, ready: true, before, after, delta: { members: after.members - before.members, openWork: after.openWork - before.openWork, overdue: after.overdue - before.overdue, handoverComplete: after.handoverComplete - before.handoverComplete } });
     }
 
     case 'setChapterAccessStatus': {
@@ -1133,7 +1321,7 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       if (!name || !parseYmdDate(startsOn) || !parseYmdDate(endsOn) || endsOn < startsOn) return errResponse('กรุณาระบุชื่อและช่วงวันที่วาระให้ถูกต้อง');
       const [{ data: terms, error: termError }, { data: roles, error: roleError }] = await Promise.all([
         db.from('lt_terms').select('id,name,starts_on,ends_on,status').order('starts_on', { ascending: false }),
-        db.from('lt_role_assignments').select('lt_role,assigned_member_id,fallback_member_id,assigned_name').eq('is_active', true),
+        db.from('passport_lt_assignments').select('lt_role,assigned_member_id,fallback_member_id,assigned_name').eq('is_active', true),
       ]);
       if (termError) return errResponse(termError.message);
       if (roleError) return errResponse(roleError.message);
