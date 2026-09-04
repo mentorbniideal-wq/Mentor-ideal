@@ -46,7 +46,7 @@ var SUPABASE_API='https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
 var SUPABASE_ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
 var SUPABASE_URL_AUTH='https://itwyjhlfemxsfbimshby.supabase.co';
 var API_HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_ANON};
-var APP_STATIC_VERSION='2026.08.23-one-to-one-manual-pair.1';
+var APP_STATIC_VERSION='2026.09.04-viewer-pin.2';
 try{
   var _svKey='bni_dashboard_static_version';
   var _prevSv=localStorage.getItem(_svKey)||'';
@@ -3105,19 +3105,36 @@ function loadAccessMgmt(){
 }
 
 function saveViewerPin(){
-  var first=(document.getElementById('viewer-pin-new').value||'').trim();
-  var second=(document.getElementById('viewer-pin-confirm').value||'').trim();
+  var firstEl=document.getElementById('viewer-pin-new');
+  var secondEl=document.getElementById('viewer-pin-confirm');
   var msg=document.getElementById('viewer-pin-msg');
+  var btn=document.getElementById('viewer-pin-save');
+  if(!firstEl||!secondEl||!msg||!btn){
+    if(typeof toast==='function')toast('❌ โหลดหน้าจัดการรหัสไม่ครบ กรุณารีเฟรชหน้า','err');
+    return;
+  }
+  var first=(firstEl.value||'').trim();
+  var second=(secondEl.value||'').trim();
   msg.className='viewer-pin-msg';
   if(!/^\d{4,8}$/.test(first)){msg.classList.add('err');msg.textContent='PIN ต้องเป็นตัวเลข 4–8 หลัก';return;}
   if(first!==second){msg.classList.add('err');msg.textContent='PIN ทั้งสองช่องไม่ตรงกัน';return;}
-  if(!confirm('ตั้ง PIN Viewer ใหม่?\nผู้ที่ทราบรหัสเดิมจะเข้าใช้งานไม่ได้ทันที'))return;
+  btn.disabled=true;
+  btn.textContent='กำลังบันทึก…';
   msg.textContent='กำลังบันทึก…';
   gsr('changePIN',{target:'viewer',newPin:first},function(r){
-    if(!r||!r.ok){msg.classList.add('err');msg.textContent='❌ '+(r&&r.error||'เปลี่ยนรหัสไม่ได้');return;}
-    document.getElementById('viewer-pin-new').value='';
-    document.getElementById('viewer-pin-confirm').value='';
-    msg.classList.add('ok');msg.textContent='✅ ตั้งรหัส Viewer ใหม่แล้ว สามารถส่งรหัสนี้ให้ผู้เข้าชมได้';
+    btn.disabled=false;
+    btn.textContent='บันทึกรหัส Viewer';
+    if(!r||!r.ok){
+      msg.classList.add('err');
+      msg.textContent='❌ '+(r&&r.error||'เปลี่ยนรหัสไม่ได้ กรุณาลองใหม่');
+      if(typeof toast==='function')toast(msg.textContent,'err');
+      return;
+    }
+    firstEl.value='';
+    secondEl.value='';
+    msg.classList.add('ok');
+    msg.textContent='✅ ตั้งรหัส Viewer ใหม่แล้ว สามารถส่งรหัสนี้ให้ผู้เข้าชมได้';
+    if(typeof toast==='function')toast('✅ บันทึกรหัส Viewer สำเร็จ','ok');
   });
 }
 var ACC_SECTION_LABELS={dashboard:'Dashboard',members:'Members',issues:'Issues',checkin:'Check-in',revenue:'Revenue',broadcast:'Broadcast',settings:'Settings'};

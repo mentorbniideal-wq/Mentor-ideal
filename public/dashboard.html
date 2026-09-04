@@ -1195,7 +1195,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         <div class="viewer-pin-form">
           <input id="viewer-pin-new" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password" placeholder="PIN ใหม่ 4–8 ตัว">
           <input id="viewer-pin-confirm" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password" placeholder="ยืนยัน PIN อีกครั้ง" onkeydown="if(event.key==='Enter')saveViewerPin()">
-          <button type="button" onclick="saveViewerPin()">บันทึกรหัส Viewer</button>
+          <button id="viewer-pin-save" type="button" onclick="saveViewerPin()">บันทึกรหัส Viewer</button>
         </div>
         <div id="viewer-pin-msg" class="viewer-pin-msg">ระบบจะไม่แสดงรหัสเดิม หากลืมให้ตั้งรหัสใหม่จากจุดนี้</div>
       </div>
@@ -2178,7 +2178,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
   <button class="bk-btn" style="background:transparent;color:var(--sub);border:1px solid var(--bd)" onclick="clearBulk()">✕ ยกเลิก</button>
 </div>
 
-<script src="/assets/js/desktop-operations.js?v=20260903d" defer></script>
+<script src="/assets/js/desktop-operations.js?v=20260904-viewer-pin.2" defer></script>
 <script src="/assets/js/desktop-member-360.js" defer></script>
 
 <!-- 8W Delete Confirm Modal -->
