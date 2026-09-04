@@ -171,7 +171,7 @@ function computePriorities(actual, target, activeWeeks) {
       pctDone: actual.rg / Math.max(1, target.referral),
       title:  '💡 [📋 วางแผน] Referral — ต้องเตรียมล่วงหน้า',
       action: 'ให้แล้ว ' + actual.rg + ' / เป้า ' + target.referral + ' ใบ → ขาดอีก ' + refGap + ' ใบ\n'
-            + '📋 วางแผนสัปดาห์นี้: เตรียม 60-second speech → บอกสมาชิกว่ากำลังหาลูกค้าแบบไหน',
+            + '📋 วางแผนสัปดาห์นี้: เตรียม 30-second presentation → บอกสมาชิกว่ากำลังหาลูกค้าแบบไหน',
       target: 'เป้า: ให้ Referral ' + Math.min(Math.ceil(refGap / 4), 3) + ' ใบ/สัปดาห์ ต่อเนื่อง 4 สัปดาห์',
       why:    KEY_META.referral.why
     });

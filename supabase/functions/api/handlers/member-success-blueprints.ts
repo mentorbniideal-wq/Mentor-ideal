@@ -388,7 +388,7 @@ function buildPairMatching(rows: ReturnType<typeof mapPlanRow>[]) {
     reasons: Array.from(new Set(reasons)).slice(0, 4),
     matchedTerms: Array.from(new Set(matchedTerms)).slice(0, 6),
     suggestedAgenda: [
-      `ให้ ${txt(source.nickname || source.name)} เล่า Looking For ที่ต้องการให้ชัดใน 60 วินาที`,
+      `ให้ ${txt(source.nickname || source.name)} เล่า Looking For ที่ต้องการให้ชัดใน 30 วินาที`,
       `ให้ ${txt(target.nickname || target.name)} ช่วยคิดว่าใน network มีใครใกล้เคียงหรือไม่`,
       'จบด้วย next step: นัด follow-up / ขอ intro / ปรับ referral trigger',
     ],

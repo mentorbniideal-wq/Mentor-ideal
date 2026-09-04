@@ -1434,8 +1434,28 @@ function _lineSetBizProfile(memberName, biz) {
 // Feature A — Thursday Morning Bot Push
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function _lineLeanPolicyEnabled() {
-  var value = PropertiesService.getScriptProperties().getProperty('LINE_NOTIFICATION_POLICY');
-  return value !== 'legacy_verbose';
+  // Legacy scheduled pushes are permanently retired. Keeping the handlers as
+  // no-ops is safer than relying on a Script Property or every old trigger
+  // having been removed from a long-lived Apps Script project.
+  return true;
+}
+
+// One-time production safety switch. Supabase owns scheduled LINE messages;
+// these legacy Apps Script triggers otherwise bypass the central delivery log,
+// quota guard and duplicate protection.
+function enforceEssentialLinePolicy() {
+  PropertiesService.getScriptProperties().setProperty('LINE_NOTIFICATION_POLICY', 'essential_only');
+  var retired = ['thursdayBotPush','fridayEveningReminder','fridayTeamLeaderboard','fridayPostMeetingPrompt','_lineChapterPulse'];
+  var removed = [];
+  ScriptApp.getProjectTriggers().forEach(function(trigger) {
+    var handler = trigger.getHandlerFunction();
+    if (retired.indexOf(handler) >= 0) {
+      ScriptApp.deleteTrigger(trigger);
+      removed.push(handler);
+    }
+  });
+  Logger.log('Essential LINE policy active. Removed: ' + removed.join(', '));
+  return {ok:true, policy:'essential_only', removed:removed};
 }
 
 function thursdayBotPush() {
@@ -1511,7 +1531,7 @@ function fridayEveningReminder() {
         + 'สวัสดีตอนเย็น ' + nick + ' 👋\n\n'
         + '✅ เตรียมพร้อมสำหรับพรุ่งนี้:\n'
         + '• Looking For ที่ต้องการ Referral\n'
-        + '• 60-second presentation\n'
+        + '• 30-second presentation\n'
         + '• Visitor ที่จะพามา\n\n'
         + 'พิมพ์ "สถานะ" ดูคะแนนล่าสุดของคุณครับ 🏆';
       _sendLineMsg(userId, msg);
@@ -3094,7 +3114,7 @@ var _ONBOARD_MSGS = {
     return '🎉 ยินดีต้อนรับสู่ BNI IDEAL '+nick+'!\n\n'
       +'📅 สัปดาห์ที่ 1: แนะนำตัวให้โลกรู้จัก\n'
       +'─────────────────\n'
-      +'BNI เริ่มต้นที่ "60-second presentation"\n'
+      +'BNI เริ่มต้นที่ "30-second presentation"\n'
       +'คำถามหลักคือ: "ลูกค้าที่ดีของคุณ คือใคร?"\n\n'
       +'✅ งานสัปดาห์นี้:\n'
       +'• เตรียม 60-sec ให้ชัดเจน\n'
