@@ -1185,6 +1185,21 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         <button class="bsm" onclick="loadAccessMgmt()" style="margin-left:auto;font-size:11px">↺ รีเฟรช</button>
       </div>
 
+      <!-- Viewer PIN -->
+      <div class="viewer-pin-card">
+        <div class="viewer-pin-copy">
+          <small>EXTERNAL VIEWER</small>
+          <strong>👁 รหัสสำหรับผู้เข้าชมระบบ</strong>
+          <span>ผู้ใช้รหัสนี้ดู Desktop ได้ทุกหมวด แต่ API ไม่อนุญาตให้แก้ไข ลบ หรือส่ง LINE</span>
+        </div>
+        <div class="viewer-pin-form">
+          <input id="viewer-pin-new" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password" placeholder="PIN ใหม่ 4–8 ตัว">
+          <input id="viewer-pin-confirm" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password" placeholder="ยืนยัน PIN อีกครั้ง" onkeydown="if(event.key==='Enter')saveViewerPin()">
+          <button type="button" onclick="saveViewerPin()">บันทึกรหัส Viewer</button>
+        </div>
+        <div id="viewer-pin-msg" class="viewer-pin-msg">ระบบจะไม่แสดงรหัสเดิม หากลืมให้ตั้งรหัสใหม่จากจุดนี้</div>
+      </div>
+
       <!-- Pending Requests -->
       <div id="acc-req-wrap" style="display:none;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);border-radius:10px;padding:14px;margin-bottom:18px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">

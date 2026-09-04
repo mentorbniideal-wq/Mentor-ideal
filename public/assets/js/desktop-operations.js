@@ -3103,6 +3103,23 @@ function loadAccessMgmt(){
   loadLineHealth();
   loadSystemHealth();
 }
+
+function saveViewerPin(){
+  var first=(document.getElementById('viewer-pin-new').value||'').trim();
+  var second=(document.getElementById('viewer-pin-confirm').value||'').trim();
+  var msg=document.getElementById('viewer-pin-msg');
+  msg.className='viewer-pin-msg';
+  if(!/^\d{4,8}$/.test(first)){msg.classList.add('err');msg.textContent='PIN ต้องเป็นตัวเลข 4–8 หลัก';return;}
+  if(first!==second){msg.classList.add('err');msg.textContent='PIN ทั้งสองช่องไม่ตรงกัน';return;}
+  if(!confirm('ตั้ง PIN Viewer ใหม่?\nผู้ที่ทราบรหัสเดิมจะเข้าใช้งานไม่ได้ทันที'))return;
+  msg.textContent='กำลังบันทึก…';
+  gsr('changePIN',{target:'viewer',newPin:first},function(r){
+    if(!r||!r.ok){msg.classList.add('err');msg.textContent='❌ '+(r&&r.error||'เปลี่ยนรหัสไม่ได้');return;}
+    document.getElementById('viewer-pin-new').value='';
+    document.getElementById('viewer-pin-confirm').value='';
+    msg.classList.add('ok');msg.textContent='✅ ตั้งรหัส Viewer ใหม่แล้ว สามารถส่งรหัสนี้ให้ผู้เข้าชมได้';
+  });
+}
 var ACC_SECTION_LABELS={dashboard:'Dashboard',members:'Members',issues:'Issues',checkin:'Check-in',revenue:'Revenue',broadcast:'Broadcast',settings:'Settings'};
 function renderAccList(){
   var list=_accData.assignments;
