@@ -474,7 +474,7 @@
           </select>
         </div>
         <div style="display:flex;gap:8px;">
-          <input class="fi" id="pin-new-val" type="number" placeholder="PIN ใหม่ (4-8 หลัก)" style="flex:1;font-size:.82rem;">
+          <input class="fi" id="pin-new-val" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password" placeholder="PIN ใหม่ (4-8 หลัก)" style="flex:1;font-size:.82rem;letter-spacing:.18em;">
           <button class="btn-p" style="padding:6px 12px;" onclick="changePIN()">เปลี่ยน</button>
         </div>
         <div id="pin-status" style="font-size:.72rem;color:var(--gray2);margin-top:.35rem;"></div>
