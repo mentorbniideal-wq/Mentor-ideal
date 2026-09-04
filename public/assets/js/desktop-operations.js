@@ -46,7 +46,7 @@ var SUPABASE_API='https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
 var SUPABASE_ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
 var SUPABASE_URL_AUTH='https://itwyjhlfemxsfbimshby.supabase.co';
 var API_HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_ANON};
-var APP_STATIC_VERSION='2026.09.04-viewer-read.1';
+var APP_STATIC_VERSION='2026.09.04-backend-stability.1';
 try{
   var _svKey='bni_dashboard_static_version';
   var _prevSv=localStorage.getItem(_svKey)||'';
@@ -165,7 +165,13 @@ function gsr(a,p,cb){
   // PIN is incorrectly verified as an MC PIN and every read returns empty.
   if(S&&S.isViewer)payload.role='viewer';
   else if(S&&(S.actualRole||S.role)&&!payload.role)payload.role=S.actualRole||S.role;
-  fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify(payload)}).then(function(r){return r.json();}).then(function(r){cb(r);}).catch(function(e){cb({ok:false,error:e.message});});
+  var controller=typeof AbortController!=='undefined'?new AbortController():null;
+  var timer=controller?setTimeout(function(){controller.abort();},20000):null;
+  fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify(payload),signal:controller?controller.signal:undefined})
+    .then(function(res){return res.text().then(function(raw){var data;try{data=raw?JSON.parse(raw):{};}catch(e){data={ok:false,error:'API ตอบกลับในรูปแบบที่อ่านไม่ได้'};}if(!res.ok&&data.ok!==false){data.ok=false;data.error=data.error||('API error '+res.status);}return data;});})
+    .then(function(r){cb(r);})
+    .catch(function(e){cb({ok:false,error:e&&e.name==='AbortError'?'หมดเวลารอข้อมูล กรุณาลองใหม่':(e.message||'เชื่อมต่อ API ไม่สำเร็จ')});})
+    .finally(function(){if(timer)clearTimeout(timer);});
 }
 function call(a,p,cb){gsr(a,p,cb||function(){});}
 function ld(v){document.getElementById('ov').style.display=v?'flex':'none';}
@@ -3084,8 +3090,12 @@ function adminCall(payload,cb){
   var tok=S&&S.token||'';
   if(!tok){cb({ok:false,error:'No token'});return;}
   payload.token=tok;
-  fetch(ADMIN_API,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_ANON},body:JSON.stringify(payload)})
-    .then(function(r){return r.json();}).then(cb).catch(function(e){cb({ok:false,error:e.message});});
+  var controller=typeof AbortController!=='undefined'?new AbortController():null;
+  var timer=controller?setTimeout(function(){controller.abort();},20000):null;
+  fetch(ADMIN_API,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_ANON},body:JSON.stringify(payload),signal:controller?controller.signal:undefined})
+    .then(function(res){return res.text().then(function(raw){var data;try{data=raw?JSON.parse(raw):{};}catch(e){data={ok:false,error:'Access API ตอบกลับในรูปแบบที่อ่านไม่ได้'};}if(!res.ok&&data.ok!==false){data.ok=false;data.error=data.error||('Access API error '+res.status);}return data;});})
+    .then(cb).catch(function(e){cb({ok:false,error:e&&e.name==='AbortError'?'หมดเวลารอข้อมูล Access กรุณาลองใหม่':(e.message||'เชื่อมต่อ Access API ไม่สำเร็จ')});})
+    .finally(function(){if(timer)clearTimeout(timer);});
 }
 var _accData={assignments:[],requests:[]};
 function loadAccessMgmt(){

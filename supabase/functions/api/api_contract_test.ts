@@ -67,3 +67,21 @@ Deno.test('dashboard frontend only calls actions registered in the unified route
 
   assert(missing.length === 0, `Frontend API calls missing from ROUTES:\n${missing.join('\n')}`);
 });
+
+Deno.test('viewer requests keep viewer authentication and remain read-only', async () => {
+  const frontend = await read('public/assets/js/desktop-operations.js');
+  const auth = await read('supabase/functions/_shared/auth.ts');
+
+  assert(
+    frontend.includes("if(S&&S.isViewer)payload.role='viewer'"),
+    'Viewer requests must override legacy role:"mc" payloads with role:"viewer"',
+  );
+  assert(
+    frontend.includes("S&&S.isViewer&&String(a||'').indexOf('get')!==0"),
+    'Viewer frontend must reject write actions',
+  );
+  assert(
+    auth.includes("if (role === 'viewer')") && auth.includes("if (!action.startsWith('get'))"),
+    'Viewer API authentication must reject write actions',
+  );
+});

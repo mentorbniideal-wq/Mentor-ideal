@@ -235,6 +235,7 @@ async function sendLineRequest(
     const retryKey = await lineRetryKeyFor(options, channel);
     const response = await fetch(`${LINE_API}/${channel}`, {
       method: 'POST',
+      signal: AbortSignal.timeout(12_000),
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${getToken()}`,
