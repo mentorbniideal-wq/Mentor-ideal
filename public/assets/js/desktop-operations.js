@@ -300,6 +300,12 @@ function renderDirectoryRolloutReview(data){
 }
 
 // ── Monthly Sync ──────────────────────────────────────────────
+var _syncPreview=null,_syncPayload=null;
+function resetMonthlySyncPreview(){
+  _syncPreview=null;_syncPayload=null;
+  var btn=document.getElementById('sync-run-btn');if(btn){btn.textContent='🔎 ตรวจ Preview ก่อน';btn.disabled=false;}
+  var preview=document.getElementById('sync-preview');if(preview){preview.className='sync-preview';preview.innerHTML='';}
+}
 function openSyncModal(){
   // Reset state
   for(var i=1;i<=9;i++){
@@ -308,11 +314,17 @@ function openSyncModal(){
   }
   document.getElementById('sync-progress').style.display='none';
   var btn=document.getElementById('sync-run-btn');
-  btn.textContent='🚀 Sync ทั้งหมดเลย';btn.disabled=false;
+  btn.textContent='🔎 ตรวจ Preview ก่อน';btn.disabled=false;
+  _syncPreview=null;_syncPayload=null;
+  var preview=document.getElementById('sync-preview');if(preview){preview.className='sync-preview';preview.innerHTML='';}
+  var now=new Date(),period=document.getElementById('sync-reporting-period');
+  if(period)period.value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
   document.getElementById('sync-mtl-file').value='';
   document.getElementById('sync-tl-file').value='';
   document.getElementById('sync-r2y-file').value='';
+  ['sync-reporting-period','sync-mtl-file','sync-tl-file','sync-r2y-file'].forEach(function(id){var input=document.getElementById(id);if(input)input.onchange=resetMonthlySyncPreview;});
   document.getElementById('sync-modal').classList.add('open');
+  loadMonthlySyncHistory();
 }
 function closeSyncModal(){document.getElementById('sync-modal').classList.remove('open');}
 function _setSyncStep(n,state){
@@ -323,28 +335,53 @@ function _setSyncStep(n,state){
   el.textContent=el.textContent.replace(/^./,ic[state]||'⬜');
 }
 function startMonthlySync(){
+  if(_syncPreview&&_syncPayload){confirmMonthlySync();return;}
   var mtlFile=document.getElementById('sync-mtl-file').files[0];
   var tlFile=document.getElementById('sync-tl-file').files[0];
-  if(!mtlFile&&!tlFile){toast('⚠️ กรุณาเลือกไฟล์ Member Traffic Light หรือ Traffic Lights ก่อน');return;}
+  var r2yFile=document.getElementById('sync-r2y-file').files[0];
+  var reportingPeriod=document.getElementById('sync-reporting-period').value;
+  if(!mtlFile&&!tlFile&&!r2yFile){toast('⚠️ กรุณาเลือกไฟล์ CSV อย่างน้อย 1 ไฟล์');return;}
+  if(!reportingPeriod){toast('⚠️ กรุณาเลือกเดือนของข้อมูล');return;}
   var btn=document.getElementById('sync-run-btn');
-  btn.disabled=true;btn.textContent='⏳ กำลังอ่านไฟล์...';
-  document.getElementById('sync-progress').style.display='block';
-  _setSyncStep(1,'active');
-  function readFile(file,cb){if(!file){cb(null);return;}var r=new FileReader();r.onload=function(e){cb(e.target.result);};r.readAsText(file,'UTF-8');}
-  readFile(tlFile,function(tlCsv){
-    _setSyncStep(1,tlCsv?'done':'skip');_setSyncStep(2,'active');
-    btn.textContent='⏳ กำลัง Sync...';
-    var r2yFile=document.getElementById('sync-r2y-file').files[0];
-    readFile(r2yFile,function(r2yCsv){
-      readFile(mtlFile,function(mtlCsv){
-        gsr('monthlySync',{role:S.role,tlCsv:tlCsv||null,r2yCsv:r2yCsv||null,memberTLCsv:mtlCsv||null},function(r){
+  btn.disabled=true;btn.textContent='⏳ กำลังอ่านและตรวจไฟล์...';
+  function readFile(file){return new Promise(function(resolve,reject){if(!file){resolve(null);return;}if(file.size>8*1024*1024){reject(new Error(file.name+' ใหญ่เกิน 8 MB'));return;}var r=new FileReader();r.onload=function(e){resolve(String(e.target.result||''));};r.onerror=function(){reject(new Error('อ่าน '+file.name+' ไม่สำเร็จ'));};r.readAsText(file,'UTF-8');});}
+  Promise.all([readFile(tlFile),readFile(r2yFile),readFile(mtlFile)]).then(function(values){
+    _syncPayload={role:S.role,tlCsv:values[0],r2yCsv:values[1],memberTLCsv:values[2],reportingPeriod:reportingPeriod,sourceFiles:{trafficLightEvolution:tlFile&&tlFile.name||null,reporting2You:r2yFile&&r2yFile.name||null,memberTrafficLight:mtlFile&&mtlFile.name||null}};
+    gsr('previewMonthlySync',_syncPayload,function(r){
+      btn.disabled=false;
+      if(!r||!r.ok){btn.textContent='❌ '+(r&&r.error||'Preview ไม่สำเร็จ');_syncPayload=null;return;}
+      _syncPreview=r;renderMonthlySyncPreview(r);
+      btn.textContent=r.alreadyCompleted?'✅ ไฟล์ชุดนี้ Sync แล้ว':'✅ ยืนยัน Sync เดือน '+r.reportingPeriod;
+      btn.disabled=!!r.alreadyCompleted;
+    });
+  }).catch(function(error){btn.disabled=false;btn.textContent='❌ '+error.message;});
+}
+function renderMonthlySyncPreview(r){
+  var el=document.getElementById('sync-preview');if(!el)return;var q=r.quality||{},unmatched=q.unmatched||[],anomalies=q.anomalies||[];
+  el.className='sync-preview open';
+  el.innerHTML='<strong>Preview เดือน '+escH(r.reportingPeriod)+'</strong><div class="sync-preview-grid">'+
+    '<div class="sync-preview-kpi">สมาชิกได้รับผลกระทบ<b>'+Number(q.affectedMembers||0)+'</b></div>'+
+    '<div class="sync-preview-kpi">คะแนนที่จะบันทึก<b>'+Number(q.scoreRows||0)+'</b></div>'+
+    '<div class="sync-preview-kpi">R2Y rows<b>'+Number(q.r2yRows||0)+'</b></div></div>'+
+    (unmatched.length?'<div class="sync-preview-warn">⚠️ ไม่พบชื่อ '+unmatched.length+' รายการ: '+escH(unmatched.slice(0,8).join(', '))+'</div>':'<div style="color:var(--gr)">✅ ไม่พบปัญหาชื่อสมาชิก</div>')+
+    (q.missingActiveMembers?'<div class="sync-preview-warn">⚠️ สมาชิก Active ที่ไม่อยู่ในไฟล์ '+Number(q.missingActiveMembers)+' คน — ระบบจะไม่ลบข้อมูลของบุคคลเหล่านี้</div>':'')+
+    (anomalies.length?'<div class="sync-preview-warn">⚠️ คะแนนเปลี่ยนตั้งแต่ 25 คะแนนขึ้นไป '+anomalies.length+' คน กรุณาตรวจ CSV</div>':'')+
+    '<div style="margin-top:7px;color:var(--sub)">ระบบเก็บ hash และ snapshot ก่อน–หลัง โดยไม่เก็บเนื้อหา CSV ต้นฉบับ</div>';
+}
+function confirmMonthlySync(){
+  if(!_syncPreview||!_syncPayload)return;
+  if(!confirm('ยืนยัน Sync เดือน '+_syncPreview.reportingPeriod+'?\n\nระบบจะบันทึก Snapshot ก่อนเปลี่ยนข้อมูล และสามารถ Rollback รอบล่าสุดได้'))return;
+  var btn=document.getElementById('sync-run-btn');btn.disabled=true;btn.textContent='⏳ กำลัง Sync...';
+  document.getElementById('sync-progress').style.display='block';_setSyncStep(1,'done');_setSyncStep(2,'active');
+  var payload=Object.assign({},_syncPayload,{batchId:_syncPreview.batchId,previewToken:_syncPreview.previewToken,confirmed:true});
+  gsr('monthlySync',payload,function(r){
           if(!r||!r.ok){
             _setSyncStep(2,'error');
             btn.textContent='❌ '+(r&&r.error||'Sync ไม่สำเร็จ');
             btn.disabled=false;
             return;
           }
-          var hasTL=!!tlCsv,hasR2y=!!r2yCsv,hasMTL=!!mtlCsv;
+          var hasTL=!!payload.tlCsv,hasR2y=!!payload.r2yCsv,hasMTL=!!payload.memberTLCsv;
           _setSyncStep(2,r.ok?((hasTL||hasMTL)?'done':'skip'):'error');
           _setSyncStep(3,r.nonMentorOk?'done':'error');
           _setSyncStep(4,r.counterOk?'done':'error');
@@ -366,11 +403,16 @@ function startMonthlySync(){
           }
           btn.textContent=coreOk?'✅ Sync สำเร็จ!'+period+enrolled+unmatchedTxt+' (คลิกปิดแล้วรีเฟรช)':'⚠️ บางขั้นตอนมีข้อผิดพลาด'+errTxt+unmatchedTxt;
           btn.disabled=false;
-          if(coreOk){setTimeout(function(){manualReload();},800);}
+          if(coreOk){_syncPreview=null;_syncPayload=null;loadMonthlySyncHistory();setTimeout(function(){manualReload();},800);}
         });
-      });
-    });
-  });
+}
+function loadMonthlySyncHistory(){
+  var el=document.getElementById('sync-history');if(!el)return;el.textContent='กำลังโหลด…';
+  gsr('getMonthlySyncHistory',{role:S.role},function(r){if(!r||!r.ok){el.textContent='โหลดประวัติไม่สำเร็จ';return;}var rows=r.rows||[];if(!rows.length){el.textContent='ยังไม่มีประวัติ Sync';return;}el.innerHTML=rows.map(function(row,index){var period=row.period_year+'-'+String(row.period_month).padStart(2,'0'),canRollback=index===0&&(row.status==='completed'||row.status==='completed_with_warnings')&&!S.isViewer;return '<div class="sync-history-row"><b>'+escH(period)+'</b><span>'+escH(row.status)+'<small style="display:block;color:var(--sub)">'+escH(new Date(row.created_at).toLocaleString('th-TH'))+'</small></span>'+(canRollback?'<button class="sync-rollback" onclick="rollbackMonthlySync(\''+escH(row.id)+'\',\''+escH(period)+'\')">Rollback</button>':'<span></span>')+'</div>';}).join('');});
+}
+function rollbackMonthlySync(batchId,period){
+  if(!confirm('ยืนยัน Rollback เดือน '+period+'?\n\nระบบจะคืนค่าคะแนน กิจกรรม R2Y ข้อมูลติดต่อ และ Renewal กลับไปก่อนรอบ Sync นี้'))return;
+  gsr('rollbackMonthlySync',{role:S.role,batchId:batchId,confirmed:true},function(r){if(!r||!r.ok){toast('❌ '+(r&&r.error||'Rollback ไม่สำเร็จ'));return;}toast('✅ Rollback สำเร็จ '+Number(r.restoredMembers||0)+' คน');loadMonthlySyncHistory();manualReload();});
 }
 
 function loadMC(forceRefresh){

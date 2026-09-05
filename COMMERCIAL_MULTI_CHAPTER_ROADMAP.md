@@ -119,6 +119,14 @@
 
 ## Definition of Done สำหรับทุกงานต่อจากนี้
 
+### Foundation ที่เพิ่มแล้ว: Monthly CSV Sync Ledger
+
+- Monthly Sync ต้องผ่าน Preview และระบุ reporting period ก่อนเขียนข้อมูลจริง
+- เก็บ hash, quality summary, ผู้ดำเนินการ และผลลัพธ์ โดยไม่เก็บเนื้อหา CSV ต้นฉบับ
+- เก็บ before/after snapshot ครบทุกประวัติของสมาชิกที่ได้รับผลกระทบ
+- Rollback ได้เฉพาะ completed batch ล่าสุด และทำใน database transaction เดียว
+- Ledger ผูก `chapter_id` ซึ่ง backend derive จาก active Chapter; เมื่อเข้าสู่ multi-tenant เต็มรูปแบบให้เปลี่ยน resolver เป็น Chapter จาก credential/session
+
 ก่อน merge/commit งาน ต้องตอบได้ครบตามส่วนที่เกี่ยวข้อง:
 
 - [ ] ไม่มี Chapter name, team, person, PIN, email, token หรือ business threshold ใหม่ที่ hardcode โดยไม่จำเป็น

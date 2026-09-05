@@ -20,6 +20,7 @@
 <link rel="stylesheet" href="/assets/css/chapter-handover.css">
 <link rel="stylesheet" href="/assets/css/viewer-mode.css">
 <link rel="stylesheet" href="/assets/css/line-auto-control-center.css?v=20260828b">
+<link rel="stylesheet" href="/assets/css/desktop-monthly-sync.css?v=20260905">
 </head>
 <body>
 <main id="mainContent">
@@ -1821,7 +1822,13 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 <div id="sync-modal" onclick="if(event.target===this)closeSyncModal()">
   <div class="sync-box">
     <div class="sync-title">📅 Monthly Sync — วันที่ 5</div>
-    <div class="sync-sub">อัปโหลดไฟล์จาก BNI Connect แล้วกดปุ่มเดียว ระบบจะใช้ไฟล์ชุดนี้เป็นข้อมูลล่าสุด</div>
+    <div class="sync-sub">อัปโหลดไฟล์จาก BNI Connect → ตรวจ Preview → ยืนยัน Sync ระบบจะเก็บประวัติและ Snapshot สำหรับย้อนกลับ</div>
+
+    <div class="sync-sect">
+      <div class="sync-sect-title">เดือนของข้อมูล <span style="color:var(--re);font-size:10px">* ต้องตรวจให้ถูกต้อง</span></div>
+      <input type="month" class="sync-file" id="sync-reporting-period" required>
+      <div class="sync-note">ระบบจะไม่เดาเดือนจากฐานข้อมูล เพื่อป้องกันเขียนทับเดือนเดิมผิดรอบ</div>
+    </div>
 
     <div class="sync-sect">
       <div class="sync-sect-title">1. Member Traffic Light CSV <span style="color:var(--re);font-size:10px">* สำคัญที่สุด</span></div>
@@ -1845,7 +1852,8 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       <div class="sync-note">BNI Connect → Reporting2You → Export CSV — ใช้สำหรับ BNI Days + อีเมล/เบอร์</div>
     </div>
 
-    <button class="sync-btn" id="sync-run-btn" onclick="startMonthlySync()">🚀 Sync ทั้งหมดเลย</button>
+    <button class="sync-btn" id="sync-run-btn" onclick="startMonthlySync()">🔎 ตรวจ Preview ก่อน</button>
+    <div id="sync-preview" class="sync-preview" aria-live="polite"></div>
 
     <div class="sync-progress" id="sync-progress">
       <div id="sync-s1" class="sync-step">⬜ อ่านและวิเคราะห์ Traffic Lights Evolution...</div>
@@ -1862,6 +1870,10 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
     <div class="sync-macts">
       <button class="gsh-mcancel" onclick="closeSyncModal()">ปิด</button>
     </div>
+    <details class="sync-history-wrap">
+      <summary>ประวัติ Sync และ Rollback</summary>
+      <div id="sync-history">กำลังโหลด…</div>
+    </details>
   </div>
 </div>
 

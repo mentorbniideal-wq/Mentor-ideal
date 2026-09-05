@@ -142,7 +142,8 @@ const ROUTES: Record<string, string> = {
   'getRiskMembers': 'growth', 'getMentorPerformance': 'growth',
   'getMentorActivity': 'growth', 'getWeeklyActions': 'growth',
   'createGrowthTask': 'growth', 'getGrowthTasks': 'growth',
-  'respondGrowthTask': 'growth', 'monthlySync': 'growth', 'importScoreHistory': 'growth',
+  'respondGrowthTask': 'growth', 'previewMonthlySync': 'growth', 'monthlySync': 'growth',
+  'getMonthlySyncHistory': 'growth', 'rollbackMonthlySync': 'growth', 'importScoreHistory': 'growth',
 
   // Power Teams
   'getPowerTeams': 'power-teams', 'getPTMembers': 'power-teams',
