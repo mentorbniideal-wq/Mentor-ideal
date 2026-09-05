@@ -3,3 +3,5 @@ migration-exports/
 supabase/.temp/
 .vercel
 .claude/
+.DS_Store
+BNI REPORT/
