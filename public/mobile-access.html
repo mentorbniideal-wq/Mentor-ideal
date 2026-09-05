@@ -32,7 +32,7 @@
 const SB_URL='https://itwyjhlfemxsfbimshby.supabase.co',SB_ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j',API=SB_URL+'/functions/v1/admin-api';
 const sb=window.supabase.createClient(SB_URL,SB_ANON),inviteToken=new URLSearchParams(location.search).get('invite')||'';let session=null;
 const post=body=>fetch(API,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+SB_ANON},body:JSON.stringify(body)}).then(r=>r.json());
-const roleLabel=r=>({mc:'Mentor Co.',toomtam:'Mentor · TOOMTAM',aof:'Mentor · Aof',draft:'Mentor · Draft',phai:'Mentor · PHAI',amp:'Mentor · AMP',mentor_support:'Mentor Support',growth:'Growth Team'}[r]||r);
+const roleLabel=r=>({mc:'Mentor Co.',toomtam:'Mentor · Mentor 1',aof:'Mentor · Mentor 2',draft:'Mentor · Mentor 3',phai:'Mentor · Mentor 4',amp:'Mentor · Mentor 5',mentor_support:'Mentor Support',growth:'Growth Team'}[r]||r);
 function message(t,bad=false){const el=document.getElementById('msg');el.textContent=t||'';el.className='msg '+(bad?'err':'');}
 async function init(){
   const info=await post({action:'getMobileAccessInvite',inviteToken});document.getElementById('loading').hidden=true;

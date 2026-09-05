@@ -86,7 +86,7 @@
         <button type="button" class="rchip" onclick="pinSelectRole('aof')">AO · Aof</button>
         <button type="button" class="rchip" onclick="pinSelectRole('draft')">DR · Draft</button>
         <button type="button" class="rchip" onclick="pinSelectRole('phai')">PH · PHAI</button>
-        <button type="button" class="rchip" onclick="pinSelectRole('amp')">AM · AMP</button>
+        <button type="button" class="rchip" data-team-label="AMP" data-team-fallback="M5 · Mentor 5" onclick="pinSelectRole('amp')">M5 · Mentor 5</button>
         <button type="button" class="rchip" onclick="pinSelectRole('growth')">GR · Growth</button>
       </div>
       <div id="login-err" style="color:var(--red);font-size:.75rem;text-align:center;min-height:1.1em;margin-top:.5rem"></div>
@@ -313,7 +313,7 @@
         <button class="fb" onclick="setMentorFilter('Aof',this)">Aof</button>
         <button class="fb" onclick="setMentorFilter('Draft',this)">Draft</button>
         <button class="fb" onclick="setMentorFilter('PHAI',this)">PHAI</button>
-        <button class="fb" onclick="setMentorFilter('AMP',this)">AMP</button>
+        <button class="fb" data-team-label="AMP" data-team-fallback="Mentor 5" onclick="setMentorFilter('AMP',this)">Mentor 5</button>
       </div>
       <div class="filter-bar" id="mc-sort-bar" style="margin-top:-.25rem;padding-top:.25rem;border-top:1px solid var(--border);gap:5px">
         <input type="text" id="mc-search" placeholder="🔍 ค้นหาชื่อ..." oninput="renderMembers()" style="background:var(--surface2,var(--border));border:1px solid var(--border);border-radius:7px;color:var(--text,#fff);padding:4px 9px;font-size:12px;outline:none;flex:1;min-width:0">
@@ -351,7 +351,7 @@
         <button class="fb" onclick="setCGTeamFilter('Aof',this)">Aof</button>
         <button class="fb" onclick="setCGTeamFilter('Draft',this)">Draft</button>
         <button class="fb" onclick="setCGTeamFilter('PHAI',this)">PHAI</button>
-        <button class="fb" onclick="setCGTeamFilter('AMP',this)">AMP</button>
+        <button class="fb" data-team-label="AMP" data-team-fallback="Mentor 5" onclick="setCGTeamFilter('AMP',this)">Mentor 5</button>
       </div>
       <div id="mc-cg-list"><div class="lt">⏳ กำลังโหลด...</div></div>
     </div>
@@ -393,7 +393,7 @@
           <button class="fb" onclick="setRptFilter('aof',this)">Aof</button>
           <button class="fb" onclick="setRptFilter('draft',this)">Draft</button>
           <button class="fb" onclick="setRptFilter('phai',this)">PHAI</button>
-          <button class="fb" onclick="setRptFilter('amp',this)">AMP</button>
+          <button class="fb" data-team-label="AMP" data-team-fallback="Mentor 5" onclick="setRptFilter('amp',this)">Mentor 5</button>
         </div>
         <div class="rpt-filter-status">
           <button class="fb on" onclick="setRptStatus('all',this)">ทั้งหมด</button>
@@ -432,7 +432,7 @@
       <div id="mc-msg-list"><div class="lt">⏳ กำลังโหลด...</div></div>
       <div class="sh" style="margin-top:.75rem;">📌 มอบหมายงาน</div>
       <div class="asgn-row" style="margin-bottom:.5rem;">
-        <select class="fs" id="asgn-mentor"><option value="">— เลือก Mentor —</option><option>TOOMTAM</option><option>Aof</option><option>Draft</option><option>PHAI</option><option>AMP</option></select>
+        <select class="fs" id="asgn-mentor" data-team-select><option value="">— เลือก Mentor —</option><option value="TOOMTAM">Mentor 1</option><option value="Aof">Mentor 2</option><option value="Draft">Mentor 3</option><option value="PHAI">Mentor 4</option><option value="AMP">Mentor 5</option></select>
         <input class="fi" type="text" id="asgn-member" placeholder="ชื่อ Mentee (ถ้ามี)">
       </div>
       <textarea class="ft" id="asgn-msg" placeholder="รายละเอียดงาน / ข้อความถึง Mentor..." rows="3" style="margin-bottom:8px;"></textarea>
@@ -1343,7 +1343,7 @@
       <button class="rs-role-btn" data-role="aof" onclick="rsSwitchTo('aof')">🧑 Aof<span class="rs-cached-dot" style="display:none;color:#34d399;margin-left:4px;font-size:10px;">●</span></button>
       <button class="rs-role-btn" data-role="draft" onclick="rsSwitchTo('draft')">🧑 Draft<span class="rs-cached-dot" style="display:none;color:#34d399;margin-left:4px;font-size:10px;">●</span></button>
       <button class="rs-role-btn" data-role="phai" onclick="rsSwitchTo('phai')">🧑 PHAI<span class="rs-cached-dot" style="display:none;color:#34d399;margin-left:4px;font-size:10px;">●</span></button>
-      <button class="rs-role-btn" data-role="amp" onclick="rsSwitchTo('amp')">🧑 AMP<span class="rs-cached-dot" style="display:none;color:#34d399;margin-left:4px;font-size:10px;">●</span></button>
+      <button class="rs-role-btn" data-role="amp" onclick="rsSwitchTo('amp')">🧑 Mentor 5<span class="rs-cached-dot" style="display:none;color:#34d399;margin-left:4px;font-size:10px;">●</span></button>
       <button class="rs-role-btn" data-role="growth" onclick="rsSwitchTo('growth')" style="color:#a78bfa;border-color:rgba(167,139,250,.35);">📈 Growth<span class="rs-cached-dot" style="display:none;color:#34d399;margin-left:4px;font-size:10px;">●</span></button>
       <button class="rs-role-btn" data-role="mc" onclick="rsSwitchTo('mc')" style="color:#34d399;border-color:rgba(52,211,153,.35);grid-column:span 2;">👑 MC (ตูมตาม)<span class="rs-cached-dot" style="display:none;color:#34d399;margin-left:4px;font-size:10px;">●</span></button>
     </div>

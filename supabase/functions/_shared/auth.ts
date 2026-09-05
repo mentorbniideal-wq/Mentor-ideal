@@ -30,7 +30,7 @@ const ROLE_INFO: Record<string, { displayName: string; teamName: string | null; 
   aof:     { displayName: 'Aof',     teamName: 'Aof',     isMC: false, isMentor: true  },
   draft:   { displayName: 'Draft',   teamName: 'Draft',   isMC: false, isMentor: true  },
   phai:    { displayName: 'PHAI',    teamName: 'PHAI',    isMC: false, isMentor: true  },
-  amp:     { displayName: 'AMP',     teamName: 'AMP',     isMC: false, isMentor: true  },
+  amp:     { displayName: 'Mentor 5', teamName: 'AMP',     isMC: false, isMentor: true  },
   mentor_support: { displayName: 'Mentor Support', teamName: null, isMC: false, isMentor: true },
   growth:  { displayName: 'Growth',  teamName: null,      isMC: false, isMentor: false },
   viewer:  { displayName: 'Viewer · Read only', teamName: null, isMC: true, isMentor: false },

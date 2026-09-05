@@ -6,6 +6,19 @@
   const SESSION_KEY   = 'bni_admin_pin_session';
 
   window.ADMIN_API = ADMIN_API;
+  var TEAM_API = 'https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
+  var _teamLabels = {};
+  function loadAdminTeamLabels() {
+    return fetch(TEAM_API, { method:'POST', headers:API_HEADERS, body:JSON.stringify({action:'getPublicTeamCatalog'}) })
+      .then(function(res){ return res.json(); }).then(function(r){
+        if (!r || !r.ok) return;
+        (r.teams || []).forEach(function(t){ if(t.code) _teamLabels[t.code] = t.displayName || t.code; });
+        var select = document.getElementById('_aRole');
+        if (!select) return;
+        var roleCodes = {toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP'};
+        Array.from(select.options).forEach(function(option){var label=_teamLabels[roleCodes[option.value]];if(label)option.textContent='Mentor: '+String(label).replace(/^ทีม\s+/,'');});
+      }).catch(function(){});
+  }
 
   var _oauthClient = null;
   function oauthClient() {
@@ -82,13 +95,13 @@
       + '<div style="font-size:36px;margin-bottom:8px">⚙️</div>'
       + '<div style="font-size:20px;font-weight:700;color:#d7fefa;margin-bottom:4px">BNI Admin</div>'
       + '<div style="font-size:12px;color:#7a9bb5;margin-bottom:24px">ใส่ Role และ PIN เพื่อเข้าใช้งาน</div>'
-      + '<select id="_aRole" style="width:100%;padding:10px 12px;margin-bottom:12px;border-radius:8px;border:1px solid #1a3a5c;background:#0a1628;color:#e8f4f8;font-size:13px">'
+      + '<select id="_aRole" data-team-select style="width:100%;padding:10px 12px;margin-bottom:12px;border-radius:8px;border:1px solid #1a3a5c;background:#0a1628;color:#e8f4f8;font-size:13px">'
       + '<option value="mc">Mentor Co.</option>'
       + '<option value="toomtam">Mentor: TOOMTAM</option>'
       + '<option value="aof">Mentor: Aof</option>'
       + '<option value="draft">Mentor: Draft</option>'
       + '<option value="phai">Mentor: PHAI</option>'
-      + '<option value="amp">Mentor: AMP</option>'
+      + '<option value="amp">Mentor: Mentor 5</option>'
       + '<option value="growth">Growth</option>'
       + '</select>'
       + '<input id="_aPin" type="password" placeholder="PIN" maxlength="10" autocomplete="current-password"'
@@ -100,6 +113,8 @@
       + '<div id="_aErr" style="color:#ff6b6b;font-size:12px;margin-top:12px;min-height:1.2em"></div>'
       + '</div>';
     document.body.appendChild(el);
+    if(window.BNITeamLabels)window.BNITeamLabels.apply(el);
+    loadAdminTeamLabels();
     setTimeout(function () { var i = document.getElementById('_aPin'); if (i) i.focus(); }, 100);
   }
 

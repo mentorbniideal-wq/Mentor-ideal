@@ -3,6 +3,8 @@ function teamDisplayName(code){return code?(D.teamLabels&&D.teamLabels[code]||co
 function applyTeamDisplayLabels(){
   if(!D.teamLabels)return;
   document.querySelectorAll('select option').forEach(function(option){
+    var select=option.parentElement,id=String(select&&(select.id||select.name)||'');
+    if(!(select&&select.hasAttribute('data-team-select'))&&!/(team|mentor|role)/i.test(id))return;
     var code=option.value;
     var roleCode={toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP'}[String(code||'').toLowerCase()];
     if(roleCode&&D.teamLabels[roleCode]){option.textContent=D.teamLabels[roleCode];return;}
@@ -11,22 +13,14 @@ function applyTeamDisplayLabels(){
     option.value=code;
     option.textContent=movePrefix+teamDisplayName(code);
   });
-  applyVisibleTeamLabels(document.body);
 }
 function teamLeaderLabel(code){return String(teamDisplayName(code)||code).replace(/^ทีม\s+/,'');}
-function applyVisibleTeamLabels(root){
-  if(!root||!D.teamLabels||!Object.keys(D.teamLabels).length)return;
-  var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),nodes=[],node;
-  while((node=walker.nextNode())){var tag=node.parentElement&&node.parentElement.tagName;if(!/^(SCRIPT|STYLE|TEXTAREA|OPTION)$/.test(tag||''))nodes.push(node);}
-  nodes.forEach(function(n){var out=n.nodeValue;Object.keys(D.teamLabels).forEach(function(code){var safe=code.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),leader=teamLeaderLabel(code),full=teamDisplayName(code);out=out.replace(new RegExp('ทีม\\s+'+safe+'\\b','g'),full).replace(new RegExp('(Mentor Team\\s*·\\s*)'+safe+'\\b','g'),'$1'+leader).replace(new RegExp('(Mentor\\s+)'+safe+'\\b','g'),'$1'+leader).replace(new RegExp('\\b'+safe+'\\b','g'),leader);});if(out!==n.nodeValue)n.nodeValue=out;});
-}
 function loadPublicTeamLabels(){
   return fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'getPublicTeamCatalog'})})
     .then(function(res){return res.json();})
     .then(function(r){if(!r||!r.ok)return;var labels={};(r.teams||[]).forEach(function(t){if(t.code)labels[t.code]=t.displayName||t.code;});D.teamLabels=Object.assign({},D.teamLabels||{},labels);applyTeamDisplayLabels();})
     .catch(function(){});
 }
-new MutationObserver(function(records){if(!D.teamLabels||!Object.keys(D.teamLabels).length)return;records.forEach(function(record){record.addedNodes.forEach(function(node){if(node.nodeType===1)applyVisibleTeamLabels(node);else if(node.nodeType===3&&node.parentElement)applyVisibleTeamLabels(node.parentElement);});});}).observe(document.documentElement,{childList:true,subtree:true});
 var G={mem:[],sm:{},tasks:[],nm:[],dec:[],assignees:[]};
 var S={role:'',token:null,sr:''};
 var mzf='all',ftf='all',rff='all',gzf='all',tsf='all';

@@ -3,6 +3,8 @@ function mobileTeamDisplay(code){return code?(S.teamLabels&&S.teamLabels[code]||
 function applyMobileTeamLabels(){
   if(!S.teamLabels)return;
   document.querySelectorAll('select option').forEach(function(option){
+    var select=option.parentElement,id=String(select&&(select.id||select.name)||'');
+    if(!(select&&select.hasAttribute('data-team-select'))&&!/(team|mentor|role)/i.test(id))return;
     var code=option.value||option.textContent.trim();
     if(S.teamLabels[code])option.textContent=S.teamLabels[code];
   });
@@ -15,16 +17,8 @@ function applyMobileTeamLabels(){
     var code={toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP'}[role];
     if(code&&S.teamLabels[code]&&button.firstChild)button.firstChild.nodeValue='🧑 '+S.teamLabels[code];
   });
-  applyVisibleMobileTeamLabels(document.body);
 }
 function mobileTeamLeaderLabel(code){return String(mobileTeamDisplay(code)||code).replace(/^ทีม\s+/,'');}
-function applyVisibleMobileTeamLabels(root){
-  if(!root||!S.teamLabels||!Object.keys(S.teamLabels).length)return;
-  var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),nodes=[],node;
-  while((node=walker.nextNode())){var tag=node.parentElement&&node.parentElement.tagName;if(!/^(SCRIPT|STYLE|TEXTAREA|OPTION)$/.test(tag||''))nodes.push(node);}
-  nodes.forEach(function(n){var out=n.nodeValue;Object.keys(S.teamLabels).forEach(function(code){var safe=code.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),leader=mobileTeamLeaderLabel(code),full=mobileTeamDisplay(code);out=out.replace(new RegExp('ทีม\\s+'+safe+'\\b','g'),full).replace(new RegExp('(Mentor Team\\s*·\\s*)'+safe+'\\b','g'),'$1'+leader).replace(new RegExp('(Mentor\\s+)'+safe+'\\b','g'),'$1'+leader).replace(new RegExp('\\b'+safe+'\\b','g'),leader);});if(out!==n.nodeValue)n.nodeValue=out;});
-}
-new MutationObserver(function(records){if(!S.teamLabels||!Object.keys(S.teamLabels).length)return;records.forEach(function(record){record.addedNodes.forEach(function(node){if(node.nodeType===1)applyVisibleMobileTeamLabels(node);else if(node.nodeType===3&&node.parentElement)applyVisibleMobileTeamLabels(node.parentElement);});});}).observe(document.documentElement,{childList:true,subtree:true});
 function loadPublicMobileTeamLabels(){
   return fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'getPublicTeamCatalog'})})
     .then(function(res){return res.json();})
@@ -2414,7 +2408,8 @@ function loadMessages(app,markRead){
 
 function loadMcMsgForm(){
   if(S.role!=='mc')return;
-  document.getElementById('mc-msg-form').innerHTML='<div class="card"><div class="ct">💬 พิมพ์ข้อความให้ Mentor</div><div class="fg"><label class="fl">ทีม</label><select class="fs" id="msg-team" onchange="loadTeam(this.value)"><option value="">— เลือกทีม —</option><option>TOOMTAM</option><option>Aof</option><option>Draft</option><option>PHAI</option><option>AMP</option></select></div><div class="fg"><label class="fl">Mentee</label><select class="fs" id="msg-member"><option value="">— เลือกทีมก่อน —</option></select></div><div class="fg"><label class="fl">ข้อความ</label><textarea class="ft" id="msg-txt" placeholder="เช่น: พี่ยา คุยเรียบร้อยแล้ว รอ update วันที่ 5"></textarea></div><button class="btn-p" onclick="sendMsg()">ส่งข้อความ →</button></div><div class="sh">ข้อความที่ส่งแล้ว</div>';
+  document.getElementById('mc-msg-form').innerHTML='<div class="card"><div class="ct">💬 พิมพ์ข้อความให้ Mentor</div><div class="fg"><label class="fl">ทีม</label><select class="fs" id="msg-team" data-team-select onchange="loadTeam(this.value)"><option value="">— เลือกทีม —</option><option value="TOOMTAM">Mentor 1</option><option value="Aof">Mentor 2</option><option value="Draft">Mentor 3</option><option value="PHAI">Mentor 4</option><option value="AMP">Mentor 5</option></select></div><div class="fg"><label class="fl">Mentee</label><select class="fs" id="msg-member"><option value="">— เลือกทีมก่อน —</option></select></div><div class="fg"><label class="fl">ข้อความ</label><textarea class="ft" id="msg-txt" placeholder="เช่น: พี่ยา คุยเรียบร้อยแล้ว รอ update วันที่ 5"></textarea></div><button class="btn-p" onclick="sendMsg()">ส่งข้อความ →</button></div><div class="sh">ข้อความที่ส่งแล้ว</div>';
+  applyMobileTeamLabels();
 }
 function loadTeam(teamName){
   if(!teamName)return;

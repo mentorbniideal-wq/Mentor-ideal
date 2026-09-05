@@ -3,8 +3,19 @@
   var api=window.SUPABASE_API||'https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
   var anon=window.SUPABASE_ANON||'sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
   var labels={};
-  function leader(code){return String(labels[code]||code).replace(/^ทีม\s+/,'');}
-  function rewrite(value){var out=String(value||'');Object.keys(labels).forEach(function(code){var safe=code.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');out=out.replace(new RegExp('ทีม\\s+'+safe+'\\b','g'),labels[code]).replace(new RegExp('(Mentor Team\\s*·\\s*)'+safe+'\\b','g'),'$1'+leader(code)).replace(new RegExp('(Mentor\\s+)'+safe+'\\b','g'),'$1'+leader(code)).replace(new RegExp('\\b'+safe+'\\b','g'),leader(code));});return out;}
-  function apply(root){if(!root||!Object.keys(labels).length)return;root.querySelectorAll&&root.querySelectorAll('select option').forEach(function(option){var code=option.value||option.textContent.trim(),roleMap={toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP'},teamCode=labels[code]?code:roleMap[String(code).toLowerCase()];if(teamCode&&labels[teamCode])option.textContent=rewrite(option.textContent);});var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),nodes=[],node;while((node=walker.nextNode())){var tag=node.parentElement&&node.parentElement.tagName;if(!/^(SCRIPT|STYLE|TEXTAREA|OPTION)$/.test(tag||''))nodes.push(node);}nodes.forEach(function(n){var out=rewrite(n.nodeValue);if(out!==n.nodeValue)n.nodeValue=out;});}
-  fetch(api,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+anon},body:JSON.stringify({action:'getPublicTeamCatalog'})}).then(function(res){return res.json();}).then(function(r){if(!r||!r.ok)return;(r.teams||[]).forEach(function(t){if(t.code)labels[t.code]=t.displayName||t.code;});apply(document.body);new MutationObserver(function(records){records.forEach(function(record){record.addedNodes.forEach(function(node){if(node.nodeType===1)apply(node);else if(node.nodeType===3&&node.parentElement)apply(node.parentElement);});});}).observe(document.body,{childList:true,subtree:true});}).catch(function(){});
+  var roleCodes={toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP'};
+  function display(code,fallback){return String(labels[code]||fallback||code||'—');}
+  function apply(root){
+    var host=root&&root.querySelectorAll?root:document;
+    host.querySelectorAll('[data-team-label]').forEach(function(el){var code=el.getAttribute('data-team-label');el.textContent=display(code,el.getAttribute('data-team-fallback'));});
+    host.querySelectorAll('select option').forEach(function(option){
+      var select=option.parentElement,id=String(select&&(select.id||select.name)||'');
+      if(!(select&&select.hasAttribute('data-team-select'))&&!/(team|mentor|role)/i.test(id))return;
+      var code=roleCodes[String(option.value||'').toLowerCase()]||option.value;
+      if(labels[code])option.textContent=(option.getAttribute('data-prefix')||'')+display(code);
+    });
+  }
+  function load(){return fetch(api,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+anon},body:JSON.stringify({action:'getPublicTeamCatalog'})}).then(function(res){if(!res.ok)throw new Error('team catalog '+res.status);return res.json();}).then(function(r){if(!r||!r.ok)throw new Error((r&&r.error)||'team catalog unavailable');(r.teams||[]).forEach(function(t){if(t.code)labels[t.code]=t.displayName||t.code;});apply(document);window.dispatchEvent(new CustomEvent('bni:team-labels',{detail:{labels:Object.assign({},labels)}}));return labels;}).catch(function(){return labels;});}
+  window.BNITeamLabels={labels:labels,display:display,apply:apply,load:load};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',load,{once:true});else load();
 })();

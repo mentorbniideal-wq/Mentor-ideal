@@ -49,7 +49,7 @@
         <option value="aof">Aof</option>
         <option value="draft">Draft</option>
         <option value="phai">PHAI</option>
-        <option value="amp">AMP</option>
+        <option value="amp">Mentor 5</option>
         <option value="growth">Growth</option>
         <option value="viewer">Viewer · Read only</option>
       </select>
@@ -320,7 +320,7 @@
         <div class="team-manager-stats" id="team-manager-stats"></div>
         <div class="team-manager-tools">
           <input id="team-manager-search" type="search" placeholder="ค้นหาชื่อหรือนิคเนม…" oninput="renderMentorTeamManager()">
-          <select id="team-manager-filter" onchange="renderMentorTeamManager()"><option value="all">ทุกทีม</option><option value="unassigned">ยังไม่มีทีม</option><option value="TOOMTAM">TOOMTAM</option><option value="Aof">Aof</option><option value="Draft">Draft</option><option value="PHAI">PHAI</option><option value="AMP">AMP</option></select>
+          <select id="team-manager-filter" data-team-select onchange="renderMentorTeamManager()"><option value="all">ทุกทีม</option><option value="unassigned">ยังไม่มีทีม</option><option value="TOOMTAM">Mentor 1</option><option value="Aof">Mentor 2</option><option value="Draft">Mentor 3</option><option value="PHAI">Mentor 4</option><option value="AMP">Mentor 5</option></select>
           <select id="team-manager-target"><option value="">ถอนออกจากทีม</option><option value="TOOMTAM">ย้ายไป TOOMTAM</option><option value="Aof">ย้ายไป Aof</option><option value="Draft">ย้ายไป Draft</option><option value="PHAI">ย้ายไป PHAI</option><option value="AMP">ย้ายไป AMP</option></select>
           <button class="bsm" id="team-manager-move" onclick="bulkMoveMentorTeam()" disabled>ย้ายที่เลือก <span id="team-manager-selected">0</span> คน</button>
         </div>
@@ -376,7 +376,7 @@
           <button class="tmpl-btn" onclick="useTmpl(4)">กระตุ้น Referral</button>
         </div>
         <div class="cr">
-          <select id="msgTeam" onchange="loadMsgMem()"><option value="">เลือกทีม</option><option>TOOMTAM</option><option>Aof</option><option>Draft</option><option>PHAI</option><option>AMP</option></select>
+          <select id="msgTeam" data-team-select onchange="loadMsgMem()"><option value="">เลือกทีม</option><option value="TOOMTAM">Mentor 1</option><option value="Aof">Mentor 2</option><option value="Draft">Mentor 3</option><option value="PHAI">Mentor 4</option><option value="AMP">Mentor 5</option></select>
           <select id="msgMem"><option value="">เลือกสมาชิก</option></select>
           <textarea id="msgTxt" placeholder="ข้อความถึงสมาชิก..." oninput="autoDraft('msgTxt')" onfocus="restoreDraft('msgTxt')"></textarea>
           <button class="bsend" id="bsnd" onclick="sendMsg()">ส่ง</button>
@@ -1032,7 +1032,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       </div>
       <div class="task-form" id="taskForm">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <select id="tf-team"><option value="">เลือกทีม Mentor</option><option>TOOMTAM</option><option>Aof</option><option>Draft</option><option>PHAI</option><option>AMP</option></select>
+          <select id="tf-team" data-team-select><option value="">เลือกทีม Mentor</option><option value="TOOMTAM">Mentor 1</option><option value="Aof">Mentor 2</option><option value="Draft">Mentor 3</option><option value="PHAI">Mentor 4</option><option value="AMP">Mentor 5</option></select>
           <select id="tf-type">
             <option value="ติดตาม">📌 ติดตามสมาชิก</option>
             <option value="แนะนำ">💡 แนะนำกลยุทธ์</option>
@@ -1441,7 +1441,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
             <option value="Aof">Aof</option>
             <option value="Draft">Draft</option>
             <option value="PHAI">PHAI</option>
-            <option value="AMP">AMP</option>
+            <option value="AMP">Mentor 5</option>
           </select>
         </div>
       </div>
@@ -1774,7 +1774,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
           <option value="Aof">Aof</option>
           <option value="Draft">Draft</option>
           <option value="PHAI">PHAI</option>
-          <option value="AMP">AMP</option>
+          <option value="AMP">Mentor 5</option>
         </select>
         <button class="bsm" onclick="renderGrowthWatchGR(true)" style="font-size:11px;margin-left:auto">🔄 รีเฟรช</button>
       </div>

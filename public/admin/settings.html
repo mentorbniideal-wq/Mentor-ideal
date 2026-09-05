@@ -121,7 +121,7 @@
     <p style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:14px">Chapter Admin เป็นผู้เลือกตัวตนและสิทธิ์ก่อน ระบบจะสร้างลิงก์ใช้ครั้งเดียวให้ตรวจสอบ แล้วจึงกดส่งผ่าน LINE ผู้รับผูก Gmail และตั้ง PIN 4 ตัวของเครื่องตนเอง</p>
     <div class="invite-form">
       <div><label>สมาชิกที่ผูก LINE แล้ว</label><select id="maiMember"><option value="">กำลังโหลด…</option></select></div>
-      <div><label>สิทธิ์ระบบ</label><select id="maiRole"><option value="toomtam">Mentor · TOOMTAM</option><option value="aof">Mentor · Aof</option><option value="draft">Mentor · Draft</option><option value="phai">Mentor · PHAI</option><option value="amp">Mentor · AMP</option><option value="mentor_support">Mentor Support</option><option value="growth">Growth Team</option><option value="mc">Mentor Co.</option></select></div>
+      <div><label>สิทธิ์ระบบ</label><select id="maiRole" data-team-select><option value="toomtam">Mentor · Mentor 1</option><option value="aof">Mentor · Mentor 2</option><option value="draft">Mentor · Mentor 3</option><option value="phai">Mentor · Mentor 4</option><option value="amp">Mentor · Mentor 5</option><option value="mentor_support">Mentor Support</option><option value="growth">Growth Team</option><option value="mc">Mentor Co.</option></select></div>
       <div><label>ชื่อทีม/หน้าที่ (แสดงให้ผู้รับเห็น)</label><input id="maiTeam" placeholder="เช่น Mentor Team Aof"></div>
       <button class="btn-add" id="maiCreate" onclick="createMobileInvite()">สร้างลิงก์</button>
     </div>
