@@ -26,6 +26,9 @@ expect(!between('id="g-dashboard"', 'id="g-memberhub"').includes('id="g-members"
 expect(between('id="g-memberhub"', 'id="g-analytics"').includes('id="g-members"'), 'Growth member directory must remain accessible');
 expect(html.includes('mobile-focus.css'), 'mobile focus stylesheet must be loaded');
 expect(css.includes('position:fixed') && css.includes('safe-area-inset-bottom'), 'mobile navigation must be fixed and safe-area aware');
+expect(css.includes('.app>.content,.app>.content>.pane{width:100%;max-width:100%;min-width:0}'), 'mobile flex children must not widen the viewport');
+expect(css.includes('grid-template-columns:repeat(3,minmax(0,1fr))'), 'Mentor Focus 3 must fit inside the viewport');
+expect(css.includes('margin:0 auto 6px'), 'bottom navigation needs visible icon-to-label spacing');
 expect(js.includes("(r.isSystemOwner||r.role==='mc')"), 'only owner and Mentor Co. may see workspace chooser');
 expect(js.includes("growth.style.display=isOwner?'flex':'none'"), 'Growth Desktop must be hidden from Mentor Co. chooser');
 expect(!between('id="mentorApp"', '<!-- Growth App -->').includes('openRoleSwitcher()'), 'Mentor header must not expose role switching');

@@ -9,9 +9,23 @@
 
   .app>.tabs{position:fixed;z-index:180;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;padding:7px 6px calc(7px + env(safe-area-inset-bottom));border-top:1px solid var(--border);background:color-mix(in srgb,var(--bg2) 94%,transparent);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 -8px 28px rgba(0,0,0,.18)}
   .app>.tabs:after{display:none}
-  .app>.tabs .tb{position:relative;width:100%;min-width:0;min-height:52px;padding:5px 2px;border-radius:12px;font:700 11px/1.2 Sarabun,sans-serif;overflow:visible}
+  .app>.tabs .tb{position:relative;width:100%;min-width:0;min-height:56px;padding:6px 2px;border-radius:12px;font:700 11px/1.2 Sarabun,sans-serif;overflow:visible}
   .app>.tabs .tb.on{color:var(--mint);background:rgba(176,138,60,.12)}
-  .app>.tabs .ti{font-size:18px;line-height:20px;margin:0 0 2px}
+  .app>.tabs .ti{font-size:18px;line-height:22px;margin:0 auto 6px}
+  .app,.app>.content,.app>.content>.pane{width:100%;max-width:100%;min-width:0}
+  #mentor-myteam,#mentor-focus3,#mentor-weekly,.f3-wrap,.wa-wrap{width:100%;max-width:100%;min-width:0}
+  #mentor-myteam{overflow-x:hidden}
+  #mentor-myteam .f3-wrap{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.45rem;overflow:visible;padding:.1rem 0}
+  #mentor-myteam .f3-card{width:auto;max-width:100%;min-width:0;padding:.55rem .5rem}
+  #mentor-myteam .f3-name,#mentor-myteam .f3-action{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  #mentor-myteam .wa-card{position:relative;width:100%;max-width:100%;min-width:0;padding-right:.75rem;overflow:hidden}
+  #mentor-myteam .wa-top{min-width:0;max-width:100%}
+  #mentor-myteam .wa-name{min-width:0;overflow-wrap:anywhere}
+  #mentor-myteam .wa-score{flex:0 0 auto;max-width:64px}
+  #mentor-myteam .wa-action,#mentor-myteam .wa-target{max-width:100%;overflow-wrap:anywhere;word-break:break-word}
+  #mentor-myteam .wa-count{float:none;position:absolute;top:.55rem;right:.65rem;max-width:78px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #mentor-myteam .wa-count~.wa-top{padding-right:72px}
+  body.dark #mentorApp .hdr-role.m{background:#2f7654;color:#fff}
   .app>.content{padding:.8rem .8rem calc(78px + env(safe-area-inset-bottom));overflow:visible}
 
   .mobile-page-head{margin:.1rem 0 .85rem}
