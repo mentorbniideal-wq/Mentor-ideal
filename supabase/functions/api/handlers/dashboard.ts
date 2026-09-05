@@ -967,6 +967,16 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     case 'getScorecard': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      const { data: teamCatalogRows, error: teamCatalogError } = await db
+        .from('mentor_teams')
+        .select('name,leader_name,display_name')
+        .order('id');
+      if (teamCatalogError) return errResponse(teamCatalogError.message);
+      const teamLabels: Record<string, string> = {};
+      for (const row of (teamCatalogRows || []) as Record<string, unknown>[]) {
+        const code = String(row.name || '');
+        if (code) teamLabels[code] = String(row.display_name || `ทีม ${String(row.leader_name || code)}`);
+      }
       // ── 1. Fetch all active members with current scores ──────
       const { data: memRows, error: memErr } = await db
         .from('v_member_dashboard')
@@ -1110,7 +1120,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         const thisAvg = ta.scored   ? Math.round(ta.scoreSum / ta.scored)   : 0;
         const prevAvg = ta.prevScored ? Math.round(ta.prevSum / ta.prevScored) : 0;
         return {
-          name: t, team: t, count: ta.count,
+          name: t, team: t, displayName: teamLabels[t] || t, count: ta.count,
           thisAvg, prevAvg, diff: thisAvg - prevAvg,
           grade: teamGrade(thisAvg),
           redBlk: ta.redBlk, diving: ta.diving,
@@ -1125,7 +1135,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       }));
 
       return jsonResponse({
-        ok: true, members,
+        ok: true, members, teamLabels,
         movement: {
           total: mvUp + mvSame + mvDown,
           up: mvUp, same: mvSame, down: mvDown,

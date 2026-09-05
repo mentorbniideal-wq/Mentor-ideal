@@ -11,7 +11,22 @@ function applyTeamDisplayLabels(){
     option.value=code;
     option.textContent=movePrefix+teamDisplayName(code);
   });
+  applyVisibleTeamLabels(document.body);
 }
+function teamLeaderLabel(code){return String(teamDisplayName(code)||code).replace(/^ทีม\s+/,'');}
+function applyVisibleTeamLabels(root){
+  if(!root||!D.teamLabels||!Object.keys(D.teamLabels).length)return;
+  var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),nodes=[],node;
+  while((node=walker.nextNode())){var tag=node.parentElement&&node.parentElement.tagName;if(!/^(SCRIPT|STYLE|TEXTAREA|OPTION)$/.test(tag||''))nodes.push(node);}
+  nodes.forEach(function(n){var out=n.nodeValue;Object.keys(D.teamLabels).forEach(function(code){var safe=code.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),leader=teamLeaderLabel(code),full=teamDisplayName(code);out=out.replace(new RegExp('ทีม\\s+'+safe+'\\b','g'),full).replace(new RegExp('(Mentor Team\\s*·\\s*)'+safe+'\\b','g'),'$1'+leader).replace(new RegExp('(Mentor\\s+)'+safe+'\\b','g'),'$1'+leader).replace(new RegExp('\\b'+safe+'\\b','g'),leader);});if(out!==n.nodeValue)n.nodeValue=out;});
+}
+function loadPublicTeamLabels(){
+  return fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'getPublicTeamCatalog'})})
+    .then(function(res){return res.json();})
+    .then(function(r){if(!r||!r.ok)return;var labels={};(r.teams||[]).forEach(function(t){if(t.code)labels[t.code]=t.displayName||t.code;});D.teamLabels=Object.assign({},D.teamLabels||{},labels);applyTeamDisplayLabels();})
+    .catch(function(){});
+}
+new MutationObserver(function(records){if(!D.teamLabels||!Object.keys(D.teamLabels).length)return;records.forEach(function(record){record.addedNodes.forEach(function(node){if(node.nodeType===1)applyVisibleTeamLabels(node);else if(node.nodeType===3&&node.parentElement)applyVisibleTeamLabels(node.parentElement);});});}).observe(document.documentElement,{childList:true,subtree:true});
 var G={mem:[],sm:{},tasks:[],nm:[],dec:[],assignees:[]};
 var S={role:'',token:null,sr:''};
 var mzf='all',ftf='all',rff='all',gzf='all',tsf='all';
@@ -201,6 +216,7 @@ function setDesktopTabs(role){
 
 // ── Login: now handled by Google OAuth ────────────────────────
 function enterApp(r){
+  if(r.teamLabels)D.teamLabels=Object.assign({},D.teamLabels||{},r.teamLabels);applyTeamDisplayLabels();
   S.actualRole=r.role;S.isViewer=!!r.isViewer||r.role==='viewer';S.isAdmin=!!r.isAdmin||r.role==='admin'||S.isViewer;S.role=(r.role==='admin'||r.role==='viewer')?'mc':r.role;S.isMC=r.isMC;S.teamName=r.teamName;S.displayName=r.displayName;
   document.body.classList.toggle('viewer-mode',S.isViewer);
   var viewerBanner=document.getElementById('viewer-mode-banner');
@@ -2704,6 +2720,7 @@ function loadDesktopScorecard(){
   gsr('getScorecard',{role:'mc'},function(r){
     if(!r.ok){el.innerHTML='<div style="color:var(--re);padding:20px">❌ '+(r.error||'')+'</div>';_scLoaded=false;return;}
     _scData=r;
+    D.teamLabels=Object.assign({},D.teamLabels||{},r.teamLabels||{});
     var sumBtn=document.getElementById('btn-lt-summary');
     if(sumBtn)sumBtn.style.display='';
     var exportBtn=document.getElementById('btn-sc-export');
@@ -2756,7 +2773,7 @@ function loadDesktopScorecard(){
         r.topImproved.forEach(function(m,i){
           html+='<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd)">'
             +'<span style="font-size:11px;color:var(--sub);width:14px">'+(i+1)+'</span>'
-            +'<div style="flex:1"><div style="font-weight:600;font-size:13px">'+esc(m.nick)+'</div><div style="font-size:10px;color:var(--sub)">'+esc(m.team)+' · '+esc(m.from)+'→'+esc(m.to)+'</div></div>'
+            +'<div style="flex:1"><div style="font-weight:600;font-size:13px">'+esc(m.nick)+'</div><div style="font-size:10px;color:var(--sub)">'+esc(teamDisplayName(m.team))+' · '+esc(m.from)+'→'+esc(m.to)+'</div></div>'
             +'<span style="color:var(--gr);font-weight:700;font-size:13px">+'+m.diff+'</span></div>';
         });
         html+='</div>';
@@ -2766,7 +2783,7 @@ function loadDesktopScorecard(){
         r.topDeclined.forEach(function(m,i){
           html+='<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd)">'
             +'<span style="font-size:11px;color:var(--sub);width:14px">'+(i+1)+'</span>'
-            +'<div style="flex:1"><div style="font-weight:600;font-size:13px">'+esc(m.nick)+'</div><div style="font-size:10px;color:var(--sub)">'+esc(m.team)+' · '+esc(m.from)+'→'+esc(m.to)+'</div></div>'
+            +'<div style="flex:1"><div style="font-weight:600;font-size:13px">'+esc(m.nick)+'</div><div style="font-size:10px;color:var(--sub)">'+esc(teamDisplayName(m.team))+' · '+esc(m.from)+'→'+esc(m.to)+'</div></div>'
             +'<span style="color:var(--re);font-weight:700;font-size:13px">'+m.diff+'</span></div>';
         });
         html+='</div>';
@@ -2783,7 +2800,7 @@ function loadDesktopScorecard(){
       html+='<div class="kcard" style="flex:1;min-width:140px">'
         +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
         +'<span style="background:'+gc.bg+';color:'+gc.c+';border-radius:6px;padding:3px 8px;font-weight:800;font-size:13px">'+esc(t.grade)+'</span>'
-        +'<span style="font-weight:700;font-size:13px">'+esc(t.name)+'</span>'
+        +'<span style="font-weight:700;font-size:13px">'+esc(t.displayName||teamDisplayName(t.name))+'</span>'
         +'</div>'
         +'<div style="font-size:24px;font-weight:800;color:'+tlC(t.thisAvg>=70?'green':t.thisAvg>=50?'yellow':t.thisAvg>=30?'red':'none')+'">'+t.thisAvg+'</div>'
         +'<div style="font-size:12px;font-weight:600;color:'+dc+'">'+da+' <span style="color:var(--sub);font-weight:400">vs '+esc(r.prevMonth)+'</span></div>'
@@ -2807,7 +2824,7 @@ function loadDesktopScorecard(){
       html+='<div class="mc3" style="flex:1;min-width:160px">'
         +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
         +'<span style="background:'+gc.bg+';color:'+gc.c+';border-radius:5px;padding:2px 7px;font-weight:800;font-size:11px">'+esc(t.grade)+'</span>'
-        +'<span style="font-weight:700;font-size:12px">'+esc(t.name)+'</span>'
+        +'<span style="font-weight:700;font-size:12px">'+esc(t.displayName||teamDisplayName(t.name))+'</span>'
         +'<span style="color:'+dc+';font-size:11px;font-weight:600;margin-left:2px">'+(t.diff>0?'▲+':t.diff<0?'▼':'')+Math.abs(t.diff)+'</span>'
         +'</div>';
       if(zUp.length)html+='<div style="font-size:11px;margin-bottom:3px"><span style="color:var(--gr);font-weight:600">🏆 </span>'+zUp.map(function(m){return'<b style="color:var(--gr)">'+esc(m.nick)+'</b>';}).join(' ')+'</div>';
@@ -4946,7 +4963,7 @@ function openLTSummary(){
       }
       h+='<tr style="background:'+(m.bniTl==='red'?'#fff1f2':'#f9fafb')+'">'
         +'<td style="font-weight:700">'+esc(m.nick||m.name)+'</td>'
-        +'<td style="color:#6b7280">'+esc(m.mentor||'—')+'</td>'
+        +'<td style="color:#6b7280">'+esc(teamDisplayName(m.mentor)||'—')+'</td>'
         +'<td style="text-align:center"><span style="color:'+zoneC(m.bniTl)+';font-weight:700">'+zoneTH(m.bniTl)+'</span></td>'
         +'<td style="text-align:center;font-weight:700;color:'+zoneC(m.bniTl)+'">'+(m.bniScore||0)+'</td>'
         +'<td style="text-align:center;color:'+(m.absent>=3?'#9f1239':'#374151')+';font-weight:'+(m.absent>=3?'700':'400')+'">'+m.absent+'</td>'
@@ -4970,7 +4987,7 @@ function openLTSummary(){
       h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:#f0fdf4;border-radius:5px;margin-bottom:4px;">'
         +'<span style="color:#6b7280;font-size:11px;width:18px">'+(i+1)+'.</span>'
         +'<span style="font-weight:700;flex:1">'+esc(m.nick)+'</span>'
-        +'<span class="sub">'+esc(m.team)+'</span>'
+        +'<span class="sub">'+esc(teamDisplayName(m.team))+'</span>'
         +'&nbsp;<span class="sub">'+esc(m.from)+'→'+esc(m.to)+'</span>'
         +'<span style="color:#15803d;font-weight:800;margin-left:10px">+'+m.diff+'</span>'
         +'</div>';
@@ -5019,7 +5036,7 @@ function exportScorecardImage(){
     var dc=t.diff>0?'var(--gr)':t.diff<0?'var(--re)':'#94a3b8';
     var da=(t.diff>0?'▲+':t.diff<0?'▼':'')+Math.abs(t.diff||0);
     teamsHtml+='<div style="background:#1e293b;border-radius:10px;padding:14px 10px;border:1px solid #334155;text-align:center">'
-      +'<div style="font-size:10px;color:#94a3b8;margin-bottom:3px">'+esc(t.name)+'</div>'
+      +'<div style="font-size:10px;color:#94a3b8;margin-bottom:3px">'+esc(t.displayName||teamDisplayName(t.name))+'</div>'
       +'<div style="font-size:26px;font-weight:900;color:'+gc+'">'+esc(t.grade)+'</div>'
       +'<div style="font-size:19px;font-weight:800;color:#f1f5f9;line-height:1.1">'+t.thisAvg+'</div>'
       +'<div style="font-size:11px;font-weight:600;color:'+dc+'">'+da+'</div>'
@@ -5027,8 +5044,8 @@ function exportScorecardImage(){
       +'</div>';
   });
   var zUpHtml='',zDnHtml='';
-  (mv.zoneUp||[]).forEach(function(m){zUpHtml+='<div style="padding:4px 0;border-bottom:1px solid #1e293b;font-size:11px"><b style="color:#f1f5f9">'+esc(m.nick)+'</b> <span style="color:#64748b;font-size:10px">'+esc(m.team)+'</span> <span style="color:var(--gr);font-weight:700">+'+m.diff+'</span></div>';});
-  (mv.zoneDn||[]).forEach(function(m){zDnHtml+='<div style="padding:4px 0;border-bottom:1px solid #1e293b;font-size:11px"><b style="color:#f1f5f9">'+esc(m.nick)+'</b> <span style="color:#64748b;font-size:10px">'+esc(m.team)+'</span> <span style="color:var(--re);font-weight:700">'+m.diff+'</span></div>';});
+  (mv.zoneUp||[]).forEach(function(m){zUpHtml+='<div style="padding:4px 0;border-bottom:1px solid #1e293b;font-size:11px"><b style="color:#f1f5f9">'+esc(m.nick)+'</b> <span style="color:#64748b;font-size:10px">'+esc(teamDisplayName(m.team))+'</span> <span style="color:var(--gr);font-weight:700">+'+m.diff+'</span></div>';});
+  (mv.zoneDn||[]).forEach(function(m){zDnHtml+='<div style="padding:4px 0;border-bottom:1px solid #1e293b;font-size:11px"><b style="color:#f1f5f9">'+esc(m.nick)+'</b> <span style="color:#64748b;font-size:10px">'+esc(teamDisplayName(m.team))+'</span> <span style="color:var(--re);font-weight:700">'+m.diff+'</span></div>';});
   var hasZone=(mv.zoneUp&&mv.zoneUp.length)||(mv.zoneDn&&mv.zoneDn.length);
   var cardHtml='<div style="background:#0f172a;color:#f1f5f9;padding:28px;font-family:Sarabun,\'Noto Sans Thai\',sans-serif">'
     +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #1e40af">'

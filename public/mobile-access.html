@@ -51,4 +51,4 @@ async function claimInvite(){
   localStorage.setItem('bni_mobile_pin_email',r.email);localStorage.setItem('bni_mobile_pin_hash',await hashPin(r.email,p1));sessionStorage.setItem('bni_mobile_pin_unlocked','1');document.getElementById('content').hidden=true;document.getElementById('done').hidden=false;message('');
 }
 init().catch(e=>{document.getElementById('loading').hidden=true;message(e.message||'เกิดข้อผิดพลาด',true)});
-</script></body></html>
+</script><script src="/assets/js/dynamic-team-labels.js?v=20260905a" defer></script></body></html>

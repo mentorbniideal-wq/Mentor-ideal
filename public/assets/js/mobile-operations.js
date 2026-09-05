@@ -15,6 +15,21 @@ function applyMobileTeamLabels(){
     var code={toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP'}[role];
     if(code&&S.teamLabels[code]&&button.firstChild)button.firstChild.nodeValue='🧑 '+S.teamLabels[code];
   });
+  applyVisibleMobileTeamLabels(document.body);
+}
+function mobileTeamLeaderLabel(code){return String(mobileTeamDisplay(code)||code).replace(/^ทีม\s+/,'');}
+function applyVisibleMobileTeamLabels(root){
+  if(!root||!S.teamLabels||!Object.keys(S.teamLabels).length)return;
+  var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),nodes=[],node;
+  while((node=walker.nextNode())){var tag=node.parentElement&&node.parentElement.tagName;if(!/^(SCRIPT|STYLE|TEXTAREA|OPTION)$/.test(tag||''))nodes.push(node);}
+  nodes.forEach(function(n){var out=n.nodeValue;Object.keys(S.teamLabels).forEach(function(code){var safe=code.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),leader=mobileTeamLeaderLabel(code),full=mobileTeamDisplay(code);out=out.replace(new RegExp('ทีม\\s+'+safe+'\\b','g'),full).replace(new RegExp('(Mentor Team\\s*·\\s*)'+safe+'\\b','g'),'$1'+leader).replace(new RegExp('(Mentor\\s+)'+safe+'\\b','g'),'$1'+leader).replace(new RegExp('\\b'+safe+'\\b','g'),leader);});if(out!==n.nodeValue)n.nodeValue=out;});
+}
+new MutationObserver(function(records){if(!S.teamLabels||!Object.keys(S.teamLabels).length)return;records.forEach(function(record){record.addedNodes.forEach(function(node){if(node.nodeType===1)applyVisibleMobileTeamLabels(node);else if(node.nodeType===3&&node.parentElement)applyVisibleMobileTeamLabels(node.parentElement);});});}).observe(document.documentElement,{childList:true,subtree:true});
+function loadPublicMobileTeamLabels(){
+  return fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'getPublicTeamCatalog'})})
+    .then(function(res){return res.json();})
+    .then(function(r){if(!r||!r.ok)return;var labels={};(r.teams||[]).forEach(function(t){if(t.code)labels[t.code]=t.displayName||t.code;});S.teamLabels=Object.assign({},S.teamLabels||{},labels);applyMobileTeamLabels();})
+    .catch(function(){});
 }
 var GS={members:[],curFilter:'all',loaded:false,taskFilter:'all',lastSummary:null};
 var CI_WEEK_DATA=[];
@@ -2991,7 +3006,7 @@ window.addEventListener('popstate',function(){closeDetail();});
 window.onload=function(){
   var stored=getStoredSession();
   if(!stored){document.getElementById('loginScreen').style.display='flex';hideLoad();}
-  checkSession();
+  loadPublicMobileTeamLabels().finally(checkSession);
 };
 
 function loadNotifBadges(){

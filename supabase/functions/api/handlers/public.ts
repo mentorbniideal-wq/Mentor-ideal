@@ -93,6 +93,19 @@ export async function handlePublic(p: Record<string, unknown>): Promise<Response
 
   switch (action) {
 
+    case 'getPublicTeamCatalog': {
+      const { data, error } = await db
+        .from('mentor_teams')
+        .select('name,leader_name,display_name')
+        .order('id');
+      if (error) return errResponse(error.message);
+      const teams = ((data || []) as Record<string, unknown>[]).map((row) => ({
+        code: text(row.name),
+        displayName: text(row.display_name) || `ทีม ${text(row.leader_name) || text(row.name)}`,
+      }));
+      return jsonResponse({ ok: true, teams });
+    }
+
     case 'getMemberDirectory': {
       const { data, error } = await db
         .from('v_member_dashboard')

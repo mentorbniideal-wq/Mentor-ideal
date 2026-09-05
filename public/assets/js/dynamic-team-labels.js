@@ -1,0 +1,10 @@
+(function(){
+  'use strict';
+  var api=window.SUPABASE_API||'https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
+  var anon=window.SUPABASE_ANON||'sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
+  var labels={};
+  function leader(code){return String(labels[code]||code).replace(/^ทีม\s+/,'');}
+  function rewrite(value){var out=String(value||'');Object.keys(labels).forEach(function(code){var safe=code.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');out=out.replace(new RegExp('ทีม\\s+'+safe+'\\b','g'),labels[code]).replace(new RegExp('(Mentor Team\\s*·\\s*)'+safe+'\\b','g'),'$1'+leader(code)).replace(new RegExp('(Mentor\\s+)'+safe+'\\b','g'),'$1'+leader(code)).replace(new RegExp('\\b'+safe+'\\b','g'),leader(code));});return out;}
+  function apply(root){if(!root||!Object.keys(labels).length)return;root.querySelectorAll&&root.querySelectorAll('select option').forEach(function(option){var code=option.value||option.textContent.trim(),roleMap={toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP'},teamCode=labels[code]?code:roleMap[String(code).toLowerCase()];if(teamCode&&labels[teamCode])option.textContent=rewrite(option.textContent);});var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),nodes=[],node;while((node=walker.nextNode())){var tag=node.parentElement&&node.parentElement.tagName;if(!/^(SCRIPT|STYLE|TEXTAREA|OPTION)$/.test(tag||''))nodes.push(node);}nodes.forEach(function(n){var out=rewrite(n.nodeValue);if(out!==n.nodeValue)n.nodeValue=out;});}
+  fetch(api,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+anon},body:JSON.stringify({action:'getPublicTeamCatalog'})}).then(function(res){return res.json();}).then(function(r){if(!r||!r.ok)return;(r.teams||[]).forEach(function(t){if(t.code)labels[t.code]=t.displayName||t.code;});apply(document.body);new MutationObserver(function(records){records.forEach(function(record){record.addedNodes.forEach(function(node){if(node.nodeType===1)apply(node);else if(node.nodeType===3&&node.parentElement)apply(node.parentElement);});});}).observe(document.body,{childList:true,subtree:true});}).catch(function(){});
+})();

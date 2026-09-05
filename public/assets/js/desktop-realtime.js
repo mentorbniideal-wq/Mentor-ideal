@@ -78,7 +78,8 @@ function bootDesktop(){
     const mc=document.querySelector('meta[name="theme-color"]');
     if(mc) mc.content='#0E1110';
   }
-  checkSession();
+  if(typeof loadPublicTeamLabels==='function')loadPublicTeamLabels().finally(checkSession);
+  else checkSession();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootDesktop,{once:true});
 else bootDesktop();

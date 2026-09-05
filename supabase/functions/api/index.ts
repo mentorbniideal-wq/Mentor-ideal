@@ -44,6 +44,7 @@ const PUBLIC_ACTIONS = new Set([
   'getSimulateData',
   'getMemberPublicDetail',
   'getTrainingEvents',
+  'getPublicTeamCatalog',
   // Public entrypoint, but handler verifies LINE access token and resolves own member_id server-side.
   'getMyMemberSuccessBlueprint',
   'saveMyMemberSuccessBlueprint',
@@ -84,6 +85,7 @@ const ROUTES: Record<string, string> = {
   // Public (anon)
   'getMemberDirectory': 'public', 'getSimulateData': 'public',
   'getMemberPublicDetail': 'public', 'getTrainingEvents': 'public',
+  'getPublicTeamCatalog': 'public',
 
   // Members
   'getMemberList': 'members', 'addNewMember': 'members',
