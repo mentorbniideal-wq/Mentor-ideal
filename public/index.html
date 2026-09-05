@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=IBM+Plex+Mono:wght@500&family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=IBM+Plex+Mono:wght@500&family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="/assets/css/mobile-operations.css?v=20260905p">
+<link rel="stylesheet" href="/assets/css/mobile-operations.css?v=20260905q">
 <link rel="stylesheet" href="/assets/css/mobile-focus.css?v=20260905b">
 </head>
 <body>
@@ -24,6 +24,20 @@
 
 <div id="loader"><div class="loader-logo">BNI IDEAL</div><div class="spin"></div></div>
 <div class="toast" id="toast"></div>
+
+<!-- Authenticated welcome transition -->
+<section class="welcome-transition" id="welcomeTransition" aria-hidden="true" aria-live="polite">
+  <div class="welcome-transition__glow" aria-hidden="true"></div>
+  <div class="welcome-transition__content" role="status">
+    <div class="welcome-transition__mark" aria-hidden="true">M</div>
+    <p class="welcome-transition__eyebrow" id="welcomeEyebrow">ยินดีต้อนรับ Mentor</p>
+    <h1 class="welcome-transition__name" id="welcomeName">MENTOR</h1>
+    <p class="welcome-transition__status">เข้าสู่ระบบแล้ว</p>
+    <div class="welcome-transition__rule" aria-hidden="true"></div>
+    <p class="welcome-transition__message" id="welcomeMessage">มาช่วยกันทำให้เมมเบอร์<br>เข้าใจระบบและเติบโตไปด้วยกัน</p>
+    <div class="welcome-transition__progress" aria-hidden="true"><span></span></div>
+  </div>
+</section>
 
 <!-- Login -->
 <div id="loginScreen">
@@ -1184,7 +1198,7 @@
 </div>
 </main>
 
-<script src="/assets/js/mobile-operations.js?v=20260905o" defer></script>
+<script src="/assets/js/mobile-operations.js?v=20260905r" defer></script>
 <!-- Checklist Panel -->
 <div class="cl-panel" id="clPanel">
   <div class="cl-hdr">

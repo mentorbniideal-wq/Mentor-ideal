@@ -411,6 +411,23 @@ function openChecklistFromTeam(name){
 }
 var roleNames={mc:'Mentor Co.',toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP',mentor_support:'Mentor Support',growth:'Growth Coordinator'};
 var _entryAuth=null;
+var _welcomeTimer=null;
+
+function welcomeCopy(r){
+  var isMentor=Boolean(r.isMentor)||['toomtam','aof','draft','phai','amp','mentor_support'].includes(String(r.role||''));
+  if(isMentor)return{eyebrow:'ยินดีต้อนรับ Mentor',name:r.displayName||roleNames[r.role]||'MENTOR',message:'มาช่วยกันทำให้เมมเบอร์\nเข้าใจระบบและเติบโตไปด้วยกัน'};
+  if(r.role==='growth')return{eyebrow:'ยินดีต้อนรับ Growth',name:r.displayName||'GROWTH',message:'มาช่วยกันสร้างโอกาส\nให้ Chapter เติบโตไปด้วยกัน'};
+  return{eyebrow:'ยินดีต้อนรับ Mentor Co.',name:r.displayName||'MENTOR CO.',message:'มาช่วยกันดูแลเมมเบอร์\nและขับเคลื่อน Chapter ไปด้วยกัน'};
+}
+function showWelcomeTransition(r,done){
+  var screen=document.getElementById('welcomeTransition');if(!screen){done();return;}
+  var copy=welcomeCopy(r),eyebrow=document.getElementById('welcomeEyebrow'),name=document.getElementById('welcomeName'),message=document.getElementById('welcomeMessage');
+  if(eyebrow)eyebrow.textContent=copy.eyebrow;if(name)name.textContent=copy.name;
+  if(message){message.textContent=copy.message;message.style.whiteSpace='pre-line';}
+  document.getElementById('loginScreen').style.display='none';
+  screen.classList.remove('on');screen.setAttribute('aria-hidden','false');void screen.offsetWidth;screen.classList.add('on');
+  clearTimeout(_welcomeTimer);_welcomeTimer=setTimeout(function(){screen.classList.remove('on');screen.setAttribute('aria-hidden','true');setTimeout(done,280);},3600);
+}
 
 function showEntryChooser(r){
   _entryAuth=Object.assign({},r);
@@ -461,6 +478,10 @@ function entryOpenMobile(role){
 }
 
 function enterApp(r){
+  if(!r._skipWelcome){
+    showWelcomeTransition(r,function(){enterApp(Object.assign({},r,{_skipWelcome:true}));});
+    return;
+  }
   S.role=r.role;S.isMC=r.isMC;S.isSystemOwner=Boolean(r.isSystemOwner);S.teamName=r.teamName;S.displayName=r.displayName;
   // Cache for quick role-switching (survives within same page session)
   _cachedRoles[r.role]={role:r.role,isMC:r.isMC,isSystemOwner:Boolean(r.isSystemOwner),teamName:r.teamName,displayName:r.displayName,token:r.token||S.token,pin:S.pin,version:r.version,versionDate:r.versionDate};

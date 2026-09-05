@@ -157,6 +157,22 @@ button,[role="button"],.fb,.dir-fb,.renew-btn,.action-btn,.log-btn,.gt-btn{min-h
 .talk-ico{flex-shrink:0;font-size:.7rem;padding-top:2px;min-width:13px;}
 .notif-panel{position:fixed;inset:0;background:var(--bg);z-index:201;overflow-y:auto;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);}
 .notif-panel.on{transform:translateX(0);}
+.welcome-transition{position:fixed;inset:0;z-index:12000;display:grid;place-items:center;box-sizing:border-box;padding:clamp(24px,8vw,48px);overflow:hidden;background:linear-gradient(155deg,#0a1713 0%,#10261e 52%,#0d1b17 100%);color:#f4f0e7;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .28s ease,visibility 0s linear .28s}
+.welcome-transition.on{opacity:1;visibility:visible;pointer-events:auto;transition:opacity .28s ease}
+.welcome-transition__glow{position:absolute;width:min(92vw,560px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgba(200,169,106,.18),rgba(13,75,64,.08) 42%,transparent 70%);animation:welcome-breathe 3.6s ease-in-out both}
+.welcome-transition__content{position:relative;width:min(100%,420px);text-align:center;display:flex;flex-direction:column;align-items:center}
+.welcome-transition__mark{display:grid;place-items:center;width:64px;height:64px;margin-bottom:26px;border:1px solid rgba(217,195,148,.5);border-radius:22px;background:linear-gradient(145deg,rgba(244,240,231,.13),rgba(200,169,106,.05));box-shadow:0 18px 50px rgba(0,0,0,.22);color:#d9c394;font:700 28px/1 Poppins,sans-serif;animation:welcome-rise .65s ease-out both}
+.welcome-transition__eyebrow{margin:0 0 10px;color:#d9c394;font:700 13px/1.4 Sarabun,sans-serif;letter-spacing:.11em;animation:welcome-rise .65s .1s ease-out both}
+.welcome-transition__name{max-width:100%;margin:0;color:#fffaf0;font:700 clamp(30px,10vw,44px)/1.15 Poppins,Sarabun,sans-serif;letter-spacing:.04em;overflow-wrap:anywhere;animation:welcome-rise .65s .18s ease-out both}
+.welcome-transition__status{margin:9px 0 0;color:#b9c7c1;font:600 14px/1.5 Sarabun,sans-serif;animation:welcome-rise .65s .24s ease-out both}
+.welcome-transition__rule{width:48px;height:2px;margin:24px 0;background:#c8a96a;border-radius:999px;animation:welcome-rise .65s .3s ease-out both}
+.welcome-transition__message{margin:0;color:#e8e2d7;font:600 clamp(17px,5vw,21px)/1.65 Sarabun,sans-serif;animation:welcome-rise .65s .36s ease-out both}
+.welcome-transition__progress{width:min(220px,60vw);height:3px;margin-top:38px;overflow:hidden;border-radius:999px;background:rgba(255,255,255,.1)}
+.welcome-transition__progress span{display:block;width:100%;height:100%;transform-origin:left;background:linear-gradient(90deg,#c8a96a,#f4e2b9);animation:welcome-progress 3.6s linear both}
+@keyframes welcome-rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes welcome-breathe{0%{transform:scale(.88);opacity:.45}50%{transform:scale(1.04);opacity:1}100%{transform:scale(1.1);opacity:.45}}
+@keyframes welcome-progress{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@media(prefers-reduced-motion:reduce){.welcome-transition,.welcome-transition *{animation:none!important;transition:none!important}.welcome-transition__progress span{transform:scaleX(1)}}
 .notif-bell-btn{position:relative;background:none;border:none;color:var(--gray2);border-radius:999px;padding:4px 9px;font-size:.9rem;cursor:pointer;margin-right:.3rem;line-height:1.4;}
 .notif-count{position:absolute;top:-5px;right:-5px;background:var(--red);color:#fff;font-size:.55rem;font-weight:700;border-radius:999px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 3px;}
 .notif-sec{font-size:.63rem;font-weight:700;color:var(--gray2);letter-spacing:.1em;text-transform:uppercase;margin:.8rem 0 .3rem;padding-top:.5rem;border-top:1px solid var(--border);}

@@ -31,6 +31,9 @@ expect(js.includes("growth.style.display=isOwner?'flex':'none'"), 'Growth Deskto
 expect(!between('id="mentorApp"', '<!-- Growth App -->').includes('openRoleSwitcher()'), 'Mentor header must not expose role switching');
 expect(adminJs.includes("if(!S||!S.isSystemOwner)"), 'admin panel and role switcher need owner guards');
 expect(auth.includes('!authResult.isSystemOwner'), 'PIN changes must require the verified system owner');
+expect(html.includes('id="welcomeTransition"'), 'authenticated mobile entry needs a welcome transition');
+expect(js.includes('showWelcomeTransition(r'), 'all authenticated mobile roles need to pass through the welcome transition');
+expect(js.includes('_skipWelcome:true'), 'welcome transition must run once per authenticated entry');
 
 if (failures.length) {
   console.error(failures.map(item => `FAIL ${item}`).join('\n'));
