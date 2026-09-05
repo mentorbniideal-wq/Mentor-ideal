@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<meta name="theme-color" content="#F4F0E7" id="meta-theme-color">
+<meta name="theme-color" content="#080b0d" id="meta-theme-color">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
@@ -14,10 +14,11 @@
 <title>MENTOR SYSTEM : BNI IDEAL</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=IBM+Plex+Mono:wght@500&family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=IBM+Plex+Mono:wght@500&family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&amp;family=IBM+Plex+Mono:wght@500&amp;family=Sarabun:wght@400;600;700&amp;display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&amp;family=IBM+Plex+Mono:wght@500&amp;family=Sarabun:wght@400;600;700&amp;display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="/assets/css/mobile-operations.css?v=20260905q">
 <link rel="stylesheet" href="/assets/css/mobile-focus.css?v=20260905c">
+<link rel="stylesheet" href="/assets/css/login-experience.css?v=20260905a">
 </head>
 <body>
 <main id="mainContent">
@@ -41,16 +42,29 @@
 
 <!-- Login -->
 <div id="loginScreen">
+  <div class="login-ambient" aria-hidden="true">
+    <span class="login-orb login-orb-a"></span>
+    <span class="login-orb login-orb-b"></span>
+    <span class="login-orb login-orb-c"></span>
+    <span class="login-wave login-wave-a"></span>
+    <span class="login-wave login-wave-b"></span>
+  </div>
+  <div class="login-brand" aria-label="BNI IDEAL Mentor Operations">
+    <span class="login-brand-mark">M</span>
+    <span>BNI IDEAL</span>
+  </div>
   <div class="gw-card">
 
     <!-- Header -->
     <div class="gw-head">
-      <div class="gw-badge">BNI IDEAL · 2026</div>
-      <div class="gw-title">Mentor <span>Operations</span></div>
+      <div class="gw-symbol" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="gw-badge">PRIVATE OPERATIONS SYSTEM</div>
+      <div class="gw-title">Welcome to <span>Mentor</span></div>
+      <p class="gw-sub">พื้นที่ทำงานสำหรับดูแลสมาชิกและพัฒนา Chapter ไปด้วยกัน</p>
     </div>
 
     <!-- Primary: Google login -->
-    <button class="google-login-pro" onclick="signInWithGoogle()">
+    <button type="button" class="google-login-pro" id="google-login-button" onclick="signInWithGoogle()">
       <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
       เข้าสู่ระบบด้วย Google
     </button>
@@ -58,20 +72,21 @@
     <!-- Divider -->
     <div class="gw-divider"><span>หรือเข้าด้วย PIN (ใช้ได้ใน LINE)</span></div>
 
-    <a href="/dashboard.html?role=viewer" class="google-login-pro" style="text-decoration:none;background:linear-gradient(135deg,#176657,#0d4b40);color:#fff;border-color:#2b796b;margin-bottom:12px">
-      <span style="font-size:19px">👁</span> Viewer · ดูระบบแบบ Read only
+    <a href="/dashboard.html?role=viewer" class="google-login-pro viewer-login-pro">
+      <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/></svg>
+      Viewer · ดูระบบแบบ Read only
     </a>
 
     <!-- Step 1: pick role (compact chips) -->
     <div id="pin-role-panel">
       <div class="role-chips">
-        <button class="rchip" onclick="pinSelectRole('mc')">👑 Mentor Co.</button>
-        <button class="rchip" onclick="pinSelectRole('toomtam')">🟢 TOOMTAM</button>
-        <button class="rchip" onclick="pinSelectRole('aof')">🟡 Aof</button>
-        <button class="rchip" onclick="pinSelectRole('draft')">🔵 Draft</button>
-        <button class="rchip" onclick="pinSelectRole('phai')">🟣 PHAI</button>
-        <button class="rchip" onclick="pinSelectRole('amp')">🟠 AMP</button>
-        <button class="rchip" onclick="pinSelectRole('growth')">📈 Growth</button>
+        <button type="button" class="rchip" onclick="pinSelectRole('mc')">MC · Mentor Co.</button>
+        <button type="button" class="rchip" onclick="pinSelectRole('toomtam')">TM · TOOMTAM</button>
+        <button type="button" class="rchip" onclick="pinSelectRole('aof')">AO · Aof</button>
+        <button type="button" class="rchip" onclick="pinSelectRole('draft')">DR · Draft</button>
+        <button type="button" class="rchip" onclick="pinSelectRole('phai')">PH · PHAI</button>
+        <button type="button" class="rchip" onclick="pinSelectRole('amp')">AM · AMP</button>
+        <button type="button" class="rchip" onclick="pinSelectRole('growth')">GR · Growth</button>
       </div>
       <div id="login-err" style="color:var(--red);font-size:.75rem;text-align:center;min-height:1.1em;margin-top:.5rem"></div>
     </div>
@@ -79,7 +94,7 @@
     <!-- Step 2: PIN entry (shown after role selected) -->
     <div id="pin-entry-panel" style="display:none">
       <div class="gw-pin-entry-head">
-        <button class="gw-back" onclick="pinBackToRoles()">‹</button>
+        <button type="button" class="gw-back" onclick="pinBackToRoles()" aria-label="ย้อนกลับไปเลือกบทบาท">‹</button>
         <span id="pin-role-label" style="font-weight:600;font-size:.92rem;color:#F1EDE4">MC</span>
         <span style="font-size:.75rem;color:#7A7469">— ใส่ PIN</span>
       </div>
@@ -87,6 +102,7 @@
         <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
         <div class="pin-dot" id="pd2"></div><div class="pin-dot" id="pd3"></div>
         <div class="pin-dot" id="pd4"></div><div class="pin-dot" id="pd5"></div>
+        <div class="pin-dot" id="pd6"></div><div class="pin-dot" id="pd7"></div>
       </div>
       <div class="role-grid" style="grid-template-columns:1fr 1fr 1fr;max-width:280px;margin:0 auto">
         <button class="pb" onclick="pinDigit('1')">1</button><button class="pb" onclick="pinDigit('2')">2</button><button class="pb" onclick="pinDigit('3')">3</button>
@@ -94,6 +110,7 @@
         <button class="pb" onclick="pinDigit('7')">7</button><button class="pb" onclick="pinDigit('8')">8</button><button class="pb" onclick="pinDigit('9')">9</button>
         <button class="pb" onclick="pinClear()" style="font-size:.7rem">ลบ</button><button class="pb" onclick="pinDigit('0')">0</button><button class="pb" onclick="pinBack()">⌫</button>
       </div>
+      <button type="button" class="gw-pin-submit" id="pin-submit" onclick="submitPinLogin()" disabled>เข้าสู่ระบบ</button>
       <div id="pin-err" class="pin-err" style="margin-top:.5rem"></div>
     </div>
 
@@ -1198,7 +1215,7 @@
 </div>
 </main>
 
-<script src="/assets/js/mobile-operations.js?v=20260905s" defer></script>
+<script src="/assets/js/mobile-operations.js?v=20260905t" defer></script>
 <!-- Checklist Panel -->
 <div class="cl-panel" id="clPanel">
   <div class="cl-hdr">

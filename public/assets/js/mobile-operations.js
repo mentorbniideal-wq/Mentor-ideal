@@ -36,7 +36,7 @@ var API_HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+SUP
 var _sbAuth=null;
 var _supabaseSdkPromise=null;
 var SESSION_KEY='bni_app_session';
-var _pinRole='';var _pinVal='';
+var _pinRole='';var _pinVal='';var _pinSubmitting=false;var _googleSubmitting=false;
 function getSbAuth(){if(!_sbAuth&&window.supabase){_sbAuth=window.supabase.createClient(SUPABASE_URL_AUTH,SUPABASE_ANON,{auth:{autoRefreshToken:true,persistSession:true}});}return _sbAuth;}
 function loadSupabaseSdk(){
   if(window.supabase)return Promise.resolve(window.supabase);
@@ -104,14 +104,16 @@ function checkMobileGoogleSession(){
 
 // ── Google OAuth Login ─────────────────────────────────────────
 function signInWithGoogle(){
+  if(_googleSubmitting)return;_googleSubmitting=true;
+  var button=document.getElementById('google-login-button');if(button){button.disabled=true;button.setAttribute('aria-busy','true');}
   showMobileLoginError('กำลังเปิด Google Login...');
   try{localStorage.setItem('bni_google_auth_used','1');}catch(e){}
   loadSupabaseSdk().then(function(){
     var sb=getSbAuth();if(!sb)throw new Error('ไม่สามารถเริ่ม Google Login ได้');
     return sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:mobileOAuthRedirectUrl()}});
   }).then(function(res){
-    if(res&&res.error)showMobileLoginError('เปิด Google Login ไม่สำเร็จ: '+res.error.message);
-  }).catch(function(e){showMobileLoginError('เปิด Google Login ไม่สำเร็จ: '+(e&&e.message?e.message:'กรุณาลองใหม่'));});
+    if(res&&res.error)throw res.error;
+  }).catch(function(e){_googleSubmitting=false;if(button){button.disabled=false;button.removeAttribute('aria-busy');}showMobileLoginError('เปิด Google Login ไม่สำเร็จ: '+(e&&e.message?e.message:'กรุณาลองใหม่'));});
 }
 
 // ── PIN Login UI ──────────────────────────────────────────────
@@ -128,28 +130,39 @@ function pinBackToRoles(){
   _pinVal='';_pinRole='';
   document.getElementById('pin-role-panel').style.display='';
   document.getElementById('pin-entry-panel').style.display='none';
+  _updatePinDots();
 }
 function pinDigit(d){
-  if(_pinVal.length>=6)return;
+  if(_pinVal.length>=8)return;
   _pinVal+=d;_updatePinDots();
-  if(_pinVal.length>=4)_doSubmitPin();
 }
 function pinBack(){if(_pinVal.length){_pinVal=_pinVal.slice(0,-1);_updatePinDots();}}
 function pinClear(){_pinVal='';_updatePinDots();}
 function _updatePinDots(){
-  for(var i=0;i<6;i++){
+  for(var i=0;i<8;i++){
     var d=document.getElementById('pd'+i);
-    if(d)d.style.background=i<_pinVal.length?'var(--mint)':'var(--border)';
+    if(d)d.classList.toggle('on',i<_pinVal.length);
   }
+  var submit=document.getElementById('pin-submit');if(submit)submit.disabled=_pinVal.length<4;
 }
+function submitPinLogin(){if(_pinSubmitting)return;if(_pinVal.length<4||_pinVal.length>8){document.getElementById('pin-err').textContent='PIN ต้องมี 4–8 หลัก';return;}_doSubmitPin();}
+document.addEventListener('keydown',function(event){
+  var panel=document.getElementById('pin-entry-panel');
+  if(!panel||panel.style.display==='none'||!_pinRole)return;
+  if(/^\d$/.test(event.key)){event.preventDefault();pinDigit(event.key);return;}
+  if(event.key==='Backspace'){event.preventDefault();pinBack();return;}
+  if(event.key==='Escape'){event.preventDefault();pinBackToRoles();return;}
+  if(event.key==='Enter'){event.preventDefault();submitPinLogin();}
+});
 function _doSubmitPin(){
+  if(_pinSubmitting)return;_pinSubmitting=true;
   var role=_pinRole;var pin=_pinVal;
-  var errEl=document.getElementById('pin-err');errEl.textContent='';
+  var errEl=document.getElementById('pin-err'),submit=document.getElementById('pin-submit');errEl.textContent='';if(submit){submit.disabled=true;submit.textContent='กำลังตรวจสอบ…';}
   showLoad();
   fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'login',role:role,pin:pin})})
     .then(function(r){return r.json();})
     .then(function(r){
-      hideLoad();
+      hideLoad();_pinSubmitting=false;if(submit)submit.textContent='เข้าสู่ระบบ';
       if(r.ok){
         S.pin=pin;
         storeSession({role:r.role,pin:pin,displayName:r.displayName,isMC:r.isMC,teamName:r.teamName});
@@ -160,7 +173,7 @@ function _doSubmitPin(){
         errEl.textContent=r.error||'PIN ไม่ถูกต้อง';
       }
     })
-    .catch(function(){hideLoad();_pinVal='';_updatePinDots();errEl.textContent='เกิดข้อผิดพลาด กรุณาลองใหม่';});
+    .catch(function(){hideLoad();_pinSubmitting=false;if(submit)submit.textContent='เข้าสู่ระบบ';_pinVal='';_updatePinDots();errEl.textContent='เกิดข้อผิดพลาด กรุณาลองใหม่';});
 }
 
 function checkSession(){
