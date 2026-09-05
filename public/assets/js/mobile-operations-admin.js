@@ -65,6 +65,7 @@
 
 // ── Admin Panel ────────────────────────────────────────────────
 function openAdminPanel(){
+  if(!S||!S.isSystemOwner){toast('เฉพาะเจ้าของระบบเท่านั้นที่เปิด Setting ได้');return;}
   var el=document.getElementById('admin-panel-modal');
   if(!el)return;
   el.style.display='flex';
@@ -125,6 +126,7 @@ var _cachedRoles={};  // role -> {role,isMC,teamName,displayName,token,version,v
 var _rsSwitchTarget=null;
 
 function openRoleSwitcher(){
+  if(!S||!S.isSystemOwner){toast('บัญชีนี้เข้าใช้งานตามหน้าที่โดยอัตโนมัติ');return;}
   var el=document.getElementById('role-switcher-modal');
   if(!el)return;
   // Mark buttons that are cached (no PIN needed)

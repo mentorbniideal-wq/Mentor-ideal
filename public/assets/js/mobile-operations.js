@@ -1,4 +1,4 @@
-var S={role:null,token:null,isMC:false,teamName:null,displayName:null,allMembers:[],teamMembers:[],curFilter:'all',curMFilter:'all',curMentorFilter:'all',curSort:'score-desc',_currentMonth:null,_scoreTeam:'',_scoreName:'',_detailMentor:'',_selectedMentee:'',_mentorReports:[],_mentorRenewals:[]};
+var S={role:null,token:null,isMC:false,isSystemOwner:false,teamName:null,displayName:null,allMembers:[],teamMembers:[],curFilter:'all',curMFilter:'all',curMentorFilter:'all',curSort:'score-desc',_currentMonth:null,_scoreTeam:'',_scoreName:'',_detailMentor:'',_selectedMentee:'',_mentorReports:[],_mentorRenewals:[]};
 var GS={members:[],curFilter:'all',loaded:false,taskFilter:'all',lastSummary:null};
 var CI_WEEK_DATA=[];
 
@@ -418,13 +418,15 @@ function showEntryChooser(r){
   document.getElementById('mcApp').classList.remove('on');
   document.getElementById('mentorApp').classList.remove('on');
   document.getElementById('growthApp').classList.remove('on');
-  var isToomtam=r.role==='toomtam';
+  var isOwner=Boolean(r.isSystemOwner);
   var ttl=document.getElementById('entry-title');
   var sub=document.getElementById('entry-sub');
+  var growth=document.getElementById('entry-growth-desktop');
   var toom=document.getElementById('entry-toomtam-mobile');
-  if(ttl)ttl.textContent=isToomtam?'TOOMTAM ต้องการเข้าโหมดไหน?':'MC ต้องการเข้าโหมดไหน?';
-  if(sub)sub.textContent=isToomtam?'เลือก MC/Growth Desktop หรือเข้า Mobile ของ MC/TOOMTAM ได้ทันที':'เลือก Desktop สำหรับศูนย์บัญชาการ หรือ MC Mobile สำหรับทำงานจากมือถือ';
-  if(toom)toom.style.display=isToomtam?'flex':'none';
+  if(ttl)ttl.textContent=isOwner?'เลือก Workspace สำหรับเจ้าของระบบ':'Mentor Co. ต้องการเข้าโหมดไหน?';
+  if(sub)sub.textContent=isOwner?'เลือก MC, Growth Desktop หรือ MC Mobile':'เลือกเฉพาะ MC Desktop หรือ MC Mobile';
+  if(growth)growth.style.display=isOwner?'flex':'none';
+  if(toom)toom.style.display='none';
   document.getElementById('entryChooser').style.display='flex';
 }
 function hideEntryChooser(){
@@ -459,9 +461,9 @@ function entryOpenMobile(role){
 }
 
 function enterApp(r){
-  S.role=r.role;S.isMC=r.isMC;S.teamName=r.teamName;S.displayName=r.displayName;
+  S.role=r.role;S.isMC=r.isMC;S.isSystemOwner=Boolean(r.isSystemOwner);S.teamName=r.teamName;S.displayName=r.displayName;
   // Cache for quick role-switching (survives within same page session)
-  _cachedRoles[r.role]={role:r.role,isMC:r.isMC,teamName:r.teamName,displayName:r.displayName,token:r.token||S.token,pin:S.pin,version:r.version,versionDate:r.versionDate};
+  _cachedRoles[r.role]={role:r.role,isMC:r.isMC,isSystemOwner:Boolean(r.isSystemOwner),teamName:r.teamName,displayName:r.displayName,token:r.token||S.token,pin:S.pin,version:r.version,versionDate:r.versionDate};
   // Log usage — direct dispatch, avoid call() overwriting role with S.role
   try{fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'logUsage',role:r.role,team:r.teamName||r.role,platform:'mobile',logAction:'login',detail:r.displayName||r.role})}).catch(function(){});}catch(e){}
   // แสดง Version ทุก role
@@ -470,11 +472,12 @@ function enterApp(r){
     document.getElementById('verDate').textContent=r.versionDate||'';
     document.getElementById('verFooter').style.display='block';
   }
-  if(!r._skipEntryChoice&&(r.isMC||r.role==='toomtam')){
+  if(!r._skipEntryChoice&&(r.isSystemOwner||r.role==='mc')){
     showEntryChooser(r);
     return;
   }
   hideEntryChooser();
+  document.querySelectorAll('.owner-only').forEach(function(el){el.style.display=S.isSystemOwner?'inline-grid':'none';});
   document.getElementById('loginScreen').style.display='none';
   if(r.isMC){
     document.getElementById('mcRoleLbl').textContent='Mentor Co.';
@@ -485,7 +488,6 @@ function enterApp(r){
     load121Summary();
     loadRiskMonitor();
     loadAlertCenter();
-    loadNotifBadge();
     // Load current month setting
     call('getCurrentMonth',{},function(err,res){if(res&&res.ok)S._currentMonth=res.month;});
   } else if(r.role==='growth'){
@@ -497,15 +499,15 @@ function enterApp(r){
     document.getElementById('mentorRoleLbl').textContent=r.displayName;
     document.getElementById('mentorApp').classList.add('on');
     mobileActivatePane('#mentorApp',document.getElementById('mentor-myteam'),'myteam');
-    // Show admin button for TOOMTAM
     var adminBtn=document.getElementById('mentor-admin-btn');
-    if(adminBtn)adminBtn.style.display=(r.role==='toomtam'||r.role==='mc')?'inline-flex':'none';
+    if(adminBtn)adminBtn.style.display=S.isSystemOwner?'inline-flex':'none';
     loadWeeklyActions();
     loadGrowthTasksForMentor();
     loadMyTeam();
     loadMentorNotifBadge();
   }
   loadLineMembers();
+  loadNotifBadge();
   loadNotifBadges();
   initializeMobileNotifications();
   // Auto-open simulator if URL has ?action=simulate
@@ -517,7 +519,7 @@ function logout(){
   clearStoredSession();
   var sb=getSbAuth();if(sb)sb.auth.signOut();
   try{localStorage.removeItem('bni_google_auth_used');}catch(e){}
-  S={role:null,token:null,pin:null,isMC:false,teamName:null,displayName:null,allMembers:[],teamMembers:[],curFilter:'all',curMFilter:'all',curMentorFilter:'all',curSort:'score-desc'};
+  S={role:null,token:null,pin:null,isMC:false,isSystemOwner:false,teamName:null,displayName:null,allMembers:[],teamMembers:[],curFilter:'all',curMFilter:'all',curMentorFilter:'all',curSort:'score-desc'};
   GS={members:[],curFilter:'all',loaded:false,taskFilter:'all'};
   document.getElementById('mcApp').classList.remove('on');
   document.getElementById('mentorApp').classList.remove('on');
@@ -1615,7 +1617,7 @@ function renderMentorDirectory(){
   el.innerHTML=list.map(function(m){return mentorMemberRow(m,"openDetail('"+m.name.replace(/'/g,"\\'")+"')");}).join('');
 }
 function openMentorBell(){
-  mentorOpenSection('121care');
+  openNotifPanel();
 }
 function setHubCount(id,n){
   var el=document.getElementById(id);if(!el)return;
@@ -5634,6 +5636,14 @@ function openNotifPanel(){
 function closeNotifPanel(){
   document.getElementById('notifPanel').classList.remove('on');
 }
+document.addEventListener('keydown',function(e){
+  var panel=document.getElementById('notifPanel');if(!panel||!panel.classList.contains('on'))return;
+  if(e.key==='Escape'){e.preventDefault();closeNotifPanel();return;}
+  if(e.key!=='Tab')return;
+  var focusable=Array.from(panel.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')).filter(function(el){return el.offsetParent!==null;});
+  if(!focusable.length)return;var first=focusable[0],last=focusable[focusable.length-1];
+  if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+});
 
 function loadNotifPanel(){
   NOTIF.loaded=false;
@@ -5866,7 +5876,14 @@ function persistentNotificationItem(n){
 
 function openNotifPanel(){
   var panel=document.getElementById('notifPanel');if(!panel)return;
-  panel.classList.add('on');loadNotifPanel();refreshPushPermissionCard();
+  window._notifReturnFocus=document.activeElement;panel.classList.add('on');panel.setAttribute('aria-hidden','false');
+  var close=panel.querySelector('.dp-back');if(close)setTimeout(function(){close.focus();},0);
+  loadNotifPanel();refreshPushPermissionCard();
+}
+function closeNotifPanel(){
+  var panel=document.getElementById('notifPanel');if(!panel)return;
+  panel.classList.remove('on');panel.setAttribute('aria-hidden','true');
+  if(window._notifReturnFocus&&window._notifReturnFocus.focus)window._notifReturnFocus.focus();
 }
 function loadNotifPanel(){
   var el=document.getElementById('notif-content');if(!el)return;
@@ -5900,8 +5917,7 @@ function bindNotificationItems(items){
   });
 }
 function updatePersistentNotificationBadge(count){
-  var badge=document.getElementById('notif-total');if(!badge)return;
-  if(count>0){badge.textContent=count>99?'99+':String(count);badge.style.display='flex';}else badge.style.display='none';
+  ['notif-total','mentor-bell-badge','growth-bell-badge'].forEach(function(id){var badge=document.getElementById(id);if(!badge)return;if(count>0){badge.textContent=count>99?'99+':String(count);badge.style.display='flex';}else badge.style.display='none';});
 }
 function loadNotifBadge(){
   call('getNotifications',{_latestKey:'notification-badge'},function(err,r){if(!err&&r&&r.ok)updatePersistentNotificationBadge(Number(r.unreadCount||0));});
@@ -5924,8 +5940,27 @@ function refreshPushPermissionCard(){
   if(!('serviceWorker'in navigator)||!('PushManager'in window)||!('Notification'in window)){title.textContent='เครื่องนี้ยังไม่รองรับ Push';detail.textContent='ยังดูรายการทั้งหมดจากกระดิ่งได้ตามปกติ';btn.style.display='none';return;}
   if(isIos()&&!isStandalone()){title.textContent='เพิ่มเว็บลงหน้าจอโฮมก่อน';detail.textContent='บน iPhone ให้กด Share → Add to Home Screen แล้วเปิดจากไอคอน';btn.textContent='วิธีเปิด';btn.disabled=false;return;}
   if(Notification.permission==='denied'){title.textContent='การแจ้งเตือนถูกปิด';detail.textContent='เปิด Notifications ให้เว็บไซต์นี้จาก Settings ของเครื่อง';btn.textContent='ถูกปิด';btn.disabled=true;return;}
-  if(PUSH_STATE.subscription){title.textContent='Push พร้อมใช้งาน';detail.textContent='เครื่องนี้จะได้รับเฉพาะรายการที่เกี่ยวข้องกับสิทธิ์ของคุณ';btn.textContent='ปิด';btn.disabled=false;return;}
+  if(PUSH_STATE.subscription){title.textContent='Push พร้อมใช้งาน';detail.textContent='เครื่องนี้จะได้รับเฉพาะรายการที่เกี่ยวข้องกับสิทธิ์ของคุณ';btn.textContent='ปิด';btn.disabled=false;loadWebPushHealth();return;}
+  var health=document.getElementById('push-health-card');if(health)health.hidden=true;
   title.textContent='เปิด Push บนเครื่องนี้';detail.textContent='ระบบจะขออนุญาตเพียงครั้งเดียว และไม่ส่งข้อความซ้ำกับ LINE';btn.textContent='เปิดใช้';btn.disabled=false;
+}
+function loadWebPushHealth(){
+  var card=document.getElementById('push-health-card'),detail=document.getElementById('push-health-detail');if(!card||!detail||!PUSH_STATE.subscription)return;
+  card.hidden=false;detail.textContent='กำลังตรวจสอบ…';
+  call('getWebPushStatus',{endpoint:PUSH_STATE.subscription.endpoint},function(err,r){
+    if(err||!r||!r.ok){detail.textContent='ตรวจสถานะไม่ได้ กรุณาลองใหม่';return;}
+    if(r.lastErrorCode){detail.textContent='พบปัญหาล่าสุด: '+r.lastErrorCode;return;}
+    detail.textContent=r.lastSuccessAt?'ผู้ให้บริการรับล่าสุด '+notificationTime(r.lastSuccessAt):'พร้อมแล้ว · ยังไม่เคยส่งทดสอบ';
+  });
+}
+function sendWebPushTest(){
+  var btn=document.getElementById('push-test-btn');if(!PUSH_STATE.subscription||!btn)return;
+  btn.disabled=true;btn.textContent='กำลังส่ง…';
+  call('sendWebPushTest',{endpoint:PUSH_STATE.subscription.endpoint},function(err,r){
+    btn.disabled=false;btn.textContent='ส่งทดสอบ';
+    if(err||!r||!r.ok){toast('❌ '+(err?err.message:(r&&r.error)||'ส่งทดสอบไม่สำเร็จ'));return;}
+    toast('✅ เข้าคิวแล้ว ระบบจะส่ง Push ภายในประมาณ 1 นาที');setTimeout(loadWebPushHealth,65000);
+  });
 }
 function toggleWebPush(){
   if(PUSH_STATE.busy)return;

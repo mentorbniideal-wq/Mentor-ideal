@@ -4728,7 +4728,7 @@ export async function handleMembers(
     // ── Admin: email whitelist (MC + TOOMTAM only) ───────────────
     case "getAdminEmails": {
       const auth = await requireAuth(db, p, ["mc", "toomtam"]);
-      if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.ok || !auth.isSystemOwner) return errResponse("เฉพาะเจ้าของระบบเท่านั้น", 403);
 
       const { data, error } = await db
         .from("allowed_emails")
@@ -4741,7 +4741,7 @@ export async function handleMembers(
 
     case "addAdminEmail": {
       const auth = await requireAuth(db, p, ["mc", "toomtam"]);
-      if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.ok || !auth.isSystemOwner) return errResponse("เฉพาะเจ้าของระบบเท่านั้น", 403);
 
       const email = String(p.email || "").trim().toLowerCase();
       const label = String(p.label || "").trim() || null;
@@ -4762,7 +4762,7 @@ export async function handleMembers(
 
     case "removeAdminEmail": {
       const auth = await requireAuth(db, p, ["mc", "toomtam"]);
-      if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.ok || !auth.isSystemOwner) return errResponse("เฉพาะเจ้าของระบบเท่านั้น", 403);
 
       const email = String(p.email || "").trim().toLowerCase();
       if (!email) return errResponse("email required");

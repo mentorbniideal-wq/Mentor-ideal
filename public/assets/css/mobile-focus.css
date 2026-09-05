@@ -22,13 +22,14 @@
   .mobile-today-actions button{min-height:92px;padding:.72rem}
   .mobile-today-actions b{font-size:13px}
   .mobile-today-actions small,.mobile-mini-note,.mentor-hub-card span,.mobile-command-card span{font-size:12px;line-height:1.5}
-  .ct,.sh{font-size:11px;line-height:1.4}
+  .ct,.sh{font-size:12px;line-height:1.45}
   .fb,.mobile-chip{font-size:12px}
   .mobile-member-name{font-size:14px}
   .mobile-member-name span,.mobile-member-team,.mobile-member-state,.mobile-member-result-count{font-size:12px;line-height:1.45}
   .mobile-member-score small,.mobile-metric span{font-size:10px}
   .mentor-hub-card strong,.mobile-command-card strong,.mobile-follow-title{font-size:14px}
   .mobile-follow-meta,.timeline-detail,.timeline-meta{font-size:12px}
+  .notif-panel .ni-name{font-size:14px;line-height:1.4}.notif-panel .ni-detail{font-size:13px;line-height:1.55}.notif-panel .ni-time,.notif-panel .notif-sec{font-size:12px}
   #mentor-directory .filter-bar,#g-memberhub .filter-bar{display:flex;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;padding-bottom:.45rem}
   #mentor-directory .filter-bar::-webkit-scrollbar,#g-memberhub .filter-bar::-webkit-scrollbar{display:none}
   #mentor-directory .filter-bar .fb,#g-memberhub .filter-bar .fb{flex:0 0 auto}
@@ -40,4 +41,3 @@
   .mobile-today-actions{grid-template-columns:1fr 1fr}
   .mobile-today-actions button:last-child{grid-column:1/-1;min-height:72px}
 }
-

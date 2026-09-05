@@ -30,6 +30,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
       role:        auth.role,
       isMC:        auth.isMC,
       isAdmin:     auth.isAdmin,
+      isSystemOwner: Boolean(auth.isSystemOwner),
       teamName:    auth.teamName,
       displayName: auth.displayName,
       capabilities: auth.capabilities || [],
@@ -65,6 +66,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
           displayName: auth.displayName,
           capabilities: auth.capabilities || [],
           isViewer:     Boolean(auth.isViewer),
+          isSystemOwner: Boolean(auth.isSystemOwner),
           version,
         });
       }
@@ -86,7 +88,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
 
     const result = await verifyToken(db, token);
     if (!result.ok) return jsonResponse({ ok: false, error: result.error });
-    if (!canAssumeOperationalView(result, targetRole)) {
+    if (!result.isSystemOwner || !canAssumeOperationalView(result, targetRole)) {
       if (targetRole === 'admin') {
         return jsonResponse({ ok: false, error: 'เฉพาะ Chapter Admin เท่านั้นที่เปิดมุมมอง Chapter Admin ได้' });
       }
@@ -110,7 +112,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
     const { data: ver } = await db.from('settings').select('key, value').in('key', ['APP_VERSION']);
     const version = ver?.find((r: { key: string }) => r.key === 'APP_VERSION')?.value || 'v4.0';
 
-    return jsonResponse({ ok: true, role: targetRole, ...info, isAdmin: Boolean(result.isAdmin), version });
+    return jsonResponse({ ok: true, role: targetRole, ...info, isAdmin: true, isSystemOwner: true, version });
   }
 
   // ── changePIN ────────────────────────────────────────────────
@@ -130,7 +132,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
 
     // Verify caller is MC via PIN or OAuth token — never trust raw p.role
     const authResult = await requireAuth(db, p, ['mc']);
-    if (!authResult.ok || !authResult.isAdmin) {
+    if (!authResult.ok || !authResult.isSystemOwner) {
       return jsonResponse({ ok: false, error: 'เฉพาะ Chapter Admin เท่านั้นที่เปลี่ยน PIN ได้' });
     }
 
@@ -165,6 +167,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
       isMC:        result.isMC,
       isMentor:    result.isMentor,
       isAdmin:     result.isAdmin,
+      isSystemOwner: Boolean(result.isSystemOwner),
       teamName:    result.teamName,
       displayName: result.displayName,
       adminSections: result.adminSections || [],

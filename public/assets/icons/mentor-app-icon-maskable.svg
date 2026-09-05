@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Mentor Operations">
+  <rect width="512" height="512" fill="#0D4B40"/>
+  <circle cx="256" cy="256" r="166" fill="#F4F0E7"/>
+  <path d="M150 330V177h48l58 76 58-76h48v153h-51v-73l-55 67-55-67v73z" fill="#0D4B40"/>
+  <circle cx="256" cy="256" r="190" fill="none" stroke="#C8A96A" stroke-width="12"/>
+</svg>

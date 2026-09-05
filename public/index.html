@@ -16,8 +16,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=IBM+Plex+Mono:wght@500&family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=IBM+Plex+Mono:wght@500&family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="/assets/css/mobile-operations.css">
-<link rel="stylesheet" href="/assets/css/mobile-focus.css?v=20260905">
+<link rel="stylesheet" href="/assets/css/mobile-operations.css?v=20260905p">
+<link rel="stylesheet" href="/assets/css/mobile-focus.css?v=20260905b">
 </head>
 <body>
 <main id="mainContent">
@@ -113,7 +113,7 @@
         </span>
         <span class="entry-arrow">›</span>
       </button>
-      <button class="entry-option growth" onclick="entryOpenDesktop('growth')">
+      <button class="entry-option growth" id="entry-growth-desktop" onclick="entryOpenDesktop('growth')">
         <span class="entry-ico">📈</span>
         <span>
           <span class="entry-name">Growth Desktop</span>
@@ -236,8 +236,8 @@
       <div class="hdr-divider"></div>
       <div style="display:flex;align-items:center;gap:1px;">
         <button class="hdr-btn-icon" onclick="toggleTheme()" id="themeBtn" title="สลับธีม" aria-label="สลับธีม" style="padding:4px 6px;font-size:.8rem;">🌙</button>
-        <button class="hdr-btn-icon" onclick="openAdminPanel()" title="Admin" style="padding:4px 6px;font-size:.8rem;">⚙️</button>
-        <button class="hdr-btn-icon" onclick="openRoleSwitcher()" title="สลับ Role" aria-label="สลับ Role" style="padding:4px 6px;font-size:.8rem;">⇄</button>
+        <button id="mc-admin-btn" class="hdr-btn-icon owner-only" onclick="openAdminPanel()" title="Admin" aria-label="เปิดแผงผู้ดูแลระบบ" style="display:none;padding:4px 6px;font-size:.8rem;">⚙️</button>
+        <button id="mc-role-switch-btn" class="hdr-btn-icon owner-only" onclick="openRoleSwitcher()" title="สลับ Role" aria-label="สลับ Role" style="display:none;padding:4px 6px;font-size:.8rem;">⇄</button>
         <button class="hdr-btn-icon btn-out" onclick="logout()" title="ออกจากระบบ" aria-label="ออกจากระบบ" style="padding:4px 6px;font-size:.8rem;">🚪</button>
       </div>
     </div>
@@ -509,11 +509,10 @@
   <div class="hdr">
     <div class="hdr-l"><div class="hdr-logo">BNI <span>IDEAL</span></div><div class="hdr-role m" id="mentorRoleLbl">Mentor</div></div>
     <div style="display:flex;align-items:center;gap:4px;">
-      <button class="notif-bell-btn" id="mentor-bell" onclick="openMentorBell()" title="การแจ้งเตือน" aria-label="การแจ้งเตือน">🔔<span class="notif-count" id="mentor-bell-badge" style="display:none">0</span></button>
+      <button class="notif-bell-btn" id="mentor-bell" onclick="openNotifPanel()" title="การแจ้งเตือน" aria-label="การแจ้งเตือน">🔔<span class="notif-count" id="mentor-bell-badge" style="display:none">0</span></button>
       <div style="display:flex;align-items:center;gap:1px;">
         <button class="hdr-btn-icon theme-btn" onclick="toggleTheme()" title="สลับธีม" aria-label="สลับธีม" style="padding:4px 6px;font-size:.8rem;">🌙</button>
         <button id="mentor-admin-btn" class="hdr-btn-icon" onclick="openAdminPanel()" style="display:none;color:var(--yellow);padding:4px 6px;font-size:.8rem;" title="Admin" aria-label="เปิดแผงผู้ดูแลระบบ">⚙️</button>
-        <button class="hdr-btn-icon" onclick="openRoleSwitcher()" title="สลับ Role" aria-label="สลับ Role" style="padding:4px 6px;font-size:.8rem;">⇄</button>
         <button class="hdr-btn-icon btn-out" onclick="logout()" title="ออกจากระบบ" aria-label="ออกจากระบบ" style="padding:4px 6px;font-size:.8rem;">🚪</button>
       </div>
     </div>
@@ -772,11 +771,12 @@
   <div class="hdr">
     <div class="hdr-l"><div class="hdr-logo">BNI <span>IDEAL</span></div><div class="hdr-role" style="background:#8B5CF6;">Growth</div></div>
     <div style="display:flex;align-items:center;gap:4px;">
+      <button class="notif-bell-btn" id="growth-bell" onclick="openNotifPanel()" title="การแจ้งเตือน" aria-label="การแจ้งเตือน">🔔<span class="notif-count" id="growth-bell-badge" style="display:none">0</span></button>
       <button onclick="window.open('dashboard.html','_blank')" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818CF8;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif;touch-action:manipulation;">💻</button>
       <div class="hdr-divider"></div>
       <div style="display:flex;align-items:center;gap:1px;">
         <button class="hdr-btn-icon theme-btn" onclick="toggleTheme()" title="สลับธีม" aria-label="สลับธีม" style="padding:4px 6px;font-size:.8rem;">🌙</button>
-        <button class="hdr-btn-icon" onclick="openRoleSwitcher()" title="สลับ Role" aria-label="สลับ Role" style="padding:4px 6px;font-size:.8rem;">⇄</button>
+        <button id="growth-role-switch-btn" class="hdr-btn-icon owner-only" onclick="openRoleSwitcher()" title="สลับ Role" aria-label="สลับ Role" style="display:none;padding:4px 6px;font-size:.8rem;">⇄</button>
         <button class="hdr-btn-icon btn-out" onclick="logout()" title="ออกจากระบบ" aria-label="ออกจากระบบ" style="padding:4px 6px;font-size:.8rem;">🚪</button>
       </div>
     </div>
@@ -1165,10 +1165,10 @@
   </div>
 </div>
 
-<div class="notif-panel" id="notifPanel">
+<div class="notif-panel" id="notifPanel" role="dialog" aria-modal="true" aria-labelledby="notif-panel-title" aria-hidden="true">
   <div class="dp-hdr">
     <button class="dp-back" onclick="closeNotifPanel()" aria-label="ปิดศูนย์แจ้งเตือน">←</button>
-    <div class="dp-title">ศูนย์แจ้งเตือน <span class="notif-live-dot" aria-hidden="true"></span></div>
+    <div class="dp-title" id="notif-panel-title">ศูนย์แจ้งเตือน <span class="notif-live-dot" aria-hidden="true"></span></div>
     <button class="notif-refresh" onclick="loadNotifPanel()" aria-label="โหลดการแจ้งเตือนใหม่">รีเฟรช</button>
   </div>
   <section class="push-permission-card" id="push-permission-card" aria-live="polite">
@@ -1176,11 +1176,15 @@
     <div class="push-permission-copy"><strong id="push-permission-title">แจ้งเตือนบนเครื่องนี้</strong><span id="push-permission-detail">กำลังตรวจสอบสถานะ…</span></div>
     <button id="push-permission-btn" type="button" onclick="toggleWebPush()">เปิดใช้</button>
   </section>
+  <section class="push-health-card" id="push-health-card" aria-live="polite" hidden>
+    <div><strong>สถานะ Push เครื่องนี้</strong><span id="push-health-detail">ยังไม่เคยทดสอบ</span></div>
+    <button id="push-test-btn" type="button" onclick="sendWebPushTest()">ส่งทดสอบ</button>
+  </section>
   <div class="dp-content" id="notif-content"><div class="lt">⏳ กำลังโหลด...</div></div>
 </div>
 </main>
 
-<script src="/assets/js/mobile-operations.js?v=20260905n" defer></script>
+<script src="/assets/js/mobile-operations.js?v=20260905o" defer></script>
 <!-- Checklist Panel -->
 <div class="cl-panel" id="clPanel">
   <div class="cl-hdr">
@@ -1264,7 +1268,7 @@
 <script src="/assets/js/mobile-operations-admin.js" defer></script>
 
 <!-- Admin Panel Modal -->
-<div id="admin-panel-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:flex-start;justify-content:center;overflow-y:auto;" onclick="if(event.target===this)closeAdminPanel()">
+<div id="admin-panel-modal" role="dialog" aria-modal="true" aria-label="Admin Panel" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:flex-start;justify-content:center;overflow-y:auto;" onclick="if(event.target===this)closeAdminPanel()">
   <div style="background:#1a1a2e;border-radius:0 0 16px 16px;padding:20px;width:100%;max-width:480px;min-height:60vh;box-shadow:0 4px 24px rgba(0,0,0,.6);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
       <div style="font-size:15px;font-weight:700;color:#e2e8f0;">⚙️ Admin Panel</div>
@@ -1295,7 +1299,7 @@
 </div>
 
 <!-- Role Switcher Modal -->
-<div id="role-switcher-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:flex-end;justify-content:center;" onclick="if(event.target===this)closeSwitcher()">
+<div id="role-switcher-modal" role="dialog" aria-modal="true" aria-label="สลับ Role" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:flex-end;justify-content:center;" onclick="if(event.target===this)closeSwitcher()">
   <div style="background:#1a1a2e;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:480px;box-shadow:0 -4px 24px rgba(0,0,0,.6);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
       <div style="font-size:14px;font-weight:700;color:#e2e8f0;">⇄ สลับ Role</div>

@@ -2,7 +2,7 @@
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 
-const NOTIFICATION_ROLES = ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth'];
+const NOTIFICATION_ROLES = ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'mentor_support', 'growth'];
 
 function recipientKey(auth: { teamName?: string | null; role?: string }): string {
   return auth.teamName ? `team:${auth.teamName}` : `role:${String(auth.role || '')}`;
@@ -81,6 +81,46 @@ export async function handleNotifications(p: Record<string, unknown>): Promise<R
       return jsonResponse({ ok: true, enabled: Boolean(publicKey), publicKey });
     }
 
+    case 'getWebPushStatus': {
+      const auth = await requireAuth(db, p, NOTIFICATION_ROLES);
+      if (!auth.ok) return errResponse(auth.error!);
+      const endpoint = String(p.endpoint || '');
+      if (!endpoint) return errResponse('endpoint required', 400);
+      const chapterId = await activeChapterId(db);
+      const endpointHash = await sha256(endpoint);
+      const { data, error } = await db.from('web_push_subscriptions')
+        .select('status,last_seen_at,last_success_at,last_error_code,recipient_keys')
+        .eq('chapter_id', chapterId).eq('endpoint_hash', endpointHash).maybeSingle();
+      if (error) return errResponse(error.message);
+      const keys = Array.isArray(data?.recipient_keys) ? data.recipient_keys.map(String) : [];
+      if (!data || !keys.includes(recipientKey(auth))) return errResponse('ไม่พบ Push ของสิทธิ์นี้', 404);
+      return jsonResponse({ ok: true, status: data.status, lastSeenAt: data.last_seen_at, lastSuccessAt: data.last_success_at, lastErrorCode: data.last_error_code });
+    }
+
+    case 'sendWebPushTest': {
+      const auth = await requireAuth(db, p, NOTIFICATION_ROLES);
+      if (!auth.ok) return errResponse(auth.error!);
+      const endpoint = String(p.endpoint || '');
+      if (!endpoint) return errResponse('endpoint required', 400);
+      const chapterId = await activeChapterId(db);
+      if (!chapterId) return errResponse('ยังไม่ได้ตั้งค่า Chapter ที่ใช้งาน', 503);
+      const endpointHash = await sha256(endpoint);
+      const key = recipientKey(auth);
+      const { data: sub } = await db.from('web_push_subscriptions').select('id,recipient_keys,status')
+        .eq('chapter_id', chapterId).eq('endpoint_hash', endpointHash).eq('status', 'active').maybeSingle();
+      const keys = Array.isArray(sub?.recipient_keys) ? sub.recipient_keys.map(String) : [];
+      if (!sub || !keys.includes(key)) return errResponse('กรุณาเปิด Push บนเครื่องนี้ก่อน', 409);
+      const minute = new Date().toISOString().slice(0, 16);
+      const { data: notification, error } = await db.from('notifications').insert({
+        chapter_id: chapterId, type: 'web_push_test', severity: 'info',
+        title: 'Push พร้อมใช้งาน', body: `สวัสดี ${auth.displayName || 'ครับ'} เครื่องนี้รับการแจ้งเตือนได้แล้ว`,
+        target_audience: [`subscription:${endpointHash}`], action_url: '/', expires_at: new Date(Date.now() + 10 * 60_000).toISOString(),
+        dedupe_key: `push-test:${endpointHash}:${minute}`,
+      }).select('id').single();
+      if (error) return errResponse(error.code === '23505' ? 'ส่งทดสอบไปแล้วในนาทีนี้ กรุณารอสักครู่' : error.message, error.code === '23505' ? 409 : 500);
+      return jsonResponse({ ok: true, queued: true, notificationId: notification?.id });
+    }
+
     case 'subscribeWebPush': {
       const auth = await requireAuth(db, p, NOTIFICATION_ROLES);
       if (!auth.ok) return errResponse(auth.error!);
@@ -95,8 +135,12 @@ export async function handleNotifications(p: Record<string, unknown>): Promise<R
         return errResponse('Push subscription ไม่ถูกต้อง', 400);
       }
       const endpointHash = await sha256(endpoint);
+      const key = recipientKey(auth);
+      const { data: existing } = await db.from('web_push_subscriptions').select('recipient_keys')
+        .eq('chapter_id', chapterId).eq('endpoint_hash', endpointHash).maybeSingle();
+      const recipientKeys = [...new Set([...(Array.isArray(existing?.recipient_keys) ? existing.recipient_keys.map(String) : []), key, `subscription:${endpointHash}`])];
       const row = {
-        chapter_id: chapterId, recipient_key: recipientKey(auth), endpoint,
+        chapter_id: chapterId, recipient_key: key, recipient_keys: recipientKeys, endpoint,
         endpoint_hash: endpointHash, p256dh, auth_secret: authSecret,
         status: 'active', user_agent: String(p.userAgent || '').slice(0, 500) || null,
         platform: String(p.platform || '').slice(0, 80) || null,
@@ -125,11 +169,15 @@ export async function handleNotifications(p: Record<string, unknown>): Promise<R
       if (!endpoint) return errResponse('endpoint required', 400);
       const chapterId = await activeChapterId(db);
       const endpointHash = await sha256(endpoint);
-      let query = db.from('web_push_subscriptions').update({
-        status: 'revoked', updated_at: new Date().toISOString(),
-      }).eq('endpoint_hash', endpointHash).eq('recipient_key', recipientKey(auth));
-      if (chapterId) query = query.eq('chapter_id', chapterId);
-      const { error } = await query;
+      let find = db.from('web_push_subscriptions').select('id,recipient_keys').eq('endpoint_hash', endpointHash);
+      if (chapterId) find = find.eq('chapter_id', chapterId);
+      const { data: current } = await find.maybeSingle();
+      const kept = (Array.isArray(current?.recipient_keys) ? current.recipient_keys.map(String) : []).filter((x: string) => x !== recipientKey(auth));
+      const hasRecipient = kept.some((x: string) => !x.startsWith('subscription:'));
+      const remaining = hasRecipient ? kept : [];
+      const { error } = current ? await db.from('web_push_subscriptions').update({
+        recipient_keys: remaining, status: remaining.length ? 'active' : 'revoked', updated_at: new Date().toISOString(),
+      }).eq('id', current.id) : { error: null };
       if (error) return errResponse(error.message);
       return jsonResponse({ ok: true, subscribed: false });
     }

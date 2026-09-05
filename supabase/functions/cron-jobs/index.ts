@@ -157,7 +157,11 @@ async function webPushDispatch(db: DB): Promise<{ jobs: number; accepted: number
     if (notification.chapter_id) subsQuery = subsQuery.eq('chapter_id', notification.chapter_id);
     const { data: subscriptions } = await subsQuery;
     const audiences = Array.isArray(notification.target_audience) ? notification.target_audience.map(String) : null;
-    const eligible = (subscriptions || []).filter((s: Record<string, unknown>) => !audiences || audiences.includes(String(s.recipient_key)));
+    const eligible = (subscriptions || []).filter((s: Record<string, unknown>) => {
+      if (!audiences) return true;
+      const keys = Array.isArray(s.recipient_keys) ? s.recipient_keys.map(String) : [String(s.recipient_key)];
+      return keys.some(key => audiences.includes(key));
+    });
     let jobFailures = 0;
     for (const s of eligible as Record<string, unknown>[]) {
       const attemptNumber = Number(job.attempts || 0) + 1;
