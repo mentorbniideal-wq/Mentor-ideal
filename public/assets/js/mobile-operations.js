@@ -6,7 +6,7 @@ function applyMobileTeamLabels(){
     var select=option.parentElement,id=String(select&&(select.id||select.name)||'');
     if(!(select&&select.hasAttribute('data-team-select'))&&!/(team|mentor|role)/i.test(id))return;
     var code=option.value||option.textContent.trim();
-    if(S.teamLabels[code])option.textContent=S.teamLabels[code];
+    if(S.teamLabels[code]){var prefix=/^Mentor\s*[:·]\s*/.test(option.textContent||'')?(option.textContent||'').match(/^Mentor\s*[:·]\s*/)[0]:'';option.textContent=prefix+S.teamLabels[code];}
   });
   document.querySelectorAll('.fb').forEach(function(button){
     var code=(button.textContent||'').trim();

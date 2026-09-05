@@ -15,6 +15,7 @@ for (const [name, source] of [['shared', shared], ['desktop', desktop], ['mobile
 if (/Mentor:\s*AMP/.test(adminAuth)) failures.push('legacy admin login exposes the retired leader label');
 if (!/NULLIF\(btrim\(NEW\.display_name\)/.test(migration)) failures.push('role sync does not prefer mentor_teams.display_name');
 if (!/team_name = NEW\.name/.test(migration)) failures.push('role sync no longer preserves the stable team code');
+if (!/ย้ายไป\\s\+/.test(shared)) failures.push('team label replacement no longer preserves action prefixes');
 
 if (failures.length) {
   console.error(failures.map((item) => `FAIL: ${item}`).join('\n'));

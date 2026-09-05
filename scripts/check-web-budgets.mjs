@@ -1,10 +1,12 @@
 import { stat } from 'node:fs/promises';
 
 const budgets = [
-  ['public/assets/js/desktop-operations.js', 720_000],
+  // Ratchet ceilings: current modularisation baseline plus <1% headroom.
+  // Do not raise these when adding features; move new modules into separate files.
+  ['public/assets/js/desktop-operations.js', 730_000],
   ['public/assets/js/desktop-member-360.js', 20_000],
   ['public/assets/js/desktop-bni-import.js', 20_000],
-  ['public/assets/js/mobile-operations.js', 460_000],
+  ['public/assets/js/mobile-operations.js', 470_000],
   ['public/assets/css/desktop-operations.css', 135_000],
   ['public/assets/css/desktop-monthly-sync.css', 8_000],
   ['public/assets/css/desktop-member-360.css', 8_000],

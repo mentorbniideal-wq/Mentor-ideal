@@ -7,7 +7,7 @@ function applyTeamDisplayLabels(){
     if(!(select&&select.hasAttribute('data-team-select'))&&!/(team|mentor|role)/i.test(id))return;
     var code=option.value;
     var roleCode={toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP'}[String(code||'').toLowerCase()];
-    if(roleCode&&D.teamLabels[roleCode]){option.textContent=D.teamLabels[roleCode];return;}
+    if(roleCode&&D.teamLabels[roleCode]){var rolePrefix=/^Mentor\s*[:·]\s*/.test(option.textContent||'')?(option.textContent||'').match(/^Mentor\s*[:·]\s*/)[0]:'';option.textContent=rolePrefix+D.teamLabels[roleCode];return;}
     if(!D.teamLabels[code])return;
     var movePrefix=(option.textContent||'').trim().indexOf('ย้ายไป ')===0?'ย้ายไป ':'';
     option.value=code;

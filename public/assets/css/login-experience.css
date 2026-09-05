@@ -100,9 +100,10 @@ body #loginScreen .gw-pub-lbl{color:#6f6c65}body #loginScreen .gw-pub-btn{min-he
 @media(max-width:620px){
   body #loginScreen{align-items:flex-start;justify-content:flex-start;padding:76px 16px 28px}
   .login-brand{top:22px;left:20px}.login-orb-a{width:78vw;right:-29vw;top:-6vh}.login-orb-b{width:55vw;left:-24vw;top:52vh}.login-orb-c{width:42vw;left:66%;bottom:-7vh}
-  body #loginScreen .gw-card{width:calc(100dvw - 32px)!important;max-width:calc(100dvw - 32px)!important;overflow:hidden;padding:29px 20px;border-radius:25px}.gw-back{left:20px}.gw-symbol{margin-bottom:16px}
+  body #loginScreen .gw-card{width:100%!important;max-width:100%!important;min-width:0;overflow:hidden;padding:29px 20px;border-radius:25px}.gw-back{left:20px}.gw-symbol{margin-bottom:16px}
   body #loginScreen .gw-title{font-size:32px;white-space:normal}.gw-divider span{white-space:normal;text-align:center}
-  body #loginScreen .gw-sub{max-width:100%;overflow-wrap:anywhere}
+  body #loginScreen .gw-sub{max-width:100%;overflow-wrap:anywhere;word-break:break-word}
+  body #loginScreen .google-login-pro,body #loginScreen .role-chips,body #loginScreen .gw-pub-strip{min-width:0;max-width:100%}
   body #loginScreen .gw-pub-strip{row-gap:8px}
 }
 @media(min-width:621px){body #loginScreen{background:#080b0d!important}}

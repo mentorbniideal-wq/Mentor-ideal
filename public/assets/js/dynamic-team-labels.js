@@ -12,7 +12,11 @@
       var select=option.parentElement,id=String(select&&(select.id||select.name)||'');
       if(!(select&&select.hasAttribute('data-team-select'))&&!/(team|mentor|role)/i.test(id))return;
       var code=roleCodes[String(option.value||'').toLowerCase()]||option.value;
-      if(labels[code])option.textContent=(option.getAttribute('data-prefix')||'')+display(code);
+      if(labels[code]){
+        var current=String(option.textContent||'').trim();
+        var prefix=option.getAttribute('data-prefix')||(/^ย้ายไป\s+/.test(current)?'ย้ายไป ':(/^Mentor\s*[:·]\s*/.test(current)?current.match(/^Mentor\s*[:·]\s*/)[0]:''));
+        option.textContent=prefix+display(code);
+      }
     });
   }
   function load(){return fetch(api,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+anon},body:JSON.stringify({action:'getPublicTeamCatalog'})}).then(function(res){if(!res.ok)throw new Error('team catalog '+res.status);return res.json();}).then(function(r){if(!r||!r.ok)throw new Error((r&&r.error)||'team catalog unavailable');(r.teams||[]).forEach(function(t){if(t.code)labels[t.code]=t.displayName||t.code;});apply(document);window.dispatchEvent(new CustomEvent('bni:team-labels',{detail:{labels:Object.assign({},labels)}}));return labels;}).catch(function(){return labels;});}
