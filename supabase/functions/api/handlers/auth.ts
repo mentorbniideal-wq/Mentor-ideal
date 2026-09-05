@@ -3,6 +3,20 @@ import { getServiceClient, jsonResponse } from '../../_shared/db.ts';
 import { verifyPin, verifyToken, requireAuth } from '../../_shared/auth.ts';
 import { canAssumeOperationalView } from '../../_shared/capabilities.ts';
 
+async function getTeamIdentity(db: ReturnType<typeof getServiceClient>, teamName?: string | null) {
+  const { data } = await db.from('mentor_teams').select('name,leader_name,display_name').order('id');
+  const teamLabels: Record<string, string> = {};
+  for (const row of (data || []) as Record<string, unknown>[]) {
+    const code = String(row.name || '');
+    if (!code) continue;
+    teamLabels[code] = String(row.display_name || `ทีม ${String(row.leader_name || code)}`);
+  }
+  return {
+    teamLabels,
+    teamDisplayName: teamName ? (teamLabels[teamName] || teamName) : null,
+  };
+}
+
 export async function handleAuth(p: Record<string, unknown>): Promise<Response> {
   const db     = getServiceClient();
   const action = String(p.action || '');
@@ -24,6 +38,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
       .select('key, value')
       .in('key', ['APP_VERSION']);
     const version = ver?.find((r: { key: string }) => r.key === 'APP_VERSION')?.value || 'v4.0';
+    const teamIdentity = await getTeamIdentity(db, auth.teamName);
 
     return jsonResponse({
       ok:          true,
@@ -33,6 +48,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
       isSystemOwner: Boolean(auth.isSystemOwner),
       teamName:    auth.teamName,
       displayName: auth.displayName,
+      ...teamIdentity,
       capabilities: auth.capabilities || [],
       isViewer:     Boolean(auth.isViewer),
       version,
@@ -57,6 +73,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
           .select('key, value')
           .in('key', ['APP_VERSION']);
         const version = ver?.find((r: { key: string }) => r.key === 'APP_VERSION')?.value || 'v4.0';
+        const teamIdentity = await getTeamIdentity(db, auth.teamName);
         return jsonResponse({
           ok:          true,
           role:        auth.role,
@@ -64,6 +81,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
           isMentor:    auth.isMentor,
           teamName:    auth.teamName,
           displayName: auth.displayName,
+          ...teamIdentity,
           capabilities: auth.capabilities || [],
           isViewer:     Boolean(auth.isViewer),
           isSystemOwner: Boolean(auth.isSystemOwner),
@@ -106,13 +124,17 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
       mentor_support: { displayName: 'Mentor Support', teamName: null, isMC: false, isMentor: true },
       growth:  { displayName: 'Growth',  teamName: null,      isMC: false, isMentor: false },
     };
-    const info = RINFO[targetRole];
+    const baseInfo = RINFO[targetRole];
+    const teamIdentity = await getTeamIdentity(db, baseInfo?.teamName);
+    const info = baseInfo && baseInfo.teamName
+      ? { ...baseInfo, displayName: teamIdentity.teamDisplayName || baseInfo.displayName }
+      : baseInfo;
     if (!info) return jsonResponse({ ok: false, error: `Unknown role: ${targetRole}` });
 
     const { data: ver } = await db.from('settings').select('key, value').in('key', ['APP_VERSION']);
     const version = ver?.find((r: { key: string }) => r.key === 'APP_VERSION')?.value || 'v4.0';
 
-    return jsonResponse({ ok: true, role: targetRole, ...info, isAdmin: true, isSystemOwner: true, version });
+    return jsonResponse({ ok: true, role: targetRole, ...info, ...teamIdentity, isAdmin: true, isSystemOwner: true, version });
   }
 
   // ── changePIN ────────────────────────────────────────────────
@@ -160,6 +182,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
       .select('key, value')
       .in('key', ['APP_VERSION']);
     const version = ver?.find((r: { key: string }) => r.key === 'APP_VERSION')?.value || 'v4.0';
+    const teamIdentity = await getTeamIdentity(db, result.teamName);
 
     return jsonResponse({
       ok:          true,
@@ -170,6 +193,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
       isSystemOwner: Boolean(result.isSystemOwner),
       teamName:    result.teamName,
       displayName: result.displayName,
+      ...teamIdentity,
       adminSections: result.adminSections || [],
       adminEditAccess: Boolean(result.adminEditAccess),
       capabilities: result.capabilities || [],

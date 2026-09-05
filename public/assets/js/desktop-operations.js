@@ -1,4 +1,17 @@
-var D={mem:[],ren:[],sm:{},teams:[],msgs:[],reps:[],health:{},lineIssues:[],lineIssueOpen:0};
+var D={mem:[],ren:[],sm:{},teams:[],teamLabels:{},msgs:[],reps:[],health:{},lineIssues:[],lineIssueOpen:0};
+function teamDisplayName(code){return code?(D.teamLabels&&D.teamLabels[code]||code):'—';}
+function applyTeamDisplayLabels(){
+  if(!D.teamLabels)return;
+  document.querySelectorAll('select option').forEach(function(option){
+    var code=option.value;
+    var roleCode={toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP'}[String(code||'').toLowerCase()];
+    if(roleCode&&D.teamLabels[roleCode]){option.textContent=D.teamLabels[roleCode];return;}
+    if(!D.teamLabels[code])return;
+    var movePrefix=(option.textContent||'').trim().indexOf('ย้ายไป ')===0?'ย้ายไป ':'';
+    option.value=code;
+    option.textContent=movePrefix+teamDisplayName(code);
+  });
+}
 var G={mem:[],sm:{},tasks:[],nm:[],dec:[],assignees:[]};
 var S={role:'',token:null,sr:''};
 var mzf='all',ftf='all',rff='all',gzf='all',tsf='all';
@@ -238,7 +251,7 @@ function switchDesktopRole(target){
       ld(false);
       if(!r||!r.ok){alert('สลับ Role ไม่สำเร็จ: '+((r&&r.error)||'ไม่ทราบสาเหตุ'));return;}
       if(arTimer){clearInterval(arTimer);arTimer=null;}
-      D={mem:[],ren:[],sm:{},teams:[],msgs:[],reps:[],health:{},lineIssues:[],lineIssueOpen:0};
+      D={mem:[],ren:[],sm:{},teams:[],teamLabels:{},msgs:[],reps:[],health:{},lineIssues:[],lineIssueOpen:0};
       G={mem:[],sm:{},tasks:[],nm:[],dec:[]};
       bulkSel={};cmpState=[];
       if(dc){dc.destroy();dc=null;} if(bc){bc.destroy();bc=null;} if(jc){jc.destroy();jc=null;} if(mdc){mdc.destroy();mdc=null;} if(tdc){tdc.destroy();tdc=null;} if(tdc2){tdc2.destroy();tdc2=null;}
@@ -259,7 +272,7 @@ function logout(){
   try{localStorage.removeItem('bni_desktop_google_auth_used');}catch(e){}
   clearInterval(arTimer);arTimer=null;
   S={role:'',token:null,pin:null,sr:'',canRoleSwitch:false};
-  D={mem:[],ren:[],sm:{},teams:[],msgs:[],reps:[],health:{},lineIssues:[],lineIssueOpen:0};
+  D={mem:[],ren:[],sm:{},teams:[],teamLabels:{},msgs:[],reps:[],health:{},lineIssues:[],lineIssueOpen:0};
   G={mem:[],sm:{},tasks:[],nm:[],dec:[]};
   bulkSel={};updateBulkBar();
   if(dc){dc.destroy();dc=null;} if(bc){bc.destroy();bc=null;} if(jc){jc.destroy();jc=null;} if(mdc){mdc.destroy();mdc=null;} if(tdc){tdc.destroy();tdc=null;} if(tdc2){tdc2.destroy();tdc2=null;}
@@ -429,7 +442,7 @@ function loadMC(forceRefresh){
   function chk(){done++;if(done===3){clearTimeout(guard);ld(false);updateBadges();}}
   gsr('getDesktopDashboard',{role:S.role,forceRefresh:!!forceRefresh},function(r){
     try{
-      if(r.ok){D.mem=r.members||[];D.ren=r.renewal||[];D.sm=r.summary||{};D.teams=r.teams||[];D.health=r.health||{};renderDirectoryRolloutReview(r.directoryRollout);
+      if(r.ok){D.mem=r.members||[];D.ren=r.renewal||[];D.sm=r.summary||{};D.teams=r.teams||[];D.teamLabels=r.teamLabels||{};D.health=r.health||{};applyTeamDisplayLabels();renderDirectoryRolloutReview(r.directoryRollout);
         if(r.nmList&&r.nmList.length){G.nm=r.nmList;}
         var upLabel='อัพเดท: '+(r.updatedAt||'—')+(r.fromCache?' ⚡ cached':'');
         document.getElementById('hup').textContent=upLabel;
@@ -510,7 +523,7 @@ function buildMCFilters(){
   ['mtf','ftt'].forEach(function(id){
     var s=document.getElementById(id);
     s.innerHTML='<option value="">ทุกทีม</option>';
-    teams.forEach(function(t){s.innerHTML+='<option value="'+esc(t)+'">'+esc(t)+'</option>';});
+    teams.forEach(function(t){s.innerHTML+='<option value="'+esc(t)+'">'+esc(teamDisplayName(t))+'</option>';});
   });
   buildCoachFilters();
   initThreshUI();
@@ -551,7 +564,7 @@ function renderKpiHero(){
     teams.forEach(function(t){
       var tc=t.avg>=70?'var(--gr)':t.avg>=50?'var(--ye)':t.avg>=30?'var(--re)':'var(--sub)';
       html+='<div class="kpi-team-card" onclick="sw(\'mc-team\',null,\'mc\');loadDesktopScorecard()">'
-        +'<div class="kpi-team-name">'+(t.team||'—')+'</div>'
+        +'<div class="kpi-team-name">'+esc(t.displayName||teamDisplayName(t.team))+'</div>'
         +'<div class="kpi-team-score" style="color:'+tc+'">'+(t.avg||'—')+'</div>'
         +'<div class="kpi-team-count">'+(t.count||0)+' คน</div>'
         +'</div>';
@@ -1209,7 +1222,7 @@ function renderBar(){
   if(!D.teams.length)return;
   if(bc)bc.destroy();
   bc=new Chart(document.getElementById('bar').getContext('2d'),{type:'bar',
-    data:{labels:D.teams.map(function(t){return t.team;}),
+    data:{labels:D.teams.map(function(t){return t.displayName||teamDisplayName(t.team);}),
       datasets:[{label:'BNI Avg',data:D.teams.map(function(t){return t.avg;}),
         backgroundColor:D.teams.map(function(t){return t.avg>=70?'rgba(52,211,153,.75)':t.avg>=50?'rgba(255,193,77,.75)':t.avg>=30?'rgba(248,113,113,.75)':'rgba(96,165,250,.75)';}),
         borderRadius:5,borderSkipped:false}]},
@@ -1396,7 +1409,7 @@ function renderMTTeams(){
     var tot=t.count||1;
     var gPct=Math.round((t.green||0)/tot*100);
     var openIssues=D.reps.filter(function(r){return r.team===t.team&&repIsOpen(r);}).length;
-    var tn=esc(t.team);
+    var tn=esc(t.displayName||teamDisplayName(t.team));
     var cardId='mt-card-'+t.team.replace(/[^a-zA-Z0-9]/g,'_');
 
     // Team members
@@ -1453,7 +1466,7 @@ function renderMTTeams(){
       +'<div class="mt-card-body" id="'+cardId+'-body">'
         // Action tags
         +'<div class="mt-tag-row">'
-          +'<button class="mt-tag" style="cursor:pointer;color:var(--ac)" onclick="openTeamDash(\''+tn+'\');event.stopPropagation()">📊 Team Dashboard</button>'
+          +'<button class="mt-tag" style="cursor:pointer;color:var(--ac)" onclick="openTeamDash(\''+esc(t.team)+'\');event.stopPropagation()">📊 Team Dashboard</button>'
           +'<button class="mt-tag" style="cursor:pointer;color:#06C755;border-color:rgba(6,199,85,.3)" onclick="openDeskLineBroadcast(\''+esc(t.team)+'\');event.stopPropagation()">📢 LINE ทีม</button>'
           +(openIssues?'<span class="mt-tag" style="color:var(--re)">📋 '+openIssues+' Core Issue ค้าง</span>':'<span class="mt-tag" style="color:var(--gr)">✅ ไม่มี Issue ค้าง</span>')
           +(noContactCount?'<span class="mt-tag" style="color:var(--ye);border-color:rgba(251,191,36,.3)">📆 '+noContactCount+' คน ยังไม่ได้ติดตาม >14 วัน</span>':'<span class="mt-tag" style="color:var(--gr)">📆 Mentor ติดตามครบ</span>')
@@ -1498,7 +1511,7 @@ function loadMentorTeamManager(force){
   gsr('getMembersByTeam',{role:'mc'},function(r){
     MTM.loading=false;
     if(!r||!r.ok){board.innerHTML='<div class="team-manager-loading" style="color:var(--re)">โหลดรายชื่อไม่สำเร็จ · '+esc(r&&r.error||'กรุณาลองใหม่')+'</div>';return;}
-    MTM.teams=r.teams||{};MTM.teamLabels=r.teamLabels||{};MTM.loaded=true;
+    MTM.teams=r.teams||{};MTM.teamLabels=r.teamLabels||{};D.teamLabels=Object.assign({},D.teamLabels||{},MTM.teamLabels);MTM.loaded=true;
     var filter=document.getElementById('team-manager-filter'),target=document.getElementById('team-manager-target');
     if(filter)Array.prototype.forEach.call(filter.options,function(o){if(MTM.teamLabels[o.value])o.textContent=MTM.teamLabels[o.value];});
     if(target)Array.prototype.forEach.call(target.options,function(o){if(MTM.teamLabels[o.value])o.textContent='ย้ายไป '+MTM.teamLabels[o.value];});
@@ -1574,7 +1587,7 @@ function bulkMoveMentorTeam(){
 function refreshMentorTeamManager(){
   MTM.loaded=false;loadMentorTeamManager(true);
   gsr('getDesktopDashboard',{role:'mc'},function(r){
-    if(!r||!r.ok)return;D.mem=r.members||[];D.sm=r.summary||{};D.teams=r.teams||[];D.ren=r.renewal||[];
+    if(!r||!r.ok)return;D.mem=r.members||[];D.sm=r.summary||{};D.teams=r.teams||[];D.teamLabels=r.teamLabels||D.teamLabels||{};D.ren=r.renewal||[];
     buildMCFilters();renderMem();renderKPI();renderDonut();renderMTTeams();renderCoach();renderRisk();
   });
 }
@@ -4823,7 +4836,7 @@ function openLTSummary(){
     var da=(t.diff>0?'▲+':t.diff<0?'▼':'')+Math.abs(t.diff||0);
     var dtm=D.teams.find(function(x){return x.team===t.team;})||{};
     h+='<tr>'
-      +'<td style="font-weight:700">'+t.team+'</td>'
+      +'<td style="font-weight:700">'+esc(t.displayName||teamDisplayName(t.team))+'</td>'
       +'<td style="text-align:center;font-weight:700;color:#1e3a5f">'+t.thisAvg+'</td>'
       +'<td style="text-align:center;color:#6b7280">'+t.prevAvg+'</td>'
       +'<td style="text-align:center;font-weight:700;color:'+dc+'">'+da+'</td>'
@@ -4879,7 +4892,7 @@ function openLTSummary(){
     var dc2=t.diff>0?'#15803d':t.diff<0?'#9f1239':'#6b7280';
     h+='<div class="team-box" style="margin-bottom:14px;">'
       +'<div class="team-hdr">'
-      +'<span>👥 '+t.team+'</span>'
+      +'<span>👥 '+esc(t.displayName||teamDisplayName(t.team))+'</span>'
       +'<span>Avg: '+t.thisAvg+' pts &nbsp; '
         +'<span style="color:'+(t.diff>0?'#86efac':t.diff<0?'#fca5a5':'#d1d5db')+'">('+(t.diff>0?'+':'')+t.diff+' vs '+sc.prevMonth+')</span></span>'
       +'</div>'
@@ -6342,7 +6355,7 @@ function openTeamDash(teamName){
     var avg=team.avg||Math.round(mems.reduce(function(a,m){return a+(m.bniScore||0);},0)/cnt);
     var green=team.green!=null?team.green:mems.filter(function(m){return m.bniTl==='green';}).length;
     var gPct=Math.round(green/cnt*100);
-    document.getElementById('tmd-name').textContent='👥 ทีม '+teamName;
+    document.getElementById('tmd-name').textContent='👥 '+teamDisplayName(teamName);
     document.getElementById('tmd-sub').textContent=cnt+' สมาชิก · Avg '+avg+' pt · '+gPct+'% Green';
     var tabs=['📊 ภาพรวม','👥 สมาชิก','💡 แนะนำ'];
     var ovHtml='',memHtml='',recHtml='';

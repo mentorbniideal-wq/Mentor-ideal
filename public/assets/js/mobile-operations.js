@@ -1,4 +1,21 @@
-var S={role:null,token:null,isMC:false,isSystemOwner:false,teamName:null,displayName:null,allMembers:[],teamMembers:[],curFilter:'all',curMFilter:'all',curMentorFilter:'all',curSort:'score-desc',_currentMonth:null,_scoreTeam:'',_scoreName:'',_detailMentor:'',_selectedMentee:'',_mentorReports:[],_mentorRenewals:[]};
+var S={role:null,token:null,isMC:false,isSystemOwner:false,teamName:null,teamDisplayName:null,teamLabels:{},displayName:null,allMembers:[],teamMembers:[],curFilter:'all',curMFilter:'all',curMentorFilter:'all',curSort:'score-desc',_currentMonth:null,_scoreTeam:'',_scoreName:'',_detailMentor:'',_selectedMentee:'',_mentorReports:[],_mentorRenewals:[]};
+function mobileTeamDisplay(code){return code?(S.teamLabels&&S.teamLabels[code]||(code===S.teamName&&S.teamDisplayName)||code):'—';}
+function applyMobileTeamLabels(){
+  if(!S.teamLabels)return;
+  document.querySelectorAll('select option').forEach(function(option){
+    var code=option.value||option.textContent.trim();
+    if(S.teamLabels[code])option.textContent=S.teamLabels[code];
+  });
+  document.querySelectorAll('.fb').forEach(function(button){
+    var code=(button.textContent||'').trim();
+    if(S.teamLabels[code])button.textContent=S.teamLabels[code];
+  });
+  document.querySelectorAll('[data-role]').forEach(function(button){
+    var role=String(button.getAttribute('data-role')||'').toLowerCase();
+    var code={toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP'}[role];
+    if(code&&S.teamLabels[code]&&button.firstChild)button.firstChild.nodeValue='🧑 '+S.teamLabels[code];
+  });
+}
 var GS={members:[],curFilter:'all',loaded:false,taskFilter:'all',lastSummary:null};
 var CI_WEEK_DATA=[];
 
@@ -516,9 +533,9 @@ function enterApp(r){
     showWelcomeTransition(r,function(){enterApp(Object.assign({},r,{_skipWelcome:true}));});
     return;
   }
-  S.role=r.role;S.isMC=r.isMC;S.isSystemOwner=Boolean(r.isSystemOwner);S.teamName=r.teamName;S.displayName=r.displayName;
+  S.role=r.role;S.isMC=r.isMC;S.isSystemOwner=Boolean(r.isSystemOwner);S.teamName=r.teamName;S.teamDisplayName=r.teamDisplayName||null;S.teamLabels=r.teamLabels||S.teamLabels||{};S.displayName=r.displayName;applyMobileTeamLabels();
   // Cache for quick role-switching (survives within same page session)
-  _cachedRoles[r.role]={role:r.role,isMC:r.isMC,isSystemOwner:Boolean(r.isSystemOwner),teamName:r.teamName,displayName:r.displayName,token:r.token||S.token,pin:S.pin,version:r.version,versionDate:r.versionDate};
+  _cachedRoles[r.role]={role:r.role,isMC:r.isMC,isSystemOwner:Boolean(r.isSystemOwner),teamName:r.teamName,teamDisplayName:r.teamDisplayName,teamLabels:r.teamLabels||S.teamLabels,displayName:r.displayName,token:r.token||S.token,pin:S.pin,version:r.version,versionDate:r.versionDate};
   // Log usage — direct dispatch, avoid call() overwriting role with S.role
   try{fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'logUsage',role:r.role,team:r.teamName||r.role,platform:'mobile',logAction:'login',detail:r.displayName||r.role})}).catch(function(){});}catch(e){}
   // แสดง Version ทุก role
@@ -574,7 +591,7 @@ function logout(){
   clearStoredSession();
   var sb=getSbAuth();if(sb)sb.auth.signOut();
   try{localStorage.removeItem('bni_google_auth_used');}catch(e){}
-  S={role:null,token:null,pin:null,isMC:false,isSystemOwner:false,teamName:null,displayName:null,allMembers:[],teamMembers:[],curFilter:'all',curMFilter:'all',curMentorFilter:'all',curSort:'score-desc'};
+  S={role:null,token:null,pin:null,isMC:false,isSystemOwner:false,teamName:null,teamDisplayName:null,teamLabels:{},displayName:null,allMembers:[],teamMembers:[],curFilter:'all',curMFilter:'all',curMentorFilter:'all',curSort:'score-desc'};
   GS={members:[],curFilter:'all',loaded:false,taskFilter:'all'};
   document.getElementById('mcApp').classList.remove('on');
   document.getElementById('mentorApp').classList.remove('on');
@@ -962,7 +979,7 @@ function renderMobileFollowUp(){
 function loadDashboard(){
   call('getDashboard',{},function(err,r){
     if(err||!r.ok){document.getElementById('mc-members').innerHTML='<div class="empty">❌ '+(err?err.message:r.error)+'</div>';return;}
-    S.allMembers=r.members;
+    S.allMembers=r.members;S.teamLabels=r.teamLabels||S.teamLabels||{};applyMobileTeamLabels();
     var s=r.summary;
     document.getElementById('mc-summary').innerHTML='<div class="sg"><div class="sb bG"><div class="n">'+s.green+'</div><div class="l">🟢 เขียว</div></div><div class="sb bY"><div class="n">'+s.yellow+'</div><div class="l">🟡 เหลือง</div></div><div class="sb bR"><div class="n">'+s.red+'</div><div class="l">🔴 แดง</div></div><div class="sb bD"><div class="n">'+s.black+'</div><div class="l">⚫ ดำ</div></div>'+(s.none?'<div class="sb" style="background:rgba(167,139,250,.12);border-color:rgba(167,139,250,.3);"><div class="n" style="color:#A78BFA;">'+s.none+'</div><div class="l">⭐ ใหม่</div></div>':'')+'</div>';
     renderMembers();
@@ -982,7 +999,7 @@ function loadMentorActivity(){
       +'</div>';
     r.teams.forEach(function(t){
       if(t.error){
-        html+='<div class="ma-row"><div class="ma-team" style="color:var(--red);">'+t.team+'</div>'
+        html+='<div class="ma-row"><div class="ma-team" style="color:var(--red);">'+escHtml(t.displayName||mobileTeamDisplay(t.team))+'</div>'
           +'<div class="ma-report ma-err">⚠️ '+t.error+'</div></div>';
         return;
       }
@@ -1012,7 +1029,7 @@ function loadMentorActivity(){
       }
       html+='<div class="ma-row">'
         +'<div class="ma-flag '+flagCls+'">'+flag+'</div>'
-        +'<div class="ma-team">'+t.team+'</div>'
+        +'<div class="ma-team">'+escHtml(t.displayName||mobileTeamDisplay(t.team))+'</div>'
         +'<div class="ma-scores">'+badges+'</div>'
         +'<div class="ma-report">'+rpt+'</div>'
         +'</div>';
@@ -1050,7 +1067,7 @@ function loadWeeklyActions(){
       }
     }
     var urgClass=['','wa-e','wa-w','wa-q','wa-p','wa-ok'];
-    var html='<div class="wa-wrap"><div class="wa-hdr">📋 Action List สัปดาห์นี้ — '+r.teamName+'</div>';
+    var html='<div class="wa-wrap"><div class="wa-hdr">📋 Action List สัปดาห์นี้ — '+escHtml(mobileTeamDisplay(r.teamName))+'</div>';
     r.actions.forEach(function(a){
       var uc=urgClass[a.urgency]||'wa-p';
       var tl={'green':'🟢','yellow':'🟡','red':'🔴','black':'⚫','':'-'}[a.tl]||'-';
@@ -1471,12 +1488,12 @@ function genMentorSummary(){
     if(!S.teamName){toast('⏳ กรุณาเปิดหน้า "ทีมฉัน" ก่อน');return;}
     call('getMyTeam',{},function(err,r){
       if(err||!r.ok){toast('❌ โหลดข้อมูลไม่ได้');return;}
-      S.teamMembers=r.members;S.teamName=r.teamName;
-      _buildMentorSummary(r.members,r.teamName);
+      S.teamMembers=r.members;S.teamName=r.teamName;S.teamDisplayName=r.teamDisplayName||S.teamDisplayName;
+      _buildMentorSummary(r.members,r.teamDisplayName||r.teamName);
     });
     return;
   }
-  _buildMentorSummary(members,S.teamName||'ทีม');
+  _buildMentorSummary(members,S.teamDisplayName||mobileTeamDisplay(S.teamName)||'ทีม');
 }
 
 function _buildMentorSummary(members,teamName){
@@ -1521,7 +1538,7 @@ function _buildMentorSummary(members,teamName){
 
   var lines=[];
   lines.push('📋 BNI IDEAL — รายงาน Mentor');
-  lines.push('ทีม '+teamName);
+  lines.push(String(teamName||'').indexOf('ทีม ')===0?teamName:'ทีม '+teamName);
   lines.push('วันที่ '+dateStr);
   lines.push('━━━━━━━━━━━━━━━━━━━');
   lines.push('');
@@ -1654,7 +1671,7 @@ function openMobMeetPrep(){
 function loadMyTeam(){
   call('getMyTeam',{},function(err,r){
     if(err||!r.ok){document.getElementById('mentor-members').innerHTML='<div class="empty">❌</div>';return;}
-    S.teamMembers=r.members;S.allMembers=r.members;S.teamName=r.teamName||S.teamName;
+    S.teamMembers=r.members;S.allMembers=r.members;S.teamName=r.teamName||S.teamName;S.teamDisplayName=r.teamDisplayName||S.teamDisplayName;
     renderMentorMembers();renderMentorDirectory();loadMentorWorkHub();
   });
 }
@@ -6046,7 +6063,7 @@ function loadMentorPerformance(){
       var dnColor=t.scoreDown>0?'var(--red)':'var(--gray2)';
       html+='<div class="perf-card">'
         +'<div class="perf-hdr">'
-        +'<div class="perf-team">🛡️ '+escHtml(t.team)+'</div>'
+        +'<div class="perf-team">🛡️ '+escHtml(t.displayName||mobileTeamDisplay(t.team))+'</div>'
         +'<span class="perf-flag '+flag+'">'+flagLabel+'</span>'
         +'</div>'
         +'<div class="perf-grid">'

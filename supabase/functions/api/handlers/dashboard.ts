@@ -208,6 +208,20 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       const { data: rows, error } = await dashboardQuery;
       if (error) return errResponse(error.message);
 
+      const { data: teamCatalogRows, error: teamCatalogError } = await db
+        .from('mentor_teams')
+        .select('name,leader_name,display_name')
+        .order('id');
+      if (teamCatalogError) return errResponse(teamCatalogError.message);
+      const teamLabels: Record<string, string> = {};
+      for (const row of (teamCatalogRows || []) as Record<string, unknown>[]) {
+        const code = String(row.name || '');
+        if (!code) continue;
+        teamLabels[code] = String(
+          row.display_name || `ทีม ${String(row.leader_name || code)}`,
+        );
+      }
+
       const memberIds = (rows || []).map((m: Record<string, unknown>) => String(m.id));
 
       const { data: renewalRows } = memberIds.length
@@ -423,6 +437,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         const act = actMap[teamName]  || {};
         return {
           team: teamName,
+          displayName: teamLabels[teamName] || teamName,
           count: ta.count,
           avg: ta.scored ? Math.round(ta.scoreSum / ta.scored) : 0,
           green: ta.green, yellow: ta.yellow, red: ta.red, black: ta.black, none: ta.none,
@@ -525,7 +540,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         reviewDate: directorySettings.get('CHAPTER_DIRECTORY_REVIEW_DATE') || '',
         decision: directorySettings.get('CHAPTER_DIRECTORY_REVIEW_DECISION') || 'pending',
       } : null;
-      return jsonResponse({ ok: true, members, summary, teams, renewal, health, nmList, directoryRollout, updatedAt: new Date().toISOString() });
+      return jsonResponse({ ok: true, members, summary, teams, teamLabels, renewal, health, nmList, directoryRollout, updatedAt: new Date().toISOString() });
     }
 
     case 'getMemberDetail': {
@@ -838,13 +853,27 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         };
       });
 
-      return jsonResponse({ ok: true, teamName, members: memberList });
+      const { data: teamRow } = !isSupport
+        ? await db.from('mentor_teams').select('leader_name,display_name').eq('name', teamName).maybeSingle()
+        : { data: null };
+      const teamDisplayName = isSupport
+        ? 'ทุกทีม'
+        : String((teamRow as Record<string, unknown> | null)?.display_name || `ทีม ${String((teamRow as Record<string, unknown> | null)?.leader_name || teamName)}`);
+      return jsonResponse({ ok: true, teamName, teamDisplayName, members: memberList });
     }
 
     case 'getMentorActivity': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
       const teams = await getMentorActivityData(db);
+      const { data: teamRows } = await db.from('mentor_teams').select('name,leader_name,display_name');
+      const labels = new Map(((teamRows || []) as Record<string, unknown>[]).map((row) => [
+        String(row.name || ''),
+        String(row.display_name || `ทีม ${String(row.leader_name || row.name || '')}`),
+      ]));
+      for (const team of teams as Record<string, unknown>[]) {
+        team.displayName = labels.get(String(team.team || '')) || String(team.team || '');
+      }
       return jsonResponse({ ok: true, teams });
     }
 
@@ -852,7 +881,13 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
       const teams = await getMentorActivityData(db);
+      const { data: teamRows } = await db.from('mentor_teams').select('name,leader_name,display_name');
+      const labels = new Map(((teamRows || []) as Record<string, unknown>[]).map((row) => [
+        String(row.name || ''),
+        String(row.display_name || `ทีม ${String(row.leader_name || row.name || '')}`),
+      ]));
       for (const t of teams) {
+        (t as Record<string, unknown>).displayName = labels.get(String((t as Record<string, unknown>).team || '')) || String((t as Record<string, unknown>).team || '');
         const { data: issues } = await db.from('core_issues').select('opened_at')
           .eq('mentor_team', (t as Record<string, unknown>).team as string).eq('status', 'open');
         let oldest = 0;
