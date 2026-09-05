@@ -8,6 +8,7 @@ import { calcPalmsScore } from '../../_shared/palms.ts';
 import { canManageMemberSignal, canTransitionMemberSignal, canViewMemberSignal } from '../../_shared/member-signal-access.ts';
 import { linePush, sha256Hex } from '../../_shared/line.ts';
 import { evaluateNotificationGuard, logSuppressedNotification } from '../../_shared/notification-orchestrator.ts';
+import { palmsPeriodDays, shouldUpdateCurrentPalms } from '../../_shared/bni-report-import.ts';
 
 const VALID_TEAMS = new Set(['TOOMTAM', 'Aof', 'Draft', 'PHAI', 'AMP']);
 const GROWTH_WATCH_MIN_SCORE = 65;
@@ -457,7 +458,8 @@ function safeRosterImportText(value: unknown): string | null {
 }
 
 function isNameLine(y: number, anchorY: number): boolean {
-  return Math.abs(y - anchorY) <= 2 || Math.abs(y - (anchorY - 10)) <= 2;
+  const delta = y - anchorY;
+  return delta <= 2 && delta >= -12;
 }
 
 function parseRunAt(value: string): string | null {
@@ -492,13 +494,52 @@ function pickInt(entries: Array<{ page?: number; x: number; y: number; text: str
   return Number.isFinite(n) ? n : 0;
 }
 
+function dominantPhoneX(entries: Array<{ page?: number; x: number; y: number; text: string }>): number | null {
+  const buckets = new Map<number, { count: number; values: number[] }>();
+  for (const entry of entries) {
+    if (normalizePhone(entry.text).length < 9) continue;
+    const bucket = Math.round(entry.x / 8) * 8;
+    const current = buckets.get(bucket) || { count: 0, values: [] };
+    current.count++;
+    current.values.push(entry.x);
+    buckets.set(bucket, current);
+  }
+  const winner = [...buckets.values()].sort((a, b) => b.count - a.count)[0];
+  if (!winner || winner.count < 2) return null;
+  return winner.values.reduce((sum, value) => sum + value, 0) / winner.values.length;
+}
+
 function parseRosterReportFromEntries(entries: Array<{ page?: number; x: number; y: number; text: string }>): ParsedRosterReport {
   const runAtText = entries.find((e) => e.text.match(/^[A-Z][a-z]{2}\s+\d{1,2},\s+\d{4}/))?.text || '';
-  const chapter = entries.find((e) => e.x > 500 && e.y > 760 && e.text && !/Chapter|Country|Region/.test(e.text))?.text || null;
+  const chapterLabel = entries.find((e) => /^Chapter(?::|\b)/.test(e.text.trim()));
+  const chapterInline = chapterLabel?.text.match(/^Chapter:\s*(.+)$/)?.[1]?.trim() || '';
+  const chapter = chapterInline || (chapterLabel
+    ? entries.filter((e) => e.page === chapterLabel.page && e.x > chapterLabel.x && Math.abs(e.y - chapterLabel.y) <= 2).sort((a, b) => a.x - b.x)[0]?.text || null
+    : null);
   const memberCountLabel = Number((entries.find((e) => /\d+\s+Members/.test(e.text))?.text || '').match(/(\d+)/)?.[1] || '') || null;
+  // BNI Connect has shipped the same report at multiple PDF scales. Infer the
+  // member-table phone column from the dominant phone position instead of
+  // binding imports to one historical set of coordinates.
+  const phoneX = dominantPhoneX(entries) || 312;
+  const phoneTolerance = Math.max(12, phoneX * 0.075);
   const phoneAnchors = entries
-    .filter((e) => e.x >= 295 && e.x < 340 && normalizePhone(e.text).length >= 9)
+    .filter((e) => Math.abs(e.x - phoneX) <= phoneTolerance && normalizePhone(e.text).length >= 9)
     .sort((a, b) => b.y - a.y);
+
+  const rosterHeaders = ['Member Name', 'Profession', 'Company Name', 'Phone']
+    .map((label) => entries.find((entry) => entry.text.trim() === label)?.x || 0);
+  const hasRosterHeaders = rosterHeaders.every((x) => x > 0);
+  const nameMaxX = hasRosterHeaders ? (rosterHeaders[0] + rosterHeaders[1]) / 2 : phoneX * 0.34;
+  const professionMinX = nameMaxX;
+  const professionMaxX = hasRosterHeaders ? (rosterHeaders[1] + rosterHeaders[2]) / 2 : phoneX * 0.61;
+  const companyMinX = professionMaxX;
+  const companyMaxX = hasRosterHeaders ? (rosterHeaders[2] + rosterHeaders[3]) / 2 : phoneX * 0.99;
+  const metricCenters = [1.27, 1.42, 1.56, 1.60, 1.70, 1.80].map((ratio) => phoneX * ratio);
+  const metricBounds = metricCenters.map((center, index) => {
+    const left = index === 0 ? center - (metricCenters[1] - center) * 0.5 : (metricCenters[index - 1] + center) / 2;
+    const right = index === metricCenters.length - 1 ? center + (center - metricCenters[index - 1]) * 0.5 : (center + metricCenters[index + 1]) / 2;
+    return [left, right] as [number, number];
+  });
 
   const rows: RosterMemberRow[] = [];
   const seen = new Set<string>();
@@ -511,7 +552,7 @@ function parseRosterReportFromEntries(entries: Array<{ page?: number; x: number;
       .map((candidate) => candidate.y));
     const rowBottom = Number.isFinite(nextAnchorY) ? nextAnchorY + 2 : y - 45;
     const near = entries.filter((e) => e.page === anchor.page && e.y <= y + 2 && e.y > rowBottom);
-    const name = cleanRosterText(near.filter((e) => e.x >= 25 && e.x < 105 && isNameLine(e.y, y)).sort((a, b) => b.y - a.y || a.x - b.x).map((e) => e.text));
+    const name = cleanRosterText(near.filter((e) => e.x >= 20 && e.x < nameMaxX && isNameLine(e.y, y)).sort((a, b) => b.y - a.y || a.x - b.x).map((e) => e.text));
     if (!name || /Member Name|Running User|Parameters|Officers|Regional Leadership/.test(name)) continue;
     const key = normalizeMemberName(name);
     if (!key || seen.has(key)) continue;
@@ -519,15 +560,15 @@ function parseRosterReportFromEntries(entries: Array<{ page?: number; x: number;
 
     rows.push({
       rawName: name,
-      profession: cleanRosterText(near.filter((e) => e.x >= 105 && e.x < 190).sort((a, b) => b.y - a.y || a.x - b.x).map((e) => e.text)),
-      companyName: cleanRosterText(near.filter((e) => e.x >= 190 && e.x < 295).sort((a, b) => b.y - a.y || a.x - b.x).map((e) => e.text)),
+      profession: cleanRosterText(near.filter((e) => e.x >= professionMinX && e.x < professionMaxX).sort((a, b) => b.y - a.y || a.x - b.x).map((e) => e.text)),
+      companyName: cleanRosterText(near.filter((e) => e.x >= companyMinX && e.x < companyMaxX).sort((a, b) => b.y - a.y || a.x - b.x).map((e) => e.text)),
       phone: anchor.text.replace(/\s+/g, ' ').trim(),
-      referralsGiven90d: pickInt(entries, 380, 402, y, anchor.page),
-      referralsReceived90d: pickInt(entries, 425, 445, y, anchor.page),
-      visitors90d: pickInt(entries, 465, 482, y, anchor.page),
-      oneToOne90d: pickInt(entries, 484, 505, y, anchor.page),
-      late90d: pickInt(entries, 512, 528, y, anchor.page),
-      absent90d: pickInt(entries, 545, 570, y, anchor.page),
+      referralsGiven90d: pickInt(entries, ...metricBounds[0], y, anchor.page),
+      referralsReceived90d: pickInt(entries, ...metricBounds[1], y, anchor.page),
+      visitors90d: pickInt(entries, ...metricBounds[2], y, anchor.page),
+      oneToOne90d: pickInt(entries, ...metricBounds[3], y, anchor.page),
+      late90d: pickInt(entries, ...metricBounds[4], y, anchor.page),
+      absent90d: pickInt(entries, ...metricBounds[5], y, anchor.page),
     });
   }
 
@@ -556,38 +597,63 @@ function pickNumber(entries: Array<{ page?: number; x: number; y: number; text: 
 
 function parsePalmsSummaryReportFromEntries(entries: Array<{ page?: number; x: number; y: number; text: string }>): ParsedPalmsSummaryReport {
   const runAtText = entries.find((e) => e.text.match(/^[A-Z][a-z]{2}\s+\d{1,2},\s+\d{4}/))?.text || '';
-  const chapter = entries.find((e) => e.x > 500 && e.y > 760 && e.text && !/Chapter|Country|Region/.test(e.text))?.text || null;
-  const fromText = entries.find((e) => e.x > 280 && e.x < 330 && e.y > 650 && e.y < 675 && /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(e.text))?.text || '';
-  const toText = entries.find((e) => e.x > 280 && e.x < 330 && e.y > 640 && e.y < 660 && /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(e.text))?.text || '';
+  const chapterLabel = entries.find((e) => /^Chapter(?::|\b)/.test(e.text.trim()));
+  const chapterInline = chapterLabel?.text.match(/^Chapter:\s*(.+)$/)?.[1]?.trim() || '';
+  const chapter = chapterInline || (chapterLabel
+    ? entries.filter((e) => e.page === chapterLabel.page && e.x > chapterLabel.x && Math.abs(e.y - chapterLabel.y) <= 2).sort((a, b) => a.x - b.x)[0]?.text || null
+    : null);
+  const dateEntries = entries.filter((e) => /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(e.text));
+  const fromText = dateEntries[0]?.text || '';
+  const toText = dateEntries[1]?.text || '';
+  const headerLabels = ['P', 'A', 'L', 'M', 'S', 'RGI', 'RGO', 'RRI', 'RRO', 'Visitors', '1-2-1', 'Rev Given', 'CEU', 'Rev Rcvd'];
+  const headerEntries = headerLabels.map((label) => entries.find((e) => e.text.trim() === label));
+  const centers = headerEntries.map((entry) => entry?.x ?? 0);
+  const hasAdaptiveHeaders = centers.every((x) => x > 0);
+  const pCenter = hasAdaptiveHeaders ? centers[0] : 137;
+  const bounds = centers.map((center, index) => {
+    if (!hasAdaptiveHeaders) return null;
+    // Numeric values are right-aligned while the PDF header labels are
+    // left-aligned. Put boundaries three quarters of the way to the adjacent
+    // label so a Visitors value cannot be concatenated into the 1-2-1 value.
+    const left = index === 0 ? center - (centers[1] - center) * 0.35 : centers[index - 1] + (center - centers[index - 1]) * 0.75;
+    const right = index === centers.length - 1 ? center + (center - centers[index - 1]) * 1.35 : center + (centers[index + 1] - center) * 0.75;
+    return [left, right] as [number, number];
+  });
   const anchors = entries
-    .filter((e) => e.x >= 128 && e.x < 146 && /^\d+(?:\.\d+)?$/.test(e.text) && e.y < 590)
+    .filter((e) => Math.abs(e.x - pCenter) < Math.max(10, pCenter * 0.1) && /^\d+(?:\.\d+)?$/.test(e.text) && e.y < (headerEntries[0]?.y ?? 590))
     .sort((a, b) => b.y - a.y);
 
   const rows: PalmsSummaryRow[] = [];
   const seen = new Set<string>();
   for (const anchor of anchors) {
     const y = anchor.y;
-    const near = entries.filter((e) => e.page === anchor.page && e.y <= y + 2 && e.y >= y - 18);
-    const rawName = cleanRosterText(near.filter((e) => e.x >= 28 && e.x < 118 && isNameLine(e.y, y)).sort((a, b) => b.y - a.y || a.x - b.x).map((e) => e.text));
+    const nextAnchorY = Math.max(-Infinity, ...anchors
+      .filter((candidate) => candidate.page === anchor.page && candidate.y < y - 2)
+      .map((candidate) => candidate.y));
+    const rowBottom = Number.isFinite(nextAnchorY) ? nextAnchorY + 2 : y - 14;
+    const near = entries.filter((e) => e.page === anchor.page && e.y <= y + 2 && e.y > rowBottom);
+    const rawName = cleanRosterText(near.filter((e) => e.x >= 20 && e.x < pCenter * 0.92 && isNameLine(e.y, y)).sort((a, b) => b.y - a.y || a.x - b.x).map((e) => e.text));
     const key = normalizeMemberName(rawName);
     if (!key || seen.has(key) || /Member Name|Parameters|Chapter/.test(rawName)) continue;
     if (/^(Visitors?|BNI|Total)$/i.test(rawName)) continue;
     seen.add(key);
 
-    const present = pickNumber(entries, 128, 148, y, anchor.page);
-    const absent = pickNumber(entries, 155, 172, y, anchor.page);
-    const late = pickNumber(entries, 176, 192, y, anchor.page);
-    const medical = pickNumber(entries, 196, 214, y, anchor.page);
-    const substitute = pickNumber(entries, 220, 240, y, anchor.page);
-    const rgi = pickNumber(entries, 245, 267, y, anchor.page);
-    const rgo = pickNumber(entries, 274, 294, y, anchor.page);
-    const rri = pickNumber(entries, 302, 322, y, anchor.page);
-    const rro = pickNumber(entries, 332, 350, y, anchor.page);
-    const visitors = pickNumber(entries, 354, 397, y, anchor.page);
-    const oneToOne = pickNumber(entries, 402, 426, y, anchor.page);
-    const revenueGivenThb = pickNumber(entries, 428, 488, y, anchor.page);
-    const ceu = pickNumber(entries, 488, 516, y, anchor.page);
-    const revenueReceivedThb = pickNumber(entries, 520, 568, y, anchor.page);
+    const legacy = [[128,148],[155,172],[176,192],[196,214],[220,240],[245,267],[274,294],[302,322],[332,350],[354,397],[402,426],[428,488],[488,516],[520,568]] as Array<[number, number]>;
+    const valueAt = (index: number) => pickNumber(entries, ...(bounds[index] || legacy[index]), y, anchor.page);
+    const present = valueAt(0);
+    const absent = valueAt(1);
+    const late = valueAt(2);
+    const medical = valueAt(3);
+    const substitute = valueAt(4);
+    const rgi = valueAt(5);
+    const rgo = valueAt(6);
+    const rri = valueAt(7);
+    const rro = valueAt(8);
+    const visitors = valueAt(9);
+    const oneToOne = valueAt(10);
+    const revenueGivenThb = valueAt(11);
+    const ceu = valueAt(12);
+    const revenueReceivedThb = valueAt(13);
     const palms = calcPalmsScore({
       attend: present,
       absent,
@@ -634,7 +700,7 @@ function parsePalmsSummaryReportFromEntries(entries: Array<{ page?: number; x: n
   };
 }
 
-async function parsePalmsSummaryPdf(pdfBase64: unknown): Promise<ParsedPalmsSummaryReport> {
+export async function parsePalmsSummaryPdf(pdfBase64: unknown): Promise<ParsedPalmsSummaryReport> {
   const bytes = decodeBase64Pdf(pdfBase64);
   const streams = await extractPdfStreams(bytes);
   if (!streams.length) throw new Error('อ่าน PDF ไม่ได้ หรือไม่พบ compressed stream');
@@ -698,7 +764,7 @@ export async function buildRosterPreview(db: ReturnType<typeof getServiceClient>
   };
 }
 
-async function buildPalmsSummaryPreview(db: ReturnType<typeof getServiceClient>, report: ParsedPalmsSummaryReport) {
+export async function buildPalmsSummaryPreview(db: ReturnType<typeof getServiceClient>, report: ParsedPalmsSummaryReport) {
   const { data, error } = await db
     .from('members')
     .select('id, name, nickname, phone, is_archived')
@@ -730,6 +796,8 @@ async function buildPalmsSummaryPreview(db: ReturnType<typeof getServiceClient>,
     chapter: report.chapter,
     periodFrom: report.periodFrom,
     periodTo: report.periodTo,
+    periodDays: palmsPeriodDays(report.periodFrom, report.periodTo),
+    historicalOnly: !shouldUpdateCurrentPalms(report.periodFrom, report.periodTo),
     totalRows: rows.length,
     matched: rows.filter((r) => r.matched).length,
     unmatched: rows.filter((r) => !r.matched).length,
@@ -2649,7 +2717,8 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       const preview = await buildPalmsSummaryPreview(db, report) as Record<string, unknown>;
       const rows = (preview.rows || []) as Array<Record<string, unknown>>;
       const matchedRows = rows.filter((r) => r.matched && r.memberId);
-      const memberIds = matchedRows.map((r) => String(r.memberId));
+      const updateOperationalStats = shouldUpdateCurrentPalms(report.periodFrom, report.periodTo);
+      const memberIds = updateOperationalStats ? matchedRows.map((r) => String(r.memberId)) : [];
       const { data: existingStats } = memberIds.length
         ? await db.from('r2y_stats').select('member_id, bni_days').in('member_id', memberIds)
         : { data: [] };
@@ -2695,28 +2764,30 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
         if (snapErr) errors.push(`${row.rawName} snapshot: ${snapErr.message}`);
         else insertedSnapshots++;
 
-        const r2yUpsertRow: Record<string, unknown> = {
-          member_id:    memberId,
-          rg:           (Number(row.rgi) || 0) + (Number(row.rgo) || 0),
-          rr:           (Number(row.rri) || 0) + (Number(row.rro) || 0),
-          visitors:     Number(row.visitors) || 0,
-          one_to_one:   Number(row.oneToOne) || 0,
-          ceu:          Number(row.ceu) || 0,
-          tyfcb_thb:    Number(row.revenueGivenThb) || 0,
-          official_pts: Number(row.calculatedScore) || 0,
-          attend:       Number(row.present) || 0,
-          absent:       Number(row.absent) || 0,
-          late:         Number(row.late) || 0,
-          medical:      Number(row.medical) || 0,
-          sub:          Number(row.substitute) || 0,
-          synced_at:    now,
-        };
-        // Only include bni_days if member has an existing r2y_stats row — prevents overwriting
-        // valid bni_days (set from R2Y CSV) with 0 on first PALMS import for new members
-        if (memberId in bniDaysMap) r2yUpsertRow.bni_days = bniDaysMap[memberId];
-        const { error: r2yErr } = await db.from('r2y_stats').upsert(r2yUpsertRow, { onConflict: 'member_id', ignoreDuplicates: false });
-        if (r2yErr) errors.push(`${row.rawName} r2y: ${r2yErr.message}`);
-        else updatedR2Y++;
+        if (updateOperationalStats) {
+          const r2yUpsertRow: Record<string, unknown> = {
+            member_id:    memberId,
+            rg:           (Number(row.rgi) || 0) + (Number(row.rgo) || 0),
+            rr:           (Number(row.rri) || 0) + (Number(row.rro) || 0),
+            visitors:     Number(row.visitors) || 0,
+            one_to_one:   Number(row.oneToOne) || 0,
+            ceu:          Number(row.ceu) || 0,
+            tyfcb_thb:    Number(row.revenueGivenThb) || 0,
+            official_pts: Number(row.calculatedScore) || 0,
+            attend:       Number(row.present) || 0,
+            absent:       Number(row.absent) || 0,
+            late:         Number(row.late) || 0,
+            medical:      Number(row.medical) || 0,
+            sub:          Number(row.substitute) || 0,
+            synced_at:    now,
+          };
+          // Only include bni_days if member has an existing r2y_stats row — prevents overwriting
+          // valid bni_days (set from R2Y CSV) with 0 on first PALMS import for new members
+          if (memberId in bniDaysMap) r2yUpsertRow.bni_days = bniDaysMap[memberId];
+          const { error: r2yErr } = await db.from('r2y_stats').upsert(r2yUpsertRow, { onConflict: 'member_id', ignoreDuplicates: false });
+          if (r2yErr) errors.push(`${row.rawName} r2y: ${r2yErr.message}`);
+          else updatedR2Y++;
+        }
       }
 
       return jsonResponse({
@@ -2730,6 +2801,8 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
         unmatched: rows.length - matchedRows.length,
         insertedSnapshots,
         updatedR2Y,
+        historicalOnly: !updateOperationalStats,
+        periodDays: palmsPeriodDays(report.periodFrom, report.periodTo),
         errors,
       });
     }

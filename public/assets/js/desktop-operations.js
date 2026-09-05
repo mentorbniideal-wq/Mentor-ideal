@@ -3668,8 +3668,9 @@ function renderPalmsSummaryPreview(r){
       +'</tr>';
   }).join('');
   var note=(r.rows||[]).length>140?'<div style="font-size:10px;color:var(--sub);margin-top:8px">แสดง 140 แถวแรก</div>':'';
+  var historyNote=r.historicalOnly?'<div style="padding:9px 11px;margin-bottom:9px;border:1px solid var(--ye);border-radius:10px;color:var(--ye);font-size:11px">🗂️ ช่วงรายงาน '+escH(String(r.periodDays||'—'))+' วัน — จะเก็บเป็นประวัติเท่านั้น และไม่ทับคะแนนปัจจุบันบน Dashboard</div>':'';
   if(body)body.innerHTML='<div style="text-align:left;font-size:11px;color:var(--sub);margin-bottom:8px">Report: '+escH(r.chapter||'—')+' · '+escH(r.periodFrom||'—')+' → '+escH(r.periodTo||'—')+' · run '+escH(r.runAt||'—')+'</div>'
-    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px;min-width:780px">'
+    +historyNote+'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px;min-width:780px">'
     +'<thead><tr style="border-bottom:1px solid var(--bd)">'
     +'<th style="padding:6px 9px;text-align:left;color:var(--sub)">ชื่อใน PALMS</th>'
     +'<th style="padding:6px 9px;text-align:left;color:var(--sub)">Attendance</th>'
@@ -3712,7 +3713,8 @@ function syncPalmsSummaryImport(){
   var msg=document.getElementById('palms-import-msg');
   if(!_palmsImport.pdfBase64){toast('กรุณา Preview ก่อน Sync');return;}
   var p=_palmsImport.preview||{};
-  if(!confirm('Sync Summary PALMS ช่วง '+(p.periodFrom||'—')+' → '+(p.periodTo||'—')+' ?\\n\\nระบบจะอัปเดต raw PALMS ล่าสุดของสมาชิกที่ match แล้ว'))return;
+  var effect=p.historicalOnly?'ระบบจะเก็บ Snapshot ประวัติ และจะไม่ทับคะแนนปัจจุบัน':'ระบบจะอัปเดต Snapshot และคะแนนปัจจุบันของสมาชิกที่ match';
+  if(!confirm('Sync Summary PALMS ช่วง '+(p.periodFrom||'—')+' → '+(p.periodTo||'—')+' ?\\n\\n'+effect))return;
   if(btn){btn.disabled=true;btn.textContent='⏳ Syncing…';btn.style.opacity='.6';}
   if(msg){msg.textContent='กำลัง Sync Summary PALMS…';msg.style.color='var(--sub)';}
   gsr('syncPalmsSummaryImport',{role:S.role,pdfBase64:_palmsImport.pdfBase64},function(r){
@@ -3721,7 +3723,8 @@ function syncPalmsSummaryImport(){
       if(msg){msg.textContent='❌ '+(r&&r.error||'Sync ไม่สำเร็จ');msg.style.color='var(--re)';}
       return;
     }
-    if(msg){msg.textContent='✅ Sync แล้ว: R2Y '+(r.updatedR2Y||0)+' คน · snapshots '+(r.insertedSnapshots||0)+' รายการ'+((r.errors&&r.errors.length)?' · ⚠️ '+r.errors.join(' | '):'');msg.style.color=(r.errors&&r.errors.length)?'var(--ye)':'var(--gr)';}
+    var resultLabel=r.historicalOnly?'เก็บประวัติแล้ว (ไม่ทับคะแนนปัจจุบัน)':'อัปเดต R2Y '+(r.updatedR2Y||0)+' คน';
+    if(msg){msg.textContent='✅ '+resultLabel+' · snapshots '+(r.insertedSnapshots||0)+' รายการ'+((r.errors&&r.errors.length)?' · ⚠️ '+r.errors.join(' | '):'');msg.style.color=(r.errors&&r.errors.length)?'var(--ye)':'var(--gr)';}
     gsr('getDesktopDashboard',{role:'mc'},function(r2){if(r2&&r2.ok){D.mem=r2.members||[];D.sm=r2.summary||{};D.teams=r2.teams||[];D.ren=r2.renewal||[];renderMCAll&&renderMCAll();}});
   });
 }
