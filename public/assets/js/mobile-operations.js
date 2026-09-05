@@ -413,11 +413,32 @@ var roleNames={mc:'Mentor Co.',toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'P
 var _entryAuth=null;
 var _welcomeTimer=null;
 
+function pickWelcomeMessage(role){
+  var messages=[
+    'ทุกการดูแลของเรา\nช่วยให้ IDEAL แข็งแรงขึ้น',
+    'มาช่วยให้ทุกคนใน IDEAL\nเข้าถึงทรัพยากรได้อย่างเต็มที่',
+    'เมื่อเราเข้าใจเมมเบอร์\nเราจะเปิดโอกาสที่เหมาะกับเขาได้',
+    'เราไม่ได้ดูแลเพียงคะแนน\nเรากำลังดูแลการเติบโตของทุกคน',
+    'หนึ่งการติดตามที่ใส่ใจ\nอาจเปลี่ยนโอกาสของใครบางคน',
+    'แบ่งปันข้อมูลให้ถูกคน\nเพื่อให้ทรัพยากรสร้างผลลัพธ์เต็มที่',
+    'IDEAL เติบโตได้ดีที่สุด\nเมื่อไม่มีใครถูกทิ้งไว้ข้างหลัง',
+    'มาช่วยกันเปลี่ยนข้อมูลวันนี้\nให้เป็นโอกาสของทุกคนในวันข้างหน้า',
+    'ทุกคนมีศักยภาพที่รอการเชื่อมโยง\nMentor คือคนช่วยเปิดทางนั้น',
+    'ทำเพื่อ IDEAL ทำเพื่อทุกคน\nและทำให้ทุกโอกาสถูกใช้อย่างคุ้มค่า'
+  ];
+  var storageKey='bni_welcome_message_'+String(role||'member'),previous=-1;
+  try{previous=Number(sessionStorage.getItem(storageKey));}catch(e){}
+  var index=Math.floor(Math.random()*messages.length);
+  if(messages.length>1&&index===previous)index=(index+1)%messages.length;
+  try{sessionStorage.setItem(storageKey,String(index));}catch(e){}
+  return messages[index];
+}
 function welcomeCopy(r){
   var isMentor=Boolean(r.isMentor)||['toomtam','aof','draft','phai','amp','mentor_support'].includes(String(r.role||''));
-  if(isMentor)return{eyebrow:'ยินดีต้อนรับ Mentor',name:r.displayName||roleNames[r.role]||'MENTOR',message:'มาช่วยกันทำให้เมมเบอร์\nเข้าใจระบบและเติบโตไปด้วยกัน'};
-  if(r.role==='growth')return{eyebrow:'ยินดีต้อนรับ Growth',name:r.displayName||'GROWTH',message:'มาช่วยกันสร้างโอกาส\nให้ Chapter เติบโตไปด้วยกัน'};
-  return{eyebrow:'ยินดีต้อนรับ Mentor Co.',name:r.displayName||'MENTOR CO.',message:'มาช่วยกันดูแลเมมเบอร์\nและขับเคลื่อน Chapter ไปด้วยกัน'};
+  var message=pickWelcomeMessage(r.role);
+  if(isMentor)return{eyebrow:'ยินดีต้อนรับ Mentor',name:r.displayName||roleNames[r.role]||'MENTOR',message:message};
+  if(r.role==='growth')return{eyebrow:'ยินดีต้อนรับ Growth',name:r.displayName||'GROWTH',message:message};
+  return{eyebrow:'ยินดีต้อนรับ Mentor Co.',name:r.displayName||'MENTOR CO.',message:message};
 }
 function showWelcomeTransition(r,done){
   var screen=document.getElementById('welcomeTransition');if(!screen){done();return;}

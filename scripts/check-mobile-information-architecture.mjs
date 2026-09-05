@@ -34,6 +34,8 @@ expect(auth.includes('!authResult.isSystemOwner'), 'PIN changes must require the
 expect(html.includes('id="welcomeTransition"'), 'authenticated mobile entry needs a welcome transition');
 expect(js.includes('showWelcomeTransition(r'), 'all authenticated mobile roles need to pass through the welcome transition');
 expect(js.includes('_skipWelcome:true'), 'welcome transition must run once per authenticated entry');
+expect(js.includes('pickWelcomeMessage'), 'welcome transition needs rotating motivational copy');
+expect(js.includes('index===previous'), 'welcome copy must avoid an immediate repeat');
 
 if (failures.length) {
   console.error(failures.map(item => `FAIL ${item}`).join('\n'));
