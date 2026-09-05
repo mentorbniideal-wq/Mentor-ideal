@@ -28,6 +28,7 @@ import {
 } from '../_shared/line.ts';
 import { provisionLineExperience } from '../_shared/line-provision.ts';
 import { lineAutomationDecision, lineAutomationMessage } from '../_shared/line-automation.ts';
+import webpush from 'npm:web-push@3.6.7';
 
 Deno.serve(async (req: Request) => {
   const authHeader = req.headers.get('Authorization') || '';
@@ -56,6 +57,13 @@ Deno.serve(async (req: Request) => {
   console.log(`[cron-jobs] Running job: ${job}`);
 
   try {
+    if (job === 'webPushDispatch') {
+      const result = await webPushDispatch(db);
+      await finishRun(result.failed ? 'failed' : 'succeeded', { metadata: result });
+      return new Response(JSON.stringify({ ok: result.failed === 0, job, ...result }), {
+        status: result.failed ? 500 : 200, headers: { 'Content-Type': 'application/json' },
+      });
+    }
     const decision = await lineAutomationDecision(db, job);
     if (!decision.allowed) {
       console.log(`[cron-jobs] Skipped ${job}: ${decision.reason}`);
@@ -119,6 +127,70 @@ interface MemberRow {
   ceu:         number;  // CEU sessions
   tyfcb_thb:   number;  // TYFB in baht
   absent:      number;  // absence count
+}
+
+async function webPushDispatch(db: DB): Promise<{ jobs: number; accepted: number; failed: number; paused?: boolean }> {
+  const publicKey = String(Deno.env.get('WEB_PUSH_VAPID_PUBLIC_KEY') || '');
+  const privateKey = String(Deno.env.get('WEB_PUSH_VAPID_PRIVATE_KEY') || '');
+  const subject = String(Deno.env.get('WEB_PUSH_VAPID_SUBJECT') || 'mailto:admin@example.invalid');
+  if (!publicKey || !privateKey) return { jobs: 0, accepted: 0, failed: 0, paused: true };
+  webpush.setVapidDetails(subject, publicKey, privateKey);
+
+  const now = new Date().toISOString();
+  const { data: jobs } = await db.from('web_push_jobs')
+    .select('id,notification_id,chapter_id,attempts')
+    .in('status', ['pending', 'failed']).lte('next_attempt_at', now)
+    .order('created_at').limit(20);
+  let accepted = 0, failed = 0;
+  for (const raw of jobs || []) {
+    const job = raw as Record<string, unknown>;
+    await db.from('web_push_jobs').update({ status: 'processing', locked_at: now })
+      .eq('id', job.id).in('status', ['pending', 'failed']);
+    const { data: notification } = await db.from('notifications')
+      .select('id,title,body,severity,type,data,action_url,target_audience,expires_at,chapter_id')
+      .eq('id', job.notification_id).maybeSingle();
+    if (!notification || (notification.expires_at && new Date(notification.expires_at).getTime() <= Date.now())) {
+      await db.from('web_push_jobs').update({ status: 'completed', completed_at: now, last_error: 'expired_or_missing' }).eq('id', job.id);
+      continue;
+    }
+    let subsQuery = db.from('web_push_subscriptions').select('*').eq('status', 'active');
+    if (notification.chapter_id) subsQuery = subsQuery.eq('chapter_id', notification.chapter_id);
+    const { data: subscriptions } = await subsQuery;
+    const audiences = Array.isArray(notification.target_audience) ? notification.target_audience.map(String) : null;
+    const eligible = (subscriptions || []).filter((s: Record<string, unknown>) => !audiences || audiences.includes(String(s.recipient_key)));
+    let jobFailures = 0;
+    for (const s of eligible as Record<string, unknown>[]) {
+      const attemptNumber = Number(job.attempts || 0) + 1;
+      try {
+        const result = await webpush.sendNotification({
+          endpoint: String(s.endpoint),
+          keys: { p256dh: String(s.p256dh), auth: String(s.auth_secret) },
+        }, JSON.stringify({
+          title: String(notification.title || 'แจ้งเตือน'), body: String(notification.body || ''),
+          icon: '/favicon.svg', badge: '/favicon.svg',
+          tag: `bni-${String(notification.id)}`, renotify: false,
+          data: { url: String(notification.action_url || '/'), notificationId: notification.id, type: notification.type },
+        }), { TTL: 3600, urgency: notification.severity === 'critical' ? 'high' : 'normal' });
+        accepted++;
+        await db.from('web_push_delivery_attempts').insert({ notification_id: notification.id, subscription_id: s.id, attempt_number: attemptNumber, status: 'accepted', provider_status: result.statusCode });
+        await db.from('web_push_subscriptions').update({ last_success_at: now, failure_count: 0, last_error_code: null, updated_at: now }).eq('id', s.id);
+      } catch (error) {
+        jobFailures++; failed++;
+        const statusCode = Number((error as { statusCode?: number }).statusCode || 0) || null;
+        const permanent = statusCode === 404 || statusCode === 410;
+        await db.from('web_push_delivery_attempts').insert({ notification_id: notification.id, subscription_id: s.id, attempt_number: attemptNumber, status: permanent ? 'permanent_failure' : 'temporary_failure', provider_status: statusCode, error_code: permanent ? 'subscription_gone' : 'provider_error' });
+        await db.from('web_push_subscriptions').update({ status: permanent ? 'expired' : 'active', failure_count: Number(s.failure_count || 0) + 1, last_error_code: permanent ? 'subscription_gone' : 'provider_error', updated_at: now }).eq('id', s.id);
+      }
+    }
+    const attempts = Number(job.attempts || 0) + 1;
+    if (!jobFailures || attempts >= 5) {
+      await db.from('web_push_jobs').update({ status: jobFailures ? 'dead_letter' : 'completed', attempts, completed_at: now, last_error: jobFailures ? `${jobFailures} delivery failure(s)` : null }).eq('id', job.id);
+    } else {
+      const retryAt = new Date(Date.now() + Math.min(30, 2 ** attempts) * 60_000).toISOString();
+      await db.from('web_push_jobs').update({ status: 'failed', attempts, next_attempt_at: retryAt, locked_at: null, last_error: `${jobFailures} temporary failure(s)` }).eq('id', job.id);
+    }
+  }
+  return { jobs: (jobs || []).length, accepted, failed };
 }
 
 async function getLineRecipients(db: DB, notificationType: string): Promise<string[]> {

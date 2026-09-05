@@ -73,6 +73,14 @@
 - Training Report แบบ “Members who have not attended” ถูกจัดเป็น `training_gap` เสมอ ห้ามตีความเป็นประวัติเรียนสำเร็จ
 - Technical debt: ตาราง `members`/`renewals` เดิมยังต้องรับการ backfill `chapter_id` ใน Phase 2; import layer ใหม่เก็บ tenant scope และ source provenance เตรียมไว้แล้ว
 
+#### Mobile Web Push foundation (5 กันยายน 2569)
+
+- Notification Center มือถืออ่านจาก `notifications` และ `notification_receipts` เป็นแหล่งข้อมูลหลักเดียว แยกเร่งด่วน/ต้องทำ/ข้อมูล และคงสถานะอ่านต่อผู้รับ
+- Web Push เป็น opt-in ต่ออุปกรณ์ เก็บ subscription แบบ service-only ผูก Active Chapter และ recipient ที่ backend derive จาก credential
+- Queue มี idempotency, retry, expiry, provider-acceptance ledger และยกเลิก endpoint ที่หมดอายุอัตโนมัติ; LINE automation เดิมไม่ถูกแก้หรือเพิ่มข้อความซ้ำ
+- ข้อจำกัดที่สื่อใน UI: iOS ต้อง Add to Home Screen ก่อน และสถานะ `accepted` หมายถึง push provider รับคำขอ ไม่ใช่หลักฐานว่า OS แสดงบนหน้าจอแล้ว
+- Technical debt สำหรับ Phase 2/3: เปลี่ยน Active Chapter resolver เป็น tenant จาก session และแยก VAPID key/dispatch policy ต่อ Chapter เมื่อเปิดงาน secret architecture อย่างเป็นทางการ
+
 ### Phase 2 — Multi-tenant foundation
 
 - เพิ่ม `chapters`, `chapter_memberships` และ stable IDs

@@ -6,7 +6,10 @@
 <meta name="theme-color" content="#F4F0E7" id="meta-theme-color">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/favicon.svg">
+<link rel="manifest" href="/manifest.webmanifest">
 <link rel="preconnect" href="https://itwyjhlfemxsfbimshby.supabase.co" crossorigin>
 <title>MENTOR SYSTEM : BNI IDEAL</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1164,15 +1167,20 @@
 
 <div class="notif-panel" id="notifPanel">
   <div class="dp-hdr">
-    <button class="dp-back" onclick="closeNotifPanel()">←</button>
-    <div class="dp-title">🔔 ศูนย์แจ้งเตือน</div>
-    <button onclick="loadNotifPanel()" style="background:none;border:none;color:var(--gray2);font-size:.72rem;cursor:pointer;font-family:Sarabun,sans-serif;">🔄</button>
+    <button class="dp-back" onclick="closeNotifPanel()" aria-label="ปิดศูนย์แจ้งเตือน">←</button>
+    <div class="dp-title">ศูนย์แจ้งเตือน <span class="notif-live-dot" aria-hidden="true"></span></div>
+    <button class="notif-refresh" onclick="loadNotifPanel()" aria-label="โหลดการแจ้งเตือนใหม่">รีเฟรช</button>
   </div>
+  <section class="push-permission-card" id="push-permission-card" aria-live="polite">
+    <div class="push-permission-icon">🔔</div>
+    <div class="push-permission-copy"><strong id="push-permission-title">แจ้งเตือนบนเครื่องนี้</strong><span id="push-permission-detail">กำลังตรวจสอบสถานะ…</span></div>
+    <button id="push-permission-btn" type="button" onclick="toggleWebPush()">เปิดใช้</button>
+  </section>
   <div class="dp-content" id="notif-content"><div class="lt">⏳ กำลังโหลด...</div></div>
 </div>
 </main>
 
-<script src="/assets/js/mobile-operations.js?v=20260903c" defer></script>
+<script src="/assets/js/mobile-operations.js?v=20260905n" defer></script>
 <!-- Checklist Panel -->
 <div class="cl-panel" id="clPanel">
   <div class="cl-hdr">

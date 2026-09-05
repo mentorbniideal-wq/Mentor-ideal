@@ -1,0 +1,13 @@
+{
+  "name": "Mentor Operations",
+  "short_name": "Mentor",
+  "description": "Chapter operations and member care",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F4F0E7",
+  "theme_color": "#0D4B40",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

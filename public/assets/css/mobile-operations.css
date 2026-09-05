@@ -424,6 +424,22 @@ button,[role="button"],.fb,.dir-fb,.renew-btn,.action-btn,.log-btn,.gt-btn{min-h
   color:var(--gray2);font-size:.82rem;
 }
 
+/* Notification Center v2 — semantic priority, accessible controls, push status. */
+.notif-panel{display:block;padding:0;overflow-y:auto;align-items:initial;justify-content:initial;visibility:hidden;pointer-events:none;transform:translateX(100%);background:var(--bg)}
+.notif-panel.on{display:block;visibility:visible;pointer-events:auto;transform:translateX(0)}
+.notif-live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(74,222,128,.12);vertical-align:middle;margin-left:5px}
+.notif-refresh{min-height:40px;padding:0 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg3);color:var(--white);font:700 .72rem Sarabun,sans-serif;cursor:pointer}
+.push-permission-card{margin:.8rem .875rem 0;padding:.8rem;display:flex;align-items:center;gap:.65rem;border:1px solid rgba(176,138,60,.28);border-radius:16px;background:linear-gradient(135deg,rgba(176,138,60,.13),rgba(13,75,64,.08))}
+.push-permission-icon{width:42px;height:42px;display:grid;place-items:center;flex:0 0 42px;border-radius:13px;background:rgba(176,138,60,.16);font-size:1.15rem}
+.push-permission-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:2px}.push-permission-copy strong{font-size:.84rem}.push-permission-copy span{color:var(--gray2);font-size:.68rem;line-height:1.35}
+.push-permission-card button{min-height:40px;flex:0 0 auto;padding:0 12px;border:0;border-radius:10px;background:var(--mint);color:var(--bg);font:700 .72rem Sarabun,sans-serif;cursor:pointer}.push-permission-card button:disabled{opacity:.55;cursor:not-allowed}
+.notif-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:.8rem}.notif-summary div{padding:.65rem .35rem;border:1px solid var(--border);border-radius:12px;background:var(--bg2);text-align:center}.notif-summary b{display:block;font:700 1.05rem Poppins,sans-serif}.notif-summary span{display:block;margin-top:1px;color:var(--gray2);font-size:.62rem}
+.notif-item.is-unread{box-shadow:inset 0 0 0 1px rgba(176,138,60,.2)}.notif-item.info{border-left:3px solid #60A5FA}.notif-item.success{border-left:3px solid var(--green)}
+.ni-time{font-size:.6rem;color:var(--gray2);margin-top:4px}.ni-unread{width:7px;height:7px;border-radius:50%;background:var(--mint);flex:0 0 7px;margin-top:7px}
+.notif-state{padding:2rem 1rem;text-align:center;color:var(--gray2);font-size:.8rem;line-height:1.6}.notif-state strong{display:block;color:var(--white);font-size:.95rem;margin-bottom:4px}.notif-retry{margin-top:.75rem;min-height:42px;padding:0 16px;border:1px solid var(--border);border-radius:11px;background:var(--bg3);color:var(--white);font:700 .78rem Sarabun,sans-serif}
+@media (min-width:761px){.notif-panel{left:auto;width:min(440px,100%);box-shadow:-18px 0 50px rgba(0,0,0,.28)}}
+@media (prefers-reduced-motion:reduce){.notif-panel{transition:none}}
+
 /* ── Score Timeline ── */
 .score-tl-wrap{overflow-x:auto;scrollbar-width:none;padding:4px 0 16px;margin:0 -4px}
 .score-tl-wrap::-webkit-scrollbar{display:none}

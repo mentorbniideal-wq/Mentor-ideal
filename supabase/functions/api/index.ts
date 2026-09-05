@@ -165,6 +165,8 @@ const ROUTES: Record<string, string> = {
   // Notifications (in-app persistent)
   'getNotifications': 'notifications', 'markNotificationsRead': 'notifications',
   'dismissNotification': 'notifications', 'dismissAllNotifications': 'notifications',
+  'getWebPushConfig': 'notifications', 'subscribeWebPush': 'notifications',
+  'unsubscribeWebPush': 'notifications',
 
   // Meetings / Chapter
   'getMeetingPrep': 'meetings', 'getVisitorTracker': 'meetings',

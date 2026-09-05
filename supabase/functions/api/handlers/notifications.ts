@@ -2,6 +2,23 @@
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 
+const NOTIFICATION_ROLES = ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth'];
+
+function recipientKey(auth: { teamName?: string | null; role?: string }): string {
+  return auth.teamName ? `team:${auth.teamName}` : `role:${String(auth.role || '')}`;
+}
+
+async function activeChapterId(db: ReturnType<typeof getServiceClient>): Promise<string | null> {
+  const { data } = await db.from('chapter_profiles').select('id')
+    .eq('is_active', true).order('created_at').limit(1).maybeSingle();
+  return data?.id ? String(data.id) : null;
+}
+
+async function sha256(value: string): Promise<string> {
+  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(bytes)).map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
 export async function handleNotifications(p: Record<string, unknown>): Promise<Response> {
   const db     = getServiceClient();
   const action = String(p.action || '');
@@ -10,18 +27,19 @@ export async function handleNotifications(p: Record<string, unknown>): Promise<R
 
     // ── Get all active (non-dismissed) notifications ──────────
     case 'getNotifications': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      const auth = await requireAuth(db, p, NOTIFICATION_ROLES);
       if (!auth.ok) return errResponse(auth.error!);
-      const recipientKey = auth.teamName
-        ? `team:${auth.teamName}`
-        : `role:${String(auth.role || '')}`;
+      const key = recipientKey(auth);
+      const chapterId = await activeChapterId(db);
 
       // Filter by target_audience: null means broadcast to all, otherwise must include recipientKey
       const { data, error } = await db
         .from('notifications')
-        .select('id, type, severity, title, body, data, created_at, read_at')
+        .select('id, type, severity, title, body, data, action_url, expires_at, created_at')
         .is('dismissed_at', null)
-        .or(`target_audience.is.null,target_audience.cs.{"${recipientKey}"}`)
+        .or(`target_audience.is.null,target_audience.cs.{"${key}"}`)
+        .or(chapterId ? `chapter_id.is.null,chapter_id.eq.${chapterId}` : 'chapter_id.is.null')
+        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
         .order('created_at', { ascending: false })
         .limit(50);
       if (error) return errResponse(error.message);
@@ -30,7 +48,7 @@ export async function handleNotifications(p: Record<string, unknown>): Promise<R
       const { data: receiptRows } = ids.length
         ? await db.from('notification_receipts')
             .select('notification_id, read_at, dismissed_at')
-            .eq('recipient_key', recipientKey)
+            .eq('recipient_key', key)
             .in('notification_id', ids)
         : { data: [] };
       const receipts: Record<string, Record<string, unknown>> = {};
@@ -47,6 +65,7 @@ export async function handleNotifications(p: Record<string, unknown>): Promise<R
         title:     n.title,
         body:      n.body || '',
         data:      n.data || {},
+        actionUrl: n.action_url || (n.data as Record<string, unknown> | null)?.actionUrl || null,
         createdAt: n.created_at,
         isRead:    !!receipts[String(n.id)]?.read_at,
       }));
@@ -55,21 +74,82 @@ export async function handleNotifications(p: Record<string, unknown>): Promise<R
       return jsonResponse({ ok: true, notifications, unreadCount });
     }
 
+    case 'getWebPushConfig': {
+      const auth = await requireAuth(db, p, NOTIFICATION_ROLES);
+      if (!auth.ok) return errResponse(auth.error!);
+      const publicKey = String(Deno.env.get('WEB_PUSH_VAPID_PUBLIC_KEY') || '');
+      return jsonResponse({ ok: true, enabled: Boolean(publicKey), publicKey });
+    }
+
+    case 'subscribeWebPush': {
+      const auth = await requireAuth(db, p, NOTIFICATION_ROLES);
+      if (!auth.ok) return errResponse(auth.error!);
+      const chapterId = await activeChapterId(db);
+      if (!chapterId) return errResponse('ยังไม่ได้ตั้งค่า Chapter ที่ใช้งาน', 503);
+      const subscription = p.subscription as Record<string, unknown> | undefined;
+      const endpoint = String(subscription?.endpoint || '');
+      const keys = subscription?.keys as Record<string, unknown> | undefined;
+      const p256dh = String(keys?.p256dh || '');
+      const authSecret = String(keys?.auth || '');
+      if (!endpoint.startsWith('https://') || endpoint.length > 2048 || !p256dh || !authSecret) {
+        return errResponse('Push subscription ไม่ถูกต้อง', 400);
+      }
+      const endpointHash = await sha256(endpoint);
+      const row = {
+        chapter_id: chapterId, recipient_key: recipientKey(auth), endpoint,
+        endpoint_hash: endpointHash, p256dh, auth_secret: authSecret,
+        status: 'active', user_agent: String(p.userAgent || '').slice(0, 500) || null,
+        platform: String(p.platform || '').slice(0, 80) || null,
+        failure_count: 0, last_seen_at: new Date().toISOString(),
+        last_error_code: null, updated_at: new Date().toISOString(),
+      };
+      const { error } = await db.from('web_push_subscriptions').upsert(row, {
+        onConflict: 'chapter_id,endpoint_hash',
+      });
+      if (error) return errResponse(error.message);
+      try {
+        await db.from('chapter_audit_events').insert({
+          event_type: 'web_push_subscribed', actor_role: auth.role,
+          actor_ref: auth.email || auth.role, subject_type: 'web_push_subscription',
+          subject_ref: endpointHash.slice(0, 16),
+          metadata: { chapterId, recipientKey: row.recipient_key, platform: row.platform },
+        });
+      } catch { /* Notification consent must not fail because audit storage is unavailable. */ }
+      return jsonResponse({ ok: true, subscribed: true });
+    }
+
+    case 'unsubscribeWebPush': {
+      const auth = await requireAuth(db, p, NOTIFICATION_ROLES);
+      if (!auth.ok) return errResponse(auth.error!);
+      const endpoint = String(p.endpoint || '');
+      if (!endpoint) return errResponse('endpoint required', 400);
+      const chapterId = await activeChapterId(db);
+      const endpointHash = await sha256(endpoint);
+      let query = db.from('web_push_subscriptions').update({
+        status: 'revoked', updated_at: new Date().toISOString(),
+      }).eq('endpoint_hash', endpointHash).eq('recipient_key', recipientKey(auth));
+      if (chapterId) query = query.eq('chapter_id', chapterId);
+      const { error } = await query;
+      if (error) return errResponse(error.message);
+      return jsonResponse({ ok: true, subscribed: false });
+    }
+
     // ── Mark notifications as read ────────────────────────────
     case 'markNotificationsRead': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      const auth = await requireAuth(db, p, NOTIFICATION_ROLES);
       if (!auth.ok) return errResponse(auth.error!);
-      const recipientKey = auth.teamName
-        ? `team:${auth.teamName}`
-        : `role:${String(auth.role || '')}`;
+      const recipientKey = auth.teamName ? `team:${auth.teamName}` : `role:${String(auth.role || '')}`;
 
       const ids = Array.isArray(p.ids) ? p.ids.map(String) : [];
-      let targetIds = ids;
-      if (!targetIds.length) {
-        const { data: active } = await db.from('notifications')
-          .select('id').is('dismissed_at', null).limit(100);
-        targetIds = (active || []).map((row: Record<string, unknown>) => String(row.id));
-      }
+      const chapterId = await activeChapterId(db);
+      let visible = db.from('notifications').select('id').is('dismissed_at', null)
+        .or(`target_audience.is.null,target_audience.cs.{"${recipientKey}"}`)
+        .or(chapterId ? `chapter_id.is.null,chapter_id.eq.${chapterId}` : 'chapter_id.is.null')
+        .limit(100);
+      if (ids.length) visible = visible.in('id', ids);
+      const { data: active, error: visibleError } = await visible;
+      if (visibleError) return errResponse(visibleError.message);
+      const targetIds = (active || []).map((row: Record<string, unknown>) => String(row.id));
       if (targetIds.length) {
         const now = new Date().toISOString();
         const { error } = await db.from('notification_receipts').upsert(
@@ -83,7 +163,7 @@ export async function handleNotifications(p: Record<string, unknown>): Promise<R
 
     // ── Dismiss a notification ────────────────────────────────
     case 'dismissNotification': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      const auth = await requireAuth(db, p, NOTIFICATION_ROLES);
       if (!auth.ok) return errResponse(auth.error!);
       const recipientKey = auth.teamName
         ? `team:${auth.teamName}`
@@ -91,6 +171,14 @@ export async function handleNotifications(p: Record<string, unknown>): Promise<R
 
       const id = String(p.id || '');
       if (!id) return errResponse('id required');
+
+      const chapterId = await activeChapterId(db);
+      const { data: visible } = await db.from('notifications').select('id').eq('id', id)
+        .is('dismissed_at', null)
+        .or(`target_audience.is.null,target_audience.cs.{"${recipientKey}"}`)
+        .or(chapterId ? `chapter_id.is.null,chapter_id.eq.${chapterId}` : 'chapter_id.is.null')
+        .maybeSingle();
+      if (!visible) return errResponse('ไม่พบการแจ้งเตือนในสิทธิ์ของคุณ', 404);
 
       const now = new Date().toISOString();
       const { error } = await db.from('notification_receipts').upsert({
@@ -105,16 +193,18 @@ export async function handleNotifications(p: Record<string, unknown>): Promise<R
 
     // ── Dismiss ALL notifications ─────────────────────────────
     case 'dismissAllNotifications': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      const auth = await requireAuth(db, p, NOTIFICATION_ROLES);
       if (!auth.ok) return errResponse(auth.error!);
       // Use the same dynamic recipientKey as every other case — never hardcode 'role:mc'
       const recipientKey = auth.teamName
         ? `team:${auth.teamName}`
         : `role:${String(auth.role || '')}`;
 
+      const chapterId = await activeChapterId(db);
       const { data: active, error: activeError } = await db.from('notifications')
         .select('id').is('dismissed_at', null)
         .or(`target_audience.is.null,target_audience.cs.{"${recipientKey}"}`)
+        .or(chapterId ? `chapter_id.is.null,chapter_id.eq.${chapterId}` : 'chapter_id.is.null')
         .limit(100);
       if (activeError) return errResponse(activeError.message);
       const now = new Date().toISOString();

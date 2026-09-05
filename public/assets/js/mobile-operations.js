@@ -507,6 +507,7 @@ function enterApp(r){
   }
   loadLineMembers();
   loadNotifBadges();
+  initializeMobileNotifications();
   // Auto-open simulator if URL has ?action=simulate
   if(new URLSearchParams(location.search).get('action')==='simulate'){
     setTimeout(openSimulate,300);
@@ -5813,6 +5814,131 @@ function loadNotifBadge(){
     if(err||!r||!r.ok){updateBell();return;}
     alertCount=(r.alerts||[]).filter(function(a){return !isNotifSnoozed(a);}).length;
     updateBell();
+  });
+}
+
+// ── Notification Center v2: one persistent source + Web Push ───────────────
+var PUSH_STATE={registration:null,subscription:null,enabled:false,busy:false};
+var _notifPollTimer=null;
+
+function notificationCategory(n){
+  var severity=String(n.severity||'info').toLowerCase();
+  if(['critical','emergency','error'].includes(severity))return'urgent';
+  if(['warning','action_required'].includes(severity))return'action';
+  return'info';
+}
+function notificationIcon(n){
+  var cat=notificationCategory(n),type=String(n.type||'');
+  if(type.indexOf('one_to_one')>=0)return'🤝';
+  if(type.indexOf('renewal')>=0)return'🔄';
+  if(type.indexOf('growth')>=0)return'🌱';
+  return cat==='urgent'?'🚨':cat==='action'?'⚠️':'🔔';
+}
+function notificationTime(value){
+  var d=new Date(value);if(isNaN(d.getTime()))return'';
+  var diff=Math.max(0,Date.now()-d.getTime()),mins=Math.floor(diff/60000);
+  if(mins<1)return'เมื่อสักครู่';if(mins<60)return mins+' นาทีที่แล้ว';
+  if(mins<1440)return Math.floor(mins/60)+' ชั่วโมงที่แล้ว';
+  return d.toLocaleDateString('th-TH',{day:'numeric',month:'short'})+' · '+d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+}
+function notificationAction(n){
+  var url=String(n.actionUrl||'');
+  if(url&&url.charAt(0)==='/'){location.href=url;return;}
+  var type=String(n.type||'');
+  if(type.indexOf('one_to_one')>=0){
+    var tab=document.querySelector('[onclick*="121"]');if(tab)tab.click();
+  }else if(type.indexOf('renewal')>=0){
+    var renewal=document.querySelector('[onclick*="renewal"]');if(renewal)renewal.click();
+  }else if(type.indexOf('growth')>=0){
+    var growth=document.querySelector('[onclick*="growth"]');if(growth)growth.click();
+  }else notifNavigate(type);
+}
+function persistentNotificationItem(n){
+  var cat=notificationCategory(n),css=cat==='urgent'?'emergency':cat==='action'?'warning':'info';
+  return '<article class="notif-item '+css+(n.isRead?'':' is-unread')+'" data-notification-id="'+escHtml(n.id)+'" tabindex="0" role="button">'
+    +'<div class="ni-icon" aria-hidden="true">'+notificationIcon(n)+'</div>'
+    +'<div class="ni-body"><div class="ni-name">'+escHtml(n.title||'แจ้งเตือน')+'</div>'
+    +(n.body?'<div class="ni-detail">'+escHtml(n.body)+'</div>':'')
+    +'<div class="ni-time">'+notificationTime(n.createdAt)+'</div></div>'
+    +(n.isRead?'':'<span class="ni-unread" aria-label="ยังไม่ได้อ่าน"></span>')
+    +'<button class="notif-ack-btn" type="button" data-dismiss-notification="'+escHtml(n.id)+'" aria-label="ปิดการแจ้งเตือนนี้">รับทราบ</button></article>';
+}
+
+function openNotifPanel(){
+  var panel=document.getElementById('notifPanel');if(!panel)return;
+  panel.classList.add('on');loadNotifPanel();refreshPushPermissionCard();
+}
+function loadNotifPanel(){
+  var el=document.getElementById('notif-content');if(!el)return;
+  el.setAttribute('aria-busy','true');
+  el.innerHTML='<div class="notif-state"><strong>กำลังอัปเดต</strong>ตรวจรายการล่าสุดจากระบบ…</div>';
+  call('getNotifications',{_latestKey:'notification-center'},function(err,r){
+    el.removeAttribute('aria-busy');
+    if(err||!r||!r.ok){el.innerHTML='<div class="notif-state"><strong>โหลดการแจ้งเตือนไม่สำเร็จ</strong>'+escHtml(err?err.message:(r&&r.error)||'กรุณาลองใหม่')+'<br><button class="notif-retry" onclick="loadNotifPanel()">ลองอีกครั้ง</button></div>';return;}
+    var items=r.notifications||[],counts={urgent:0,action:0,info:0};
+    items.forEach(function(n){counts[notificationCategory(n)]++;});
+    var html='<div class="notif-summary"><div><b style="color:var(--red)">'+counts.urgent+'</b><span>เร่งด่วน</span></div><div><b style="color:var(--yellow)">'+counts.action+'</b><span>ต้องทำ</span></div><div><b>'+counts.info+'</b><span>แจ้งให้ทราบ</span></div></div>';
+    ['urgent','action','info'].forEach(function(cat){
+      var list=items.filter(function(n){return notificationCategory(n)===cat;});if(!list.length)return;
+      var label=cat==='urgent'?'เร่งด่วน':cat==='action'?'ต้องดำเนินการ':'ข้อมูลล่าสุด';
+      html+='<div class="notif-sec">'+label+' ('+list.length+')</div>'+list.map(persistentNotificationItem).join('');
+    });
+    if(!items.length)html='<div class="notif-state"><strong>เรียบร้อยดี</strong>ไม่มีรายการใหม่ที่ต้องจัดการ</div>';
+    el.innerHTML=html;bindNotificationItems(items);
+    updatePersistentNotificationBadge(Number(r.unreadCount||0));
+  });
+}
+function bindNotificationItems(items){
+  var byId={};items.forEach(function(n){byId[String(n.id)]=n;});
+  document.querySelectorAll('#notif-content [data-notification-id]').forEach(function(card){
+    function open(){var id=card.getAttribute('data-notification-id'),n=byId[id];call('markNotificationsRead',{ids:[id]},function(){});if(n)notificationAction(n);closeNotifPanel();}
+    card.addEventListener('click',function(e){if(e.target.closest('[data-dismiss-notification]'))return;open();});
+    card.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}});
+  });
+  document.querySelectorAll('#notif-content [data-dismiss-notification]').forEach(function(btn){
+    btn.addEventListener('click',function(){var id=btn.getAttribute('data-dismiss-notification');btn.disabled=true;call('dismissNotification',{id:id},function(err,r){if(err||!r||!r.ok){btn.disabled=false;toast('❌ ปิดรายการไม่สำเร็จ');return;}loadNotifPanel();});});
+  });
+}
+function updatePersistentNotificationBadge(count){
+  var badge=document.getElementById('notif-total');if(!badge)return;
+  if(count>0){badge.textContent=count>99?'99+':String(count);badge.style.display='flex';}else badge.style.display='none';
+}
+function loadNotifBadge(){
+  call('getNotifications',{_latestKey:'notification-badge'},function(err,r){if(!err&&r&&r.ok)updatePersistentNotificationBadge(Number(r.unreadCount||0));});
+}
+
+function urlBase64Bytes(value){
+  var padding='='.repeat((4-value.length%4)%4),base64=(value+padding).replace(/-/g,'+').replace(/_/g,'/'),raw=atob(base64),out=new Uint8Array(raw.length);
+  for(var i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);return out;
+}
+function isIos(){return /iphone|ipad|ipod/i.test(navigator.userAgent);}
+function isStandalone(){return window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;}
+function initializeMobileNotifications(){
+  if(!('serviceWorker'in navigator))return;
+  navigator.serviceWorker.register('/sw.js').then(function(reg){PUSH_STATE.registration=reg;return reg.pushManager.getSubscription();}).then(function(sub){PUSH_STATE.subscription=sub;refreshPushPermissionCard();}).catch(function(){refreshPushPermissionCard();});
+  clearInterval(_notifPollTimer);_notifPollTimer=setInterval(function(){if(!document.hidden)loadNotifBadge();},60000);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)loadNotifBadge();},{passive:true});
+}
+function refreshPushPermissionCard(){
+  var card=document.getElementById('push-permission-card'),title=document.getElementById('push-permission-title'),detail=document.getElementById('push-permission-detail'),btn=document.getElementById('push-permission-btn');if(!card||!title||!detail||!btn)return;
+  if(!('serviceWorker'in navigator)||!('PushManager'in window)||!('Notification'in window)){title.textContent='เครื่องนี้ยังไม่รองรับ Push';detail.textContent='ยังดูรายการทั้งหมดจากกระดิ่งได้ตามปกติ';btn.style.display='none';return;}
+  if(isIos()&&!isStandalone()){title.textContent='เพิ่มเว็บลงหน้าจอโฮมก่อน';detail.textContent='บน iPhone ให้กด Share → Add to Home Screen แล้วเปิดจากไอคอน';btn.textContent='วิธีเปิด';btn.disabled=false;return;}
+  if(Notification.permission==='denied'){title.textContent='การแจ้งเตือนถูกปิด';detail.textContent='เปิด Notifications ให้เว็บไซต์นี้จาก Settings ของเครื่อง';btn.textContent='ถูกปิด';btn.disabled=true;return;}
+  if(PUSH_STATE.subscription){title.textContent='Push พร้อมใช้งาน';detail.textContent='เครื่องนี้จะได้รับเฉพาะรายการที่เกี่ยวข้องกับสิทธิ์ของคุณ';btn.textContent='ปิด';btn.disabled=false;return;}
+  title.textContent='เปิด Push บนเครื่องนี้';detail.textContent='ระบบจะขออนุญาตเพียงครั้งเดียว และไม่ส่งข้อความซ้ำกับ LINE';btn.textContent='เปิดใช้';btn.disabled=false;
+}
+function toggleWebPush(){
+  if(PUSH_STATE.busy)return;
+  if(isIos()&&!isStandalone()){toast('บน iPhone: กด Share แล้วเลือก Add to Home Screen ก่อนครับ');return;}
+  if(PUSH_STATE.subscription){
+    PUSH_STATE.busy=true;var endpoint=PUSH_STATE.subscription.endpoint;
+    PUSH_STATE.subscription.unsubscribe().then(function(){return new Promise(function(resolve,reject){call('unsubscribeWebPush',{endpoint:endpoint},function(err,r){if(err||!r||!r.ok)reject(err||new Error((r&&r.error)||'ปิดไม่สำเร็จ'));else resolve(r);});});}).then(function(){PUSH_STATE.subscription=null;toast('ปิด Push บนเครื่องนี้แล้ว');}).catch(function(e){toast('❌ '+e.message);}).finally(function(){PUSH_STATE.busy=false;refreshPushPermissionCard();});return;
+  }
+  PUSH_STATE.busy=true;refreshPushPermissionCard();
+  call('getWebPushConfig',{},function(err,cfg){
+    if(err||!cfg||!cfg.ok||!cfg.enabled){PUSH_STATE.busy=false;toast('ระบบ Push ยังตั้งค่าไม่ครบ กรุณาติดต่อผู้ดูแล');refreshPushPermissionCard();return;}
+    var permission=Notification.permission==='granted'?Promise.resolve('granted'):Notification.requestPermission();
+    permission.then(function(result){if(result!=='granted')throw new Error('ยังไม่ได้อนุญาต Notification');return PUSH_STATE.registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64Bytes(cfg.publicKey)});}).then(function(sub){return new Promise(function(resolve,reject){call('subscribeWebPush',{subscription:sub.toJSON(),userAgent:navigator.userAgent,platform:navigator.platform},function(e,r){if(e||!r||!r.ok)reject(e||new Error((r&&r.error)||'บันทึกไม่สำเร็จ'));else{PUSH_STATE.subscription=sub;resolve(r);}});});}).then(function(){toast('✅ เปิด Push บนเครื่องนี้แล้ว');}).catch(function(e){toast('❌ '+e.message);}).finally(function(){PUSH_STATE.busy=false;refreshPushPermissionCard();});
   });
 }
 
