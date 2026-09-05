@@ -63,6 +63,16 @@
 - กำหนด default configuration ที่คงพฤติกรรม IDEAL เดิม
 - เพิ่ม validation และ version ของ configuration
 
+#### BNI Connect Report Import foundation (5 กันยายน 2569)
+
+- Import Center รองรับ Roster, PALMS, Membership Dues, Absence, Speaker, Training Gap, Chapter Visitor และ Professions Not In Chapter
+- ทุกไฟล์ใช้ hash + batch ledger เพื่อป้องกันนำเข้าซ้ำและตรวจ Audit ย้อนหลังได้ โดยไม่เก็บ source PDF ในฐานข้อมูล
+- Structured records ผูก `chapter_id` ที่ backend derive จาก Active Chapter; ตารางถูกปิดจาก `anon`/`authenticated`
+- Visitor และ Training มีข้อมูลส่วนบุคคล จึงเก็บแบบ service-only และยังไม่มี public read API
+- รายงานย้อนหลังเก็บเป็น snapshot เท่านั้น; Membership Dues เป็นชนิดเดียวที่อัปเดต Renewal ปัจจุบัน และต้องจับคู่ Active member ได้ก่อน
+- Training Report แบบ “Members who have not attended” ถูกจัดเป็น `training_gap` เสมอ ห้ามตีความเป็นประวัติเรียนสำเร็จ
+- Technical debt: ตาราง `members`/`renewals` เดิมยังต้องรับการ backfill `chapter_id` ใน Phase 2; import layer ใหม่เก็บ tenant scope และ source provenance เตรียมไว้แล้ว
+
 ### Phase 2 — Multi-tenant foundation
 
 - เพิ่ม `chapters`, `chapter_memberships` และ stable IDs
