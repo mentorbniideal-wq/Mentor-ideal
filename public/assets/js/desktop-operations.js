@@ -8162,6 +8162,11 @@ function toggleTabFold(group){
   if(!tabs)return;
   prepareTabFoldIcons(tabs);
   var folded=tabs.classList.toggle('folded');
+  tabs.classList.remove('is-expanding');
+  if(!folded){
+    tabs.classList.add('is-expanding');
+    window.setTimeout(function(){tabs.classList.remove('is-expanding');},220);
+  }
   var app=document.getElementById('app');
   if(app)app.classList.toggle('tabs-folded',folded);
   var foldBtn=document.getElementById(group+'-fold-btn');
