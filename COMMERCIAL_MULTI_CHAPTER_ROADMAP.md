@@ -59,7 +59,7 @@
 
 - สถานะ 5 กันยายน 2569: เริ่มใช้งาน foundation แล้วผ่าน `chapter_profiles`, revision history, Chapter Settings และ Configuration Health; consumer modules เดิมยังต้องทยอยอ่านค่ากลางเมื่อมีการแก้แต่ละ module
 - สร้าง Chapter profile: ชื่อ, logo, theme, timezone, locale และ meeting cadence
-- แยก scoring thresholds, presentation duration, roles และ notification policy เป็น configuration
+- แยก scoring thresholds, roles และ notification policy เป็น configuration; ข้อความเฉพาะ Chapter เช่น “30-second presentation” อยู่ใน template ของ automation ที่เกี่ยวข้อง ไม่ใช่กติกากลาง
 - กำหนด default configuration ที่คงพฤติกรรม IDEAL เดิม
 - เพิ่ม validation และ version ของ configuration
 
