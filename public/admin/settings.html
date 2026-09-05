@@ -41,6 +41,10 @@
   .check-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent)}
   .check-row label{font-size:13px;color:var(--text)}
   .loading{color:var(--muted);text-align:center;padding:24px}
+  .chapter-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .chapter-form label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
+  .chapter-form input,.chapter-form select{width:100%;background:#1a3a5c;border:1px solid #2a4a6c;color:var(--text);padding:10px;border-radius:7px;font-size:13px}
+  .health-list{display:grid;gap:7px;margin-top:12px}.health-item{padding:9px 11px;border-radius:7px;background:#091a31;font-size:12px}.health-item.warning{border-left:3px solid var(--yellow)}.health-item.critical{border-left:3px solid var(--red)}
   .req-card{background:#0a2040;border-radius:8px;padding:14px;margin-bottom:10px;border-left:3px solid #ef4444}
   .req-card .req-email{font-size:12px;color:var(--yellow);font-weight:600}
   .req-card .req-meta{font-size:11px;color:var(--muted);margin:.3rem 0 .5rem}
@@ -58,7 +62,7 @@
   .invite-form label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
   .invite-form select,.invite-form input{width:100%;background:#1a3a5c;border:1px solid #2a4a6c;color:var(--text);padding:8px;border-radius:6px;font-size:12px}
   .invite-row{display:grid;grid-template-columns:1.5fr 1fr 1fr auto;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid #1a3a5c;font-size:12px}
-  @media(max-width:680px){main{padding:14px}.invite-form{grid-template-columns:1fr}.invite-row{grid-template-columns:1fr}.invite-row .actions{justify-content:flex-start}.section{padding:14px}table{display:block;overflow-x:auto}}
+  @media(max-width:680px){main{padding:14px}.chapter-form,.invite-form{grid-template-columns:1fr}.invite-row{grid-template-columns:1fr}.invite-row .actions{justify-content:flex-start}.section{padding:14px}table{display:block;overflow-x:auto}}
 </style>
 </head>
 <body>
@@ -75,6 +79,29 @@
   <button class="logout" onclick="adminLogout()">Logout</button>
 </nav>
 <main>
+  <div class="section" id="chapterConfigSection" style="border:1px solid #3dd6f555">
+    <h3>🏛 Chapter Configuration</h3>
+    <p style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:14px">จุดตั้งค่ากลางสำหรับ Chapter ปัจจุบัน ไม่รวม LINE Token หรือ Secret</p>
+    <div id="chapterConfigLoading" class="loading">กำลังโหลด Configuration…</div>
+    <div id="chapterConfigContent" style="display:none">
+      <div class="chapter-form">
+        <div><label>Chapter key (รหัสถาวร)</label><input id="ccKey" autocomplete="off"></div>
+        <div><label>ชื่อที่แสดง</label><input id="ccName"></div>
+        <div><label>ชื่อย่อ</label><input id="ccShort"></div>
+        <div><label>Timezone</label><input id="ccTimezone" placeholder="Asia/Bangkok"></div>
+        <div><label>ภาษา</label><select id="ccLocale"><option value="th-TH">ไทย (th-TH)</option><option value="en-US">English (en-US)</option></select></div>
+        <div><label>วันประชุม</label><select id="ccWeekday"><option value="0">อาทิตย์</option><option value="1">จันทร์</option><option value="2">อังคาร</option><option value="3">พุธ</option><option value="4">พฤหัสบดี</option><option value="5">ศุกร์</option><option value="6">เสาร์</option></select></div>
+        <div><label>เวลาประชุม</label><input id="ccTime" type="time"></div>
+        <div><label>ระยะเวลา Weekly Presentation (วินาที)</label><input id="ccPresentation" type="number" min="15" max="120" step="5"></div>
+      </div>
+      <div style="margin-top:12px"><label style="font-size:11px;color:var(--muted)">เหตุผลที่แก้ไข</label><input id="ccReason" style="width:100%;margin-top:4px;background:#1a3a5c;border:1px solid #2a4a6c;color:var(--text);padding:10px;border-radius:7px" placeholder="เช่น เปลี่ยนเวลาประชุมวาระใหม่"></div>
+      <div id="ccPreview" style="margin-top:12px;padding:12px;border:1px solid #2a4a6c;border-radius:8px;font-size:13px"></div>
+      <button class="btn-add" id="ccSave" onclick="saveChapterConfiguration()" style="margin-top:12px;width:100%">ตรวจสอบและบันทึก Configuration</button>
+      <div id="ccMsg" class="form-msg" style="margin-top:8px"></div>
+      <div id="ccHealth" class="health-list"></div>
+      <details style="margin-top:14px"><summary style="cursor:pointer;color:var(--muted);font-size:12px">ประวัติและย้อนเวอร์ชัน</summary><div id="ccHistory" style="margin-top:8px"></div></details>
+    </div>
+  </div>
   <!-- Pending Access Requests (shown only when there are pending ones) -->
   <div class="section" id="req-section" style="display:none;border:1px solid #ef4444;">
     <h3 style="color:#ef4444;">🔔 คำขอ Access รอการอนุมัติ (<span id="req-count">0</span> รายการ)</h3>
@@ -177,6 +204,29 @@
   </div>
 </main>
 <script>
+let _chapterConfig=null;
+function chapterPreview(){
+  const days=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+  const el=document.getElementById('ccPreview');if(!el)return;
+  el.innerHTML=`<b>${esc(document.getElementById('ccName').value||'—')}</b> · ${esc(document.getElementById('ccShort').value||'—')}<br><span style="color:var(--muted)">ประชุมวัน${days[Number(document.getElementById('ccWeekday').value)]} เวลา ${esc(document.getElementById('ccTime').value)} · Presentation ${Number(document.getElementById('ccPresentation').value||0)} วินาที · ${esc(document.getElementById('ccTimezone').value)}</span>`;
+}
+async function loadChapterConfiguration(){
+  const r=await adminCall({action:'getChapterConfiguration'}),loading=document.getElementById('chapterConfigLoading');
+  loading.style.display='none';
+  if(!r?.ok){loading.style.display='block';loading.textContent='❌ '+(r?.error||'โหลดไม่ได้ — โปรดตรวจว่า apply migration แล้ว');return;}
+  _chapterConfig=r.chapter;document.getElementById('chapterConfigContent').style.display='block';
+  const c=r.chapter;document.getElementById('ccKey').value=c.chapter_key;document.getElementById('ccName').value=c.display_name;document.getElementById('ccShort').value=c.short_name;document.getElementById('ccTimezone').value=c.timezone;document.getElementById('ccLocale').value=c.locale;document.getElementById('ccWeekday').value=c.meeting_weekday;document.getElementById('ccTime').value=String(c.meeting_time).slice(0,5);document.getElementById('ccPresentation').value=c.presentation_seconds;chapterPreview();
+  const h=r.health||{};document.getElementById('ccHealth').innerHTML=`<div class="health-item ${h.status==='blocked'?'critical':h.status==='attention'?'warning':''}"><b>System Health: ${h.status==='healthy'?'พร้อมใช้งาน':h.status==='attention'?'ควรตรวจสอบ':'ยังไม่พร้อม'}</b> · LINE ${h.linkedMembers||0}/${h.activeMembers||0} คน</div>`+(h.issues||[]).map(x=>`<div class="health-item ${esc(x.level)}">${esc(x.message)}</div>`).join('');
+  document.getElementById('ccHistory').innerHTML=(r.revisions||[]).map(x=>`<div class="hist-row"><span style="flex:1">v${x.config_version} · ${esc(x.change_reason||'ไม่มีหมายเหตุ')}<br><small style="color:var(--muted)">${esc(x.changed_by||'system')} · ${fmt.date(x.created_at)}</small></span>${Number(x.config_version)!==Number(c.config_version)?`<button class="btn-del" onclick="restoreChapterConfiguration('${esc(x.id)}',${Number(x.config_version)})">ย้อนเป็น v${Number(x.config_version)}</button>`:'<span class="badge-ok">ปัจจุบัน</span>'}</div>`).join('');
+}
+async function saveChapterConfiguration(){
+  if(!_chapterConfig)return;chapterPreview();
+  const payload={action:'updateChapterConfiguration',chapterKey:document.getElementById('ccKey').value.trim(),displayName:document.getElementById('ccName').value.trim(),shortName:document.getElementById('ccShort').value.trim(),timezone:document.getElementById('ccTimezone').value.trim(),locale:document.getElementById('ccLocale').value,meetingWeekday:Number(document.getElementById('ccWeekday').value),meetingTime:document.getElementById('ccTime').value,presentationSeconds:Number(document.getElementById('ccPresentation').value),reason:document.getElementById('ccReason').value.trim(),expectedVersion:Number(_chapterConfig.config_version)};
+  if(!confirm(`ยืนยันบันทึก ${payload.displayName}\nประชุมวันลำดับ ${payload.meetingWeekday} เวลา ${payload.meetingTime}\nPresentation ${payload.presentationSeconds} วินาที?`))return;
+  const btn=document.getElementById('ccSave'),msg=document.getElementById('ccMsg');btn.disabled=true;btn.textContent='กำลังบันทึก…';const r=await adminCall(payload);btn.disabled=false;btn.textContent='ตรวจสอบและบันทึก Configuration';msg.textContent=r?.ok?'✅ บันทึกแล้ว และสร้าง revision ใหม่':'❌ '+(r?.error||'บันทึกไม่สำเร็จ');msg.style.color=r?.ok?'var(--green)':'var(--red)';if(r?.ok){document.getElementById('ccReason').value='';loadChapterConfiguration();}
+}
+async function restoreChapterConfiguration(id,version){if(!confirm(`ย้อน Configuration เป็นข้อมูลจาก v${version}? ระบบจะเก็บเป็น revision ใหม่และไม่ลบประวัติเดิม`))return;const r=await adminCall({action:'restoreChapterConfiguration',revisionId:id,confirmed:true});const msg=document.getElementById('ccMsg');msg.textContent=r?.ok?`✅ ย้อนจาก v${version} แล้ว`:'❌ '+(r?.error||'ย้อนข้อมูลไม่สำเร็จ');msg.style.color=r?.ok?'var(--green)':'var(--red)';if(r?.ok)loadChapterConfiguration();}
+document.addEventListener('input',e=>{if(e.target&&String(e.target.id||'').startsWith('cc'))chapterPreview();});
 async function loadStatus() {
   const r = await adminCall({ action: 'getConnectionStatus' });
   if (!r) return;
@@ -436,6 +486,7 @@ async function provisionMenus() {
 
 async function init() {
   await checkAdminAuth();
+  loadChapterConfiguration();
   loadRequests();
   loadMobileInvites();
   loadLineTeamMappings();
