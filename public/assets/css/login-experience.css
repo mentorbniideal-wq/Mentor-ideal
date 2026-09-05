@@ -1,4 +1,31 @@
 /* Mentor gateway — isolated final layer so application theme rules cannot override it. */
+.welcome-transition{
+  isolation:isolate;background:#070a0c!important;
+}
+.welcome-transition::before{
+  content:"";position:absolute;z-index:-2;inset:-7%;
+  background:url("/assets/images/mentor-login-cinematic.jpg?v=20260905a") center/cover no-repeat;
+  filter:blur(18px) brightness(.43) saturate(.72);transform:scale(1.08);
+  animation:welcome-cinematic-drift 4s ease-out both;
+}
+.welcome-transition::after{
+  content:"";position:absolute;z-index:-1;inset:0;pointer-events:none;
+  background:radial-gradient(circle at 50% 46%,rgba(5,10,13,.2) 0 18%,rgba(3,7,9,.66) 74%,rgba(2,4,6,.88) 100%);
+}
+.welcome-transition__glow{z-index:0;opacity:.72}
+.welcome-transition__content{
+  z-index:1;box-sizing:border-box;padding:clamp(30px,6vw,48px);
+  border:1px solid rgba(235,232,220,.11);border-radius:30px;
+  background:linear-gradient(145deg,rgba(8,13,16,.72),rgba(5,9,12,.48));
+  box-shadow:0 36px 100px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.04);
+  backdrop-filter:blur(15px);-webkit-backdrop-filter:blur(15px);
+}
+.welcome-transition__name{text-shadow:0 4px 30px rgba(0,0,0,.88)}
+.welcome-transition__eyebrow,.welcome-transition__status,.welcome-transition__message{text-shadow:0 2px 16px rgba(0,0,0,.9)}
+@keyframes welcome-cinematic-drift{
+  from{transform:scale(1.08) translate3d(-.5%,.4%,0)}
+  to{transform:scale(1.12) translate3d(.4%,-.3%,0)}
+}
 body #loginScreen{
   isolation:isolate;position:relative;box-sizing:border-box;width:100%;min-height:100dvh;
   padding:clamp(76px,9vh,112px) 24px 42px;overflow-x:hidden;overflow-y:auto;
@@ -80,4 +107,4 @@ body #loginScreen .gw-pub-lbl{color:#6f6c65}body #loginScreen .gw-pub-btn{min-he
 }
 @media(min-width:621px){body #loginScreen{background:#080b0d!important}}
 @media(max-width:370px){body #loginScreen{padding-inline:10px}body #loginScreen .gw-card{padding-inline:15px}.gw-back{left:15px}body #loginScreen .rchip{padding-inline:10px}}
-@media(prefers-reduced-motion:reduce){body #loginScreen::before,.login-orb,.gw-symbol{animation:none!important}body #loginScreen *{scroll-behavior:auto!important;transition-duration:.01ms!important}}
+@media(prefers-reduced-motion:reduce){.welcome-transition::before,body #loginScreen::before,.login-orb,.gw-symbol{animation:none!important}body #loginScreen *{scroll-behavior:auto!important;transition-duration:.01ms!important}}

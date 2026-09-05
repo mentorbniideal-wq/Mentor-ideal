@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mentor-shell-20260905-login2';
+const CACHE_NAME = 'mentor-shell-20260905-login3';
 const SHELL = ['/', '/index.html', '/favicon.svg', '/manifest.webmanifest', '/assets/icons/mentor-app-icon-192.png', '/assets/icons/mentor-app-icon-maskable.svg'];
 
 self.addEventListener('install', event => {
