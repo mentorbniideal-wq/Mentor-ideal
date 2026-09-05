@@ -103,6 +103,8 @@ const ROUTES: Record<string, string> = {
   'saveTrainingEvent': 'members', 'deleteTrainingEvent': 'members',
   'previewRosterImport': 'members', 'syncRosterImport': 'members',
   'previewPalmsSummaryImport': 'members', 'syncPalmsSummaryImport': 'members',
+  'previewBniReportImport': 'members', 'syncBniReportImport': 'members',
+  'getBniReportImportHistory': 'members',
   'getPassportBoard': 'members', 'syncPassportEnrollments': 'members',
   'updatePassportSession': 'members', 'savePassportLtAssignment': 'members',
   'getPassportCalendar': 'members',

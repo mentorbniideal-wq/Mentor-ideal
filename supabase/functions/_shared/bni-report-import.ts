@@ -20,3 +20,26 @@ export function shouldUpdateCurrentPalms(
   const days = palmsPeriodDays(periodFrom, periodTo);
   return days != null && days <= maxOperationalDays;
 }
+
+export type SupportedBniReportType = "chapter_roster" | "summary_palms";
+
+export function detectBniReportTypeFromLabels(
+  labels: string[],
+): SupportedBniReportType | null {
+  const set = new Set(labels.map((label) => label.replace(/\s+/g, " ").trim()));
+  if (
+    ["Member Name", "Profession", "Company Name", "Phone"].every((label) =>
+      set.has(label)
+    )
+  ) {
+    return "chapter_roster";
+  }
+  if (
+    ["Member Name", "P", "A", "RGI", "RGO", "1-2-1", "Rev Given", "CEU"].every((
+      label,
+    ) => set.has(label))
+  ) {
+    return "summary_palms";
+  }
+  return null;
+}

@@ -8,7 +8,7 @@ import { calcPalmsScore } from '../../_shared/palms.ts';
 import { canManageMemberSignal, canTransitionMemberSignal, canViewMemberSignal } from '../../_shared/member-signal-access.ts';
 import { linePush, sha256Hex } from '../../_shared/line.ts';
 import { evaluateNotificationGuard, logSuppressedNotification } from '../../_shared/notification-orchestrator.ts';
-import { palmsPeriodDays, shouldUpdateCurrentPalms } from '../../_shared/bni-report-import.ts';
+import { detectBniReportTypeFromLabels, palmsPeriodDays, shouldUpdateCurrentPalms } from '../../_shared/bni-report-import.ts';
 
 const VALID_TEAMS = new Set(['TOOMTAM', 'Aof', 'Draft', 'PHAI', 'AMP']);
 const GROWTH_WATCH_MIN_SCORE = 65;
@@ -528,7 +528,11 @@ function parseRosterReportFromEntries(entries: Array<{ page?: number; x: number;
 
   const rosterHeaders = ['Member Name', 'Profession', 'Company Name', 'Phone']
     .map((label) => entries.find((entry) => entry.text.trim() === label)?.x || 0);
-  const hasRosterHeaders = rosterHeaders.every((x) => x > 0);
+  const hasRosterHeaders = detectBniReportTypeFromLabels(entries.map((entry) => entry.text)) === 'chapter_roster'
+    && rosterHeaders.every((x) => x > 0);
+  if (!hasRosterHeaders) {
+    return { runAt: parseRunAt(runAtText), chapter, memberCountLabel, rows: [] };
+  }
   const nameMaxX = hasRosterHeaders ? (rosterHeaders[0] + rosterHeaders[1]) / 2 : phoneX * 0.34;
   const professionMinX = nameMaxX;
   const professionMaxX = hasRosterHeaders ? (rosterHeaders[1] + rosterHeaders[2]) / 2 : phoneX * 0.61;
@@ -606,6 +610,9 @@ function parsePalmsSummaryReportFromEntries(entries: Array<{ page?: number; x: n
   const fromText = dateEntries[0]?.text || '';
   const toText = dateEntries[1]?.text || '';
   const headerLabels = ['P', 'A', 'L', 'M', 'S', 'RGI', 'RGO', 'RRI', 'RRO', 'Visitors', '1-2-1', 'Rev Given', 'CEU', 'Rev Rcvd'];
+  if (detectBniReportTypeFromLabels(entries.map((entry) => entry.text)) !== 'summary_palms') {
+    return { runAt: parseRunAt(runAtText), chapter, periodFrom: parseUsDate(fromText), periodTo: parseUsDate(toText), rows: [] };
+  }
   const headerEntries = headerLabels.map((label) => entries.find((e) => e.text.trim() === label));
   const centers = headerEntries.map((entry) => entry?.x ?? 0);
   const hasAdaptiveHeaders = centers.every((x) => x > 0);
@@ -803,6 +810,60 @@ export async function buildPalmsSummaryPreview(db: ReturnType<typeof getServiceC
     unmatched: rows.filter((r) => !r.matched).length,
     avgScore: rows.length ? Math.round(rows.reduce((s, r) => s + Number(r.calculatedScore || 0), 0) / rows.length) : 0,
     rows,
+  };
+}
+
+const BNI_REPORT_PARSER_VERSION = '2026.09.05.1';
+
+function csvCell(value: unknown): string {
+  let text = value == null ? '' : String(value);
+  if (/^[=+\-@]/.test(text)) text = `'${text}`;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function rowsToCsv(headers: string[], rows: unknown[][]): string {
+  return `\uFEFF${[headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n')}`;
+}
+
+function rosterPreviewCsv(rows: Array<Record<string, unknown>>): string {
+  return rowsToCsv(
+    ['member_name','matched','member_id','match_method','profession','company_name','phone','referrals_given_90d','referrals_received_90d','visitors_90d','one_to_one_90d','late_90d','absent_90d','warnings'],
+    rows.map((row) => [row.rawName,row.matched,row.memberId,row.matchMethod,row.safeProfession,row.safeCompanyName,row.phone,row.referralsGiven90d,row.referralsReceived90d,row.visitors90d,row.oneToOne90d,row.late90d,row.absent90d,Array.isArray(row.importWarnings) ? row.importWarnings.join('|') : '']),
+  );
+}
+
+function palmsPreviewCsv(rows: Array<Record<string, unknown>>): string {
+  return rowsToCsv(
+    ['member_name','matched','member_id','present','absent','late','medical','substitute','rgi','rgo','rri','rro','visitors','one_to_one','revenue_given_thb','ceu','revenue_received_thb','calculated_score','calculated_color'],
+    rows.map((row) => [row.rawName,row.matched,row.memberId,row.present,row.absent,row.late,row.medical,row.substitute,row.rgi,row.rgo,row.rri,row.rro,row.visitors,row.oneToOne,row.revenueGivenThb,row.ceu,row.revenueReceivedThb,row.calculatedScore,row.calculatedColor]),
+  );
+}
+
+async function activeChapterId(db: ReturnType<typeof getServiceClient>): Promise<string> {
+  const { data, error } = await db.from('chapter_profiles').select('id').eq('is_active', true).order('created_at').limit(1).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data?.id) throw new Error('ยังไม่ได้ตั้งค่า Active Chapter');
+  return String(data.id);
+}
+
+async function bniPdfFingerprint(pdfBase64: unknown): Promise<{ hash: string; size: number }> {
+  const bytes = decodeBase64Pdf(pdfBase64);
+  const input = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+  const digest = await crypto.subtle.digest('SHA-256', input);
+  return { hash: [...new Uint8Array(digest)].map((n) => n.toString(16).padStart(2, '0')).join(''), size: bytes.length };
+}
+
+async function rawPdfCsvPreview(pdfBase64: unknown) {
+  const bytes = decodeBase64Pdf(pdfBase64);
+  const streams = await extractPdfStreams(bytes);
+  const entries = parsePdfTextEntries(streams);
+  if (!entries.length) throw new Error('PDF ไม่มี text layer ที่ระบบอ่านได้');
+  return {
+    rows: entries.slice(0, 100).map((entry) => ({ rawName: entry.text, page: entry.page + 1, x: Math.round(entry.x * 10) / 10, y: Math.round(entry.y * 10) / 10 })),
+    totalRows: entries.length,
+    matched: 0,
+    unmatched: 0,
+    csv: rowsToCsv(['page','x','y','text'], entries.map((entry) => [entry.page + 1, entry.x, entry.y, entry.text])),
   };
 }
 
@@ -2603,7 +2664,149 @@ export async function handleMembers(p: Record<string, unknown>): Promise<Respons
       return jsonResponse({ ok: true });
     }
 
-    // ── BNI Connect Chapter Roster PDF preview/sync (MC only) ───
+    // ── Unified BNI Connect Report Import Center (MC only) ──────
+    case 'previewBniReportImport': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const fileName = String(p.fileName || 'BNI-report.pdf').replace(/[\\/]/g, '_').trim().slice(0, 255);
+      const requestedType = String(p.reportType || 'auto');
+      try {
+        const chapterId = await activeChapterId(db);
+        const fingerprint = await bniPdfFingerprint(p.pdfBase64);
+        if (fingerprint.size > 10 * 1024 * 1024) return errResponse('ไฟล์ PDF ต้องไม่เกิน 10 MB');
+
+        let reportType = '';
+        let preview: Record<string, unknown>;
+        let csv = '';
+        const parserErrors: string[] = [];
+        if (requestedType === 'auto' || requestedType === 'chapter_roster') {
+          try {
+            const report = await parseRosterPdf(p.pdfBase64);
+            preview = await buildRosterPreview(db, report) as Record<string, unknown>;
+            reportType = 'chapter_roster';
+            csv = rosterPreviewCsv((preview.rows || []) as Array<Record<string, unknown>>);
+          } catch (error) {
+            parserErrors.push(`Roster: ${(error as Error).message}`);
+          }
+        }
+        if (!reportType && (requestedType === 'auto' || requestedType === 'summary_palms')) {
+          try {
+            const report = await parsePalmsSummaryPdf(p.pdfBase64);
+            preview = await buildPalmsSummaryPreview(db, report) as Record<string, unknown>;
+            reportType = 'summary_palms';
+            csv = palmsPreviewCsv((preview.rows || []) as Array<Record<string, unknown>>);
+          } catch (error) {
+            parserErrors.push(`PALMS: ${(error as Error).message}`);
+          }
+        }
+        if (!reportType || !preview!) {
+          const raw = await rawPdfCsvPreview(p.pdfBase64);
+          reportType = 'raw_text';
+          preview = { ok: true, rows: raw.rows, totalRows: raw.totalRows, matched: 0, unmatched: 0, historicalOnly: true, parserWarnings: parserErrors };
+          csv = raw.csv;
+        }
+
+        const { data: existing } = await db.from('bni_report_import_batches').select('*')
+          .eq('chapter_id', chapterId).eq('report_type', reportType).eq('file_sha256', fingerprint.hash).maybeSingle();
+        const warningCount = ((preview.rows || []) as Array<Record<string, unknown>>)
+          .filter((row) => Array.isArray(row.importWarnings) && row.importWarnings.length).length;
+        let batch = existing as Record<string, unknown> | null;
+        if (!batch) {
+          const { data, error } = await db.from('bni_report_import_batches').insert({
+            chapter_id: chapterId,
+            report_type: reportType,
+            original_file_name: fileName || 'BNI-report.pdf',
+            file_sha256: fingerprint.hash,
+            file_size_bytes: fingerprint.size,
+            parser_version: BNI_REPORT_PARSER_VERSION,
+            status: 'previewed',
+            report_run_at: preview.runAt || null,
+            period_from: preview.periodFrom || null,
+            period_to: preview.periodTo || null,
+            total_rows: Number(preview.totalRows) || 0,
+            matched_rows: Number(preview.matched) || 0,
+            unmatched_rows: Number(preview.unmatched) || 0,
+            warning_count: warningCount,
+            historical_only: Boolean(preview.historicalOnly),
+            created_by: String(auth.displayName || auth.role || 'Chapter Admin'),
+          }).select('*').single();
+          if (error) throw new Error(error.message);
+          batch = data as Record<string, unknown>;
+        }
+        return jsonResponse({
+          ...preview,
+          reportType,
+          reportLabel: reportType === 'chapter_roster' ? 'Chapter Roster' : reportType === 'summary_palms' ? 'Summary PALMS' : 'PDF Text → CSV',
+          canImport: reportType !== 'raw_text',
+          batchId: batch.id,
+          duplicate: Boolean(existing),
+          alreadyImported: batch.status === 'imported',
+          fileName,
+          fileSizeBytes: fingerprint.size,
+          parserVersion: BNI_REPORT_PARSER_VERSION,
+          csv,
+        });
+      } catch (error) {
+        return errResponse((error as Error).message || 'ตรวจรายงานไม่สำเร็จ');
+      }
+    }
+
+    case 'syncBniReportImport': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      if (!Boolean(p.confirmed)) return errResponse('ต้อง Preview และยืนยันก่อนนำเข้าข้อมูล');
+      const batchId = String(p.batchId || '');
+      if (!batchId) return errResponse('ไม่พบ Import batch');
+      try {
+        const chapterId = await activeChapterId(db);
+        const fingerprint = await bniPdfFingerprint(p.pdfBase64);
+        const { data: batch, error: batchError } = await db.from('bni_report_import_batches').select('*')
+          .eq('id', batchId).eq('chapter_id', chapterId).maybeSingle();
+        if (batchError) throw new Error(batchError.message);
+        if (!batch) return errResponse('ไม่พบ Import batch ของ Chapter นี้', 404);
+        if (String(batch.file_sha256) !== fingerprint.hash) return errResponse('ไฟล์ไม่ตรงกับ Preview กรุณา Preview ใหม่');
+        if (batch.status === 'imported') return jsonResponse({ ok: true, duplicate: true, alreadyImported: true, batchId, result: batch.result_summary || {} });
+        const reportType = String(batch.report_type);
+        if (reportType === 'raw_text') return errResponse('ไฟล์นี้แปลงเป็น CSV สำหรับตรวจสอบได้ แต่ยังไม่มี Structured Adapter สำหรับนำเข้าฐานข้อมูล');
+        const childAction = reportType === 'chapter_roster' ? 'syncRosterImport' : 'syncPalmsSummaryImport';
+        const childResponse = await handleMembers({ ...p, action: childAction });
+        const result = await childResponse.json() as Record<string, unknown>;
+        if (!result.ok) {
+          await db.from('bni_report_import_batches').update({ status: 'failed', error_summary: String(result.error || 'Import failed').slice(0, 1000) }).eq('id', batchId);
+          return jsonResponse(result, childResponse.status);
+        }
+        const now = new Date().toISOString();
+        await db.from('bni_report_import_batches').update({ status: 'imported', imported_at: now, result_summary: result, error_summary: null }).eq('id', batchId);
+        await db.from('chapter_audit_events').insert({
+          event_type: 'bni_report_imported',
+          actor_role: String(auth.role || 'mc'),
+          actor_ref: String(auth.displayName || auth.role || 'Chapter Admin'),
+          subject_type: 'bni_report_import',
+          subject_ref: batchId,
+          metadata: { report_type: reportType, total_rows: result.totalRows || 0, matched: result.matched || 0, historical_only: Boolean(result.historicalOnly), parser_version: BNI_REPORT_PARSER_VERSION },
+        });
+        return jsonResponse({ ...result, batchId, duplicate: false });
+      } catch (error) {
+        return errResponse((error as Error).message || 'นำเข้ารายงานไม่สำเร็จ');
+      }
+    }
+
+    case 'getBniReportImportHistory': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      try {
+        const chapterId = await activeChapterId(db);
+        const { data, error } = await db.from('bni_report_import_batches')
+          .select('id,report_type,original_file_name,file_size_bytes,parser_version,status,report_run_at,period_from,period_to,total_rows,matched_rows,unmatched_rows,warning_count,historical_only,created_by,created_at,imported_at')
+          .eq('chapter_id', chapterId).order('created_at', { ascending: false }).limit(50);
+        if (error) throw new Error(error.message);
+        return jsonResponse({ ok: true, rows: data || [] });
+      } catch (error) {
+        return errResponse((error as Error).message || 'โหลดประวัติ Import ไม่สำเร็จ');
+      }
+    }
+
+    // ── BNI Connect Chapter Roster PDF preview/sync (legacy UI) ─
     case 'previewRosterImport': {
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);

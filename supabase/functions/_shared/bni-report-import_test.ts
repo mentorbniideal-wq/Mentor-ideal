@@ -1,4 +1,5 @@
 import {
+  detectBniReportTypeFromLabels,
   palmsPeriodDays,
   shouldUpdateCurrentPalms,
 } from "./bni-report-import.ts";
@@ -7,6 +8,29 @@ Deno.test("PALMS current-window imports may update operational stats", () => {
   if (!shouldUpdateCurrentPalms("2026-01-01", "2026-08-31")) {
     throw new Error("current window rejected");
   }
+});
+
+Deno.test("report classification requires its distinctive headers", () => {
+  const roster = ["Member Name", "Profession", "Company Name", "Phone"];
+  const palms = [
+    "Member Name",
+    "P",
+    "A",
+    "RGI",
+    "RGO",
+    "1-2-1",
+    "Rev Given",
+    "CEU",
+  ];
+  if (detectBniReportTypeFromLabels(roster) !== "chapter_roster") {
+    throw new Error("roster not detected");
+  }
+  if (detectBniReportTypeFromLabels(palms) !== "summary_palms") {
+    throw new Error("PALMS not detected");
+  }
+  if (
+    detectBniReportTypeFromLabels(["Member Name", "Revenue", "Phone"]) !== null
+  ) throw new Error("partial report accepted");
 });
 
 Deno.test("multi-year PALMS imports remain historical snapshots", () => {
