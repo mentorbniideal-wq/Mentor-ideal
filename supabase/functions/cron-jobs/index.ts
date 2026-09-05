@@ -167,7 +167,7 @@ async function webPushDispatch(db: DB): Promise<{ jobs: number; accepted: number
           keys: { p256dh: String(s.p256dh), auth: String(s.auth_secret) },
         }, JSON.stringify({
           title: String(notification.title || 'แจ้งเตือน'), body: String(notification.body || ''),
-          icon: '/favicon.svg', badge: '/favicon.svg',
+          icon: '/assets/icons/mentor-app-icon-192.png', badge: '/assets/icons/mentor-app-icon-192.png',
           tag: `bni-${String(notification.id)}`, renotify: false,
           data: { url: String(notification.action_url || '/'), notificationId: notification.id, type: notification.type },
         }), { TTL: 3600, urgency: notification.severity === 'critical' ? 'high' : 'normal' });

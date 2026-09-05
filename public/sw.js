@@ -1,5 +1,5 @@
-const CACHE_NAME = 'mentor-shell-20260905';
-const SHELL = ['/', '/index.html', '/favicon.svg', '/manifest.webmanifest'];
+const CACHE_NAME = 'mentor-shell-20260905-icon2';
+const SHELL = ['/', '/index.html', '/favicon.svg', '/manifest.webmanifest', '/assets/icons/mentor-app-icon-192.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -20,7 +20,7 @@ self.addEventListener('push', event => {
   const data = payload.data || {};
   event.waitUntil(self.registration.showNotification(payload.title || 'Mentor Operations', {
     body: payload.body || 'มีรายการใหม่ที่ควรตรวจสอบ',
-    icon: payload.icon || '/favicon.svg', badge: payload.badge || '/favicon.svg',
+    icon: payload.icon || '/assets/icons/mentor-app-icon-192.png', badge: payload.badge || '/assets/icons/mentor-app-icon-192.png',
     tag: payload.tag || `mentor-${Date.now()}`, renotify: Boolean(payload.renotify),
     data, actions: [{ action: 'open', title: 'เปิดดู' }],
   }));

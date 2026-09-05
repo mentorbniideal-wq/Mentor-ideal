@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Mentor Operations">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fbf7ed"/>
+      <stop offset="1" stop-color="#e8ddc5"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ead8ac"/>
+      <stop offset=".45" stop-color="#c6a96b"/>
+      <stop offset="1" stop-color="#8d713e"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <circle cx="256" cy="238" r="178" fill="#0d4b40"/>
+  <circle cx="256" cy="238" r="163" fill="none" stroke="url(#gold)" stroke-width="5"/>
+  <path d="M143 323V148h42l71 91 71-91h42v175h-47V218l-66 83-66-83v105z" fill="url(#gold)"/>
+  <circle cx="256" cy="111" r="8" fill="#f4f0e7" opacity=".9"/>
+  <text x="256" y="451" text-anchor="middle" fill="#0d4b40" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700" letter-spacing="8">MENTOR</text>
+</svg>
