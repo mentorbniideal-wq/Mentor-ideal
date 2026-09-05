@@ -2851,6 +2851,16 @@ export async function handleMembers(
         "active",
       ).maybeSingle();
       if (!term) return errResponse("ยังไม่มีวาระ LT ที่กำลังใช้งาน");
+      const { data: currentAssignment } = await db.from(
+        "passport_lt_assignments",
+      )
+        .select("id,assigned_member_id,assigned_name,fallback_member_id")
+        .eq("lt_role", ltRole).eq(
+          "term_id",
+          (term as Record<string, unknown>).id,
+        )
+        .eq("is_active", true).maybeSingle();
+      if (!currentAssignment) return errResponse("ไม่พบตำแหน่งในวาระปัจจุบัน", 404);
       let assignedName: string | null = null;
       if (assignedMemberId) {
         const { data: member } = await db.from("members").select(
@@ -2861,72 +2871,53 @@ export async function handleMembers(
           textValue((member as Record<string, unknown>).nickname) ||
           textValue((member as Record<string, unknown>).name) || null;
       }
-      const scopes = [
-        ...(LT_ROLE_CATALOG.find((item) => item.role === ltRole)?.scopes || []),
-      ];
-      const payload = {
-        lt_role: ltRole,
-        assigned_member_id: assignedMemberId || null,
-        assigned_name: assignedName,
-        fallback_member_id: fallbackMemberId || null,
-        term_id: (term as Record<string, unknown>).id,
-        term_start: (term as Record<string, unknown>).starts_on,
-        term_end: (term as Record<string, unknown>).ends_on,
-        notification_scopes: scopes,
-        notes: textValue(p.notes) || null,
-        is_active: true,
-        updated_at: new Date().toISOString(),
-      };
-      const { data: existing } = await db.from("passport_lt_assignments")
-        .select("id")
-        .eq("lt_role", ltRole).eq(
-          "term_id",
-          (term as Record<string, unknown>).id,
-        ).eq("is_active", true).maybeSingle();
-      const query = existing
-        ? db.from("passport_lt_assignments").update(payload).eq(
-          "id",
-          (existing as Record<string, unknown>).id,
-        ).select("*").single()
-        : db.from("passport_lt_assignments").insert(payload).select("*")
-          .single();
-      const { data, error } = await query;
-      if (error) return errResponse(error.message);
-      const mentorTeamMatch = /^Mentor Team · (TOOMTAM|Aof|Draft|PHAI|AMP)$/
-        .exec(ltRole);
-      if (mentorTeamMatch) {
-        const leaderName = assignedName || mentorTeamMatch[1];
-        const { error: teamError } = await db.from("mentor_teams")
-          .update({
-            leader_name: leaderName,
-            leader_member_id: assignedMemberId || null,
-            display_name: `ทีม ${leaderName}`,
-            active_term_id: (term as Record<string, unknown>).id,
-            updated_at: new Date().toISOString(),
-          }).eq("name", mentorTeamMatch[1]);
-        if (teamError) {
-          return errResponse(
-            `บันทึกตำแหน่งแล้ว แต่เปลี่ยนชื่อทีมไม่สำเร็จ: ${teamError.message}`,
-          );
-        }
+      const outgoingMemberId = textValue(
+        (currentAssignment as Record<string, unknown>).assigned_member_id,
+      );
+      const transition =
+        outgoingMemberId === assignedMemberId && assignedMemberId
+          ? "continued"
+          : outgoingMemberId && assignedMemberId
+          ? "transferred"
+          : assignedMemberId
+          ? "assigned"
+          : "vacated";
+      if (p.confirmed !== true) {
+        return jsonResponse({
+          ok: true,
+          preview: true,
+          transition,
+          outgoingMemberId: outgoingMemberId || null,
+          outgoingName: textValue(
+            (currentAssignment as Record<string, unknown>).assigned_name,
+          ) || null,
+          incomingMemberId: assignedMemberId || null,
+          incomingName: assignedName,
+          oldAccessWillBeSuspended: Boolean(
+            outgoingMemberId && outgoingMemberId !== assignedMemberId &&
+              ltRole.startsWith("Mentor"),
+          ),
+          existingAccessWillBeExtended: Boolean(
+            assignedMemberId && outgoingMemberId === assignedMemberId &&
+              ltRole.startsWith("Mentor"),
+          ),
+        });
       }
-      await db.from("passport_sessions").update({
-        assigned_lt_member_id: assignedMemberId || null,
-        assigned_lt_name: assignedName,
-        updated_at: new Date().toISOString(),
-      })
-        .eq("lt_role", ltRole).in("status", ["scheduled", "notified"]);
-      if (assignedMemberId) {
-        await db.from("role_assignments").update({
-          term_id: (term as Record<string, unknown>).id,
-          access_status: "active",
-          access_expires_at: `${
-            String((term as Record<string, unknown>).ends_on)
-          }T23:59:59+07:00`,
-          updated_at: new Date().toISOString(),
-        }).eq("member_id", assignedMemberId).neq("role", "admin");
+      if (textValue(p.expectedOutgoingMemberId) !== outgoingMemberId) {
+        return errResponse("ผู้รับตำแหน่งถูกเปลี่ยนหลังเปิดตัวอย่าง กรุณาตรวจใหม่", 409);
       }
-      return jsonResponse({ ok: true, assignment: data });
+      const { data: transitioned, error: transitionError } = await db.rpc(
+        "fn_transition_lt_assignment",
+        {
+          p_lt_role: ltRole,
+          p_incoming_member_id: assignedMemberId || null,
+          p_fallback_member_id: fallbackMemberId || null,
+          p_expected_outgoing_member_id: outgoingMemberId || null,
+          p_actor: String(auth.displayName || auth.role || "Chapter Admin"),
+        },
+      );
+      if (transitionError) return errResponse(transitionError.message);
+      return jsonResponse({ ok: true, assignment: transitioned });
     }
 
     case "previewLtTerm": {

@@ -70,7 +70,8 @@
   },500);
 })();
 function bootDesktop(){
-  if(localStorage.getItem('theme')==='dark'){
+  var savedTheme=localStorage.getItem('theme');
+  if(savedTheme!=='light'){
     document.body.classList.add('dark');
     const btn=document.getElementById('themeBtn');
     if(btn) btn.textContent='☀️';

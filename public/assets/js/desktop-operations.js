@@ -46,7 +46,7 @@ var SUPABASE_API='https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
 var SUPABASE_ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
 var SUPABASE_URL_AUTH='https://itwyjhlfemxsfbimshby.supabase.co';
 var API_HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_ANON};
-var APP_STATIC_VERSION='2026.09.04-operations-health.1';
+var APP_STATIC_VERSION='2026.09.05-icon-rail.1';
 try{
   var _svKey='bni_dashboard_static_version';
   var _prevSv=localStorage.getItem(_svKey)||'';
@@ -2868,7 +2868,26 @@ function saveLtRole(index){
   var d=_ltTeamData||{},item=(d.roles||[])[index];if(!item)return;
   var main=(document.getElementById('lt-main-'+index)||{}).value||'',fallback=(document.getElementById('lt-fallback-'+index)||{}).value||'';
   if(main&&main===fallback){toast('❌ ผู้รับผิดชอบหลักและผู้สำรองต้องเป็นคนละคน','err');return;}
-  ld(true);gsr('saveLtTeamAssignment',{role:'mc',ltRole:item.role,assignedMemberId:main,fallbackMemberId:fallback},function(r){ld(false);if(!r||!r.ok){toast('❌ '+(r&&r.error||'บันทึกไม่ได้'),'err');return;}toast('✅ บันทึก '+item.label+' แล้ว','ok');_ltTeamLoaded=false;_passportLoaded=false;loadLtTeam(true);});
+  ld(true);gsr('saveLtTeamAssignment',{role:'mc',ltRole:item.role,assignedMemberId:main,fallbackMemberId:fallback},function(pre){
+    ld(false);if(!pre||!pre.ok){toast('❌ '+(pre&&pre.error||'ตรวจสอบไม่ได้'),'err');return;}
+    var incoming=pre.incomingName||'ยังไม่กำหนด',outgoing=pre.outgoingName||'ยังไม่มีผู้รับตำแหน่ง',title='',detail='';
+    if(pre.transition==='continued'){
+      title='ต่อวาระให้ '+incoming;
+      detail='บัญชีและ PIN เดิมยังใช้ได้ ระบบจะต่ออายุสิทธิ์ถึงวันสิ้นสุดวาระปัจจุบัน';
+    }else if(pre.transition==='transferred'){
+      title='ส่งมอบจาก '+outgoing+' → '+incoming;
+      detail=(pre.oldAccessWillBeSuspended?'สิทธิ์ Mentor Mobile ของ '+outgoing+' จะถูกระงับทันทีหลังยืนยัน\n':'')+'หาก '+incoming+' ยังไม่มีบัญชี ต้องกด “จัดการ Mentor Mobile” เพื่อส่งคำเชิญ';
+    }else if(pre.transition==='vacated'){
+      title='นำ '+outgoing+' ออกจากตำแหน่ง';detail='สิทธิ์ Mentor Mobile เดิมจะถูกระงับ และตำแหน่งนี้จะว่าง';
+    }else{title='มอบตำแหน่งให้ '+incoming;detail='หากยังไม่มีบัญชี ต้องส่งคำเชิญ Mentor Mobile หลังบันทึก';}
+    if(!confirm('ตรวจผลก่อนบันทึก\n\n'+title+'\n'+detail+'\n\nยืนยันดำเนินการหรือไม่?'))return;
+    ld(true);gsr('saveLtTeamAssignment',{role:'mc',ltRole:item.role,assignedMemberId:main,fallbackMemberId:fallback,confirmed:true,expectedOutgoingMemberId:pre.outgoingMemberId||''},function(r){
+      ld(false);if(!r||!r.ok){toast('❌ '+(r&&r.error||'บันทึกไม่ได้'),'err');return;}
+      var result=r.assignment||{},msg=result.transition==='continued'?'✅ ต่อวาระ '+incoming+' แล้ว':'✅ ส่งมอบ '+item.label+' แล้ว';
+      if(result.needs_mobile_invite)msg+=' · กรุณาส่งคำเชิญ Mentor Mobile';
+      toast(msg,result.needs_mobile_invite?'warn':'ok');_ltTeamLoaded=false;_passportLoaded=false;loadLtTeam(true);
+    });
+  });
 }
 function inviteLtMentor(index){
   var d=_ltTeamData||{},item=(d.roles||[])[index],access=item&&ltMentorAccess(item.role),memberId=(document.getElementById('lt-main-'+index)||{}).value||'';
@@ -5957,7 +5976,7 @@ function swTo(secId,group,tabIdx){
 function toggleLight(){
   document.body.classList.toggle('dark');
   const isDark = document.body.classList.contains('dark');
-  localStorage.setItem('theme', isDark ? 'dark' : '');
+  localStorage.setItem('theme', isDark ? 'dark' : 'light');
   const btn = document.getElementById('themeBtn');
   if(btn) btn.textContent = isDark ? '☀️' : '🌙';
   const mc = document.querySelector('meta[name="theme-color"]');
@@ -8118,22 +8137,35 @@ function sw(id,btn,group){
   }
   btn=btn||findTabButtonForSection(id,group);
   document.querySelectorAll('.sec').forEach(function(s){s.classList.remove('on');});
-  document.querySelectorAll('#'+group+'-tabs .tb').forEach(function(b){b.classList.remove('on');});
+  document.querySelectorAll('#'+group+'-tabs .tb').forEach(function(b){b.classList.remove('on');b.removeAttribute('aria-current');});
   sec.classList.add('on');
-  if(btn&&btn.classList)btn.classList.add('on');
+  if(btn&&btn.classList){btn.classList.add('on');btn.setAttribute('aria-current','page');}
   ld(false);
   if(id==='gr-dec'&&typeof renderTrendSection==='function')renderTrendSection();
 }
 
 // ── Tab Fold (collapse/expand left sidebar) ──────────────
+function prepareTabFoldIcons(tabs){
+  if(!tabs)return;
+  tabs.querySelectorAll('.tb').forEach(function(tab){
+    var label=(tab.textContent||'').trim();
+    if(!tab.dataset.foldLabel)tab.dataset.foldLabel=label;
+    if(!tab.dataset.foldIcon){
+      var chars=Array.from(label);
+      tab.dataset.foldIcon=chars.length?chars[0]:'•';
+    }
+    if(!tab.getAttribute('title'))tab.setAttribute('title',tab.dataset.foldLabel);
+  });
+}
 function toggleTabFold(group){
   var tabs=document.getElementById(group+'-tabs');
   if(!tabs)return;
+  prepareTabFoldIcons(tabs);
   var folded=tabs.classList.toggle('folded');
   var app=document.getElementById('app');
   if(app)app.classList.toggle('tabs-folded',folded);
   var foldBtn=document.getElementById(group+'-fold-btn');
-  if(foldBtn)foldBtn.textContent=folded?'»':'☰';
+  if(foldBtn){foldBtn.textContent=folded?'»':'☰';foldBtn.setAttribute('aria-expanded',folded?'false':'true');foldBtn.setAttribute('aria-label',folded?'ขยายเมนูด้านข้าง':'พับเมนูด้านข้าง');}
   try{localStorage.setItem('tabFold_'+group,folded?'1':'0');}catch(e){}
 }
 function restoreTabFold(group){
@@ -8142,7 +8174,7 @@ function restoreTabFold(group){
     var app=document.getElementById('app');
     if(app)app.classList.remove('tabs-folded');
     var tabs=document.getElementById(group+'-tabs');
-    if(tabs)tabs.classList.remove('folded');
+    if(tabs){tabs.classList.remove('folded');prepareTabFoldIcons(tabs);}
     if(localStorage.getItem('tabFold_'+group)==='1')toggleTabFold(group);
   }catch(e){}
 }

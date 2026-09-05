@@ -33,7 +33,7 @@
 - Chapter Admin สั่งตรวจ lifecycle ได้จาก Chapter Center
 - บัญชี Full Access ของเจ้าของระบบไม่ถูกลดสิทธิ์โดยอัตโนมัติ
 
-สถานะ: แกน lifecycle พร้อม; งานถัดไปคือ scheduled execution และหน้าแก้ช่วง Shadow/Read-only
+สถานะ: แกน lifecycle พร้อม; การเปลี่ยนผู้รับตำแหน่ง Mentor มี Preview ก่อนยืนยัน ระงับสิทธิ์ผู้ส่งมอบ เปิด/ต่ออายุสิทธิ์ผู้รับ และบันทึก Audit ใน transaction เดียว ส่วนผู้ดำรงตำแหน่งเดิมที่อยู่ต่อสามารถคัดลอกไปวาระใหม่พร้อมต่ออายุบัญชีเดิมได้ งานถัดไปคือ scheduled execution และหน้าแก้ช่วง Shadow/Read-only
 
 ## Phase 5 — One Essential LINE Summary
 
@@ -68,3 +68,5 @@
 - ทุกการส่ง LINE ต้อง Preview → Confirm → Delivery result
 - Snapshot เขียนครั้งเดียวและไม่แก้ย้อนหลัง
 - ระบบใหม่ต้อง additive และไม่เปลี่ยนประวัติวาระเดิม
+- ห้ามเปลี่ยนเพียงชื่อบุคคลเมื่อส่งมอบตำแหน่ง Mentor ต้องใช้ Preview → Confirm เพื่อเปลี่ยน assignment และ access lifecycle พร้อมกัน
+- ผู้ที่อยู่ต่ออีกวาระใช้บัญชีและ Device PIN เดิมได้ โดยระบบต่ออายุสิทธิ์ตามวันสิ้นสุดวาระใหม่
