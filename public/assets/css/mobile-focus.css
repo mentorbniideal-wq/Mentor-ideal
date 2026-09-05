@@ -1,0 +1,43 @@
+/* Mobile focus layer: role-aware navigation and readable operational content. */
+@media (max-width:760px){
+  .app.on{min-height:100dvh}
+  .app>.hdr{min-height:56px;padding:.45rem .75rem}
+  .app>.hdr .hdr-logo{font-size:.9rem;white-space:nowrap}
+  .app>.hdr button{width:40px;min-width:40px;min-height:40px;padding:0!important;display:inline-grid;place-items:center}
+  .app>.hdr button[onclick*="window.open('dashboard.html'"]{display:none}
+  .app>.hdr .hdr-divider{display:none}
+
+  .app>.tabs{position:fixed;z-index:180;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;padding:7px 6px calc(7px + env(safe-area-inset-bottom));border-top:1px solid var(--border);background:color-mix(in srgb,var(--bg2) 94%,transparent);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 -8px 28px rgba(0,0,0,.18)}
+  .app>.tabs:after{display:none}
+  .app>.tabs .tb{position:relative;width:100%;min-width:0;min-height:52px;padding:5px 2px;border-radius:12px;font:700 11px/1.2 Sarabun,sans-serif;overflow:visible}
+  .app>.tabs .tb.on{color:var(--mint);background:rgba(176,138,60,.12)}
+  .app>.tabs .ti{font-size:18px;line-height:20px;margin:0 0 2px}
+  .app>.content{padding:.8rem .8rem calc(78px + env(safe-area-inset-bottom));overflow:visible}
+
+  .mobile-page-head{margin:.1rem 0 .85rem}
+  .mobile-page-head .kicker{font-size:10px;letter-spacing:.12em}
+  .mobile-page-head h1{font-size:1.45rem;line-height:1.2;margin:.18rem 0}
+  .mobile-page-head p{font-size:13px;line-height:1.5}
+  .mobile-today-actions{grid-template-columns:repeat(3,minmax(0,1fr));gap:.55rem}
+  .mobile-today-actions button{min-height:92px;padding:.72rem}
+  .mobile-today-actions b{font-size:13px}
+  .mobile-today-actions small,.mobile-mini-note,.mentor-hub-card span,.mobile-command-card span{font-size:12px;line-height:1.5}
+  .ct,.sh{font-size:11px;line-height:1.4}
+  .fb,.mobile-chip{font-size:12px}
+  .mobile-member-name{font-size:14px}
+  .mobile-member-name span,.mobile-member-team,.mobile-member-state,.mobile-member-result-count{font-size:12px;line-height:1.45}
+  .mobile-member-score small,.mobile-metric span{font-size:10px}
+  .mentor-hub-card strong,.mobile-command-card strong,.mobile-follow-title{font-size:14px}
+  .mobile-follow-meta,.timeline-detail,.timeline-meta{font-size:12px}
+  #mentor-directory .filter-bar,#g-memberhub .filter-bar{display:flex;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;padding-bottom:.45rem}
+  #mentor-directory .filter-bar::-webkit-scrollbar,#g-memberhub .filter-bar::-webkit-scrollbar{display:none}
+  #mentor-directory .filter-bar .fb,#g-memberhub .filter-bar .fb{flex:0 0 auto}
+  #mc-more #mc-mentor-activity{margin-top:.85rem}
+}
+
+@media (max-width:360px){
+  .app>.tabs .tb{font-size:10px}
+  .mobile-today-actions{grid-template-columns:1fr 1fr}
+  .mobile-today-actions button:last-child{grid-column:1/-1;min-height:72px}
+}
+

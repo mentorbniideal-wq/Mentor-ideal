@@ -9,6 +9,7 @@ const budgets = [
   ['public/assets/css/desktop-monthly-sync.css', 8_000],
   ['public/assets/css/desktop-member-360.css', 8_000],
   ['public/assets/css/mobile-operations.css', 150_000],
+  ['public/assets/css/mobile-focus.css', 8_000],
   ['public/dashboard.html', 210_000],
   ['public/index.html', 110_000],
   ['public/liff/index.html', 200_000],

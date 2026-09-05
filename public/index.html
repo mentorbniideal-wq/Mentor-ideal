@@ -14,6 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=IBM+Plex+Mono:wght@500&family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=IBM+Plex+Mono:wght@500&family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="/assets/css/mobile-operations.css">
+<link rel="stylesheet" href="/assets/css/mobile-focus.css?v=20260905">
 </head>
 <body>
 <main id="mainContent">
@@ -238,7 +239,7 @@
       </div>
     </div>
   </div>
-  <div class="tabs">
+  <div class="tabs" role="navigation" aria-label="เมนูหลัก Mentor Co.">
     <button class="tb on" onclick="mct('dashboard',this)"><span class="ti">🏠</span>วันนี้</button>
     <button class="tb" onclick="mct('followup',this)"><span class="ti">📌</span>ติดตาม<span class="notif-badge-tab" id="mc-followup-badge" style="display:none">0</span></button>
     <button class="tb" onclick="mct('memberhub',this)"><span class="ti">👥</span>สมาชิก</button>
@@ -253,8 +254,16 @@
       <div id="mc-121-summary"></div>
       <div id="mc-risk-monitor"></div>
       <div id="mc-alert-list" style="margin-bottom:.5rem;"></div>
-      <div id="mc-dashboard-member-slot">
-      <div class="filter-bar" id="mc-filter">
+    </div>
+
+    <!-- Members: Mobile Member 360 launcher -->
+    <div class="pane" id="mc-memberhub">
+      <div class="card mobile-member-intro">
+        <div class="ct">👥 Member 360</div>
+        <div class="mobile-mini-note">ค้นหาและเปิดสมาชิกเพื่อดู Traffic Light, PALMS, Timeline, MSB, Passport และ next action ในหน้าเดียว</div>
+      </div>
+      <div id="mc-memberhub-slot">
+        <div class="filter-bar" id="mc-filter">
         <button class="fb on" onclick="setFilter('all',this)">ทั้งหมด</button>
         <button class="fb" onclick="setFilter('none',this)" style="color:#A78BFA;border-color:rgba(167,139,250,.35);">⭐ ใหม่</button>
         <button class="fb" onclick="setFilter('black',this)">⚫ ดำ</button>
@@ -290,15 +299,6 @@
       </div>
       <div id="mc-followup-summary" class="mobile-chip-row"></div>
       <div id="mc-followup-list"><div class="lt">⏳ กำลังโหลด...</div></div>
-    </div>
-
-    <!-- Members: Mobile Member 360 launcher -->
-    <div class="pane" id="mc-memberhub">
-      <div class="card mobile-member-intro">
-        <div class="ct">👥 Member 360</div>
-        <div class="mobile-mini-note">ค้นหาและเปิดสมาชิกเพื่อดู Traffic Light, PALMS, Timeline, MSB, Passport และ next action ในหน้าเดียว</div>
-      </div>
-      <div id="mc-memberhub-slot"></div>
     </div>
 
     <!-- BNI Coaching Overview (MC cross-team) -->
@@ -419,7 +419,7 @@
         <button class="mobile-command-card" onclick="mct('mentor',null)">📈 <strong>Mentor Performance</strong><span>ดู performance, meeting prep, 90-day review</span></button>
         <button class="mobile-command-card" onclick="mct('messages',null)">💬 <strong>Messages</strong><span>Broadcast, ข้อความ และงานมอบหมาย</span></button>
         <button class="mobile-command-card" onclick="mct('newmembers',null)">👶 <strong>New Members</strong><span>สมาชิกใหม่และ checklist</span></button>
-        <button class="mobile-command-card" onclick="mct('linesettings',null)" style="grid-column:1/-1;">⚙️ <strong>System / LINE Settings</strong><span>ตั้งค่าเดือน, PIN, Archive, LINE mapping และตรวจ formula</span></button>
+        <button class="mobile-command-card" onclick="window.open('dashboard.html?section=access','_blank')" style="grid-column:1/-1;">💻 <strong>ตั้งค่าระบบบน Desktop</strong><span>PIN, สิทธิ์, LINE mapping และค่าระบบสำคัญจัดการบน Desktop เพื่อความปลอดภัย</span></button>
       </div>
     </div>
 
@@ -515,7 +515,7 @@
       </div>
     </div>
   </div>
-  <div class="tabs">
+  <div class="tabs" role="navigation" aria-label="เมนูหลัก Mentor">
     <button class="tb on" data-mentor-primary="myteam" onclick="mnt('myteam',this)" aria-label="หน้าภาพรวมวันนี้"><span class="ti">🏠</span>วันนี้</button>
     <button class="tb" data-mentor-primary="directory" onclick="mnt('directory',this)" aria-label="ค้นหาและเลือกสมาชิก"><span class="ti">👥</span>สมาชิก</button>
     <button class="tb" data-mentor-primary="work" onclick="mnt('work',this)" aria-label="ศูนย์งานติดตาม"><span class="ti">✅</span>งาน<span id="mentor-work-badge" class="notif-badge-tab" style="display:none"></span></button>
@@ -527,17 +527,6 @@
       <div id="mentor-focus3"></div>
       <div id="mentor-weekly"></div>
       <div id="mentor-growth-tasks"></div>
-      <div class="filter-bar" id="m-filter">
-        <button class="fb on" onclick="setMFilter('all',this)">ทั้งหมด</button>
-        <button class="fb" onclick="setMFilter('none',this)" style="color:#A78BFA;border-color:rgba(167,139,250,.35);">⭐ ใหม่</button>
-        <button class="fb" onclick="setMFilter('black',this)">⚫ ดำ</button>
-        <button class="fb" onclick="setMFilter('red',this)">🔴 แดง</button>
-        <button class="fb" onclick="setMFilter('yellow',this)">🟡 เหลือง</button>
-        <button class="fb" onclick="setMFilter('green',this)">🟢 เขียว</button>
-        <button class="fb" onclick="setMFilter('absent',this)" style="color:var(--red);border-color:rgba(248,113,113,.35);">❌ ขาด</button>
-        <button class="fb" onclick="setMFilter('nocontact',this)" style="color:var(--yellow);border-color:rgba(251,191,36,.35);">📆 ติดตามด่วน</button>
-      </div>
-      <div id="mentor-members"><div class="lt">⏳ กำลังโหลด...</div></div>
     </div>
     <div class="pane" id="mentor-work">
       <div class="sh">งานที่ต้องดำเนินการ</div>
@@ -562,6 +551,18 @@
       <label class="fl" for="mentor-member-search">ค้นหา Mentee</label>
       <input class="mentor-search" id="mentor-member-search" type="search" placeholder="พิมพ์ชื่อหรือนิคเนม..." oninput="renderMentorDirectory()" autocomplete="off">
       <div id="mentor-directory-list"><div class="lt">⏳ กำลังโหลด...</div></div>
+      <div class="sh">สมาชิกในทีมและสถานะล่าสุด</div>
+      <div class="filter-bar" id="m-filter">
+        <button class="fb on" onclick="setMFilter('all',this)">ทั้งหมด</button>
+        <button class="fb" onclick="setMFilter('none',this)" style="color:#A78BFA;border-color:rgba(167,139,250,.35);">⭐ ใหม่</button>
+        <button class="fb" onclick="setMFilter('black',this)">⚫ ดำ</button>
+        <button class="fb" onclick="setMFilter('red',this)">🔴 แดง</button>
+        <button class="fb" onclick="setMFilter('yellow',this)">🟡 เหลือง</button>
+        <button class="fb" onclick="setMFilter('green',this)">🟢 เขียว</button>
+        <button class="fb" onclick="setMFilter('absent',this)" style="color:var(--red);border-color:rgba(248,113,113,.35);">❌ ขาด</button>
+        <button class="fb" onclick="setMFilter('nocontact',this)" style="color:var(--yellow);border-color:rgba(251,191,36,.35);">📆 ติดตามด่วน</button>
+      </div>
+      <div id="mentor-members"><div class="lt">⏳ กำลังโหลด...</div></div>
     </div>
     <div class="pane" id="mentor-more">
       <div class="sh">เครื่องมือทั้งหมด</div>
@@ -777,11 +778,11 @@
       </div>
     </div>
   </div>
-  <div class="tabs">
+  <div class="tabs" role="navigation" aria-label="เมนูหลัก Growth">
     <button class="tb on" onclick="gtab('dashboard',this)"><span class="ti">🏠</span>วันนี้</button>
     <button class="tb" onclick="gtab('powerteam',this)"><span class="ti">🎯</span>แผนเติบโต</button>
     <button class="tb" onclick="gtab('ops',this)"><span class="ti">✅</span>งาน</button>
-    <button class="tb" onclick="gtab('powerteam',this);setTimeout(function(){gptab('synergy',document.querySelector('#g-powerteam .stb:nth-child(2)'));},0)"><span class="ti">🔗</span>จับคู่</button>
+    <button class="tb" onclick="gtab('memberhub',this)"><span class="ti">👥</span>สมาชิก</button>
     <button class="tb" onclick="gtab('more',this)"><span class="ti">☰</span>เพิ่มเติม</button>
   </div>
   <div class="content">
@@ -790,6 +791,13 @@
       <div id="g-chapter-scorecard"></div>
       <div id="g-summary"></div>
       <div id="g-121-summary"></div>
+    </div>
+
+    <div class="pane" id="g-memberhub">
+      <div class="card mobile-member-intro">
+        <div class="ct">👥 Growth Member View</div>
+        <div class="mobile-mini-note">ค้นหาคนที่ควรช่วยจากสมดุล Referral และเปิดรายละเอียดรายบุคคล</div>
+      </div>
       <div class="filter-bar" id="g-filter">
         <button class="fb on" onclick="setGFilter('all',this)">ทั้งหมด</button>
         <button class="fb" onclick="setGFilter('highGiverLowRecv',this)">🔴 ต้องช่วย</button>

@@ -608,6 +608,7 @@ function gtab(tab,btn){
   if(tab==='activity'){loadVisitorTracker();}
   if(tab==='ops'){loadCheckinHistory();}
   if(tab==='powerteam'){PT_SYN_LOADED=false;loadGrowthPowerTeams();}
+  if(tab==='memberhub'){renderGrowthMembers();}
   if(tab==='sheet'){loadGrowthSheet();}
   window.scrollTo(0,0);
 }
@@ -772,9 +773,41 @@ function gsub(sub,btn){
 var MOBILE_PANE_META={
   'mc-dashboard':['วันนี้','เรื่องสำคัญของ Chapter และสิ่งที่ควรดำเนินการก่อน'],'mc-followup':['งานติดตาม','รวมงานค้างจากทุกระบบ เรียงสิ่งที่เร่งด่วนก่อน'],'mc-memberhub':['สมาชิก','ค้นหา ดูสถานะ และเปิด Member 360'],'mc-reports':['รายงานและ Renewal','ติดตามรายงาน การตอบกลับ และการต่ออายุ'],'mc-more':['เครื่องมือเพิ่มเติม','Coaching, Messages, Activity, Access และการตั้งค่า'],'mc-coaching':['Coaching','ภาพรวมสมาชิกที่ต้องการการดูแลทุกทีม'],'mc-mentor':['Mentor Performance','ติดตามภาระงาน การประชุม และ 90-Day Review'],'mc-messages':['ข้อความและงาน','Broadcast ข้อความรายคน และงานมอบหมาย'],'mc-newmembers':['สมาชิกใหม่','ติดตาม Checklist และความพร้อมของสมาชิกใหม่'],'mc-linesettings':['ระบบและ LINE','จัดการบัญชี การเชื่อมต่อ สิทธิ์ และการตั้งค่า'],
   'mentor-myteam':['วันนี้ของทีมฉัน','สมาชิกที่ควรดูแลและสิ่งที่ควรทำต่อ'],'mentor-directory':['สมาชิกในทีม','ค้นหาและเปิดข้อมูล Mentee แบบครบถ้วน'],'mentor-work':['งานของฉัน','รายการที่ต้องดำเนินการ ติดตาม และปิดงาน'],'mentor-121care':['1-2-1 Care','ช่วยสมาชิกที่ติดขั้นตอนและติดตามสิ่งที่ตกลงกัน'],'mentor-more':['เครื่องมือเพิ่มเติม','Coaching, สมาชิกใหม่, Activity และการอบรม'],'mentor-report':['รายงาน Core Issue','บันทึกประเด็นสำคัญและติดตามคำตอบจาก MC'],'mentor-renewal':['Renewal','ดูแลสมาชิกตั้งแต่เริ่มติดต่อจนทราบผล'],'mentor-mcmsg':['ข้อความและงานจาก MC','อ่าน รับทราบ และดำเนินการต่อจากที่เดียว'],'mentor-newmembers':['สมาชิกใหม่','ติดตาม Checklist และการเติบโตช่วงเริ่มต้น'],'mentor-coaching':['Coaching Guide','เตรียมบทสนทนาให้เหมาะกับสมาชิกแต่ละคน'],'mentor-mentorlog':['Activity Log','บันทึกหลักฐานการดูแลและ Next Action'],'mentor-90day':['90-Day Review','ทบทวนความก้าวหน้าและกำหนดเป้าหมายถัดไป'],'mentor-training':['Training & CEU','เลือกการอบรมที่เหมาะแล้วแนะนำสมาชิก'],'mentor-msummary':['Weekly Summary','สร้างสรุปสำหรับ LINE และ MC'],
-  'g-dashboard':['วันนี้ของ Growth','ดูสัญญาณการเติบโตและสมาชิกที่ควรช่วยก่อน'],'g-powerteam':['แผนการเติบโต','Power Team, Synergy, Matching และ Sprint'],'g-ops':['งาน Growth','Check-in, Visitors, Action และงานประจำสัปดาห์'],'g-more':['เครื่องมือเพิ่มเติม','Analytics, Renewal, Growth Sheet และสรุปประจำสัปดาห์'],'g-analytics':['Chapter Pulse','แนวโน้ม ผลงาน และโอกาสพัฒนา'],'g-activity':['Activity','Visitors และสัญญาณกิจกรรมของ Chapter'],'g-renewal':['Renewal','ติดตามสมาชิกใกล้หมดอายุทั้ง Chapter'],'g-sheet':['Growth Sheet','ฐานข้อมูล Revenue และรายละเอียดการเติบโต']
+  'g-dashboard':['วันนี้ของ Growth','ดูสัญญาณการเติบโตและเรื่องที่ควรจัดการก่อน'],'g-memberhub':['สมาชิก','ค้นหาและดูสมดุล Referral รายบุคคล'],'g-powerteam':['แผนการเติบโต','Power Team, Synergy, Matching และ Sprint'],'g-ops':['งาน Growth','Check-in, Visitors, Action และงานประจำสัปดาห์'],'g-more':['เครื่องมือเพิ่มเติม','Analytics, Renewal, Growth Sheet และสรุปประจำสัปดาห์'],'g-analytics':['Chapter Pulse','แนวโน้ม ผลงาน และโอกาสพัฒนา'],'g-activity':['Activity','Visitors และสัญญาณกิจกรรมของ Chapter'],'g-renewal':['Renewal','ติดตามสมาชิกใกล้หมดอายุทั้ง Chapter'],'g-sheet':['Growth Sheet','ฐานข้อมูล Revenue และรายละเอียดการเติบโต']
 };
-function mobileEnhancePane(el){if(!el||el.dataset.mobileEnhanced==='1')return;var meta=MOBILE_PANE_META[el.id];if(!meta)return;var head=document.createElement('header');head.className='mobile-page-head';head.innerHTML='<div class="kicker">MENTOR CO. · MOBILE</div><h1>'+escHtml(meta[0])+'</h1><p>'+escHtml(meta[1])+'</p>';el.insertBefore(head,el.firstChild);if(el.id==='mc-dashboard'){mountMcMemberTools('mc-memberhub-slot');var actions=document.createElement('nav');actions.className='mobile-today-actions';actions.setAttribute('aria-label','ทางลัดวันนี้');actions.innerHTML='<button onclick="mct(\'followup\',null)"><span>📌</span><b>งานติดตาม</b><small>เรียงตามความด่วน</small></button><button onclick="mct(\'memberhub\',null)"><span>👥</span><b>ค้นหาสมาชิก</b><small>เปิด Member 360</small></button><button onclick="openMobMeetPrep()"><span>📋</span><b>เตรียมประชุม</b><small>ดูประเด็นสำคัญ</small></button>';head.after(actions);var summary=document.getElementById('mc-summary');if(summary)actions.after(summary);var priority=document.createElement('section');priority.className='mobile-today-priority';summary?summary.after(priority):actions.after(priority);['mc-alert-list','mc-risk-monitor','mc-121-summary'].forEach(function(id){var node=document.getElementById(id);if(node)priority.appendChild(node);});}if(el.id==='mc-memberhub'){mountMcMemberTools('mc-memberhub-slot');var count=document.createElement('div');count.id='mc-member-result-count';count.className='mobile-member-result-count';head.after(count);}if(el.id==='g-dashboard'){var signal=document.getElementById('g-121-summary');if(signal)head.after(signal);}el.dataset.mobileEnhanced='1';}
+function mobileEnhancePane(el){
+  if(!el||el.dataset.mobileEnhanced==='1')return;
+  var meta=MOBILE_PANE_META[el.id];if(!meta)return;
+  var app=el.closest('.app');
+  var kicker=app&&app.id==='growthApp'?'GROWTH · MOBILE':app&&app.id==='mentorApp'?'MENTOR · MOBILE':'MENTOR CO. · MOBILE';
+  var head=document.createElement('header');head.className='mobile-page-head';
+  head.innerHTML='<div class="kicker">'+kicker+'</div><h1>'+escHtml(meta[0])+'</h1><p>'+escHtml(meta[1])+'</p>';
+  el.insertBefore(head,el.firstChild);
+  if(el.id==='mc-dashboard'){
+    mountMcMemberTools('mc-memberhub-slot');
+    var actions=document.createElement('nav');actions.className='mobile-today-actions';actions.setAttribute('aria-label','ทางลัดวันนี้');
+    actions.innerHTML='<button onclick="mct(\'followup\',null)"><span>📌</span><b>งานติดตาม</b><small>เรียงตามความด่วน</small></button><button onclick="mct(\'memberhub\',null)"><span>👥</span><b>ค้นหาสมาชิก</b><small>เปิด Member 360</small></button><button onclick="openMobMeetPrep()"><span>📋</span><b>เตรียมประชุม</b><small>ดูประเด็นสำคัญ</small></button>';
+    head.after(actions);
+    var summary=document.getElementById('mc-summary');if(summary)actions.after(summary);
+    var priority=document.createElement('section');priority.className='mobile-today-priority';
+    summary?summary.after(priority):actions.after(priority);
+    var oneToOne=document.getElementById('mc-121-summary');if(oneToOne)priority.appendChild(oneToOne);
+    var follow=document.getElementById('mc-followup');
+    ['mc-alert-list','mc-risk-monitor'].forEach(function(id){var node=document.getElementById(id);if(node&&follow)follow.appendChild(node);});
+    var activity=document.getElementById('mc-mentor-activity'),more=document.getElementById('mc-more');
+    if(activity&&more){var activityTitle=document.createElement('div');activityTitle.className='sh';activityTitle.textContent='กิจกรรม Mentor ล่าสุด';more.appendChild(activityTitle);more.appendChild(activity);}
+  }
+  if(el.id==='mc-memberhub'){
+    mountMcMemberTools('mc-memberhub-slot');
+    var count=document.createElement('div');count.id='mc-member-result-count';count.className='mobile-member-result-count';head.after(count);
+  }
+  if(el.id==='g-dashboard'){
+    var signal=document.getElementById('g-121-summary');if(signal)head.after(signal);
+    var growthSummary=document.getElementById('g-summary'),growthMembers=document.getElementById('g-memberhub');
+    if(growthSummary&&growthMembers)growthMembers.insertBefore(growthSummary,growthMembers.children[1]||null);
+  }
+  el.dataset.mobileEnhanced='1';
+}
 function mobileActivatePane(app,el,tab){mobileEnhancePane(el);try{sessionStorage.setItem('bni:mobile:last:'+app,tab);}catch(e){}document.querySelectorAll(app+' .tabs .tb').forEach(function(x){x.setAttribute('aria-current',x.classList.contains('on')?'page':'false');});document.querySelectorAll(app+' .lt').forEach(function(x){x.setAttribute('role','status');x.setAttribute('aria-live','polite');});}
 function mobileEnhanceStates(root){root=root||document;if(root.matches&&root.matches('.app .lt')){root.setAttribute('role','status');root.setAttribute('aria-live','polite');}if(root.matches&&root.matches('.app .empty'))root.setAttribute('role','status');root.querySelectorAll('.app .lt,.lt').forEach(function(x){x.setAttribute('role','status');x.setAttribute('aria-live','polite');});root.querySelectorAll('.app .empty,.empty').forEach(function(x){x.setAttribute('role','status');});}
 setTimeout(function(){mobileEnhanceStates(document);new MutationObserver(function(rows){rows.forEach(function(row){row.addedNodes.forEach(function(node){if(node.nodeType===1)mobileEnhanceStates(node);});});}).observe(document.body,{childList:true,subtree:true});},0);
@@ -2559,7 +2592,7 @@ function buildExportText(){
 // ── Growth Functions ──────────────────────────────────────────
 function loadGrowthData(){
   call('getGrowthData',{},function(err,r){
-    if(err||!r.ok){document.getElementById('g-members').innerHTML='<div class="empty">❌ '+(err?err.message:(r&&r.error)||'ไม่ทราบ')+'<br><br><button class="btn-p" style="width:auto;padding:.5rem 1.5rem;" onclick="loadGrowthData()">🔄 ลองใหม่</button></div>';return;}
+    if(err||!r.ok){var message=err?err.message:(r&&r.error)||'ไม่ทราบ';document.getElementById('g-members').innerHTML='<div class="empty">❌ '+escHtml(message)+'<br><br><button class="btn-p" style="width:auto;padding:.5rem 1.5rem;" onclick="loadGrowthData()">🔄 ลองใหม่</button></div>';document.getElementById('g-chapter-scorecard').innerHTML='<div class="empty">โหลดข้อมูล Growth ไม่สำเร็จ<br><button class="btn-p" onclick="loadGrowthData()">🔄 ลองใหม่</button></div>';return;}
     GS.members=r.members;GS.loaded=true;GS.lastSummary=r.summary;
     renderChapterScorecard(r.members,r.summary);
     renderGrowthSummary(r.summary);
