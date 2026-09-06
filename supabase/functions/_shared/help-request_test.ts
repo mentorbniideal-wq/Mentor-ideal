@@ -16,6 +16,10 @@ Deno.test('help center routes chapter operations to the responsible LT scope', (
   assertEquals(helpRequestRoute('growth')?.signalType, 'goal');
   assertEquals(helpRequestRoute('training')?.signalType, 'training');
   assertEquals(helpRequestRoute('renewal')?.signalType, 'renewal');
+  assertEquals(helpRequestRoute('referral')?.signalType, 'referral');
+  assertEquals(helpRequestRoute('profile')?.signalType, 'profile_update');
+  assertEquals(helpRequestRoute('presentation')?.signalType, 'presentation');
+  assertEquals(helpRequestRoute('confidential')?.confidential, true);
 });
 
 Deno.test('help center rejects unknown categories', () => {

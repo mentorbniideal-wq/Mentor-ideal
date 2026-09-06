@@ -19,10 +19,10 @@ export function canViewMemberSignal(
   const targets = Array.isArray(row.target_roles) ? row.target_roles.map(String) : [];
   if (auth.memberId && String(row.assigned_member_id || '') === auth.memberId) return true;
   if (activeLtRoles.some(role => targets.includes(role))) return true;
-  if (auth.role === 'growth') return type === 'goal';
-  if (auth.role === 'mc') return type === 'member_help';
+  if (auth.role === 'growth') return type === 'goal' || type === 'referral';
+  if (auth.role === 'mc') return type === 'member_help' || type === 'confidential';
   if (auth.role === 'mentor_support') return type === 'member_help';
-  if (MENTOR_TEAM_ROLES.has(String(auth.role || '')) && type === 'member_help') {
+  if (MENTOR_TEAM_ROLES.has(String(auth.role || '')) && ['member_help', 'referral'].includes(type)) {
     const member = (row.members || {}) as Record<string, unknown>;
     return Boolean(auth.teamName) && String(member.mentor_team || '') === auth.teamName;
   }

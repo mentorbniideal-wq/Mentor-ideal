@@ -26,6 +26,22 @@ Deno.test('renewal routes to Committee and Secretary/Treasurer', () => {
   assertEquals(ltRolesForScope('renewal'), ['Membership Committee', 'Secretary/Treasurer']);
 });
 
+Deno.test('referral routes to Mentor and Growth coordinators', () => {
+  assertEquals(ltRolesForScope('referral'), ['Mentor Coordinator', 'Growth Coordinator']);
+});
+
+Deno.test('profile updates route to Committee and Secretary/Treasurer', () => {
+  assertEquals(ltRolesForScope('profile_update'), ['Membership Committee', 'Secretary/Treasurer']);
+});
+
+Deno.test('presentation support routes to Vice President and NEC', () => {
+  assertEquals(ltRolesForScope('presentation'), ['Vice President', 'Network Education Coordinator']);
+});
+
+Deno.test('confidential requests have a restricted LT route', () => {
+  assertEquals(ltRolesForScope('confidential'), ['President', 'Vice President', 'Membership Committee']);
+});
+
 Deno.test('unknown LT notification scope has no recipients', () => {
   assertEquals(ltRolesForScope('unknown'), []);
 });

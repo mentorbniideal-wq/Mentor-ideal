@@ -32,17 +32,17 @@ import {
 const VALID_TEAMS = new Set(["TOOMTAM", "Aof", "Draft", "PHAI", "AMP"]);
 const GROWTH_WATCH_MIN_SCORE = 65;
 const LT_ROLE_CATALOG = [
-  { role: "President", label: "President", scopes: [] },
-  { role: "Vice President", label: "Vice President", scopes: [] },
+  { role: "President", label: "President", scopes: ["confidential"] },
+  { role: "Vice President", label: "Vice President", scopes: ["presentation", "confidential"] },
   {
     role: "Secretary/Treasurer",
     label: "Secretary / Treasurer",
-    scopes: ["absence", "renewal", "training"],
+    scopes: ["absence", "renewal", "training", "profile_update"],
   },
   {
     role: "Membership Committee",
     label: "Membership Committee",
-    scopes: ["absence", "renewal"],
+    scopes: ["absence", "renewal", "profile_update", "confidential"],
   },
   { role: "Visitor Host", label: "Visitor Host", scopes: ["visitor"] },
   {
@@ -53,14 +53,14 @@ const LT_ROLE_CATALOG = [
   {
     role: "Mentor Coordinator",
     label: "Mentor Coordinator",
-    scopes: ["member_help", "new_member"],
+    scopes: ["member_help", "new_member", "referral"],
   },
-  { role: "Growth Coordinator", label: "Growth Coordinator", scopes: ["goal"] },
+  { role: "Growth Coordinator", label: "Growth Coordinator", scopes: ["goal", "referral"] },
   { role: "Web Master", label: "Web Master", scopes: [] },
   {
     role: "Network Education Coordinator",
     label: "NEC · Network Education Coordinator",
-    scopes: ["training"],
+    scopes: ["training", "presentation"],
   },
   {
     role: "Mentor Co.",

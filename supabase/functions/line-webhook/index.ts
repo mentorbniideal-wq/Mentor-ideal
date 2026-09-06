@@ -25,6 +25,7 @@ import { teamCommandMode, type LineRole } from '../_shared/line-roles.ts';
 import { parseLineCommand, type LineCommand } from '../_shared/line-commands.ts';
 import { notifyAbsenceStakeholders } from '../_shared/line-absence-notify.ts';
 import { notifyIssueStakeholders } from '../_shared/line-issue-notify.ts';
+import { upsertMemberSignal } from '../_shared/member-signals.ts';
 
 Deno.serve(async (req: Request) => {
   // LINE sends POST requests only
@@ -1449,6 +1450,19 @@ async function logAbsence(
   });
   if (insertError) return `⚠️ บันทึกไม่สำเร็จ: ${insertError.message}`;
 
+  await upsertMemberSignal(db, {
+    memberId: String((m as any).id),
+    signalType: 'absence',
+    subjectType: 'meeting_absence',
+    subjectId: weekDate,
+    title: type === 'ส่ง sub' ? 'สมาชิกแจ้งส่งตัวแทน' : 'สมาชิกแจ้งลา',
+    detail: detail || `${type} · ${weekDate}`,
+    payload: { absenceType: type, meetingDate: weekDate },
+    priority: 'high',
+    consent: true,
+    idempotencyKey: `absence:${String((m as any).id)}:${weekDate}`,
+  });
+
   const nick = (m as any).nickname || memberName.split(' ')[0];
   const notification = await notifyAbsenceStakeholders(db, {
     memberId: String((m as any).id),
@@ -1479,12 +1493,17 @@ async function cancelAbsence(db: ReturnType<typeof getServiceClient>, memberName
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const weekStart = new Date(today); weekStart.setDate(today.getDate() - today.getDay());
   const { data: rec } = await db.from('line_absence_log')
-    .select('id').eq('member_id', (m as any).id)
+    .select('id,week_date').eq('member_id', (m as any).id)
     .gte('created_at', weekStart.toISOString())
     .is('cancelled_at', null)
     .order('created_at', { ascending: false }).limit(1).single();
   if (!rec) return '⚠️ ไม่พบรายการแจ้งลาของสัปดาห์นี้ครับ';
   await db.from('line_absence_log').update({ cancelled_at: new Date().toISOString() }).eq('id', (rec as any).id);
+  await db.from('member_signals').update({
+    status: 'cancelled',
+    resolved_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq('idempotency_key', `absence:${String((m as any).id)}:${String((rec as any).week_date || '')}`);
   const nick = (m as any).nickname || memberName.split(' ')[0];
   return `ยกเลิกแล้วครับ ${nick} — แผนเปลี่ยนใหม่ก็แจ้งได้เลยนะครับ 👋`;
 }

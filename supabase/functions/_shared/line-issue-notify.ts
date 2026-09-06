@@ -1,6 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
 // Supabase query-builder chains are dynamic until generated database types are introduced.
 import { linePush } from './line.ts';
+import { resolveLtLineRecipients } from './lt-role-routing.ts';
 
 type Db = {
   from: (table: string) => any;
@@ -17,6 +18,8 @@ export interface IssueNotice {
   nickname: string;
   mentorTeam: string;
   issueText: string;
+  signalType?: string;
+  routeLabel?: string;
   idempotencyKey: string;
   source: string;
 }
@@ -164,14 +167,23 @@ async function notifyMcInDashboard(db: Db, notice: IssueNotice, title: string, b
 }
 
 export async function notifyIssueStakeholders(db: Db, notice: IssueNotice): Promise<IssueNotifyResult> {
-  const { recipients, ready } = await resolveTeamLeaderLineRecipients(db, notice.mentorTeam);
+  const signalType = notice.signalType || 'member_help';
+  const directMentor = signalType === 'member_help' || signalType === 'referral';
+  const teamRoute = directMentor
+    ? await resolveTeamLeaderLineRecipients(db, notice.mentorTeam)
+    : { recipients: [] as string[], ready: false };
+  const ltRoute = signalType !== 'member_help'
+    ? await resolveLtLineRecipients(db, signalType)
+    : { recipients: [] as string[], roles: [] as string[], missingRoles: [] as string[] };
+  const recipients = [...new Set([...teamRoute.recipients, ...ltRoute.recipients])];
+  const ready = recipients.length > 0;
   const nickname = notice.nickname || notice.memberName.split(' ')[0] || notice.memberName;
 
   if (!recipients.length) {
     await notifyMcInDashboard(
       db,
       notice,
-      `ยังไม่มี LINE หัวหน้าทีม ${notice.mentorTeam || 'ไม่ระบุทีม'}`,
+      `ยังไม่มีผู้รับ LINE สำหรับ ${notice.routeLabel || 'คำขอนี้'}`,
       `${nickname} ส่งคำขอความช่วยเหลือ: ${notice.issueText}`,
       'no_recipient',
     );
@@ -200,9 +212,10 @@ export async function notifyIssueStakeholders(db: Db, notice: IssueNotice): Prom
   const message = [
     '🆘 ขอความช่วยเหลือจากสมาชิก',
     `${nickname} · ทีม ${notice.mentorTeam || 'ยังไม่ระบุ'}`,
+    `หมวด: ${notice.routeLabel || 'ทีมดูแลสมาชิก'}`,
     `เรื่อง: ${detail}`,
     '',
-    'ตอบกลับ/ปิดเคสได้ที่ MC Dashboard → Activity → LINE Activity',
+    'เปิดดูและดำเนินการต่อได้ใน Mobile / Desktop → งานจากสมาชิก',
   ].join('\n');
 
   let sent = 0;

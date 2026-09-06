@@ -541,6 +541,18 @@ Deno.serve(async (req: Request) => {
       week_date: meetingDate,
     });
     if (error) return response({ ok: false, error: error.message }, 400);
+    await upsertMemberSignal(db, {
+      memberId,
+      signalType: 'absence',
+      subjectType: 'meeting_absence',
+      subjectId: meetingDate,
+      title: absenceType === 'ส่ง sub' ? 'สมาชิกแจ้งส่งตัวแทน' : 'สมาชิกแจ้งลา',
+      detail: detail || `${absenceType} · ${meetingDate}`,
+      payload: { absenceType, meetingDate },
+      priority: 'high',
+      consent: true,
+      idempotencyKey: `absence:${memberId}:${meetingDate}`,
+    });
     const noticeKey = await buildIdempotencyKey([memberId, meetingDate, absenceType, detail]);
     await notifyAbsenceStakeholders(db, {
       memberId,
@@ -577,7 +589,9 @@ Deno.serve(async (req: Request) => {
       await upsertMemberSignal(db, {
         memberId, signalType: route.signalType, title: `คำขอความช่วยเหลือ · ${route.label}`, detail: issueText,
         subjectType: 'help_request', subjectId: issueId, payload: { issueId, category, routeLabel: route.label },
-        idempotencyKey: `help-request:${clientActionId || issueId}`, consent: true,
+        idempotencyKey: `help-request:${clientActionId || issueId}`,
+        consent: true,
+        priority: route.priority || 'normal',
       });
       await notifyIssueStakeholders(db, {
         issueId,
@@ -586,12 +600,14 @@ Deno.serve(async (req: Request) => {
         nickname: String(identity.member.nickname || identity.member.name || ''),
         mentorTeam: String(identity.member.mentor_team || ''),
         issueText,
+        signalType: route.signalType,
+        routeLabel: route.label,
         idempotencyKey: `liff:issue:${issueId}`,
         source: 'liff-api',
       });
     }
     await trackLineEvent(db, 'liff_issue_submitted', {
-      lineUserId: identity.userId, memberId, source: 'liff',
+      lineUserId: identity.userId, memberId, source: 'liff', properties: { category, signalType: route.signalType },
     });
     return response({ ok: true, message: `รับเรื่องแล้ว · ส่งต่อให้ ${route.label}` });
   }

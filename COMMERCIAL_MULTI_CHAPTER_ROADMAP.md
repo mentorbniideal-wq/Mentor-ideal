@@ -81,6 +81,13 @@
 - ข้อจำกัดที่สื่อใน UI: iOS ต้อง Add to Home Screen ก่อน และสถานะ `accepted` หมายถึง push provider รับคำขอ ไม่ใช่หลักฐานว่า OS แสดงบนหน้าจอแล้ว
 - Technical debt สำหรับ Phase 2/3: เปลี่ยน Active Chapter resolver เป็น tenant จาก session และแยก VAPID key/dispatch policy ต่อ Chapter เมื่อเปิดงาน secret architecture อย่างเป็นทางการ
 
+#### Member Action Routing foundation (6 กันยายน 2569)
+
+- Member Action Center ใช้เส้นทางหลักแบบลดความซ้ำ: แจ้งลา/ส่งแทน, Visitor, Connection/Referral, เป้าหมาย, อบรม/ต่ออายุ และ Help Center
+- Backend เป็นผู้แปลงหมวดย่อยเป็น `signal_type` และผู้รับจากตำแหน่ง LT วาระปัจจุบัน; client ไม่สามารถกำหนดผู้รับหรือขอบเขต Chapter เอง
+- แยก Referral, แก้ข้อมูลธุรกิจ, Presentation และเรื่องเป็นความลับออกจาก `member_help` เพื่อจำกัดการมองเห็นตามหน้าที่ โดย Mentor Support ไม่เห็นเรื่องลับ
+- คำขอใช้ idempotency เดิมและ LINE delivery ledger เดิมเพื่อไม่ส่งซ้ำ; หากไม่มีผู้รับที่ผูก LINE ระบบส่งสถานะผิดปกติให้ Mentor Co. ใน Notification Center
+
 ### Phase 2 — Multi-tenant foundation
 
 - เพิ่ม `chapters`, `chapter_memberships` และ stable IDs

@@ -2,13 +2,15 @@
 type Db = { from: (table: string) => any };
 
 export const LT_ROLE_SCOPES: Record<string, string[]> = {
-  'Membership Committee': ['absence', 'renewal'],
-  'Secretary/Treasurer': ['absence', 'renewal', 'training'],
+  'President': ['confidential'],
+  'Vice President': ['presentation', 'confidential'],
+  'Membership Committee': ['absence', 'renewal', 'profile_update', 'confidential'],
+  'Secretary/Treasurer': ['absence', 'renewal', 'training', 'profile_update'],
   'Visitor Host': ['visitor'],
   'Event Coordinator': ['visitor'],
-  'Mentor Coordinator': ['member_help', 'new_member'],
-  'Growth Coordinator': ['goal'],
-  'Network Education Coordinator': ['training'],
+  'Mentor Coordinator': ['member_help', 'new_member', 'referral'],
+  'Growth Coordinator': ['goal', 'referral'],
+  'Network Education Coordinator': ['training', 'presentation'],
 };
 
 export function ltRolesForScope(scope: string): string[] {
