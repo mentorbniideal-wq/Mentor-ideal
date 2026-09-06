@@ -307,6 +307,9 @@ async function handleSystemHealth(p: Record<string, unknown>): Promise<Response>
     { action: 'getLineActivityTimeline', label: 'LINE Member Activity Timeline', readOnly: true },
     { action: 'getTrafficLightMonthlySummary', label: 'Traffic Light Monthly Summary', readOnly: true },
     { action: 'getUnreadCounts', label: 'Unread badges / counters', readOnly: true },
+    { action: 'getLtTeam', label: 'LT roles and LINE routing readiness', readOnly: true },
+    { action: 'getMemberSignals', label: 'Member action work queue', readOnly: true },
+    { action: 'getOneToOneOverview', label: '1-2-1 live dashboard', readOnly: true },
   ];
 
   const routeNames = Object.keys(ROUTES).sort();

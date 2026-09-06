@@ -25,7 +25,10 @@ export interface IssueNotice {
 }
 
 export interface IssueNotifyResult {
+  attempted: number;
   sent: number;
+  failed: number;
+  skipped: number;
   mentorReady: boolean;
   quotaOk: boolean;
   skippedReason?: 'no_recipient' | 'no_token' | 'quota_low' | 'quota_error';
@@ -187,7 +190,7 @@ export async function notifyIssueStakeholders(db: Db, notice: IssueNotice): Prom
       `${nickname} ส่งคำขอความช่วยเหลือ: ${notice.issueText}`,
       'no_recipient',
     );
-    return { sent: 0, mentorReady: ready, quotaOk: true, skippedReason: 'no_recipient' };
+    return { attempted: 0, sent: 0, failed: 0, skipped: 0, mentorReady: ready, quotaOk: true, skippedReason: 'no_recipient' };
   }
 
   const quota = await getLineQuota(recipients.length);
@@ -200,7 +203,10 @@ export async function notifyIssueStakeholders(db: Db, notice: IssueNotice): Prom
       quota.reason,
     );
     return {
+      attempted: 0,
       sent: 0,
+      failed: 0,
+      skipped: 0,
       mentorReady: ready,
       quotaOk: false,
       skippedReason: quota.reason,
@@ -219,16 +225,38 @@ export async function notifyIssueStakeholders(db: Db, notice: IssueNotice): Prom
   ].join('\n');
 
   let sent = 0;
+  let failed = 0;
+  let skipped = 0;
   for (const recipient of recipients) {
-    await linePush(recipient, message, {
-      db,
-      idempotencyKey: `${notice.idempotencyKey}:${recipient}`,
-      memberId: notice.memberId,
-      notificationType: 'issue_alert',
-      source: notice.source,
-    });
-    sent++;
+    try {
+      const result = await linePush(recipient, message, {
+        db,
+        idempotencyKey: `${notice.idempotencyKey}:${recipient}`,
+        memberId: notice.memberId,
+        notificationType: 'issue_alert',
+        source: notice.source,
+      });
+      if (result.sent) sent++;
+      else if (result.skipped) skipped++;
+      else failed++;
+    } catch (error) {
+      failed++;
+      console.error('[issue-notify] LINE delivery failed', {
+        issueId: notice.issueId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
-  return { sent, mentorReady: ready, quotaOk: true, remaining: quota.remaining };
+  if (failed > 0) {
+    await notifyMcInDashboard(
+      db,
+      notice,
+      'ส่ง LINE Alert ได้ไม่ครบทุกผู้รับ',
+      `${nickname} ส่งคำขอแล้ว · สำเร็จ ${sent} · ล้มเหลว ${failed} · ข้ามซ้ำ ${skipped}`,
+      'delivery_failed',
+    );
+  }
+
+  return { attempted: recipients.length, sent, failed, skipped, mentorReady: ready, quotaOk: true, remaining: quota.remaining };
 }

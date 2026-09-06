@@ -579,6 +579,14 @@ Deno.serve(async (req: Request) => {
     if (!route) return response({ ok: false, error: 'หัวข้อที่เลือกไม่ถูกต้อง กรุณาเลือกใหม่' }, 400);
     if (body.shareConsent !== 'true' && body.shareConsent !== true) return response({ ok: false, error: 'กรุณายินยอมให้ส่งข้อมูลแก่ทีมที่เกี่ยวข้อง' }, 400);
     if (issueText.length < 3) return response({ ok: false, error: 'กรุณาระบุรายละเอียดเพิ่มเติม' }, 400);
+    if (clientActionId) {
+      const { data: existingSignal } = await db.from('member_signals')
+        .select('subject_id,status').eq('member_id', memberId)
+        .eq('idempotency_key', `help-request:${clientActionId}`).maybeSingle();
+      if (existingSignal) {
+        return response({ ok: true, duplicate: true, message: 'รับเรื่องนี้ไว้แล้ว · ไม่ได้ส่งซ้ำ', issueId: (existingSignal as Record<string, unknown>).subject_id || null });
+      }
+    }
     const { data: issue, error } = await db.from('line_issues')
       .insert({ member_id: memberId, issue_text: issueText })
       .select('id')
@@ -593,7 +601,7 @@ Deno.serve(async (req: Request) => {
         consent: true,
         priority: route.priority || 'normal',
       });
-      await notifyIssueStakeholders(db, {
+      const delivery = await notifyIssueStakeholders(db, {
         issueId,
         memberId,
         memberName: String(identity.member.name || ''),
@@ -605,11 +613,24 @@ Deno.serve(async (req: Request) => {
         idempotencyKey: `liff:issue:${issueId}`,
         source: 'liff-api',
       });
+      await trackLineEvent(db, 'liff_issue_delivery_result', {
+        lineUserId: identity.userId,
+        memberId,
+        source: 'liff',
+        properties: { issueId, attempted: delivery.attempted, sent: delivery.sent, failed: delivery.failed, skipped: delivery.skipped, skippedReason: delivery.skippedReason || null },
+      });
+      await trackLineEvent(db, 'liff_issue_submitted', {
+        lineUserId: identity.userId, memberId, source: 'liff', properties: { category, signalType: route.signalType },
+      });
+      const deliveryMessage = delivery.sent > 0
+        ? `ส่งต่อให้ ${route.label} แล้ว ${delivery.sent} คน`
+        : 'บันทึกเข้าคิวทีมงานแล้ว';
+      return response({ ok: true, message: `รับเรื่องแล้ว · ${deliveryMessage}`, delivery });
     }
     await trackLineEvent(db, 'liff_issue_submitted', {
       lineUserId: identity.userId, memberId, source: 'liff', properties: { category, signalType: route.signalType },
     });
-    return response({ ok: true, message: `รับเรื่องแล้ว · ส่งต่อให้ ${route.label}` });
+    return response({ ok: true, message: 'รับเรื่องแล้ว · บันทึกเข้าคิวทีมงานแล้ว' });
   }
 
   if (action === '121') {
@@ -643,6 +664,21 @@ Deno.serve(async (req: Request) => {
 
   if (action === 'goal-notification') {
     const enabled=body.enabled===true;const {error}=await db.from('line_notif_settings').upsert({member_id:memberId,notif_type:'score',is_muted:!enabled,updated_at:new Date().toISOString()},{onConflict:'member_id,notif_type'});if(error)return response({ok:false,error:'ปรับการแจ้งเตือนไม่สำเร็จ กรุณาลองใหม่'},400);await trackLineEvent(db,'liff_goal_notification_updated',{lineUserId:identity.userId,memberId,source:'liff',properties:{enabled}});return response({ok:true,enabled,message:enabled?'เปิดสรุปคะแนนและเป้าหมายแล้ว':'ปิดสรุปคะแนนและเป้าหมายแล้ว'});
+  }
+
+  if (action === 'notification-preferences') {
+    const allowed = ['all', 'score', 'renewal', 'nudge', 'visitor_followup', '121_reminder'];
+    if (String(body.method || 'get') === 'set') {
+      const notifType = String(body.notifType || '');
+      if (!allowed.includes(notifType)) return response({ ok: false, error: 'ประเภทการแจ้งเตือนไม่ถูกต้อง' }, 400);
+      const enabled = body.enabled === true;
+      const { error } = await db.from('line_notif_settings').upsert({ member_id: memberId, notif_type: notifType, is_muted: !enabled, updated_at: new Date().toISOString() }, { onConflict: 'member_id,notif_type' });
+      if (error) return response({ ok: false, error: 'บันทึกการตั้งค่าไม่สำเร็จ' }, 400);
+      await trackLineEvent(db, 'liff_notification_preference_updated', { lineUserId: identity.userId, memberId, source: 'liff', properties: { notifType, enabled } });
+    }
+    const { data } = await db.from('line_notif_settings').select('notif_type,is_muted').eq('member_id', memberId).in('notif_type', allowed);
+    const muted = new Set(((data || []) as Record<string, unknown>[]).filter(row => row.is_muted === true).map(row => String(row.notif_type)));
+    return response({ ok: true, preferences: Object.fromEntries(allowed.map(type => [type, !muted.has(type)])) });
   }
 
   if (action === 'goal') {
@@ -916,16 +952,38 @@ Deno.serve(async (req: Request) => {
       .limit(5);
     const issueIds = ((issues || []) as Record<string, unknown>[]).map(row => String(row.id || '')).filter(Boolean);
     const { data: signals } = issueIds.length ? await db.from('member_signals')
-      .select('subject_id,status,payload,target_roles')
+      .select('id,subject_id,status,payload,target_roles,assigned_role,acknowledged_at,resolved_at,updated_at')
       .eq('member_id', memberId)
       .eq('subject_type', 'help_request')
       .in('subject_id', issueIds) : { data: [] };
     const signalByIssue = new Map(((signals || []) as Record<string, unknown>[]).map(row => [String(row.subject_id || ''), row]));
     const enriched = ((issues || []) as Record<string, unknown>[]).map(row => {
       const signal = signalByIssue.get(String(row.id || '')) as Record<string, unknown> | undefined;
-      return { ...row, status: String(signal?.status || (row.resolved_at ? 'resolved' : 'new')), routing: signal?.target_roles || [], category: (signal?.payload as Record<string, unknown> | undefined)?.category || 'mentor' };
+      return { ...row, status: String(signal?.status || (row.resolved_at ? 'resolved' : 'new')), routing: signal?.target_roles || [], assigned_role: signal?.assigned_role || null, category: (signal?.payload as Record<string, unknown> | undefined)?.category || 'mentor' };
     });
     return response({ ok: true, issues: enriched });
+  }
+
+  if (action === 'get-issue-detail') {
+    const issueId = String(body.issueId || '').trim();
+    if (!issueId) return response({ ok: false, error: 'ไม่พบคำขอที่ต้องการดู' }, 400);
+    const { data: issue } = await db.from('line_issues')
+      .select('id,issue_text,reported_at,mentor_response,resolved_at')
+      .eq('id', issueId).eq('member_id', memberId).maybeSingle();
+    if (!issue) return response({ ok: false, error: 'ไม่มีสิทธิ์ดูคำขอนี้' }, 404);
+    const { data: signal } = await db.from('member_signals')
+      .select('id,status,payload,target_roles,assigned_role,acknowledged_at,resolved_at,created_at,updated_at')
+      .eq('member_id', memberId).eq('subject_type', 'help_request').eq('subject_id', issueId).maybeSingle();
+    let timeline: Record<string, unknown>[] = [];
+    if (signal) {
+      const { data: events } = await db.from('member_signal_events')
+        .select('event_type,from_status,to_status,created_at')
+        .eq('signal_id', String((signal as Record<string, unknown>).id))
+        .in('event_type', ['status_changed', 'assignment_changed'])
+        .order('created_at', { ascending: true }).limit(50);
+      timeline = (events || []) as Record<string, unknown>[];
+    }
+    return response({ ok: true, issue, signal, timeline });
   }
 
   if (action === 'get-visitors') {

@@ -2734,6 +2734,24 @@ export async function handleMembers(
       if (!data) {
         return errResponse("ข้อมูลถูกแก้ไขจากอีกอุปกรณ์ กรุณารีเฟรชแล้วลองใหม่", 409);
       }
+      const updatedSignal = data as Record<string, unknown>;
+      if (
+        String(updatedSignal.subject_type || "") === "help_request" &&
+        updatedSignal.subject_id
+      ) {
+        const issueChanges: Record<string, unknown> = {
+          resolved_at: ["resolved", "cancelled"].includes(status) ? now : null,
+        };
+        const memberFacingResponse = textValue(p.memberResponse).replace(
+          /[\u0000-\u001f\u007f]/g,
+          " ",
+        ).trim().slice(0, 1000);
+        if (memberFacingResponse) issueChanges.mentor_response = memberFacingResponse;
+        await db.from("line_issues").update(issueChanges).eq(
+          "id",
+          String(updatedSignal.subject_id),
+        ).eq("member_id", String(updatedSignal.member_id));
+      }
       return jsonResponse({ ok: true, signal: data });
     }
 

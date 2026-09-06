@@ -8,6 +8,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="./chapter-home.css">
   <link rel="stylesheet" href="./help-center.css">
+  <link rel="stylesheet" href="/assets/css/notification-preferences.css?v=20260906.1">
   <link rel="stylesheet" href="./chapter-directory.css">
   <title>MY IDEAL · Action Center</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
@@ -87,6 +88,7 @@
       <button class="tab member-tab" data-view="visitor">แขกพิเศษ</button>
       <button class="tab member-tab" data-view="issue">ช่วยเหลือ</button>
       <button class="tab member-tab" data-view="absence">ลา / ส่งแทน</button>
+      <button class="tab member-tab" data-view="notifications">🔔 แจ้งเตือน</button>
       <button class="tab assign-tab hidden" data-view="assignments">📎 งาน</button>
       <button class="tab member-tab" data-view="ceu">🎓 ปฏิทิน / การอบรม</button>
       <button class="tab member-tab" data-view="renewal">🔄 ต่ออายุ</button>
@@ -231,6 +233,14 @@
       <div id="progressContent" class="loading" style="padding:16px 0">กำลังโหลด…</div>
     </div>
 
+    <section class="card" data-card="notifications">
+      <h2>🔔 การแจ้งเตือนของฉัน</h2><p class="hint">เลือกเฉพาะข้อความ LINE อัตโนมัติที่เป็นประโยชน์กับคุณ</p>
+      <section class="notification-preferences is-member-page" id="notification-preferences" aria-live="polite">
+        <button class="notification-preferences__toggle" type="button" onclick="toggleNotificationPreferences()" aria-expanded="false">เลือกข้อความที่ต้องการรับ <span>›</span></button>
+        <div id="notification-preferences-body" hidden></div>
+      </section>
+    </section>
+
     <!-- Assignments -->
     <div class="card" data-card="assignments">
       <h2>📎 งานที่ได้รับ</h2><p class="hint">งานมอบหมายจาก MC</p>
@@ -248,6 +258,7 @@
 <script src="./help-center.js"></script>
 <script src="./chapter-directory.js"></script>
 <script src="./chapter-directory-interactions.js"></script>
+<script src="/assets/js/notification-preferences.js?v=20260906.1"></script>
 <script>
 const cfg = window.BNI_LIFF_CONFIG || {};
 let accessToken = '', _role = 'member';
@@ -289,9 +300,10 @@ function show(view) {
   if (view === '121')         showMy121Page(getRequestedParam('section')||'pair',{updateUrl:false});
   if (view === 'issue')       loadIssueHistory();
   if (view === 'visitor')     loadPendingVisitors();
+  if (view === 'notifications') { const body=$('#notification-preferences-body'); if(body&&body.hidden) toggleNotificationPreferences(); }
 }
 
-const apiReadActions=new Set(['member-home','renewal','training-calendar','chapter-directory','chapter-directory-profile','get-my-one-to-one-system','get-my-one-to-one-history','get-my-one-to-one-profile','get-pair-121-profile','get-guided-session','get-pending-visitors']);
+const apiReadActions=new Set(['member-home','renewal','training-calendar','chapter-directory','chapter-directory-profile','get-my-one-to-one-system','get-my-one-to-one-history','get-my-one-to-one-profile','get-pair-121-profile','get-guided-session','get-pending-visitors','get-issues','get-issue-detail','notification-preferences']);
 const apiLatest=new Map();
 async function api(payload,options={}) {
   const key=options.latestKey||'',requestId=crypto.randomUUID();if(key)apiLatest.set(key,requestId);
