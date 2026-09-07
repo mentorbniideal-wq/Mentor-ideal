@@ -88,6 +88,14 @@
 - แยก Referral, แก้ข้อมูลธุรกิจ, Presentation และเรื่องเป็นความลับออกจาก `member_help` เพื่อจำกัดการมองเห็นตามหน้าที่ โดย Mentor Support ไม่เห็นเรื่องลับ
 - คำขอใช้ idempotency เดิมและ LINE delivery ledger เดิมเพื่อไม่ส่งซ้ำ; หากไม่มีผู้รับที่ผูก LINE ระบบส่งสถานะผิดปกติให้ Mentor Co. ใน Notification Center
 
+#### Delivery Truth และ Data Quality foundation (7 กันยายน 2569)
+
+- LINE AUTO มี Delivery Truth จาก ledger กลาง แสดงผล provider accepted, failed, suppressed และ pending โดยไม่อ้างว่าเป็นสถานะเปิดอ่าน
+- Retry ข้ามระบบทำได้เฉพาะ System Owner ต้อง Preview และยืนยันก่อนส่ง สร้าง delivery record ใหม่ด้วย idempotency key และ audit event
+- Chapter Center ตรวจ missing LINE/email/team, Business Profile ไม่ครบ และ duplicate name/email/LINE ID โดยไม่ส่ง identifier ลับเพิ่มเติมไป client
+- Production E2E ใช้บัญชีทดสอบแบบจำกัดตาม `PRODUCTION_E2E_RUNBOOK.md`; Smoke Test ยังคง read-only และไม่ส่ง LINE
+- Technical debt: Daily Digest ยังไม่เปิดใช้งานจนกว่าจะยืนยันเวลาและประเภทข้อความ และไฟล์ operations รุ่นเดิมยังต้องทยอยแยกเป็น feature modules
+
 ### Phase 2 — Multi-tenant foundation
 
 - เพิ่ม `chapters`, `chapter_memberships` และ stable IDs

@@ -5,6 +5,7 @@ import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts
 import {
   generateLinkToken,
   linePush,
+  linePushMessages,
   normalizeLinkToken,
   sha256Hex,
   type LineSendOptions,
@@ -2909,6 +2910,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         .select(`
           id, channel, recipient_id, member_id, notification_type, source,
           status, created_at, sent_at, message_preview, last_error,
+          response_status, attempts, suppression_reason,
           members ( nickname, name, mentor_team )
         `, { count: 'exact' })
         .order('created_at', { ascending: false })
@@ -2933,12 +2935,56 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
           sentAt:           r.sent_at ? String(r.sent_at) : null,
           preview:          r.message_preview ? String(r.message_preview) : null,
           lastError:        r.last_error ? String(r.last_error).slice(0, 200) : null,
+          responseStatus:   r.response_status ? Number(r.response_status) : null,
+          attempts:         Number(r.attempts || 0),
+          suppressionReason:r.suppression_reason ? String(r.suppression_reason) : null,
           memberNick:       String(m.nickname || m.name || ''),
           memberName:       String(m.name || ''),
           memberTeam:       String(m.mentor_team || ''),
         };
       });
-      return jsonResponse({ ok: true, rows, total: count || 0, offset, pageSize });
+      return jsonResponse({ ok: true, rows, total: count || 0, offset, pageSize, canRetry: Boolean(auth.isSystemOwner) });
+    }
+
+    case 'previewLineDeliveryRetry': {
+      const auth = await requireAuth(db, p, ['admin']);
+      if (!auth.ok || !auth.isSystemOwner) return errResponse('เฉพาะเจ้าของระบบเท่านั้นที่ Retry ข้อความข้ามระบบได้', 403);
+      const id = String(p.id || '').trim();
+      const { data } = await db.from('line_message_deliveries')
+        .select('id,status,member_id,notification_type,source,message_preview,message_payload,attempts,members(name,nickname,mentor_team)')
+        .eq('id', id).maybeSingle();
+      const row = data as Record<string, unknown> | null;
+      if (!row || String(row.status) !== 'failed') return errResponse('Retry ได้เฉพาะข้อความที่ส่งล้มเหลว', 409);
+      if (!Array.isArray(row.message_payload) || !row.message_payload.length) return errResponse('ข้อความเดิมไม่มี Payload สำหรับส่งซ้ำ', 409);
+      const member = (row.members || {}) as Record<string, unknown>;
+      return jsonResponse({ ok: true, delivery: { id: row.id, memberName: member.nickname || member.name || 'สมาชิก', memberTeam: member.mentor_team || '', notificationType: row.notification_type || '', source: row.source || '', preview: row.message_preview || '', attempts: Number(row.attempts || 0) } });
+    }
+
+    case 'retryLineDelivery': {
+      const auth = await requireAuth(db, p, ['admin']);
+      if (!auth.ok || !auth.isSystemOwner) return errResponse('เฉพาะเจ้าของระบบเท่านั้นที่ Retry ข้อความข้ามระบบได้', 403);
+      if (p.confirmed !== true) return errResponse('กรุณาตรวจ Preview และยืนยันก่อนส่ง', 400);
+      const id = String(p.id || '').trim();
+      const { data } = await db.from('line_message_deliveries')
+        .select('id,status,recipient_id,member_id,notification_type,source,message_payload,attempts,module,category,priority')
+        .eq('id', id).maybeSingle();
+      const row = data as Record<string, unknown> | null;
+      if (!row || String(row.status) !== 'failed') return errResponse('รายการนี้ไม่อยู่ในสถานะที่ Retry ได้', 409);
+      const messages = Array.isArray(row.message_payload) ? row.message_payload : [];
+      if (!messages.length || !row.recipient_id) return errResponse('ข้อมูลสำหรับส่งซ้ำไม่ครบ', 409);
+      const attempt = Number(row.attempts || 0) + 1;
+      const result = await linePushMessages(String(row.recipient_id), messages, {
+        db,
+        idempotencyKey: `delivery-retry:${id}:${attempt}`,
+        memberId: row.member_id ? String(row.member_id) : null,
+        notificationType: String(row.notification_type || 'delivery_retry'),
+        source: 'api/line-admin/retry',
+        module: String(row.module || 'operational'),
+        category: String(row.category || row.notification_type || 'delivery_retry'),
+        priority: ['critical','action_required','reminder','informational'].includes(String(row.priority)) ? row.priority as LineSendOptions['priority'] : 'action_required',
+      });
+      await db.from('chapter_audit_events').insert({ event_type: 'line_delivery_retried', actor_role: String(auth.role || 'admin'), actor_ref: String(auth.email || auth.displayName || 'system-owner'), subject_type: 'line_delivery', subject_ref: id, metadata: { new_delivery_id: result.deliveryId || null, notification_type: row.notification_type || null, source: row.source || null, skipped: result.skipped } });
+      return jsonResponse({ ok: true, sent: result.sent, skipped: result.skipped, deliveryId: result.deliveryId || null });
     }
 
     // ── LINE OA MESSAGE QUOTA ─────────────────────────────────

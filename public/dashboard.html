@@ -20,6 +20,7 @@
 <link rel="stylesheet" href="/assets/css/chapter-handover.css?v=20260905b">
 <link rel="stylesheet" href="/assets/css/viewer-mode.css">
 <link rel="stylesheet" href="/assets/css/line-auto-control-center.css?v=20260828b">
+<link rel="stylesheet" href="/assets/css/line-delivery-control.css?v=20260907a">
 <link rel="stylesheet" href="/assets/css/desktop-monthly-sync.css?v=20260905">
 <link rel="stylesheet" href="/assets/css/desktop-ux-pro-max.css?v=20260905i">
 </head>
@@ -1492,6 +1493,11 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         <button class="bsm" onclick="loadLineAutoControlCenter(true)">↻ ตรวจใหม่</button>
       </div>
       <div id="line-auto-root"><div class="lac-state">กด LINE AUTO เพื่อรวบรวมข้อความอัตโนมัติทั้งหมด</div></div>
+      <section class="ldc" aria-labelledby="ldc-title">
+        <header class="ldc-head"><div><span>DELIVERY TRUTH</span><h3 id="ldc-title">ผลส่ง LINE ล่าสุด</h3><p>ดูว่า LINE API รับข้อความใดแล้ว รายการใดล้มเหลว และแก้ไขได้จากจุดเดียว</p></div><button type="button" onclick="loadLineDeliveryControl(true)">ตรวจใหม่</button></header>
+        <div class="ldc-filters"><label>สถานะ<select id="ldc-status" onchange="loadLineDeliveryControl(true)"><option value="">ทั้งหมด</option><option value="failed">ล้มเหลว</option><option value="sent">LINE รับแล้ว</option><option value="skipped">ระบบระงับ</option><option value="pending">กำลังดำเนินการ</option></select></label><label>ประเภท<input id="ldc-type" type="search" placeholder="เช่น renewal" oninput="lineDeliveryFilterChanged()"></label></div>
+        <div id="line-delivery-control-root" class="ldc-state" aria-live="polite">เปิดหน้า LINE AUTO เพื่อโหลดผลส่งล่าสุด</div>
+      </section>
     </div>
 
     <div id="mc-lt-team" class="sec">
@@ -2275,6 +2281,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 <script src="/assets/js/desktop-mobile-access.js?v=20260903b" defer></script>
 <script src="/assets/js/chapter-operations-center.js" defer></script>
 <script src="/assets/js/line-auto-control-center.js?v=20260902b" defer></script>
+<script src="/assets/js/line-delivery-control.js?v=20260907a" defer></script>
 <script src="/assets/js/desktop-one-to-one.js?v=20260904f" defer></script>
 <script src="/assets/js/desktop-bni-import.js?v=20260905a" defer></script>
 <script src="/assets/js/dynamic-team-labels.js?v=20260906-audit.1" defer></script>

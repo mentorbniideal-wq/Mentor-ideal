@@ -201,6 +201,7 @@ const ROUTES: Record<string, string> = {
   'getOnboardingMessages': 'line-admin', 'saveOnboardingMessage': 'line-admin', 'getOnboardingPreview': 'line-admin',
   'mentorBroadcast': 'line-admin', 'setupRichMenu': 'line-admin', 'setupRichMenuTabs': 'line-admin', 'rollbackRichMenuTabs': 'line-admin', 'assignRichMenu': 'line-admin',
   'setupAllTriggers': 'line-admin', 'testLineConnection': 'line-admin', 'getLineQuota': 'line-admin', 'getLineDeliveryLog': 'line-admin',
+  'previewLineDeliveryRetry': 'line-admin', 'retryLineDelivery': 'line-admin',
   'triggerScoreAlert': 'line-admin', 'triggerAnniversary': 'line-admin',
   'triggerCheckinReminder': 'line-admin', 'triggerChapterPulse': 'line-admin',
   'triggerPostMeetingPrompt': 'line-admin', 'triggerWednesdayNudge': 'line-admin',

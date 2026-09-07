@@ -1894,6 +1894,16 @@ export async function handleMembers(
       const suppressedDeliveries = deliveries.filter((row) =>
         Boolean(row.suppression_reason)
       );
+      const normalizeIdentity = (value: unknown) => String(value || "").trim().toLocaleLowerCase("en-US").replace(/\s+/g, " ");
+      const duplicateKeys = (values: string[]) => {
+        const counts = new Map<string, number>();
+        values.filter(Boolean).forEach((value) => counts.set(value, (counts.get(value) || 0) + 1));
+        return new Set([...counts].filter(([, count]) => count > 1).map(([value]) => value));
+      };
+      const duplicateNames = duplicateKeys(members.map((row) => normalizeIdentity(row.name)));
+      const duplicateEmails = duplicateKeys(members.map((row) => normalizeIdentity(row.email)));
+      const lineByMember = new Map((linksResult.data || []).map((row: Record<string, unknown>) => [String(row.member_id), String(row.line_user_id || "")]));
+      const duplicateLineIds = duplicateKeys([...lineByMember.values()].map(normalizeIdentity));
       const profileRows = members.map((member) => {
         const id = String(member.id), profile = profileByMember.get(id) || {};
         const essentials = [
@@ -1906,6 +1916,15 @@ export async function handleMembers(
         const complete = essentials.filter((key) =>
           String(profile[key] || "").trim()
         ).length;
+        const issues = [
+          ...(!linkedIds.has(id) ? ["missing_line"] : []),
+          ...(!member.email ? ["missing_email"] : []),
+          ...(!member.mentor_team ? ["missing_team"] : []),
+          ...(duplicateNames.has(normalizeIdentity(member.name)) ? ["duplicate_name"] : []),
+          ...(duplicateEmails.has(normalizeIdentity(member.email)) ? ["duplicate_email"] : []),
+          ...(duplicateLineIds.has(normalizeIdentity(lineByMember.get(id))) ? ["duplicate_line"] : []),
+          ...(complete / essentials.length < 0.6 ? ["profile_incomplete"] : []),
+        ];
         return {
           memberId: id,
           name: member.nickname || member.name,
@@ -1913,6 +1932,7 @@ export async function handleMembers(
           completion: Math.round(complete / essentials.length * 100),
           lineLinked: linkedIds.has(id),
           hasEmail: Boolean(member.email),
+          dataIssues: issues,
         };
       });
       const checklistDefaults = [
@@ -2098,6 +2118,9 @@ export async function handleMembers(
             } คนมี Business Profile ต่ำกว่า 60%`,
           }]
           : []),
+        ...(profileRows.some((row) => row.dataIssues.some((issue: string) => issue.startsWith("duplicate_")))
+          ? [{ level: "critical", area: "Data Quality", message: `พบสมาชิกที่มีข้อมูลซ้ำ ${profileRows.filter((row) => row.dataIssues.some((issue: string) => issue.startsWith("duplicate_"))).length} รายการ` }]
+          : []),
       ];
       return jsonResponse({
         ok: true,
@@ -2122,6 +2145,7 @@ export async function handleMembers(
           emailReady: profileRows.filter((row) => row.hasEmail).length,
           profilePublished: profiles.filter((row) => row.published_at).length,
           profiles: profileRows,
+          needsAttention: profileRows.filter((row) => row.dataIssues.length > 0).length,
         },
         notifications: {
           monthStart,
