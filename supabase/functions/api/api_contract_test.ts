@@ -85,3 +85,15 @@ Deno.test('viewer requests keep viewer authentication and remain read-only', asy
     'Viewer API authentication must reject write actions',
   );
 });
+
+Deno.test('mentor PIN roles are routed to the Mobile workspace after authentication', async () => {
+  const frontend = await read('public/assets/js/desktop-operations.js');
+  assert(
+    frontend.includes("MENTOR_MOBILE_ROLES=new Set(['toomtam','aof','draft','phai','amp','mentor_support'])"),
+    'Every mentor role must share the direct Mobile route',
+  );
+  assert(
+    frontend.includes("sessionStorage.setItem('bni_app_session'") && frontend.includes("if(routeMentorToMobile(r))return"),
+    'Desktop must transfer a verified PIN session before routing Mentor to Mobile',
+  );
+});

@@ -108,6 +108,17 @@ function loadHtml2Canvas(){
 function getDashSession(){try{return JSON.parse(sessionStorage.getItem(DSH_SESSION_KEY)||'null');}catch{return null;}}
 function storeDashSession(s){try{sessionStorage.setItem(DSH_SESSION_KEY,JSON.stringify(s));}catch{}}
 function clearDashSession(){try{sessionStorage.removeItem(DSH_SESSION_KEY);}catch{}}
+var MENTOR_MOBILE_ROLES=new Set(['toomtam','aof','draft','phai','amp','mentor_support']);
+function routeMentorToMobile(r){
+  var role=String(r&&r.role||'').toLowerCase();
+  if(!MENTOR_MOBILE_ROLES.has(role))return false;
+  try{
+    if(S.pin)sessionStorage.setItem('bni_app_session',JSON.stringify({role:role,pin:S.pin,displayName:r.displayName||'',isMC:false,teamName:r.teamName||null}));
+    sessionStorage.removeItem(DSH_SESSION_KEY);
+  }catch(e){}
+  window.location.replace('/?entry=mentor-mobile');
+  return true;
+}
 function oauthRedirectUrl(){return window.location.origin+window.location.pathname+(DESKTOP_ROLE_TARGET?'?role='+encodeURIComponent(DESKTOP_ROLE_TARGET):'');}
 function showDesktopLoginError(message){var el=document.getElementById('lerr');if(el)el.textContent=message||'';if(DESKTOP_ROLE_TARGET==='viewer'){var sel=document.getElementById('d-role-sel');if(sel)sel.value='viewer';}document.getElementById('login').style.display='flex';}
 function desktopTimeout(promise,ms,message){return Promise.race([promise,new Promise(function(_,reject){setTimeout(function(){reject(new Error(message||'หมดเวลารอการตอบกลับ'));},ms);})]);}
@@ -210,6 +221,9 @@ function setDesktopTabs(role){
 
 // ── Login: now handled by Google OAuth ────────────────────────
 function enterApp(r){
+  // Mentor roles own the Mobile workspace. If a saved link or Desktop PIN form
+  // reaches this page, preserve the verified session and route consistently.
+  if(routeMentorToMobile(r))return;
   if(r.teamLabels)D.teamLabels=Object.assign({},D.teamLabels||{},r.teamLabels);applyTeamDisplayLabels();
   S.actualRole=r.role;S.isViewer=!!r.isViewer||r.role==='viewer';S.isAdmin=!!r.isAdmin||r.role==='admin'||S.isViewer;S.role=(r.role==='admin'||r.role==='viewer')?'mc':r.role;S.isMC=r.isMC;S.teamName=r.teamName;S.displayName=r.displayName;
   document.body.classList.toggle('viewer-mode',S.isViewer);
@@ -231,7 +245,7 @@ function enterApp(r){
   document.getElementById('login').style.display='none';
   document.getElementById('app').style.display='grid';
   setDesktopTabs(S.role);
-  restoreTabFold(S.role==='mc'?'mc':'gr');
+  restoreTabFold(S.role==='growth'?'gr':'mc');
   var meetingBtn=document.getElementById('btn-meeting');if(meetingBtn)meetingBtn.style.display=S.role==='mc'?'':'none';
   document.getElementById('btn-monthly-sync').style.display=(S.isAdmin&&!S.isViewer)?'':'none';
   document.getElementById('btn-admin-settings').style.display=(S.isAdmin&&!S.isViewer)?'':'none';
@@ -240,9 +254,9 @@ function enterApp(r){
   document.getElementById('btn-role-mc').style.display=(S.canRoleSwitch&&S.role==='growth')?'':'none';
   document.querySelectorAll('.sec').forEach(function(s){s.classList.remove('on');});
   document.querySelectorAll('#mc-tabs .tb,#gr-tabs .tb').forEach(function(b){b.classList.remove('on');});
-  var defSec=S.role==='mc'?'mc-ov':'gr-ov';
+  var defSec=S.role==='growth'?'gr-ov':'mc-ov';
   document.getElementById(defSec).classList.add('on');
-  var firstTab=document.querySelector('#'+(S.role==='mc'?'mc':'gr')+'-tabs .tb');
+  var firstTab=document.querySelector('#'+(S.role==='growth'?'gr':'mc')+'-tabs .tb');
   if(firstTab)firstTab.classList.add('on');
   loadFilters();
   startAR();
@@ -301,12 +315,12 @@ function logout(){
 // ── Load ─────────────────────────────────────────
 function reload(){
   _scLoaded=false;
-  if(S.role==='mc') loadMC();
-  else loadGrowth();
+  if(S.role==='growth')loadGrowth();
+  else loadMC();
 }
 function manualReload(){
   // Force refresh = ล้าง server cache แล้วโหลดใหม่
-  if(S.role==='mc'){loadMC(true);}else{loadGrowth();}
+  if(S.role==='growth'){loadGrowth();}else{loadMC(true);}
   loadLineQuota(true);
   if(arActive)startAR();
 }
