@@ -108,6 +108,14 @@
 - รหัสจากระบบเก่าที่ไม่มี version จะไม่ถูกเดาหรือเปิดเผยย้อนหลัง; Admin/Mentor Co. รีเซ็ตการรับรองทั้งกลุ่มจาก Pair Action Center ได้ แต่ระบบไม่เปิดเผยรหัสให้ผู้ดูแล สมาชิกแต่ละคนต้องเปิด MY121 เพื่อดูรหัสใหม่ของตนเอง
 - การรีเซ็ตรองรับคู่ 2 คนและกลุ่มพิเศษ 3 คน, ยกเลิกรหัสเดิมพร้อมล้างสถานะรับรองของทุกฝ่าย, reset จำนวนครั้งที่กรอกผิด, ต่ออายุแบบจำกัดเมื่อเจ้าของกลับมาเปิด และบันทึก audit event โดยไม่เขียนตัวรหัสลง metadata/log
 
+#### Human-approved LINE caps และ Bulk delivery process (8 กันยายน 2569)
+
+- Daily cap ยังคงเป็นค่าเตือนเริ่มต้น แต่ Chapter Admin ที่ backend รับรองแล้วสามารถยืนยันข้ามเฉพาะ `daily_cap` ได้; กฎ duplicate, mute, emergency stop, pilot, weekly cap, quiet hours และ quota ยังไม่ถูกข้ามโดยอัตโนมัติ
+- การข้าม Daily cap ต้องเกิดหลัง Preview/Confirmation และบันทึก audit โดยไม่เปิดสิทธิ์เดียวกันให้ Mentor หรือ client ที่อ้าง role เอง
+- การส่งหลายคนแสดงสถานะรายผู้รับระหว่างดำเนินการ แยก `sent`, `skipped` และ `failed`; Retry เลือกเฉพาะรายการที่ล้มเหลวและใช้ Delivery Ledger/idempotency เดิม
+- Provider error เก็บใน `line_message_deliveries`; client/request error ที่ไม่มี delivery row เก็บเป็น `line_delivery_client_error` ใน Chapter Audit โดยตัด credential ออกจากข้อความ และ UI สร้าง Error Report ที่ผู้ดูแล Copy ไปวิเคราะห์ต่อได้
+- Technical debt: หน้าต่าง Process เป็น shared Desktop component และเริ่มครอบคลุม Business Profile reminder กับ Manual Broadcast; bulk automation รุ่นเดิมที่ยังเปิดใช้ต้องทยอยส่งผลรายผู้รับผ่าน contract เดียวกันเมื่อมีการแตะ module นั้น
+
 ### Phase 2 — Multi-tenant foundation
 
 - เพิ่ม `chapters`, `chapter_memberships` และ stable IDs

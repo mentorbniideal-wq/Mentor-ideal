@@ -621,6 +621,17 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       return jsonResponse({ ok: true, sent: result.sent, skipped: result.skipped });
     }
 
+    case 'logLineDeliveryClientError': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok || !auth.isAdmin) return errResponse('เฉพาะ Chapter Admin เท่านั้นที่บันทึกเหตุขัดข้องการส่งได้', 403);
+      const batchId = String(p.batchId || '').slice(0, 100);
+      const operation = String(p.operation || 'line_bulk_delivery').replace(/[^a-zA-Z0-9:_-]/g, '').slice(0, 100);
+      const memberIds = Array.isArray(p.memberIds) ? [...new Set((p.memberIds as unknown[]).map(String).filter(Boolean))].slice(0, 100) : [];
+      const clientError = String(p.error || 'client request failed').replace(/Bearer\s+[A-Za-z0-9._~-]+/gi, 'Bearer [redacted]').slice(0, 1000);
+      await db.from('chapter_audit_events').insert({event_type:'line_delivery_client_error',actor_role:String(auth.role||'mc'),actor_ref:String(auth.displayName||auth.role||'Chapter Admin'),subject_type:'line_delivery_batch',subject_ref:batchId||null,metadata:{operation,error:clientError,member_count:memberIds.length,member_ids:memberIds}});
+      return jsonResponse({ok:true});
+    }
+
     // ── SECURE LINK: create one-time member link token (MC only) ─
     case 'createLineLinkToken': {
       const auth = await requireAuth(db, p, ['mc']);
@@ -951,7 +962,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
       const { data, error } = await db
         .from('line_members')
-        .select('line_user_id, member_id, members(mentor_team)');
+        .select('line_user_id, member_id, members(name,nickname,mentor_team)');
       if (error) return errResponse(error.message);
 
       let rows = (data || []) as Record<string, unknown>[];
@@ -961,29 +972,59 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
           return String(m.mentor_team || '').toLowerCase() === targetRole.toLowerCase();
         });
       }
+      const requestedMemberIds = Array.isArray(p.memberIds) ? new Set((p.memberIds as unknown[]).map(String).filter(Boolean)) : null;
+      if (requestedMemberIds?.size) rows = rows.filter(row => requestedMemberIds.has(String(row.member_id || '')));
 
-      let sentCount = 0;
+      const results: Record<string, unknown>[] = [];
       const windowKey = Math.floor(Date.now() / 300000);
       const digest = await sha256Hex(`${targetRole || 'all'}|${message}`);
-      for (const row of rows) {
-        const uid = String(row.line_user_id || '');
-        const memberId = String(row.member_id || '');
-        if (uid) {
-          await sendLineMsg(uid, message, {
-            db,
-            idempotencyKey: `desktop-broadcast:${digest.slice(0,24)}:${windowKey}:${memberId || uid}`,
-            memberId: memberId || null,
-            notificationType: 'manual_team_broadcast',
-            source: 'desktop/message',
-            module: 'manual',
-            category: 'manual_team_broadcast',
-            priority: 'informational',
-          });
-          sentCount++;
-        }
+      for (let offset = 0; offset < rows.length; offset += 10) {
+        const chunk = await Promise.all(rows.slice(offset, offset + 10).map(async (row) => {
+          const uid = String(row.line_user_id || '');
+          const memberId = String(row.member_id || '');
+          const member = (row.members || {}) as Record<string, unknown>;
+          const name = String(member.nickname || member.name || 'สมาชิก');
+          if (!uid) return { memberId, name, status: 'failed', reason: 'no_line', error: 'สมาชิกยังไม่เชื่อม LINE' };
+          try {
+            const result = await linePush(uid, message, {
+              db,
+              idempotencyKey: `desktop-broadcast:${digest.slice(0,24)}:${windowKey}:${memberId || uid}`,
+              memberId: memberId || null,
+              notificationType: 'manual_team_broadcast',
+              source: 'desktop/message',
+              module: 'manual',
+              category: 'manual_team_broadcast',
+              priority: 'informational',
+            });
+            return { memberId, name, status: result.skipped ? 'skipped' : 'sent', reason: result.skipped ? 'duplicate' : null, deliveryId: result.deliveryId || null, error: null };
+          } catch (e) {
+            const deliveryError = e instanceof Error ? e.message.slice(0, 500) : 'LINE delivery failed';
+            console.error('[desktop-broadcast]', memberId, deliveryError);
+            return { memberId, name, status: 'failed', reason: 'provider_error', error: deliveryError };
+          }
+        }));
+        results.push(...chunk);
       }
-
-      return jsonResponse({ ok: true, sent: sentCount, sentCount });
+      const sentCount = results.filter(row => row.status === 'sent').length;
+      const failed = results.filter(row => row.status === 'failed').length;
+      const skipped = results.filter(row => row.status === 'skipped').length;
+      const batchId = String(p.clientBatchId || crypto.randomUUID()).slice(0, 100);
+      await db.from('chapter_audit_events').insert({
+        event_type: 'manual_line_broadcast_batch',
+        actor_role: String(auth.role || 'mc'),
+        actor_ref: String(auth.displayName || auth.role || 'Chapter Admin'),
+        subject_type: 'line_delivery_batch',
+        subject_ref: batchId,
+        metadata: {
+          target_team: targetRole,
+          requested_member_count: requestedMemberIds?.size || null,
+          sent: sentCount,
+          failed,
+          skipped,
+          total: results.length,
+        },
+      });
+      return jsonResponse({ ok: true, batchId, sent: sentCount, sentCount, failed, skipped, total: results.length, results });
     }
 
     // ── INTRO: send 1-2-1 introduction between 2 members ─────
@@ -1670,11 +1711,13 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       // Get all members in this team who have LINE IDs
       const { data: memberRows } = await db
         .from('members')
-        .select('id')
+        .select('id,name,nickname')
         .eq('mentor_team', teamName)
         .eq('is_archived', false);
 
-      const memberIds = ((memberRows || []) as Record<string, unknown>[]).map(m => String(m.id));
+      const requestedMemberIds = Array.isArray(p.memberIds) ? new Set((p.memberIds as unknown[]).map(String).filter(Boolean)) : null;
+      const scopedMembers = ((memberRows || []) as Record<string, unknown>[]).filter(m => !requestedMemberIds?.size || requestedMemberIds.has(String(m.id)));
+      const memberIds = scopedMembers.map(m => String(m.id));
       if (memberIds.length === 0) return jsonResponse({ ok: true, sentCount: 0 });
 
       const { data: lineRows } = await db
@@ -1682,27 +1725,36 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         .select('line_user_id, member_id')
         .in('member_id', memberIds);
 
-      let sentCount = 0;
+      const nameById = new Map(scopedMembers.map(m => [String(m.id), String(m.nickname || m.name || 'สมาชิก')]));
+      const results: Record<string, unknown>[] = [];
       const messageDigest = await sha256Hex(`${teamName}|${message}`);
       const windowKey = Math.floor(Date.now() / 300000);
-      for (const row of ((lineRows || []) as Record<string, unknown>[])) {
-        const uid = String(row.line_user_id || '');
-        if (uid) {
-          await sendLineMsg(uid, message, {
-            db,
-            idempotencyKey: `mentor-broadcast:${messageDigest.slice(0,24)}:${windowKey}:${uid}`,
-            memberId: String(row.member_id || '') || null,
-            notificationType: 'manual_mentor_broadcast',
-            source: 'mentor-mobile/message',
-            module: 'manual',
-            category: 'manual_mentor_broadcast',
-            priority: 'informational',
-          });
-          sentCount++;
-        }
+      for (let offset = 0; offset < (lineRows || []).length; offset += 10) {
+        const chunk = await Promise.all(((lineRows || []) as Record<string, unknown>[]).slice(offset, offset + 10).map(async row => {
+          const uid = String(row.line_user_id || ''), memberId = String(row.member_id || ''), name = nameById.get(memberId) || 'สมาชิก';
+          if (!uid) return { memberId, name, status: 'failed', reason: 'no_line', error: 'สมาชิกยังไม่เชื่อม LINE' };
+          try {
+            const result = await linePush(uid, message, {
+              db,
+              idempotencyKey: `mentor-broadcast:${messageDigest.slice(0,24)}:${windowKey}:${uid}`,
+              memberId: memberId || null,
+              notificationType: 'manual_mentor_broadcast',
+              source: 'mentor-mobile/message',
+              module: 'manual',
+              category: 'manual_mentor_broadcast',
+              priority: 'informational',
+            });
+            return { memberId, name, status: result.skipped ? 'skipped' : 'sent', reason: result.skipped ? 'duplicate' : null, deliveryId: result.deliveryId || null, error: null };
+          } catch (e) {
+            return { memberId, name, status: 'failed', reason: 'provider_error', error: e instanceof Error ? e.message.slice(0, 500) : 'LINE delivery failed' };
+          }
+        }));
+        results.push(...chunk);
       }
-
-      return jsonResponse({ ok: true, sentCount });
+      const sentCount = results.filter(r => r.status === 'sent').length, failed = results.filter(r => r.status === 'failed').length, skipped = results.filter(r => r.status === 'skipped').length;
+      const batchId = String(p.clientBatchId || crypto.randomUUID()).slice(0, 100);
+      await db.from('chapter_audit_events').insert({event_type:'mentor_line_broadcast_batch',actor_role:String(auth.role),actor_ref:String(auth.displayName||auth.role),subject_type:'line_delivery_batch',subject_ref:batchId,metadata:{team:teamName,sent:sentCount,failed,skipped,total:results.length}});
+      return jsonResponse({ ok: true, batchId, sentCount, failed, skipped, total: results.length, results });
     }
 
     // ── SETUP ROLE-BASED RICH MENUS ───────────────────────────

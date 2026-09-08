@@ -6,6 +6,11 @@ export type NotificationGuardResult={allowed:boolean;reason:string;monthlyUsed:n
 
 function bangkokParts(now:Date){const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23'}).formatToParts(now);const get=(type:string)=>parts.find(x=>x.type===type)?.value||'';return{date:`${get('year')}-${get('month')}-${get('day')}`,month:`${get('year')}-${get('month')}`,hour:Number(get('hour'))};}
 
+/** Daily cap is a human-confirmable warning; every other safety guard remains mandatory. */
+export function canOverrideDailyCap(reason:unknown,isChapterAdmin:boolean,confirmed:boolean):boolean{
+  return String(reason||'')==='daily_cap'&&isChapterAdmin&&confirmed;
+}
+
 export async function evaluateNotificationGuard(db:DbLike,input:NotificationGuardInput):Promise<NotificationGuardResult>{
   const now=input.now||new Date(),parts=bangkokParts(now),dayStart=new Date(`${parts.date}T00:00:00+07:00`),monthStart=new Date(`${parts.month}-01T00:00:00+07:00`),weekStart=new Date(dayStart);weekStart.setUTCDate(weekStart.getUTCDate()-((weekStart.getUTCDay()+6)%7));
   const [{data:budgets},{data:settings},{data:contact},{data:mute},{count:globalMonthlyCount},{data:globalMulticastRows},{count:moduleMonthlyCount},{data:moduleMulticastRows},{count:dailyCountRaw},{count:weeklyReminderCountRaw},{data:lastDelivery},{count:duplicateCount}]=await Promise.all([
