@@ -48,6 +48,17 @@ export function generateHandshakeCode(randomValues?: Uint32Array): string {
   return String(values[0] % 1_000_000).padStart(6,'0');
 }
 
+// Reconstructable only on the server because `pepper` never leaves the Edge Function.
+// Persisting a version instead of the code lets an authenticated owner reopen MY121
+// without storing the six-digit secret in plaintext.
+export async function recoverableHandshakeCode(pairId:string,ownerMemberId:string,version:number,pepper:string):Promise<string>{
+  if(!pairId||!ownerMemberId||!pepper||!Number.isInteger(version)||version<1)throw new Error('ข้อมูลรุ่นรหัสไม่ถูกต้อง');
+  const bytes=new TextEncoder().encode(`recoverable:${pairId}:${ownerMemberId}:${version}:${pepper}`);
+  const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
+  const value=((digest[0]<<24)>>>0)+(digest[1]<<16)+(digest[2]<<8)+digest[3];
+  return String(value%1_000_000).padStart(6,'0');
+}
+
 export async function handshakeCodeHash(pairId:string,ownerMemberId:string,code:string,pepper:string):Promise<string>{
   if(!/^\d{6}$/.test(code))throw new Error('รหัสต้องเป็นตัวเลข 6 หลัก');
   const bytes=new TextEncoder().encode(`${pairId}:${ownerMemberId}:${code}:${pepper}`);

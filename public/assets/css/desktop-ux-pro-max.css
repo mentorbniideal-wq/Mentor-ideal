@@ -89,9 +89,9 @@ button:disabled,[aria-disabled="true"]{cursor:not-allowed;opacity:.55}
   backdrop-filter:blur(24px) saturate(115%);-webkit-backdrop-filter:blur(24px) saturate(115%);
 }
 #login .lbox::before{content:"";position:absolute;inset:12px;border:1px solid rgba(255,255,255,.035);border-radius:17px;pointer-events:none}
-#login .llogo{position:relative;width:54px;height:54px;margin:0 auto 22px;font-size:0;animation:loginOrbit 13s linear infinite}
-#login .llogo i{position:absolute;left:24px;top:24px;width:7px;height:7px;border-radius:50%;background:#f5f2eb;box-shadow:0 0 12px rgba(255,255,255,.32);transform-origin:3px 3px}
-#login .llogo i:nth-child(1){transform:translateY(-22px)}#login .llogo i:nth-child(2){transform:rotate(45deg) translateY(-22px)}#login .llogo i:nth-child(3){transform:rotate(90deg) translateY(-22px)}#login .llogo i:nth-child(4){transform:rotate(135deg) translateY(-22px)}#login .llogo i:nth-child(5){transform:rotate(180deg) translateY(-22px)}#login .llogo i:nth-child(6){transform:rotate(225deg) translateY(-22px)}#login .llogo i:nth-child(7){transform:rotate(270deg) translateY(-22px)}#login .llogo i:nth-child(8){transform:rotate(315deg) translateY(-22px)}
+#login .llogo{position:relative;width:64px;height:64px;margin:0 auto 22px;font-size:0;border-radius:20px;overflow:hidden;animation:loginMarkIn .8s cubic-bezier(.2,.8,.2,1) both;box-shadow:0 18px 48px rgba(0,0,0,.38)}
+#login .llogo img{display:block;width:100%;height:100%;object-fit:contain}
+@keyframes loginMarkIn{from{opacity:0;transform:translateY(8px) scale(.94)}to{opacity:1;transform:none}}
 @keyframes loginOrbit{to{transform:rotate(360deg)}}
 #login .login-kicker{color:#c9a965;font-size:8px;font-weight:800;letter-spacing:.24em;margin-bottom:10px}
 #login .ltitle{color:#f8f5ee;font:400 31px/1.15 Georgia,'Times New Roman',serif;letter-spacing:-.025em;margin-bottom:9px}
@@ -262,6 +262,7 @@ header.command-top{
   color:#f5ead3;background:var(--desk-ink);font:800 13px/1 Georgia,serif;
   box-shadow:inset 0 -3px 0 var(--desk-gold),0 8px 18px rgba(19,32,25,.15);
 }
+.cmd-mark img{display:block;width:100%;height:100%;object-fit:contain;border-radius:inherit}
 .cmd-title{font:700 17px/1 Georgia,'Times New Roman',serif;letter-spacing:.015em}
 .cmd-subtitle{color:var(--ac3);font-size:8px;letter-spacing:.17em;margin-top:6px}
 .cmd-freshness{font-size:9px;margin-top:4px}
@@ -407,7 +408,7 @@ body.dark #app{grid-template-columns:218px minmax(0,1fr);grid-template-rows:76px
 body.dark #app.tabs-folded{grid-template-columns:54px minmax(0,1fr)}
 body.dark header.command-top{height:76px;padding:0 30px;background:rgba(7,10,11,.9);border-bottom:1px solid rgba(222,211,187,.1);backdrop-filter:blur(18px);box-shadow:none}
 body.dark .cmd-brand{min-width:218px}
-body.dark .cmd-mark{width:34px;height:34px;border-radius:7px;color:#d8bd7e;background:transparent;border:1px solid rgba(201,167,95,.38);font-size:11px;font-weight:900}
+body.dark .cmd-mark{width:34px;height:34px;border-radius:9px;color:#d8bd7e;background:transparent;border:0;font-size:11px;font-weight:900;box-shadow:0 7px 18px rgba(0,0,0,.3)}
 body.dark .cmd-title{font-size:13px;letter-spacing:.1em}
 body.dark .cmd-subtitle{font-size:8px;letter-spacing:.18em;color:#c9a75f}
 body.dark .cmd-freshness{font-size:8px}

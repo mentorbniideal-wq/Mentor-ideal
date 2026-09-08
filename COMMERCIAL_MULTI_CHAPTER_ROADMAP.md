@@ -96,6 +96,18 @@
 - Production E2E ใช้บัญชีทดสอบแบบจำกัดตาม `PRODUCTION_E2E_RUNBOOK.md`; Smoke Test ยังคง read-only และไม่ส่ง LINE
 - Technical debt: Daily Digest ยังไม่เปิดใช้งานจนกว่าจะยืนยันเวลาและประเภทข้อความ และไฟล์ operations รุ่นเดิมยังต้องทยอยแยกเป็น feature modules
 
+#### Brand asset foundation (7 กันยายน 2569)
+
+- โลโก้ Mentor ใช้ชุด asset กลางเดียวกันสำหรับ Desktop, Mobile, LIFF, favicon, PWA, iOS Home Screen และ Web Push เพื่อลดภาพเก่าค้างหรือแบรนด์ไม่ตรงกัน
+- ไฟล์ต้นฉบับความละเอียดสูงเก็บแยกจากไฟล์ใช้งาน 180/192/512 px และใช้ cache version เมื่อเปลี่ยนแบรนด์
+- Technical debt สำหรับ Phase 1/4: ปัจจุบันเป็น default brand ของ installation นี้; เมื่อเปิด Chapter onboarding ให้ย้าย asset URL และชื่อแบรนด์ไป `chapter_profiles` พร้อม safe fallback แทนการสร้างไฟล์เฉพาะ Chapter ใน component
+
+#### Recoverable 1-2-1 verification codes (8 กันยายน 2569)
+
+- รหัสรับรอง 6 หลักรุ่นใหม่เก็บเฉพาะ `code_hash` และเลข `code_version`; backend สร้างรหัสเดิมกลับด้วย server-only pepper เมื่อสมาชิกเจ้าของรหัสเปิด MY121 จนกว่ากลุ่มจะรับรองครบ โดยไม่เก็บรหัส plaintext
+- รหัสจากระบบเก่าที่ไม่มี version จะไม่ถูกเดาหรือเปิดเผยย้อนหลัง; Admin/Mentor Co. สามารถสร้างรุ่นใหม่จาก Pair Action Center และรหัสเก่าใช้ไม่ได้ทันที
+- การสร้างใหม่รองรับคู่ 2 คนและกลุ่มพิเศษ 3 คน, reset จำนวนครั้งที่กรอกผิด, ต่ออายุแบบจำกัดเมื่อเจ้าของกลับมาเปิด และบันทึก audit event โดยไม่เขียนตัวรหัสลง metadata/log
+
 ### Phase 2 — Multi-tenant foundation
 
 - เพิ่ม `chapters`, `chapter_memberships` และ stable IDs

@@ -1,5 +1,5 @@
-const CACHE_NAME = 'mentor-shell-20260905-login3';
-const SHELL = ['/', '/index.html', '/favicon.svg', '/manifest.webmanifest', '/assets/icons/mentor-app-icon-192.png', '/assets/icons/mentor-app-icon-maskable.svg'];
+const CACHE_NAME = 'mentor-shell-20260907-brand1';
+const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/assets/icons/mentor-favicon-64.png', '/assets/icons/mentor-app-icon-192.png', '/assets/icons/mentor-app-icon-512.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));

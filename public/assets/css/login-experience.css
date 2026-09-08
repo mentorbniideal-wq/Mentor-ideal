@@ -54,7 +54,8 @@ body #loginScreen::after{
 .login-wave{position:absolute;display:block;width:72vw;height:27vh;border:1px solid rgba(214,220,214,.055);border-radius:50%;filter:blur(14px);transform:rotate(-13deg);background:linear-gradient(180deg,rgba(183,193,188,.04),transparent 48%)}
 .login-wave-a{left:-19vw;bottom:4vh}.login-wave-b{right:-22vw;top:37vh;transform:rotate(17deg)}
 .login-brand{position:fixed;z-index:2;top:clamp(22px,4vh,46px);left:clamp(24px,5vw,76px);display:flex;align-items:center;gap:10px;color:#e8e5dd;font-size:12px;font-weight:700;letter-spacing:.13em}
-.login-brand-mark{display:grid;place-items:center;width:30px;height:30px;border:1px solid rgba(211,188,137,.38);border-radius:50%;color:#d4bd88;font-size:12px;letter-spacing:0;background:rgba(16,20,22,.5);backdrop-filter:blur(12px)}
+.login-brand-mark{display:grid;place-items:center;width:30px;height:30px;border:0;border-radius:9px;overflow:hidden;background:rgba(16,20,22,.5);box-shadow:0 8px 24px rgba(0,0,0,.28);backdrop-filter:blur(12px)}
+.login-brand-mark img{display:block;width:100%;height:100%;object-fit:contain}
 body #loginScreen .gw-card{
   position:relative;z-index:1;box-sizing:border-box;width:min(570px,calc(100vw - 32px))!important;max-width:570px;min-width:0;margin:auto;
   padding:clamp(34px,4vw,58px);border:1px solid rgba(235,232,220,.15);border-radius:32px;
