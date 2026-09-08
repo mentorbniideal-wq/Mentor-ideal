@@ -243,7 +243,7 @@ const ROUTES: Record<string, string> = {
   'swapWeekly121Members': 'weekly-121',
   'getOneToOneOverview': 'weekly-121',
   'getOneToOneQueues': 'weekly-121', 'updateOneToOneFollowUp': 'weekly-121',
-  'reissueOneToOneVerificationCode': 'weekly-121',
+  'resetOneToOneVerificationPair': 'weekly-121',
   'updateOneToOneAttention': 'weekly-121',
   'getOneToOneMemberHistory': 'weekly-121',
   'getOneToOnePilotSettings': 'weekly-121', 'saveOneToOnePilotSettings': 'weekly-121',
@@ -255,7 +255,7 @@ const ROUTES: Record<string, string> = {
 
   // Mentor Mobile 1-2-1 Care (server-enforced team scope)
   'getMentorOneToOneCare': 'mentor-121', 'updateMentorOneToOneCare': 'mentor-121',
-  'remindMentorOneToOneMember': 'mentor-121', 'reissueMentorOneToOneCode': 'mentor-121',
+  'remindMentorOneToOneMember': 'mentor-121',
   'getMentorOneToOneMemberTimeline': 'mentor-121',
   'getOneToOnePairAction': 'mentor-121',
   'updateOneToOnePairOperation': 'mentor-121', 'updateOneToOneScheduleOperation': 'mentor-121',

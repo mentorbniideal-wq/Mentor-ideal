@@ -285,28 +285,27 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
     const memberOptions=((candidateMembers||[]) as Record<string,unknown>[]).map(x=>({...x,lineReady:linked.has(String(x.id))}));
     return jsonResponse({ok:true,active:visibleActive,waiting:waiting||[],followUps:followUps||[],attention:attention||[],budgets:budgets||[],actionRequired,memberOptions,activeDefinition:'all_non_cancelled_pairs_with_line_delivery_status'});
   }
-  if(action==='reissueOneToOneVerificationCode'){
-    const pairId=String(p.pairId||''),memberId=String(p.memberId||'');
-    if(!pairId||!memberId)return errResponse('กรุณาเลือกคู่และสมาชิก');
+  if(action==='resetOneToOneVerificationPair'){
+    const pairId=String(p.pairId||'');
+    if(!pairId)return errResponse('กรุณาเลือกคู่');
+    if(p.confirmed!==true)return errResponse('ต้องยืนยันก่อนรีเซ็ตการรับรองทั้งคู่');
     const {data:pair,error:pairError}=await db.from('matching_pairs').select('id,round_id,member_a_id,member_b_id,optional_member_c_id,status,archived_at').eq('id',pairId).maybeSingle();
     if(pairError||!pair)return errResponse(pairError?.message||'ไม่พบคู่ 1-2-1');
     const pairRow=pair as Record<string,unknown>;
     if(pairRow.archived_at)return errResponse('คู่นี้ถูก Archive แล้ว');
     const participantIds=[pairRow.member_a_id,pairRow.member_b_id,pairRow.optional_member_c_id].filter(Boolean).map(String);
-    if(!participantIds.includes(memberId))return errResponse('สมาชิกไม่ได้อยู่ในคู่นี้');
-    if(['verified','late_verified'].includes(String(pairRow.status)))return errResponse('คู่นี้ยืนยันเสร็จแล้ว ไม่สามารถออกโค้ดใหม่ได้');
+    if(['verified','late_verified'].includes(String(pairRow.status)))return errResponse('คู่นี้ยืนยันเสร็จแล้ว ไม่สามารถรีเซ็ตได้');
     const pepper=Deno.env.get('ONE_TO_ONE_CODE_PEPPER')||'';
     if(!pepper)return errResponse('ระบบยืนยันยังไม่ได้ตั้งค่า ONE_TO_ONE_CODE_PEPPER',503);
     const now=new Date(),expiresAt=new Date(now.getTime()+7*24*60*60*1000).toISOString();
     const {data:verificationRows}=await db.from('one_to_one_verifications').select('member_id,verified_partner_code_at,code_version').eq('pair_id',pairId);
-    const rows=(verificationRows||[]) as Record<string,unknown>[],isTrio=Boolean(pairRow.optional_member_c_id),targets=isTrio?participantIds:[memberId],nextVersion=Math.max(0,...rows.filter(row=>targets.includes(String(row.member_id))).map(row=>Number(row.code_version||0)))+1,ownerKey=isTrio?'trio':memberId,code=await recoverableHandshakeCode(pairId,ownerKey,nextVersion,pepper);
-    const upserts=await Promise.all(targets.map(async targetId=>{const existing=rows.find(row=>String(row.member_id)===targetId),codeHash=await handshakeCodeHash(pairId,targetId,code,pepper);return{pair_id:pairId,member_id:targetId,code_hash:codeHash,code_version:nextVersion,code_expires_at:expiresAt,attempts:0,flow_started_at:now.toISOString(),verified_partner_code_at:existing?.verified_partner_code_at||null,locked_until:null};}));
+    const rows=(verificationRows||[]) as Record<string,unknown>[],isTrio=Boolean(pairRow.optional_member_c_id),nextVersion=Math.max(0,...rows.map(row=>Number(row.code_version||0)))+1;
+    const upserts=await Promise.all(participantIds.map(async targetId=>{const ownerKey=isTrio?'trio':targetId,code=await recoverableHandshakeCode(pairId,ownerKey,nextVersion,pepper),codeHash=await handshakeCodeHash(pairId,targetId,code,pepper);return{pair_id:pairId,member_id:targetId,code_hash:codeHash,code_version:nextVersion,code_expires_at:expiresAt,attempts:0,flow_started_at:now.toISOString(),verified_partner_code_at:null,locked_until:null};}));
     const {error:verificationError}=await db.from('one_to_one_verifications').upsert(upserts,{onConflict:'pair_id,member_id'});
     if(verificationError)return errResponse(verificationError.message);
-    const hasPartialVerification=((verificationRows||[]) as Record<string,unknown>[]).some(row=>Boolean(row.verified_partner_code_at));
-    await db.from('matching_pairs').update({status:hasPartialVerification?'partially_verified':'awaiting_verification'}).eq('id',pairId);
-    await db.from('one_to_one_status_events').insert({round_id:String(pairRow.round_id),pair_id:pairId,member_id:memberId,event_type:'verification_code_reissued',actor_type:'mentor',actor_ref:String(auth.displayName||auth.role),metadata:{expiresAt,codeVersion:nextVersion,participantCount:targets.length}});
-    return jsonResponse({ok:true,code,expiresAt,message:isTrio?'ออกโค้ดใหม่ร่วมกันทั้งกลุ่มแล้ว รหัสเดิมใช้ไม่ได้ทันที':'ออกโค้ดใหม่แล้ว รหัสเดิมของสมาชิกคนนี้ใช้ไม่ได้ทันที'});
+    await db.from('matching_pairs').update({status:'awaiting_verification'}).eq('id',pairId);
+    await db.from('one_to_one_status_events').insert({round_id:String(pairRow.round_id),pair_id:pairId,event_type:'verification_pair_reset',actor_type:'mentor',actor_ref:String(auth.displayName||auth.role),metadata:{expiresAt,codeVersion:nextVersion,participantCount:participantIds.length}});
+    return jsonResponse({ok:true,expiresAt,participantCount:participantIds.length,message:'รีเซ็ตการรับรองครบทุกฝ่ายแล้ว สมาชิกแต่ละคนเปิด MY121 เพื่อดูรหัสใหม่ของตัวเองได้ทันที'});
   }
   if(action==='getOneToOneMemberHistory'){
     const memberIdInput=String(p.memberId||''),memberName=String(p.memberName||'').trim();let memberQuery=db.from('members').select('id,name,nickname,mentor_team,is_archived');if(memberIdInput)memberQuery=memberQuery.eq('id',memberIdInput);else memberQuery=memberQuery.eq('name',memberName);const {data:member,error:memberError}=await memberQuery.maybeSingle();if(memberError||!member)return errResponse(memberError?.message||'ไม่พบสมาชิก');const mv=member as Record<string,unknown>,memberId=String(mv.id);
