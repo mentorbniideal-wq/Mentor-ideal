@@ -42,3 +42,13 @@ Negative production verification is reproducible with `node scripts/test-product
 ## Commercial readiness debt
 
 The existing active-Chapter resolver/global role-assignment model and `get` read-only naming convention remain unchanged. Product/engineering owns replacing these with session-derived tenant memberships and explicit action semantics in the roadmap. No claim of full multi-tenant isolation is made by these tests.
+
+## Published outcome
+
+- Release source: `b62bc6d` on `fix/system-audit-readiness-20260909`, pushed to origin. Desktop tracking commit: `88520ef`. Main was not merged automatically.
+- Supabase production: API **264**, Admin API **62**, LIFF API **55**, Cron **59**, all ACTIVE. JWT verification flags match pre-release values; LINE webhook stays **72**.
+- Production negative-auth smoke: **9 requests passed**. Invalid bodies return 400; missing/invalid credentials are denied with no member data; unauthenticated Cron returns 401. No valid-account request or member write was sent.
+- Vercel preview `dpl_AX5wThsSdfrg8tFxnhD3s3Zey5fH` verified before promotion. Production `dpl_8MNS34J6GzCF6msjWSCxnU6s31ow` is Ready at https://bni-mentor-system.vercel.app.
+- Exact production file checks pass for Desktop HTML/CSS/JS, Mobile HTML/JS, service worker and LIFF HTML.
+- Production Chromium smoke passes on Desktop and Mobile entry pages at four widths, with no page exceptions. POST requests were blocked in the browser smoke.
+- Account-specific positive OAuth login and authenticated System Health/Smoke Test remain pending because no signed-in owner session is available. This does not count as a passed production role acceptance test.

@@ -31,4 +31,4 @@ Published to https://bni-mentor-system.vercel.app/dashboard.html.
 - Isolated static release based on commit `b721e92`, with six Desktop files overlaid: dashboard HTML, Desktop UX CSS, responsive CSS, operations JS, LINE compose JS and navigation JS. No workspace-only documents, CSV, Supabase functions or unrelated pending changes were uploaded.
 - Verified exact production bytes for all six Desktop files and unchanged Mobile HTML/JS, LIFF HTML and service worker.
 - Production Chromium smoke: Desktop login loads at 375/768/1024/1440px, new stylesheet and compose module load, no page exceptions. POST requests were blocked during smoke; authenticated workflows and real device Safari remain outside this release verification.
-- Prior audit backend/Mobile/service-worker fixes remain local pending work; they were not included in this Desktop release.
+- Prior audit backend/Mobile/service-worker fixes were excluded from this Desktop release. Their subsequent publication and remaining account acceptance gate are recorded in `ROLE_READINESS_2026-09-09.md`.
