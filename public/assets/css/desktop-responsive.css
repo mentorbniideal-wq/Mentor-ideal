@@ -1,0 +1,69 @@
+/* Desktop workspace only. Breakpoints follow available space, never identity or device type. */
+body #app,body.dark #app{height:100vh;height:100dvh;min-height:0;grid-template-columns:clamp(180px,16vw,252px) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+body #app.tabs-folded,body.dark #app.tabs-folded{grid-template-columns:54px minmax(0,1fr)}
+body #app>header.command-top{grid-column:1/-1;grid-row:1;position:relative;top:auto;min-width:0;height:auto;min-height:76px;padding:12px clamp(12px,2vw,30px);flex-wrap:wrap}
+body #app .cmd-brand{min-width:0;flex:0 1 auto}
+body #app .cmd-actions{min-width:0;max-width:100%;flex:1 1 520px;flex-wrap:wrap;overflow:visible;justify-content:flex-end}
+body #app .gs-wrap{min-width:min(160px,100%)}
+body #app .tabs-wrap{grid-column:1;grid-row:2;align-self:stretch;min-width:0;min-height:0;overflow:hidden}
+body #app .tabs{position:relative;top:auto;width:100%;height:100%;min-height:0;flex-direction:column;overflow-y:auto;overflow-x:hidden;border-right:1px solid var(--bd);border-bottom:0}
+body #app .tabs.folded{padding:12px 7px}
+body #app #app-workspace{grid-column:2;grid-row:2;height:auto;min-height:0;min-width:0;max-width:100%;overflow:auto;padding:clamp(12px,2.2vw,34px);scroll-padding-block:16px}
+#app-workspace .sec,#app-workspace .sec :where(div,section,article,aside,form){min-width:0}
+#app-workspace :where(input,select,textarea){max-width:100%;box-sizing:border-box}
+#app-workspace :where(img,video,canvas){max-width:100%}
+#app-workspace :where(.tw,.table-wrap,.table-responsive){max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+#app-workspace :where(.fg,.ag,.co-grid,.w8-grid){grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr))}
+#app-workspace :where(.kgrid,.stat-row,.goal-grid,.sa-grid,.rv-teams,.usage-team-grid){grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}
+/* Inline legacy grids are assigned an explicit responsive class in dashboard markup. */
+#app-workspace .desktop-fluid-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))!important}
+@media(max-width:1250px){
+  body #mc-ov.sec.on{grid-template-columns:minmax(0,1fr)}
+  #app-workspace .command-rail{position:static;grid-column:1!important;grid-row:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  #app-workspace :where(.kpi-team-grid,.mt-grid,.rv-hero){grid-template-columns:repeat(2,minmax(0,1fr))}
+  #app-workspace :where(.team-manager-tools,.w121-profile-tools){grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:760px){
+  #app-workspace :where(.row2,.crow,.intel-grid,.mt-row,.movers-grid,.rv-lib-grid,.m360g,.w121-ops-grid,.command-rail){grid-template-columns:minmax(0,1fr)}
+  #app-workspace :where(.kpi-hero-grid,.gsh-cards,.pulse-grid,.rf,.w121-form-grid,.w121-stats,.w121-command-metrics){grid-template-columns:repeat(2,minmax(0,1fr))}
+  #app-workspace .kpi-hero-main{grid-column:1/-1}
+  #app-workspace :where(.w121-issue,.w121-history-item){grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:1180px) and (min-width:701px){
+  body #app,body.dark #app{grid-template-columns:54px minmax(0,1fr)}
+  body #app .tabs{padding:13px 7px}
+  body #app .tabs :where(.nav-group-label,.tb-fold-label,.tb-fold),body #app .tabs::before{display:none}
+  body #app .tabs .tb{width:38px;min-width:38px;min-height:40px;padding:0!important;display:grid;place-items:center;font-size:0!important}
+  body #app .tabs .tb::before{content:attr(data-fold-icon);font-size:18px;line-height:1}
+}
+@media(max-width:700px){
+  body #app,body.dark #app,body #app.tabs-folded,body.dark #app.tabs-folded{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr)}
+  body #app .cmd-actions{flex-basis:100%;justify-content:flex-start;gap:6px}
+  body #app .cmd-actions button{min-height:40px}
+  body #app .header-line-quota{flex:1 1 165px;min-width:0}
+  body #app .gs-wrap{flex:1 1 140px;max-width:none}
+  body #app .tabs-wrap{grid-column:1;grid-row:2}
+  body #app .tabs,body #app .tabs.folded{height:auto;max-height:64px;flex-direction:row;padding:6px 10px;overflow-x:auto;overflow-y:hidden;border-right:0;border-bottom:1px solid var(--bd);gap:6px}
+  body #app .tabs :where(.nav-group-label,.tb-fold-label,.tb-fold),body #app .tabs::before{display:none}
+  body #app .tabs .tb,body #app .tabs.folded .tb{width:auto;min-width:max-content;min-height:44px;height:auto;flex:0 0 auto;display:flex;padding:8px 12px!important;font-size:12px!important;white-space:nowrap}
+  body #app .tabs .tb::before,body #app .tabs.folded .tb::before{display:none}
+  body #app #app-workspace{grid-column:1;grid-row:3;padding:12px}
+  #app-workspace :where(.gsh-fgrid,.rd-fgrid,.ml-fgrid,.nm-fgrid,.team-manager-tools,.w121-profile-tools){grid-template-columns:minmax(0,1fr)}
+  #app-workspace :where(.wide,[style*="grid-column:span"]){grid-column:1/-1}
+  #app-workspace :where(.filter-bar,.fb,.rf,.section-head){flex-wrap:wrap}
+  body :is(.mbox,.bk-box,.cmd-box,.cmp-box,.cm-box,.mct-box,.mp-box,.gsh-mbox,.rd-mbox,.ml-mbox,.nm-mbox,.line-review-card,.ltw-card){max-width:calc(100vw - 24px)!important;max-height:calc(100dvh - 24px);overflow:auto;box-sizing:border-box}
+}
+@media(max-width:400px){
+  #app-workspace :where(.kpi-hero-grid,.kpi-team-grid,.pulse-grid,.gsh-cards,.rv-hero,.rf,.w121-form-grid,.lt-team-role-grid,.lt-team-routing-grid){grid-template-columns:minmax(0,1fr)}
+}
+
+/* Forms inside dialogs have their own layout, outside the workspace. */
+@media(max-width:700px){
+  body :is(.gsh-fgrid,.rd-fgrid,.ml-fgrid,.nm-fgrid){grid-template-columns:minmax(0,1fr)}
+  body :is(.gsh-fgrid,.rd-fgrid,.ml-fgrid,.nm-fgrid)>.wide{grid-column:1/-1}
+  body :is(.gsh-fgrid,.rd-fgrid,.ml-fgrid,.nm-fgrid) :is(input,select,textarea){min-width:0;max-width:100%;box-sizing:border-box}
+  body .gs-drop{width:min(310px,calc(100vw - 24px));right:0}
+}
+@media(max-height:600px){
+  body :is(.mbox,.bk-box,.cmd-box,.cmp-box,.cm-box,.mp-box,.rd-mbox,.ml-mbox,.nm-mbox){max-height:calc(100dvh - 32px);overflow:auto}
+}

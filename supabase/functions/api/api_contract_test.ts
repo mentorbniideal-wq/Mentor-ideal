@@ -97,3 +97,15 @@ Deno.test('mentor PIN roles are routed to the Mobile workspace after authenticat
     'Desktop must transfer a verified PIN session before routing Mentor to Mobile',
   );
 });
+
+Deno.test('dark iPad rail keeps the Desktop workspace visible beside navigation', async () => {
+  const css = await read('public/assets/css/desktop-ux-pro-max.css');
+  assert(
+    css.includes('body.dark #app-workspace{grid-column:2;grid-row:2;height:calc(100dvh - 76px)'),
+    'iPad breakpoint must not leave the workspace in the third grid row below a full-height rail',
+  );
+  assert(
+    css.includes('body.dark .tabs-wrap{grid-column:1;grid-row:2;min-height:0}'),
+    'iPad navigation wrapper must remain in the second row beside the workspace',
+  );
+});

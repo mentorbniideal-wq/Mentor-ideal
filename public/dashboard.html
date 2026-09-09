@@ -24,7 +24,8 @@
 <link rel="stylesheet" href="/assets/css/line-auto-control-center.css?v=20260828b">
 <link rel="stylesheet" href="/assets/css/line-delivery-control.css?v=20260907a">
 <link rel="stylesheet" href="/assets/css/desktop-monthly-sync.css?v=20260905">
-<link rel="stylesheet" href="/assets/css/desktop-ux-pro-max.css?v=20260905i">
+<link rel="stylesheet" href="/assets/css/desktop-ux-pro-max.css?v=20260909-audit.1">
+<link rel="stylesheet" href="/assets/css/desktop-responsive.css?v=20260909a">
 </head>
 <body>
 <a class="skip-link" href="#app-workspace">ข้ามเมนูไปยังเนื้อหาหลัก</a>
@@ -514,7 +515,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
           </div>
           <button class="bsm" onclick="deskCopyLineCommandGuide()" style="font-size:11px;white-space:nowrap">📋 Copy คู่มือคำสั่ง</button>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px">
+        <div class="desktop-fluid-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px">
           <div style="background:var(--sf2);border:1px solid var(--bd);border-radius:14px;padding:14px">
             <div style="font-size:20px;margin-bottom:6px">📊</div><div style="font-size:13px;font-weight:800">ดูคะแนนและแนวโน้ม</div>
             <div style="font-size:11px;color:var(--sub);line-height:1.7;margin-top:6px"><code>สถานะ</code> ดูคะแนนล่าสุด<br><code>ประวัติ</code> ดูสีย้อนหลังและคะแนน<br><code>ทำอะไร</code> action ที่ควรทำเร็วสุด</div>
@@ -559,7 +560,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
           <span id="oe-modified-badge" style="display:none;font-size:10px;background:var(--ye)22;color:var(--ye);border:1px solid var(--ye)44;border-radius:6px;padding:2px 8px;align-self:center">✏️ มีการแก้ไข</span>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="desktop-fluid-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
           <div>
             <div style="font-size:11px;color:var(--sub);margin-bottom:6px;font-weight:600">✏️ แก้ไข</div>
             <textarea id="oe-editor" rows="18" oninput="oeUpdatePreview();oeMarkModified()" style="width:100%;box-sizing:border-box;background:var(--sf2);border:1px solid var(--bd);border-radius:10px;padding:12px;color:var(--tx);font-size:12.5px;font-family:Sarabun,sans-serif;line-height:1.7;resize:vertical"></textarea>
@@ -1034,7 +1035,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         <button class="bsm bac" onclick="toggleTaskForm()" id="btnNewTask">＋ สร้าง Task ใหม่</button>
       </div>
       <div class="task-form" id="taskForm">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="desktop-fluid-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
           <select id="tf-team" data-team-select><option value="">เลือกทีม Mentor</option><option value="TOOMTAM">Mentor 1</option><option value="Aof">Mentor 2</option><option value="Draft">Mentor 3</option><option value="PHAI">Mentor 4</option><option value="AMP">Mentor 5</option></select>
           <select id="tf-type">
             <option value="ติดตาม">📌 ติดตามสมาชิก</option>
@@ -1046,7 +1047,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
           </select>
         </div>
         <select id="tf-member"><option value="">เลือกสมาชิก</option></select>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="desktop-fluid-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
           <select id="tf-owner"><option value="">ผู้รับผิดชอบ (เลือกภายหลังได้)</option></select>
           <input type="date" id="tf-due" aria-label="กำหนดเสร็จ">
         </div>
@@ -1241,7 +1242,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       <!-- Add / Edit Form -->
       <div style="background:var(--sf2);border-radius:10px;padding:16px">
         <div style="font-size:12px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px">➕ เพิ่ม / แก้ไข Email</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div class="desktop-fluid-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
           <div>
             <div style="font-size:11px;color:var(--sub);margin-bottom:4px">Email (Google)</div>
             <input id="acc-email" type="email" placeholder="user@gmail.com" style="width:100%;background:var(--sf);border:1px solid var(--bd);color:var(--tx);padding:7px 10px;border-radius:7px;font-size:12px;outline:none;box-sizing:border-box">
@@ -1302,7 +1303,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
           <span style="font-size:13px;font-weight:700">🧰 System Tools</span>
           <span style="font-size:11px;color:var(--sub)">เครื่องมือที่ใช้เป็นครั้งคราว ย้ายมาไว้ตรงนี้เพื่อลดความรกของ sidebar</span>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">
+        <div class="desktop-fluid-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">
           <button class="rail-action" onclick="sw('mc-import',null,'mc')" style="margin-top:0">📥 Import Data</button>
           <button class="rail-action" onclick="sw('mc-cal',null,'mc');loadCalendar()" style="margin-top:0">📅 Calendar</button>
           <button class="rail-action" onclick="sw('mc-usage',null,'mc');loadUsageLog()" style="margin-top:0">📈 Activity Center</button>
@@ -1552,7 +1553,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         </div>
       </div>
       <div id="passport-summary" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
-      <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(320px,.8fr);gap:14px;align-items:start">
+      <div class="desktop-fluid-grid" style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(320px,.8fr);gap:14px;align-items:start">
         <div class="card">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
             <div>
@@ -2196,7 +2197,9 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
   <button class="bk-btn" style="background:transparent;color:var(--sub);border:1px solid var(--bd)" onclick="clearBulk()">✕ ยกเลิก</button>
 </div>
 
-<script src="/assets/js/desktop-operations.js?v=20260908-mentor-route.1" defer></script>
+<script src="/assets/js/desktop-operations.js?v=20260909-audit.1" defer></script>
+<script src="/assets/js/desktop-line-compose.js?v=20260909-audit.1" defer></script>
+<script src="/assets/js/desktop-navigation.js?v=20260909-audit.1" defer></script>
 <script src="/assets/js/desktop-member-360.js" defer></script>
 
 <!-- 8W Delete Confirm Modal -->
