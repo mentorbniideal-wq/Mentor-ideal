@@ -45,7 +45,7 @@ The existing active-Chapter resolver/global role-assignment model and `get` read
 
 ## Published outcome
 
-- Release source: `b62bc6d` on `fix/system-audit-readiness-20260909`, pushed to origin. Desktop tracking commit: `88520ef`. Main was not merged automatically.
+- Release source: `b62bc6d` on `fix/system-audit-readiness-20260909`, pushed to origin. Desktop tracking commit: `88520ef`. After production checks, `main` was fast-forwarded to the reviewed release history; no unrelated remote changes were overwritten.
 - Supabase production: API **264**, Admin API **62**, LIFF API **55**, Cron **59**, all ACTIVE. JWT verification flags match pre-release values; LINE webhook stays **72**.
 - Production negative-auth smoke: **9 requests passed**. Invalid bodies return 400; missing/invalid credentials are denied with no member data; unauthenticated Cron returns 401. No valid-account request or member write was sent.
 - Vercel preview `dpl_AX5wThsSdfrg8tFxnhD3s3Zey5fH` verified before promotion. Production `dpl_8MNS34J6GzCF6msjWSCxnU6s31ow` is Ready at https://bni-mentor-system.vercel.app.
