@@ -196,6 +196,8 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
       ...teamIdentity,
       adminSections: result.adminSections || [],
       adminEditAccess: Boolean(result.adminEditAccess),
+      isViewer: Boolean(result.isViewer),
+      isReadOnly: Boolean(result.isReadOnly),
       capabilities: result.capabilities || [],
       version,
     });

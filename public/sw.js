@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mentor-shell-20260907-brand1';
+const CACHE_NAME = 'mentor-shell-20260909-audit1';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/assets/icons/mentor-favicon-64.png', '/assets/icons/mentor-app-icon-192.png', '/assets/icons/mentor-app-icon-512.png'];
 
 self.addEventListener('install', event => {
@@ -32,11 +32,16 @@ self.addEventListener('push', event => {
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const requested = new URL(String(event.notification.data?.url || '/'), self.location.origin);
-  if (requested.origin !== self.location.origin) requested.pathname = '/';
+  let requested = new URL('/', self.location.origin);
+  try {
+    const candidate = new URL(String(event.notification.data?.url || '/'), self.location.origin);
+    if (candidate.origin === self.location.origin && !candidate.username && !candidate.password) requested = candidate;
+  } catch { /* Invalid notification URLs open the local home screen. */ }
   event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
     for (const client of clients) {
-      if ('focus' in client) { client.navigate(requested.href); return client.focus(); }
+      if ('focus' in client && 'navigate' in client) {
+        return client.navigate(requested.href).then(navigated => navigated ? navigated.focus() : self.clients.openWindow(requested.href));
+      }
     }
     return self.clients.openWindow(requested.href);
   }));

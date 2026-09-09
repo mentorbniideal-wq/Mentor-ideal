@@ -13,6 +13,8 @@ export const CAPABILITY = {
 
 export interface CapabilitySubject {
   isAdmin?: boolean;
+  isViewer?: boolean;
+  isReadOnly?: boolean;
   adminSections?: string[];
   adminEditAccess?: boolean;
   capabilities?: string[];
@@ -29,6 +31,7 @@ export function canAccessAdminSection(
   section: string,
   write = false,
 ): boolean {
+  if (write && (subject.isViewer || subject.isReadOnly)) return false;
   if (subject.isAdmin) return true;
   if (!(subject.adminSections || []).includes(section)) return false;
   return !write || Boolean(subject.adminEditAccess);

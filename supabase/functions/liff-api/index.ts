@@ -65,6 +65,8 @@ Deno.serve(async (req: Request) => {
     return response({ ok: false, error: 'Invalid JSON' }, 400);
   }
 
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return response({ ok: false, error: 'JSON body must be an object' }, 400);
+
   const db = getServiceClient();
   const identity = await resolveLineMember(db, String(body.accessToken || ''));
   if ('error' in identity) return response({ ok: false, error: identity.error }, 401);

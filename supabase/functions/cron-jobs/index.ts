@@ -40,6 +40,10 @@ Deno.serve(async (req: Request) => {
   let body: { job: string };
   try { body = await req.json(); } catch { return new Response('Bad Request', { status: 400 }); }
 
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return new Response('Bad Request', { status: 400 });
+
+  if (typeof body.job !== 'string' || !body.job.trim()) return new Response('Job is required', { status: 400 });
+
   const db  = getServiceClient();
   const job = body.job;
   const startedAt = Date.now();

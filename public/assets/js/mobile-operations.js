@@ -241,6 +241,7 @@ function apiRequest(payload,options){
   }).finally(function(){clearTimeout(timeout);});
 }
 function call(action,params,cb){
+  if(S.isReadOnly&&String(action||'').indexOf('get')!==0){cb(null,{ok:false,error:'บัญชีนี้เป็น View Only ไม่สามารถแก้ไขหรือส่งข้อความได้'});return;}
   var p=Object.assign({},params||{});
   p.action=action;
   p.role=S.role;
@@ -542,9 +543,9 @@ function enterApp(r){
     showWelcomeTransition(r,function(){enterApp(Object.assign({},r,{_skipWelcome:true}));});
     return;
   }
-  S.role=r.role;S.isMC=r.isMC;S.isSystemOwner=Boolean(r.isSystemOwner);S.teamName=r.teamName;S.teamDisplayName=r.teamDisplayName||null;S.teamLabels=r.teamLabels||S.teamLabels||{};S.displayName=r.displayName;applyMobileTeamLabels();
+  S.isReadOnly=!!r.isReadOnly||!!r.isViewer;S.role=r.role;S.isMC=r.isMC;S.isSystemOwner=Boolean(r.isSystemOwner);S.teamName=r.teamName;S.teamDisplayName=r.teamDisplayName||null;S.teamLabels=r.teamLabels||S.teamLabels||{};S.displayName=r.displayName;applyMobileTeamLabels();
   // Cache for quick role-switching (survives within same page session)
-  _cachedRoles[r.role]={role:r.role,isMC:r.isMC,isSystemOwner:Boolean(r.isSystemOwner),teamName:r.teamName,teamDisplayName:r.teamDisplayName,teamLabels:r.teamLabels||S.teamLabels,displayName:r.displayName,token:r.token||S.token,pin:S.pin,version:r.version,versionDate:r.versionDate};
+  _cachedRoles[r.role]={isReadOnly:S.isReadOnly,role:r.role,isMC:r.isMC,isSystemOwner:Boolean(r.isSystemOwner),teamName:r.teamName,teamDisplayName:r.teamDisplayName,teamLabels:r.teamLabels||S.teamLabels,displayName:r.displayName,token:r.token||S.token,pin:S.pin,version:r.version,versionDate:r.versionDate};
   // Log usage — direct dispatch, avoid call() overwriting role with S.role
   try{fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'logUsage',role:r.role,team:r.teamName||r.role,platform:'mobile',logAction:'login',detail:r.displayName||r.role})}).catch(function(){});}catch(e){}
   // แสดง Version ทุก role

@@ -367,6 +367,8 @@ Deno.serve(async (req: Request) => {
     return errResponse('Invalid JSON body');
   }
 
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return errResponse('JSON body must be an object', 400);
+
   const action = String(payload.action || '');
   if (!action) return errResponse('action is required');
 

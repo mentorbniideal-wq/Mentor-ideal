@@ -14,6 +14,7 @@ export interface AuthResult {
   isAdmin?: boolean;
   isSystemOwner?: boolean;
   isViewer?: boolean;
+  isReadOnly?: boolean;
   adminSections?: string[];
   adminEditAccess?: boolean;
   capabilities?: string[];
@@ -67,14 +68,18 @@ export async function verifyToken(
   // Look up role_assignments by email (service client can read this)
   const { data: ra, error: raErr } = await supabase
     .from('role_assignments')
-    .select('role, display_name, team_name, member_id, is_mc, is_mentor, is_admin, admin_sections, admin_edit_access, capabilities, access_status, access_starts_at, access_expires_at, read_only_after')
-    .ilike('email', email)
+    .select('email, role, display_name, team_name, member_id, is_mc, is_mentor, is_admin, admin_sections, admin_edit_access, capabilities, access_status, access_starts_at, access_expires_at, read_only_after')
+    .ilike('email', email.replace(/[\\%_]/g, '\\$&'))
     .maybeSingle();
 
   if (raErr) return { ok: false, error: 'ข้อผิดพลาดในการค้นหาสิทธิ์' };
   if (!ra) return { ok: false, error: `ไม่มีสิทธิ์ใช้งาน (${email}) กรุณาติดต่อ MC` };
 
   const r = ra as Record<string, unknown>;
+  // Verify the returned identity too; never authorize a pattern-only match.
+  if (String(r.email || '').trim().toLowerCase() !== email) {
+    return { ok: false, error: 'ไม่พบสิทธิ์ของบัญชีนี้' };
+  }
   if (String(r.access_status || 'active') !== 'active') {
     return { ok: false, error: 'บัญชีนี้ถูกระงับสิทธิ์ กรุณาติดต่อ Chapter Admin' };
   }
@@ -88,6 +93,8 @@ export async function verifyToken(
   // identity. Database flags cannot accidentally promote another account.
   const isSystemOwner = email === SYSTEM_OWNER_EMAIL;
   const isAdmin = isSystemOwner;
+  const isViewer = String(r.role).toLowerCase() === 'viewer';
+  const isReadOnly = isViewer || Boolean(r.read_only_after && new Date(String(r.read_only_after)).getTime() <= Date.now());
   const capabilities = isSystemOwner
     ? defaultCapabilities('admin', true)
     : (Array.isArray(r.capabilities) ? r.capabilities.map(String).filter(x => x !== '*') : []);
@@ -102,8 +109,10 @@ export async function verifyToken(
     isMentor:    Boolean(r.is_mentor),
     isAdmin,
     isSystemOwner,
+    isViewer,
+    isReadOnly,
     adminSections: Array.isArray(r.admin_sections) ? r.admin_sections.map(String) : [],
-    adminEditAccess: Boolean(r.admin_edit_access),
+    adminEditAccess: !isReadOnly && Boolean(r.admin_edit_access),
     capabilities,
   };
 }
@@ -185,6 +194,9 @@ export async function requireAuth(
   if (token) {
     const result = await verifyToken(supabase, token);
     if (!result.ok) return result;
+    if (result.isReadOnly && !String(payload.action || '').startsWith('get')) {
+      return { ok: false, error: 'บัญชีนี้เป็น View Only ไม่สามารถแก้ไขหรือส่งข้อความได้' };
+    }
     if (allowedRoles && allowedRoles.length > 0 && !result.isAdmin && !allowedRoles.includes(result.role!)) {
       return { ok: false, error: 'ไม่มีสิทธิ์ใช้งาน action นี้' };
     }
