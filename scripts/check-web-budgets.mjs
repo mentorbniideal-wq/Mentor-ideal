@@ -1,6 +1,7 @@
 import { stat } from 'node:fs/promises';
 
 const budgets = [
+  ['public/liff/verification-help.js', 8_000],
   ['public/assets/css/desktop-responsive.css', 12_000],
   // Ratchet ceilings: current modularisation baseline plus <1% headroom.
   // Do not raise these when adding features; move new modules into separate files.

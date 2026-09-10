@@ -1,3 +1,4 @@
+import { verificationHelp } from '../_shared/verification-help.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { getServiceClient } from '../_shared/db.ts';
 import { trackLineEvent } from '../_shared/analytics.ts';
@@ -80,7 +81,7 @@ Deno.serve(async (req: Request) => {
     'confirm-guided-profile-draft','submit-guided-experience-feedback','complete-guided-session',
     'propose-one-to-one-schedule','propose-one-to-one-schedule-options','confirm-one-to-one-schedule',
     'cancel-one-to-one-schedule','reschedule-one-to-one','get-one-to-one-calendar',
-    'start-one-to-one-verification','submit-one-to-one-code','submit-one-to-one-reflection','request-one-to-one-help',
+    'get-one-to-one-verification-help','request-one-to-one-verification-help','start-one-to-one-verification','submit-one-to-one-code','submit-one-to-one-reflection','request-one-to-one-help',
   ]);
   if (oneToOneActions.has(action)) {
     const { data: controls } = await db.from('settings').select('key,value').in('key', [
@@ -91,7 +92,7 @@ Deno.serve(async (req: Request) => {
     try { pilotIds = JSON.parse(control.get('ONE_TO_ONE_PILOT_MEMBER_IDS') || '[]'); } catch { pilotIds = []; }
     // A linked LINE identity is the MY121 access boundary. Pilot membership only
     // limits rollout notifications; it must never hide a member's own workspace.
-    const access=evaluateOneToOneAccess({featureEnabled:control.get('FEATURE_ONE_TO_ONE_SYSTEM')==='true',emergencyStop:control.get('ONE_TO_ONE_EMERGENCY_STOP')==='true',enforcePilotAccess:false,pilotIds},memberId,new Set(['one-to-one-bootstrap','get-my-121-profile','get-pair-121-profile','get-my-one-to-one-history','guided-session-bootstrap','get-one-to-one-calendar']).has(action));
+    const access=evaluateOneToOneAccess({featureEnabled:control.get('FEATURE_ONE_TO_ONE_SYSTEM')==='true',emergencyStop:control.get('ONE_TO_ONE_EMERGENCY_STOP')==='true',enforcePilotAccess:false,pilotIds},memberId,new Set(['one-to-one-bootstrap','get-my-121-profile','get-pair-121-profile','get-my-one-to-one-history','guided-session-bootstrap','get-one-to-one-calendar','get-one-to-one-verification-help']).has(action));
     if (!access.allowed&&access.reason==='emergency_stop') {
       return response({ ok: false, error: 'ระบบหยุดการบันทึกชั่วคราวเพื่อดูแลข้อมูล คุณยังเปิดดูคู่และประวัติได้' }, 503);
     }
@@ -235,6 +236,19 @@ Deno.serve(async (req: Request) => {
     const scheduleRows=(schedules||[]) as Record<string,unknown>[],schedule=scheduleRows.find(x=>x.status==='confirmed')||scheduleRows[0]||null;
     const newHistory=(history||[]) as Record<string,unknown>[],legacy=(legacyLogs||[]) as Record<string,unknown>[];
     return response({ok:true,pair,partner,schedule,scheduleOptions:scheduleRows,followUps:followUps||[],guidedHistory:guidedHistory||null,myProfileCompleteness:member121ProfileCompleteness(myProfile as Record<string,unknown>|null),journey:{total:newHistory.length+legacy.length,completed:newHistory.filter(x=>['verified','late_verified'].includes(String(x.status))).length+legacy.filter(x=>x.met_at).length,newSystemTotal:newHistory.length,legacyTotal:legacy.length,recent:newHistory},referralCard:{lookingFor:String((lookingFor as Record<string,unknown>|null)?.looking_for||(businessProfile as Record<string,unknown>|null)?.looking_for||''),idealClient:String((businessProfile as Record<string,unknown>|null)?.ideal_client||''),referralTrigger:String((businessProfile as Record<string,unknown>|null)?.referral_trigger_summary||''),profession:String((partner as Record<string,unknown>|null)?.profession||''),companyName:String((partner as Record<string,unknown>|null)?.company_name||'')},privacyNotice:'Shared Reflection เห็นได้โดยคุณ คู่สนทนา และ Mentor ที่มีสิทธิ์ ส่วน Private Mentor Feedback จะไม่แสดงให้อีกฝ่ายเห็น'});
+  }
+
+  if(action==='get-one-to-one-verification-help'||action==='request-one-to-one-verification-help'){
+    const pairId=String(body.pairId||'').trim();
+    if(!pairId)return response({ok:false,error:'กรุณาเลือกคู่ 1-2-1'},400);
+    const {pair,error}=await ownPair(pairId);
+    if(error||!pair)return response({ok:false,error:'ไม่มีสิทธิ์เข้าถึงคู่นี้'},403);
+    const result=await verificationHelp(db,pair,memberId,action==='request-one-to-one-verification-help');
+    if(result.ok&&result.created){
+      try{await notifyOneToOneMentorAndMc(db,{feedbackId:`verification-${result.requestId}`,pairId,memberId,memberName:String(member.name||''),nickname:String(member.nickname||''),mentorTeam:String(member.mentor_team||''),message:'รหัส 6 หลักไม่แสดงหรือใช้งานไม่ได้ ขอให้ตรวจสอบก่อนรีเซ็ตการรับรองทั้งคู่'});}
+      catch{ return response({...result,message:'บันทึกคำขอในคิวต้องดูแลแล้ว แต่ส่งการแจ้งเตือนไม่ครบ กรุณาติดต่อ Mentor Co. หากยังไม่ได้รับการตอบกลับ'}); }
+    }
+    return response(result,result.ok?200:400);
   }
 
   if(action==='request-one-to-one-help'){
@@ -433,7 +447,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if(action==='start-one-to-one-verification'){
-    const pairId=String(body.pairId||'');const {pair}=await ownPair(pairId);if(!pair)return response({ok:false,error:'ไม่มีสิทธิ์ยืนยันคู่นี้'},403);const pepper=Deno.env.get('ONE_TO_ONE_CODE_PEPPER')||'';if(!pepper)return response({ok:false,error:'ระบบยืนยันยังไม่ได้ตั้งค่า'},503);
+    const pairId=String(body.pairId||'');const {pair}=await ownPair(pairId);if(!pair)return response({ok:false,error:'ไม่มีสิทธิ์ยืนยันคู่นี้'},403);if(['verified','late_verified'].includes(String(pair.status)))return response({ok:true,complete:true,message:'สมาชิกในคู่รับรองครบแล้ว ไม่ต้องแสดงหรือขอรีเซ็ตรหัส'});const pepper=Deno.env.get('ONE_TO_ONE_CODE_PEPPER')||'';if(!pepper)return response({ok:false,error:'ระบบยืนยันยังไม่ได้ตั้งค่า'},503);
     const {data:existing}=await db.from('one_to_one_verifications').select('id,code_version,code_expires_at,verified_partner_code_at').eq('pair_id',pairId).eq('member_id',memberId).maybeSingle();
     if(existing){const row=existing as Record<string,unknown>,version=Number(row.code_version||0),ownVerified=Boolean(row.verified_partner_code_at);if(version>=1){const ownerKey=pair.optional_member_c_id?'trio':memberId,code=await recoverableHandshakeCode(pairId,ownerKey,version,pepper),storedExpiry=new Date(String(row.code_expires_at||0)),minimumExpiry=new Date(Date.now()+24*60*60*1000),needsExtension=!(storedExpiry>minimumExpiry),effectiveExpiry=needsExtension?new Date(Date.now()+7*24*60*60*1000):storedExpiry;if(needsExtension){const extendQuery=db.from('one_to_one_verifications').update({code_expires_at:effectiveExpiry.toISOString()}).eq('pair_id',pairId).eq('code_version',version);if(pair.optional_member_c_id)await extendQuery;else await extendQuery.eq('member_id',memberId);}return response({ok:true,issued:false,recovered:true,ownVerified,code,expiresAt:effectiveExpiry.toISOString(),isTrio:Boolean(pair.optional_member_c_id),message:ownVerified?'คุณรับรองแล้ว รหัสนี้จะแสดงไว้จนกว่าสมาชิกในคู่จะรับรองครบ':'รหัสเดิมของคุณยังใช้งานได้ และจะแสดงไว้จนกว่าจะรับรองครบ'});}return response({ok:true,issued:false,legacy:true,canReissue:true,message:'รหัสเดิมสร้างจากระบบรุ่นก่อน จึงเปิดดูซ้ำไม่ได้ กรุณาให้ Admin หรือ Mentor Co. กด “รีเซ็ตรหัสและการรับรองทั้งคู่”'});}
     const isTrio=Boolean(pair.optional_member_c_id),version=1,ownerKey=isTrio?'trio':memberId,code=await recoverableHandshakeCode(pairId,ownerKey,version,pepper),round=pair.matching_rounds as Record<string,unknown>;const expires=String(round.ends_at||new Date(Date.now()+7*86400000).toISOString());const hash=await handshakeCodeHash(pairId,memberId,code,pepper);
