@@ -18,3 +18,14 @@ Validation:
 - `node scripts/check-web-budgets.mjs`
 
 Tests cover non-participants, cancelled/archived/completed pairs, duplicate requests across participants, trios, code generation changes, query/insert failures, concurrent unique conflicts, request status on reload, network errors, no codes in requests and the admin pair shortcut. Browser requests use fixtures. Positive LINE-account end-to-end delivery/reset still requires an approved signed-in test participant and a controlled test pair under `PRODUCTION_E2E_RUNBOOK.md`.
+
+## Release — 10 September 2026
+
+- Implementation commit: `b4e4271`.
+- Supabase: `api` v265 and `liff-api` v56 active; other functions unchanged.
+- Prior function sources backed up under ignored `migration-exports/verification-help-backup-wb8pduqa/`.
+- Vercel preview: `dpl_4sRZXj9T8rR5bw2FHiXMNih9MDqm`; promoted production: `dpl_8xxJ3JEszDSbqfq4cJEyV6Dty9P3` at `https://bni-mentor-system.vercel.app`.
+- Backend suite: 146 tests passed (18 steps). Type checks, web budgets and verification browser fixtures passed, including a 375 px screenshot review.
+- Production negative-auth smoke passed; both new endpoints reject unauthenticated calls with HTTP 401.
+- Production LIFF HTML, recovery script, Desktop HTML and Desktop 1-2-1 script match the tested local files exactly.
+- Positive authenticated LINE delivery and real-pair reset remain untested; no test messages or member-data mutations were performed.
