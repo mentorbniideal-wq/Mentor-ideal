@@ -8294,6 +8294,7 @@ function msbLoad(group,force){
       MSB[group].intelRows=(b.planVsActual&&b.planVsActual.rows)||b.rowsPlan||[];
       MSB[group].radar=b.radar||null;
       MSB[group].pairs=b.matching||null;
+      MSB[group].monthlyDemandCalendar=b.monthlyDemandCalendar||[];
       MSB[group].followups=b.followups||null;
       MSB[group].dataQuality=b.dataQuality||null;
       MSB[group].loaded=true;
@@ -8637,6 +8638,11 @@ function msbRender(group){
       +topBox('Top Power Team',ov.topPowerTeamCategories||sm.topPowerTeamCategories);
   }
   if(group==='gr'){
+    var calendar=document.getElementById('msb-gr-calendar'),monthNames=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+    if(calendar){
+      var demand=(state.monthlyDemandCalendar||[]).filter(function(x){return (x.items||[]).length;});
+      calendar.innerHTML='<div style="background:var(--sf);border:1px solid var(--bd);border-radius:14px;padding:14px"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap"><div><h3 style="font-size:14px;font-weight:900;margin:0">Monthly Demand Calendar</h3><div style="font-size:11px;color:var(--sub);margin-top:3px">Specific Looking For ที่สมาชิกระบุเองใน Blueprint · ใช้หาโอกาสช่วยกัน ไม่สร้าง Power Team อัตโนมัติ</div></div><span style="font-size:11px;color:var(--sub)">'+demand.length+' เดือนมีแผน</span></div>'+(demand.length?'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:12px">'+demand.map(function(block){return '<div style="border:1px solid var(--bd);border-radius:10px;padding:10px"><b style="color:var(--ye)">'+monthNames[Number(block.month)-1]+'</b>'+block.items.slice(0,4).map(function(item){return '<div style="font-size:11px;line-height:1.45;border-top:1px solid var(--bd);margin-top:7px;padding-top:7px"><b>'+esc(item.name)+'</b> · '+esc(item.mentorTeam||'—')+'<br><span style="color:var(--sub)">'+esc(item.productService||item.seasonEvent||'—')+' → '+esc(item.specificLookingFor||'—')+'</span></div>';}).join('')+(block.items.length>4?'<div style="font-size:10px;color:var(--sub);margin-top:6px">และอีก '+(block.items.length-4)+' รายการ</div>':'')+'</div>';}).join('')+'</div>':'<div style="font-size:12px;color:var(--sub);padding:16px 0">ยังไม่มีสมาชิกบันทึก Marketing Plan รายเดือน</div>')+'</div>';
+    }
     var tops=document.getElementById('msb-gr-tops');
     if(tops){
       function topBox(title,items){

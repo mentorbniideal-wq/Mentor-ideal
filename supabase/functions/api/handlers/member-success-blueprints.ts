@@ -30,6 +30,19 @@ function ceilSafe(value: number): number {
   return Number.isFinite(value) && value > 0 ? Math.ceil(value) : 0;
 }
 
+function monthlyMarketingPlan(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 12).map((row, index) => {
+    const item = row && typeof row === 'object' ? row as Record<string, unknown> : {};
+    return {
+      month: Math.min(12, Math.max(1, Math.floor(num(item.month) || index + 1))),
+      season_event: txt(item.season_event).slice(0, 240),
+      product_service: txt(item.product_service).slice(0, 240),
+      specific_looking_for: txt(item.specific_looking_for).slice(0, 1000),
+    };
+  });
+}
+
 function calculate(input: Record<string, unknown>) {
   const totalSales = num(input.total_sales_target_year);
   const bniSales = num(input.expected_sales_from_bni_year);
@@ -37,12 +50,14 @@ function calculate(input: Record<string, unknown>) {
   const conversion = num(input.conversion_rate_percent);
   const customerNeeded = ceilSafe(bniSales / avgCustomer);
   const referralNeeded = conversion > 0 ? ceilSafe(customerNeeded / (conversion / 100)) : 0;
+  const referralPerWeek = referralNeeded / 52;
   return {
     bni_contribution_percent: totalSales > 0 ? (bniSales / totalSales) * 100 : 0,
     customer_needed: customerNeeded,
     referral_needed: referralNeeded,
     referral_per_month: referralNeeded / 12,
-    referral_per_week: referralNeeded / 52,
+    referral_per_week: referralPerWeek,
+    quality_121_target_per_week: ceilSafe(num(input.quality_121_target_per_week) || referralPerWeek),
     calculated_at: new Date().toISOString(),
   };
 }
@@ -720,6 +735,7 @@ async function saveBlueprintForMember(db: Db, memberId: string, year: number, p:
     power_team_detail: txt(p.power_team_detail),
     personal_goal_category: txt(p.personal_goal_category),
     personal_goal_detail: txt(p.personal_goal_detail) || null,
+    monthly_marketing_plan: monthlyMarketingPlan(p.monthly_marketing_plan),
     status: txt(p.status) === 'draft' ? 'draft' : 'submitted',
     source: 'member_form',
     updated_at: new Date().toISOString(),
@@ -823,6 +839,26 @@ function summarizeDashboardRows(rows: Awaited<ReturnType<typeof listDashboardRow
     topLookingForCategories: countTop('looking_for_categories'),
     topPowerTeamCategories: countTop('power_team_categories'),
   };
+}
+
+function monthlyDemandCalendar(rows: Awaited<ReturnType<typeof listDashboardRows>>) {
+  const months = Array.from({ length: 12 }, (_, index) => ({ month: index + 1, items: [] as Record<string, unknown>[] }));
+  for (const row of rows) {
+    const blueprint = row.blueprint as Record<string, unknown> | null;
+    if (!blueprint || String(row.status) !== 'submitted') continue;
+    for (const item of monthlyMarketingPlan(blueprint.monthly_marketing_plan)) {
+      if (!item.season_event && !item.product_service && !item.specific_looking_for) continue;
+      months[item.month - 1].items.push({
+        memberId: row.memberId,
+        name: row.nickname || row.name,
+        mentorTeam: row.mentorTeam,
+        seasonEvent: item.season_event,
+        productService: item.product_service,
+        specificLookingFor: item.specific_looking_for,
+      });
+    }
+  }
+  return months;
 }
 
 function intelligenceOverviewFromRows(rows: ReturnType<typeof mapPlanRow>[]) {
@@ -1174,6 +1210,7 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
         planVsActual: { rows: planRows },
         radar: supportRadar(planRows),
         matching: buildPairMatching(planRows),
+        monthlyDemandCalendar: monthlyDemandCalendar(dashboardRows),
         followups,
         dataQuality: dataQualityCenterFromRows(dashboardRows, planRows),
         meta: {
