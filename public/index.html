@@ -446,10 +446,30 @@
       <div id="mc-nm-list"><div class="lt">⏳ กำลังโหลด...</div></div>
     </div>
 
+    <!-- 1-2-1: MC mobile work queue. Matching and bulk LINE delivery remain Desktop-only. -->
+    <div class="pane" id="mc-121">
+      <div class="card mobile-121-intro">
+        <div class="ct" style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;">
+          <span>🤝 1-2-1 Command</span>
+          <button class="fb" onclick="loadMC121Mobile(true)" aria-label="รีเฟรชคิว 1-2-1">↻ รีเฟรช</button>
+        </div>
+        <div class="mobile-mini-note">จัดการคิวคู่ที่ยังไม่จบ: บันทึกการติดต่อ มอบหมายผู้ดูแล พักติดตาม หรือปล่อยเข้าคิวจับคู่ใหม่ โดยไม่ส่ง LINE จากหน้านี้</div>
+      </div>
+      <div id="mc-121-metrics" class="mobile-metric-grid"></div>
+      <div id="mc-121-filters" class="mobile-chip-row" aria-label="ตัวกรองคิว 1-2-1"></div>
+      <div id="mc-121-list"><div class="lt">⏳ กำลังโหลดคิว 1-2-1...</div></div>
+      <div class="card mobile-121-desktop-note">
+        <div class="ct">💻 งานควบคุมรอบ</div>
+        <div class="mobile-mini-note">การนำเข้า Check-in, สุ่ม/สลับคู่, Preview และยืนยันส่ง LINE ทำบน Desktop เท่านั้น เพื่อให้ตรวจรายชื่อและข้อความก่อนส่งได้ครบถ้วน</div>
+        <button class="fb" style="margin-top:.55rem;min-height:44px;width:100%;" onclick="window.open('dashboard.html','_blank')">เปิด 1-2-1 บน Desktop →</button>
+      </div>
+    </div>
+
     <!-- More: Tools moved out of top-level mobile tabs -->
     <div class="pane" id="mc-more">
       <div class="sh">MC Tools</div>
       <div class="mobile-command-grid">
+        <button class="mobile-command-card" onclick="mct('121',null)">🤝 <strong>1-2-1 Command</strong><span>คิวคู่ที่ต้องติดตามและจัดการ</span></button>
         <button class="mobile-command-card" onclick="mct('coaching',null)">🎯 <strong>Coaching</strong><span>ภาพรวมการดูแลสมาชิกทุกทีม</span></button>
         <button class="mobile-command-card" onclick="mct('mentor',null)">📈 <strong>Mentor Performance</strong><span>ดู performance, meeting prep, 90-day review</span></button>
         <button class="mobile-command-card" onclick="mct('messages',null)">💬 <strong>Messages</strong><span>Broadcast, ข้อความ และงานมอบหมาย</span></button>
@@ -1217,6 +1237,7 @@
 </main>
 
 <script src="/assets/js/mobile-operations.js?v=20260909-audit.1" defer></script>
+<script src="/assets/js/mobile-121-command.js?v=20260911.1" defer></script>
 <script src="/assets/js/dynamic-team-labels.js?v=20260906-audit.1" defer></script>
 <!-- Checklist Panel -->
 <div class="cl-panel" id="clPanel">

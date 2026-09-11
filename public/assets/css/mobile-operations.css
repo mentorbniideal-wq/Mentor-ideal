@@ -1605,11 +1605,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 @media(max-width:380px){.mobile-today-actions{grid-template-columns:1fr 1fr}.mobile-today-actions button:last-child{grid-column:1/-1;min-height:76px}.mobile-member-card{grid-template-columns:44px minmax(0,1fr) auto}.mobile-member-avatar{width:44px;height:44px}.mobile-member-chevron{display:none}}
 .mobile-chip-row{display:flex;gap:.4rem;overflow-x:auto;padding:.1rem 0 .65rem;scrollbar-width:none;}
 .mobile-chip-row::-webkit-scrollbar{display:none}
-.mobile-chip{flex:0 0 auto;border:1px solid var(--border);border-radius:999px;background:var(--bg2);padding:.38rem .62rem;font-size:.72rem;color:var(--gray2);}
+.mobile-chip{flex:0 0 auto;border:1px solid var(--border);border-radius:999px;background:var(--bg2);padding:.38rem .62rem;font-size:.72rem;color:var(--gray2);}.mobile-chip.active{background:var(--gold);border-color:var(--gold);color:#17120a;font-weight:800;}
 .mobile-metric-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.45rem;margin-top:.55rem;}
 .mobile-metric{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:.55rem;text-align:center;}
 .mobile-metric b{display:block;font-size:.92rem;color:var(--white);font-family:'IBM Plex Mono',monospace;}
 .mobile-metric span{display:block;font-size:.62rem;color:var(--gray2);line-height:1.3;margin-top:2px;}
+.mobile-121-intro{background:linear-gradient(145deg,rgba(176,138,60,.12),var(--bg2));border-color:rgba(176,138,60,.28);margin-bottom:.7rem}.mobile-121-desktop-note{margin-top:.8rem;background:rgba(96,165,250,.06);border-color:rgba(96,165,250,.22)}.mobile-121-status{display:inline-flex;align-items:center;border-radius:999px;padding:2px 7px;background:var(--bg3);color:var(--gray2);font-size:.64rem;font-weight:700}.mobile-121-status.urgent{background:var(--redl);color:var(--red)}.mobile-121-status.waiting{background:var(--yellowl);color:var(--yellow)}.mobile-121-next{font-size:.72rem;line-height:1.45;color:var(--gray2);margin-top:.5rem}.mobile-121-next b{color:var(--white)}
 .mobile-mini-note{font-size:.72rem;color:var(--gray2);line-height:1.55;margin-top:.5rem;}
 .report-status{display:inline-flex;align-items:center;border-radius:999px;padding:2px 8px;font-size:.68rem;font-weight:700;}
 .report-status.open{background:rgba(251,191,36,.14);color:var(--yellow);}
