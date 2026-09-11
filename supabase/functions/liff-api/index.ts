@@ -82,6 +82,7 @@ Deno.serve(async (req: Request) => {
     'propose-one-to-one-schedule','propose-one-to-one-schedule-options','confirm-one-to-one-schedule',
     'cancel-one-to-one-schedule','reschedule-one-to-one','get-one-to-one-calendar',
     'get-one-to-one-verification-help','request-one-to-one-verification-help','start-one-to-one-verification','submit-one-to-one-code','submit-one-to-one-reflection','request-one-to-one-help',
+    'get-member-self-121','create-member-self-121-invite','respond-member-self-121-invite',
   ]);
   if (oneToOneActions.has(action)) {
     const { data: controls } = await db.from('settings').select('key,value').in('key', [
@@ -92,15 +93,15 @@ Deno.serve(async (req: Request) => {
     try { pilotIds = JSON.parse(control.get('ONE_TO_ONE_PILOT_MEMBER_IDS') || '[]'); } catch { pilotIds = []; }
     // A linked LINE identity is the MY121 access boundary. Pilot membership only
     // limits rollout notifications; it must never hide a member's own workspace.
-    const access=evaluateOneToOneAccess({featureEnabled:control.get('FEATURE_ONE_TO_ONE_SYSTEM')==='true',emergencyStop:control.get('ONE_TO_ONE_EMERGENCY_STOP')==='true',enforcePilotAccess:false,pilotIds},memberId,new Set(['one-to-one-bootstrap','get-my-121-profile','get-pair-121-profile','get-my-one-to-one-history','guided-session-bootstrap','get-one-to-one-calendar','get-one-to-one-verification-help']).has(action));
+    const access=evaluateOneToOneAccess({featureEnabled:control.get('FEATURE_ONE_TO_ONE_SYSTEM')==='true',emergencyStop:control.get('ONE_TO_ONE_EMERGENCY_STOP')==='true',enforcePilotAccess:false,pilotIds},memberId,new Set(['one-to-one-bootstrap','get-my-121-profile','get-pair-121-profile','get-my-one-to-one-history','guided-session-bootstrap','get-one-to-one-calendar','get-one-to-one-verification-help','get-member-self-121']).has(action));
     if (!access.allowed&&access.reason==='emergency_stop') {
       return response({ ok: false, error: 'ระบบหยุดการบันทึกชั่วคราวเพื่อดูแลข้อมูล คุณยังเปิดดูคู่และประวัติได้' }, 503);
     }
   }
 
   async function ownPair(pairId?:string){
-    let query=db.from('matching_pairs').select('id,round_id,member_a_id,member_b_id,optional_member_c_id,status,matching_rounds!inner(meeting_date,starts_at,ends_at,system_version)').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId},optional_member_c_id.eq.${memberId}`).is('archived_at',null).neq('status','cancelled');
-    if(pairId)query=query.eq('id',pairId);else query=query.eq('matching_rounds.system_version',2).order('created_at',{ascending:false}).limit(1);
+    let query=db.from('matching_pairs').select('id,round_id,member_a_id,member_b_id,optional_member_c_id,status,matching_rounds!inner(meeting_date,starts_at,ends_at,system_version,journey_type)').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId},optional_member_c_id.eq.${memberId}`).is('archived_at',null).neq('status','cancelled');
+    if(pairId)query=query.eq('id',pairId);else query=query.eq('matching_rounds.system_version',2).eq('matching_rounds.journey_type','chapter').order('created_at',{ascending:false}).limit(1);
     const {data,error}=await query.maybeSingle();return{pair:data as Record<string,unknown>|null,error};
   }
 
@@ -109,6 +110,24 @@ Deno.serve(async (req: Request) => {
     if(!session)return {session:null,pair:null};
     const {pair}=await ownPair(String((session as Record<string,unknown>).pair_id));
     return {session:pair?session as Record<string,unknown>:null,pair};
+  }
+
+  async function memberSelf121() {
+    const [{ data: incoming }, { data: outgoing }, { data: pairs }] = await Promise.all([
+      db.from('member_one_to_one_invites').select('id,requester_member_id,invitee_member_id,note,status,accepted_pair_id,created_at,responded_at').eq('invitee_member_id', memberId).order('created_at', { ascending: false }).limit(30),
+      db.from('member_one_to_one_invites').select('id,requester_member_id,invitee_member_id,note,status,accepted_pair_id,created_at,responded_at').eq('requester_member_id', memberId).order('created_at', { ascending: false }).limit(30),
+      db.from('matching_pairs').select('id,status,created_at,member_a_id,member_b_id,round:matching_rounds!inner(meeting_date,journey_type)').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId}`).eq('matching_rounds.journey_type', 'member_self').is('archived_at', null).order('created_at', { ascending: false }).limit(30),
+    ]);
+    const rows = [...(incoming || []), ...(outgoing || [])] as Record<string, unknown>[];
+    const ids = [...new Set(rows.flatMap(row => [String(row.requester_member_id), String(row.invitee_member_id)]).filter(id => id !== memberId))];
+    const { data: people } = ids.length ? await db.from('members').select('id,name,nickname,profession,company_name').in('id', ids) : { data: [] };
+    const peopleById = new Map(((people || []) as Record<string, unknown>[]).map(person => [String(person.id), person]));
+    const decorateInvite = (row: Record<string, unknown>) => ({ ...row, counterpart: peopleById.get(String(row.requester_member_id) === memberId ? String(row.invitee_member_id) : String(row.requester_member_id)) || null, direction: String(row.requester_member_id) === memberId ? 'outgoing' : 'incoming' });
+    const pairRows = (pairs || []) as Record<string, unknown>[];
+    const pairIds = [...new Set(pairRows.flatMap(row => [String(row.member_a_id), String(row.member_b_id)]).filter(id => id !== memberId))];
+    const missingIds = pairIds.filter(id => !peopleById.has(id));
+    if (missingIds.length) { const { data } = await db.from('members').select('id,name,nickname,profession,company_name').in('id', missingIds); ((data || []) as Record<string, unknown>[]).forEach(person => peopleById.set(String(person.id), person)); }
+    return { incoming: ((incoming || []) as Record<string, unknown>[]).map(decorateInvite), outgoing: ((outgoing || []) as Record<string, unknown>[]).map(decorateInvite), sessions: pairRows.map(row => ({ ...row, counterpart: peopleById.get(String(row.member_a_id) === memberId ? String(row.member_b_id) : String(row.member_a_id)) || null })) };
   }
 
   if(action==='chapter-directory'){
@@ -144,7 +163,30 @@ Deno.serve(async (req: Request) => {
     if(!person)return response({ok:false,error:'ไม่พบสมาชิกที่เลือก'},404);
     const pairIds=pair?[String(pair.member_a_id),String(pair.member_b_id)]:[];
     await db.from('chapter_directory_events').insert({event_type:'result_open',subject_member_id:subjectId});
-    return response({ok:true,member:directoryResult({member:person as Record<string,unknown>,profile:profile as Record<string,unknown>|null}),profile:directoryProfileProjection(profile as Record<string,unknown>|null),currentPairId:pairIds.includes(subjectId)?String(pair?.id||''):null,privacyNotice:'ใช้ข้อมูลนี้เพื่อมองเห็นโอกาส Referral กรุณาไม่ส่งต่อข้อมูลโดยไม่ได้รับอนุญาต'});
+    return response({ok:true,member:directoryResult({member:person as Record<string,unknown>,profile:profile as Record<string,unknown>|null}),profile:directoryProfileProjection(profile as Record<string,unknown>|null),currentPairId:pairIds.includes(subjectId)?String(pair?.id||''):null,canInvite:Boolean(profile)&&subjectId!==memberId,privacyNotice:'ใช้ข้อมูลนี้เพื่อมองเห็นโอกาส Referral กรุณาไม่ส่งต่อข้อมูลโดยไม่ได้รับอนุญาต'});
+  }
+
+  if (action === 'get-member-self-121') return response({ ok: true, ...(await memberSelf121()) });
+
+  if (action === 'create-member-self-121-invite') {
+    const inviteeId = String(body.inviteeMemberId || '').trim(), note = cleanGuidedText(body.note, 500), clientActionId = cleanGuidedText(body.clientActionId, 100);
+    if (!inviteeId || inviteeId === memberId) return response({ ok: false, error: 'กรุณาเลือกสมาชิกคนอื่น' }, 400);
+    const { data: invitee } = await db.from('members').select('id,name,nickname').eq('id', inviteeId).or('is_archived.eq.false,is_archived.is.null').maybeSingle();
+    const { data: profile } = await db.from('member_one_to_one_profiles').select('member_id').eq('member_id', inviteeId).eq('share_directory', true).maybeSingle();
+    if (!invitee || !profile) return response({ ok: false, error: 'สมาชิกท่านนี้ยังไม่เปิดรับคำชวนผ่าน Directory' }, 403);
+    if (clientActionId) { const { data: previous } = await db.from('member_one_to_one_invites').select('id,status').eq('requester_member_id', memberId).eq('client_action_id', clientActionId).maybeSingle(); if (previous) return response({ ok: true, invite: previous, idempotent: true, message: 'ส่งคำชวนนี้แล้ว' }); }
+    const { data: invite, error } = await db.from('member_one_to_one_invites').insert({ requester_member_id: memberId, invitee_member_id: inviteeId, note: note || null, client_action_id: clientActionId || null }).select('id,status,created_at').single();
+    if (error) return response({ ok: false, error: error.code === '23505' ? 'มีคำชวน 1-2-1 ระหว่างคุณสองคนที่รอการตอบอยู่แล้ว' : 'ส่งคำชวนไม่สำเร็จ กรุณาลองใหม่' }, 409);
+    await db.from('one_to_one_status_events').insert({ member_id: memberId, event_type: 'member_self_121_invite_created', actor_type: 'member', actor_ref: memberId, idempotency_key: clientActionId ? `member-self-121:${memberId}:${clientActionId}` : null, metadata: { inviteId: String((invite as Record<string, unknown>).id), inviteeMemberId: inviteeId } });
+    return response({ ok: true, invite, message: `ส่งคำชวนถึง ${String((invitee as Record<string, unknown>).nickname || (invitee as Record<string, unknown>).name || 'สมาชิก')} แล้ว · ระบบไม่ส่ง LINE อัตโนมัติ` });
+  }
+
+  if (action === 'respond-member-self-121-invite') {
+    const inviteId = cleanGuidedText(body.inviteId, 100), decision = String(body.decision || '');
+    if (!inviteId || !['accepted', 'declined'].includes(decision)) return response({ ok: false, error: 'ข้อมูลการตอบรับไม่ถูกต้อง' }, 400);
+    const { data, error } = await db.rpc('respond_member_one_to_one_invite', { p_invite_id: inviteId, p_actor_member_id: memberId, p_response: decision });
+    if (error) return response({ ok: false, error: error.message.includes('no longer pending') ? 'คำชวนนี้ถูกตอบแล้ว' : 'บันทึกการตอบรับไม่สำเร็จ' }, 409);
+    return response({ ok: true, result: data, message: decision === 'accepted' ? 'สร้าง MY121 ของคุณทั้งคู่แล้ว · เลือกวันนัดได้เลย' : 'ปฏิเสธคำชวนแล้ว' });
   }
 
   if(action==='toggle-directory-bookmark'){
@@ -220,7 +262,8 @@ Deno.serve(async (req: Request) => {
   }
 
   if(action==='one-to-one-bootstrap'){
-    const {pair,error}=await ownPair();if(error)return response({ok:false,error:error.message},400);if(!pair)return response({ok:true,pair:null});
+    const requestedPairId=cleanGuidedText(body.pairId,100);
+    const {pair,error}=await ownPair(requestedPairId||undefined);if(error)return response({ok:false,error:error.message},400);if(!pair)return response({ok:true,pair:null});
     const partnerId=String(pair.member_a_id)===memberId?String(pair.member_b_id):String(pair.member_a_id);
     const [{data:partner},{data:schedules},{data:followUps},{data:history},{data:lookingFor},{data:businessProfile},{data:legacyLogs},{data:guidedHistory},{data:myProfile}]=await Promise.all([
       db.from('members').select('id,name,nickname,profession,company_name,mentor_team').eq('id',partnerId).maybeSingle(),
@@ -235,7 +278,8 @@ Deno.serve(async (req: Request) => {
     ]);
     const scheduleRows=(schedules||[]) as Record<string,unknown>[],schedule=scheduleRows.find(x=>x.status==='confirmed')||scheduleRows[0]||null;
     const newHistory=(history||[]) as Record<string,unknown>[],legacy=(legacyLogs||[]) as Record<string,unknown>[];
-    return response({ok:true,pair,partner,schedule,scheduleOptions:scheduleRows,followUps:followUps||[],guidedHistory:guidedHistory||null,myProfileCompleteness:member121ProfileCompleteness(myProfile as Record<string,unknown>|null),journey:{total:newHistory.length+legacy.length,completed:newHistory.filter(x=>['verified','late_verified'].includes(String(x.status))).length+legacy.filter(x=>x.met_at).length,newSystemTotal:newHistory.length,legacyTotal:legacy.length,recent:newHistory},referralCard:{lookingFor:String((lookingFor as Record<string,unknown>|null)?.looking_for||(businessProfile as Record<string,unknown>|null)?.looking_for||''),idealClient:String((businessProfile as Record<string,unknown>|null)?.ideal_client||''),referralTrigger:String((businessProfile as Record<string,unknown>|null)?.referral_trigger_summary||''),profession:String((partner as Record<string,unknown>|null)?.profession||''),companyName:String((partner as Record<string,unknown>|null)?.company_name||'')},privacyNotice:'Shared Reflection เห็นได้โดยคุณ คู่สนทนา และ Mentor ที่มีสิทธิ์ ส่วน Private Mentor Feedback จะไม่แสดงให้อีกฝ่ายเห็น'});
+    const journeyType=String(((pair.matching_rounds||{}) as Record<string,unknown>).journey_type||'chapter');
+    return response({ok:true,pair,journeyType,partner,schedule,scheduleOptions:scheduleRows,followUps:followUps||[],guidedHistory:guidedHistory||null,myProfileCompleteness:member121ProfileCompleteness(myProfile as Record<string,unknown>|null),journey:{total:newHistory.length+legacy.length,completed:newHistory.filter(x=>['verified','late_verified'].includes(String(x.status))).length+legacy.filter(x=>x.met_at).length,newSystemTotal:newHistory.length,legacyTotal:legacy.length,recent:newHistory},referralCard:{lookingFor:String((lookingFor as Record<string,unknown>|null)?.looking_for||(businessProfile as Record<string,unknown>|null)?.looking_for||''),idealClient:String((businessProfile as Record<string,unknown>|null)?.ideal_client||''),referralTrigger:String((businessProfile as Record<string,unknown>|null)?.referral_trigger_summary||''),profession:String((partner as Record<string,unknown>|null)?.profession||''),companyName:String((partner as Record<string,unknown>|null)?.company_name||'')},privacyNotice:'Shared Reflection เห็นได้โดยคุณ คู่สนทนา และ Mentor ที่มีสิทธิ์ ส่วน Private Mentor Feedback จะไม่แสดงให้อีกฝ่ายเห็น'});
   }
 
   if(action==='get-one-to-one-verification-help'||action==='request-one-to-one-verification-help'){
@@ -511,7 +555,8 @@ Deno.serve(async (req: Request) => {
   if (action === 'member-home') {
     const today = new Date().toISOString().slice(0, 10);
     const trainingUntil = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
-    const [{ data: profile }, { data: pairRows }, { count: visitorCount }, { count: requestCount }, { count: trainingCount }, { count: followUpCount }, { data: renewal }] = await Promise.all([
+    const blueprintYear = new Date().getFullYear();
+    const [{ data: profile }, { data: pairRows }, { count: visitorCount }, { count: requestCount }, { count: trainingCount }, { count: followUpCount }, { data: renewal }, { data: blueprint }, { data: existingBlueprintToken }] = await Promise.all([
       db.from('member_one_to_one_profiles').select('*').eq('member_id', memberId).maybeSingle(),
       db.from('matching_pairs').select('id,member_a_id,member_b_id,status,created_at').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId}`).is('archived_at', null).order('created_at', { ascending: false }).limit(1),
       db.from('visitor_log').select('id', { count: 'exact', head: true }).eq('invited_by', memberId).eq('status', 'pending'),
@@ -519,6 +564,8 @@ Deno.serve(async (req: Request) => {
       db.from('bni_events').select('id', { count: 'exact', head: true }).gte('event_date', today).lte('event_date', trainingUntil).or('ceu.gt.0,category.ilike.%training%,name.ilike.%MSP%'),
       db.from('one_to_one_follow_up_actions').select('id', { count: 'exact', head: true }).eq('owner_member_id', memberId).in('status', ['pending','in_progress','overdue']),
       db.from('renewals').select('days_left,expiry_date,status').eq('member_id', memberId).maybeSingle(),
+      db.from('member_success_blueprints').select('status,quality_121_target_per_week,monthly_marketing_plan,updated_at').eq('member_id', memberId).eq('blueprint_year', blueprintYear).maybeSingle(),
+      db.from('msb_access_tokens').select('token,expires_at').eq('member_id', memberId).eq('blueprint_year', blueprintYear).maybeSingle(),
     ]);
     const pair = ((pairRows || []) as Record<string, unknown>[])[0] || null;
     let pairSummary: Record<string, unknown> | null = null;
@@ -529,6 +576,13 @@ Deno.serve(async (req: Request) => {
       const nextByStatus: Record<string,string> = { matched:'ทักคู่และเลือกวันนัด',scheduled:'ยืนยันเวลานัดกับคู่',confirmed_schedule:'เตรียมข้อมูลก่อนวัน 1-2-1',awaiting_verification:'ทำ Digital Handshake',partially_verified:'รออีกฝ่ายยืนยัน',verified:'บันทึก Reflection และสิ่งที่ทำต่อ',late_verified:'บันทึก Reflection และสิ่งที่ทำต่อ' };
       pairSummary = { id: pair.id, status: state, partnerName: String((partner as Record<string,unknown>|null)?.nickname || (partner as Record<string,unknown>|null)?.name || 'คู่ของคุณ'), nextAction: nextByStatus[state] || 'เปิด MY121 เพื่อดูขั้นตอนถัดไป' };
     }
+    const bp = blueprint as Record<string, unknown> | null;
+    const plan = Array.isArray(bp?.monthly_marketing_plan) ? bp?.monthly_marketing_plan as Record<string, unknown>[] : [];
+    const currentPlan = plan.find(item => Number(item?.month) === new Date().getMonth() + 1) || null;
+    const tokenRow = existingBlueprintToken as Record<string, unknown> | null;
+    const expiry = tokenRow?.expires_at ? new Date(String(tokenRow.expires_at)).getTime() : 0;
+    const blueprintToken = expiry >= Date.now() ? String(tokenRow?.token || '') : '';
+    const blueprintPulse = { status: bp ? String(bp.status || 'draft') : 'missing', quality121TargetPerWeek: Number(bp?.quality_121_target_per_week || 0), specificLookingFor: String(currentPlan?.specific_looking_for || ''), productService: String(currentPlan?.product_service || ''), updatedAt: bp?.updated_at || null, openUrl: blueprintToken ? `https://bni-mentor-system.vercel.app/member-success-blueprint?t=${encodeURIComponent(blueprintToken)}` : '' };
     return response({
       ok: true,
       profileCompleteness: member121ProfileCompleteness(profile as Record<string,unknown>|null),
@@ -539,7 +593,23 @@ Deno.serve(async (req: Request) => {
       pendingFollowUps: followUpCount || 0,
       daysToExpiry: Number((renewal as Record<string,unknown>|null)?.days_left || 0),
       renewalStatus: String((renewal as Record<string,unknown>|null)?.status || ''),
+      blueprint: blueprintPulse,
     });
+  }
+
+  if (action === 'member-blueprint-link') {
+    const blueprintYear = new Date().getFullYear();
+    const { data: tokenRow } = await db.from('msb_access_tokens').select('token,expires_at').eq('member_id', memberId).eq('blueprint_year', blueprintYear).maybeSingle();
+    const existing = tokenRow as Record<string, unknown> | null;
+    const expiry = existing?.expires_at ? new Date(String(existing.expires_at)).getTime() : 0;
+    let token = expiry >= Date.now() ? String(existing?.token || '') : '';
+    if (!token) {
+      token = randomUrlToken(32);
+      const expiresAt = new Date(`${blueprintYear}-12-31T23:59:59+07:00`).toISOString();
+      const { error } = await db.from('msb_access_tokens').upsert({ member_id: memberId, blueprint_year: blueprintYear, token, expires_at: expiresAt, created_by: 'liff:self', created_at: new Date().toISOString() }, { onConflict: 'member_id,blueprint_year' });
+      if (error) return response({ ok: false, error: 'สร้างลิงก์ Blueprint ไม่สำเร็จ' }, 500);
+    }
+    return response({ ok: true, openUrl: `https://bni-mentor-system.vercel.app/member-success-blueprint?t=${encodeURIComponent(token)}` });
   }
 
   if (action === 'absence') {

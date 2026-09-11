@@ -24,7 +24,7 @@ const ACTIVE_ROUND_STATUSES=['confirmed','sending','sent','partially_failed'];
 async function activePairMemberIds(db:any, memberIds:string[], excludeRoundId?:string){
   if(!memberIds.length)return new Set<string>();
   let query=db.from('matching_pairs').select('id,round_id,member_a_id,member_b_id,optional_member_c_id,matching_rounds!inner(status)')
-    .is('archived_at',null).in('status',ACTIVE_PAIR_STATUSES).in('matching_rounds.status',ACTIVE_ROUND_STATUSES);
+    .is('archived_at',null).in('status',ACTIVE_PAIR_STATUSES).in('matching_rounds.status',ACTIVE_ROUND_STATUSES).eq('matching_rounds.journey_type','chapter');
   if(excludeRoundId)query=query.neq('round_id',excludeRoundId);
   const {data,error}=await query.limit(2000); if(error)throw new Error(error.message);
   const wanted=new Set(memberIds), active=new Set<string>();
@@ -271,18 +271,21 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
   }
   if (action === 'getOneToOneOverview') {
     const {data:deliveryRows,error:deliveryError}=await db.from('line_message_deliveries').select('matching_pair_id,member_id,status,notification_type').eq('module','one_to_one').eq('status','sent').eq('notification_type','weekly_121_matching').not('matching_pair_id','is',null);if(deliveryError)return errResponse(deliveryError.message);const deliveredPairIds=fullyDeliveredOneToOnePairIds((deliveryRows||[]) as Record<string,unknown>[]);
-    const activePromise=db.from('matching_pairs').select('id,status,archived_at,round:matching_rounds!inner(status)').is('archived_at',null).in('matching_rounds.status',ACTIVE_ROUND_STATUSES).in('status',ACTIVE_PAIR_STATUSES);
+    const activePromise=db.from('matching_pairs').select('id,status,archived_at,round:matching_rounds!inner(status,journey_type)').is('archived_at',null).eq('matching_rounds.journey_type','chapter').in('matching_rounds.status',ACTIVE_ROUND_STATUSES).in('status',ACTIVE_PAIR_STATUSES);
+    const selfSessionsPromise=db.from('matching_pairs').select('id,matching_rounds!inner(journey_type,status)',{count:'exact',head:true}).is('archived_at',null).eq('matching_rounds.journey_type','member_self').eq('matching_rounds.status','sent').in('status',ACTIVE_PAIR_STATUSES);
     const completedPromise=db.from('matching_pairs').select('id,status,created_at,round:matching_rounds!inner(meeting_date,status),member_a:members!matching_pairs_member_a_id_fkey(id,name,nickname),member_b:members!matching_pairs_member_b_id_fkey(id,name,nickname)',{count:'exact'}).is('archived_at',null).neq('matching_rounds.status','cancelled').in('status',['verified','late_verified']).order('created_at',{ascending:false}).limit(20);
-    const [{data:round},{data:activeRows,error:activeError},{data:completedRows,count:completedCount,error:completedError},{count:waiting},{count:followUp},{count:attention}]=await Promise.all([
+    const [{data:round},{data:activeRows,error:activeError},{data:completedRows,count:completedCount,error:completedError},{count:waiting},{count:followUp},{count:attention},{count:selfSessions},{count:selfInvites}]=await Promise.all([
       db.from('matching_rounds').select('id,meeting_date,status,starts_at,ends_at,feature_flag').neq('status','cancelled').order('meeting_date',{ascending:false}).order('created_at',{ascending:false}).limit(1).maybeSingle(),
       activePromise,
       completedPromise,
       db.from('pairing_waitlist').select('id',{count:'exact',head:true}).eq('status','waiting'),
       db.from('one_to_one_follow_up_actions').select('id',{count:'exact',head:true}).in('status',['pending','in_progress','overdue']),
       db.from('one_to_one_attention_items').select('id',{count:'exact',head:true}).in('status',['open','reviewed']),
+      selfSessionsPromise,
+      db.from('member_one_to_one_invites').select('id',{count:'exact',head:true}).eq('status','pending'),
     ]);
     if(activeError||completedError)return errResponse(activeError?.message||completedError?.message||'โหลดภาพรวม 1-2-1 ไม่สำเร็จ');
-    return jsonResponse({ok:true,round:round||null,stats:{active:(activeRows||[]).length,completed:completedCount||0,waiting:waiting||0,followup:followUp||0,attention:attention||0},completedPairs:completedRows||[],deliveredPairIds,activeDefinition:'all_non_cancelled_pairs_with_delivery_reported_separately',featureEnabled:String((round as Record<string,unknown>|null)?.feature_flag||'')==='one_to_one_system'});
+    return jsonResponse({ok:true,round:round||null,stats:{active:(activeRows||[]).length,completed:completedCount||0,waiting:waiting||0,followup:followUp||0,attention:attention||0,selfSessions:selfSessions||0,selfInvites:selfInvites||0},completedPairs:completedRows||[],deliveredPairIds,activeDefinition:'Chapter-matched pairs only; member-initiated sessions are reported separately',featureEnabled:String((round as Record<string,unknown>|null)?.feature_flag||'')==='one_to_one_system'});
   }
   if(action==='getOneToOneQueues'){
     const {data:deliveryRows,error:deliveryError}=await db.from('line_message_deliveries').select('matching_pair_id,member_id,status,notification_type').eq('module','one_to_one').eq('status','sent').eq('notification_type','weekly_121_matching').not('matching_pair_id','is',null);if(deliveryError)return errResponse(deliveryError.message);const deliveredPairIds=fullyDeliveredOneToOnePairIds((deliveryRows||[]) as Record<string,unknown>[]),deliveryMembers=new Map<string,Set<string>>();((deliveryRows||[]) as Record<string,unknown>[]).forEach(x=>{const pairId=String(x.matching_pair_id||''),memberId=String(x.member_id||'');if(!pairId||!memberId)return;if(!deliveryMembers.has(pairId))deliveryMembers.set(pairId,new Set());deliveryMembers.get(pairId)!.add(memberId);});const activePromise=db.from('matching_pairs').select('id,status,created_at,round:matching_rounds!inner(meeting_date,ends_at,status),member_a:members!matching_pairs_member_a_id_fkey(id,name,nickname,mentor_team),member_b:members!matching_pairs_member_b_id_fkey(id,name,nickname,mentor_team),member_c:members!matching_pairs_optional_member_c_id_fkey(id,name,nickname,mentor_team),schedules:one_to_one_schedules(id,starts_at,status,meeting_mode)').is('archived_at',null).in('matching_rounds.status',ACTIVE_ROUND_STATUSES).in('status',ACTIVE_PAIR_STATUSES).order('created_at',{ascending:false}).limit(100);

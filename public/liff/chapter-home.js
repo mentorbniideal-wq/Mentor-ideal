@@ -9,6 +9,27 @@ function chapterHomeAction(icon,title,detail,view,label){
   return `<div class="chapter-action"><span>${icon}</span><div><b>${escHtml(title)}</b><small>${escHtml(detail)}</small></div><button type="button" onclick="chapterHomeGo('${view}')">${escHtml(label)}</button></div>`;
 }
 
+async function openMemberBlueprint(url){
+  if(!url){
+    const result=await api({action:'member-blueprint-link'});
+    if(!result.ok||!result.openUrl){alert(result.error||'ยังเปิด Blueprint ไม่ได้ กรุณาลองใหม่');return;}
+    url=result.openUrl;
+  }
+  if(window.liff&&liff.isInClient&&liff.isInClient()&&liff.openWindow){liff.openWindow({url,external:false});return;}
+  window.open(url,'_blank','noopener');
+}
+
+function chapterBlueprintAction(blueprint){
+  const ready=String(blueprint?.status||'missing')==='submitted';
+  return `<div class="chapter-action blueprint"><span>△</span><div><b>${ready?'แผนธุรกิจของฉัน':'สร้างแผนธุรกิจปีนี้'}</b><small>${ready?'ดูเป้า 1-2-1 และ Specific Looking For ของเดือนนี้':'ตั้งเป้ายอดธุรกิจ Good Referral และ 1-2-1 ให้ชัดเจน'}</small></div><button type="button" onclick='openMemberBlueprint(${JSON.stringify(blueprint?.openUrl||'')})'>${ready?'ดูแผน':'เริ่มกรอก'}</button></div>`;
+}
+
+function chapterBlueprintPulse(blueprint){
+  if(!blueprint)return '';
+  const ready=String(blueprint.status||'missing')==='submitted',quality=Number(blueprint.quality121TargetPerWeek||0),looking=String(blueprint.specificLookingFor||''),product=String(blueprint.productService||'');
+  return `<section class="chapter-blueprint-pulse"><div><small>MEMBER GOAL SETTING</small><h3>${ready?'Blueprint พร้อมใช้':'Blueprint ยังไม่ครบ'}</h3></div><button type="button" onclick='openMemberBlueprint(${JSON.stringify(blueprint.openUrl||'')})'>${ready?'แก้ไขแผน':'เปิด Blueprint'} →</button>${ready?`<div class="chapter-blueprint-metrics"><span><b>${quality||'—'}</b> Quality 1-2-1 / สัปดาห์</span>${looking?`<span><b>Looking For เดือนนี้</b>${escHtml(product?product+' · ':'')}${escHtml(looking)}</span>`:''}</div>`:`<p>เมื่อกรอกเสร็จ ระบบจะช่วยแปลงเป้ายอดธุรกิจเป็น Good Referral, 1-2-1 และแผนรายเดือน</p>`}</section>`;
+}
+
 function chapterHomeHelp(category){
   chapterHomeGo('issue');
   const option=document.querySelector(`[name="issueCategory"][value="${category}"]`);
@@ -21,7 +42,7 @@ async function loadChapterHome(force=false){
   box.innerHTML='<div class="loading" style="padding:28px 0">กำลังรวมเรื่องสำคัญ…</div>';
   let r;
   if(new URLSearchParams(location.search).get('preview')==='1'){
-    r={ok:true,profileCompleteness:60,pair:{status:'matched',partnerName:'เพื่อนสมาชิก'},pendingVisitors:1,openRequests:1,daysToExpiry:120,upcomingTraining:2,pendingFollowUps:1};
+    r={ok:true,profileCompleteness:60,pair:{status:'matched',partnerName:'เพื่อนสมาชิก'},pendingVisitors:1,openRequests:1,daysToExpiry:120,upcomingTraining:2,pendingFollowUps:1,blueprint:{status:'submitted',quality121TargetPerWeek:1,specificLookingFor:'เจ้าของกิจการที่กำลังขยายทีม',productService:'วางระบบ HR',openUrl:'#preview'}};
   }else{
     r=await api({action:'member-home'},{latestKey:'member-home'});
   }
@@ -30,11 +51,14 @@ async function loadChapterHome(force=false){
     return;
   }
   chapterHomeLoaded=true;
+  window.memberBlueprintPulse=r.blueprint||null;
+  if(!document.querySelector('[data-my121-panel="prepare"]')?.hidden&&typeof renderMy121Prepare==='function')renderMy121Prepare();
   const actions=[];
+  if(r.blueprint)actions.push(chapterBlueprintAction(r.blueprint));
   if(Number(r.profileCompleteness||0)<100)actions.push(chapterHomeAction('👤','เติม Business Profile',`กรอกแล้ว ${r.profileCompleteness||0}% · ช่วยให้คู่รู้จักคุณล่วงหน้า`,'121','เติมข้อมูล'));
   if(r.pair)actions.push(chapterHomeAction('🤝',`คู่ 1-2-1 · ${r.pair.partnerName||'คู่ของคุณ'}`,r.pair.nextAction||'เปิด MY121 เพื่อดูขั้นตอนถัดไป','121','เปิด MY121'));
   if(Number(r.pendingFollowUps||0)>0)actions.push(chapterHomeAction('✅','สิ่งที่ตกลงไว้',`ยังมี ${r.pendingFollowUps} รายการที่ต้องทำต่อ`,'121','ดูรายการ'));
   if(Number(r.daysToExpiry||0)>0&&Number(r.daysToExpiry)<=60)actions.push(chapterHomeAction('🔄','ตรวจสอบการต่ออายุ',`เหลือ ${r.daysToExpiry} วัน · ดูข้อมูลก่อนตัดสินใจ`,'renewal','ดูรายละเอียด'));
   if(!actions.length)actions.push(chapterHomeAction('🎯','ตั้งเป้าหมายถัดไป','งานสำคัญครบแล้ว ลองเลือกเรื่องที่อยากพัฒนา','goal','เปิดเป้าหมาย'));
-  box.innerHTML=`<section class="chapter-next"><h3>ทำต่อก่อน 1–3 เรื่อง</h3>${actions.slice(0,3).join('')}</section><div class="chapter-pulse"><div><b>${r.pendingVisitors||0}</b><small>Visitor ที่ติดตาม</small></div><div><b>${r.upcomingTraining||0}</b><small>การอบรมที่กำลังมา</small></div><div><b>${r.openRequests||0}</b><small>คำขอที่กำลังดูแล</small></div></div><div class="chapter-links chapter-links-primary"><button type="button" onclick="chapterHomeGo('absence')"><b>🗓️ แจ้งลา / ส่งตัวแทน</b><small>แจ้งทีมประชุมล่วงหน้า</small></button><button type="button" onclick="chapterHomeGo('visitor')"><b>👥 มี Visitor มา</b><small>ลงทะเบียนและติดตามแขก</small></button><button type="button" onclick="chapterHomeHelp('referral')"><b>🔗 Connection / Referral</b><small>ให้ทีมช่วยเปิดโอกาสทางธุรกิจ</small></button><button type="button" onclick="chapterHomeGo('goal')"><b>🎯 ตั้งเป้าหมาย</b><small>เลือกเรื่องสำคัญที่อยากพัฒนา</small></button><button type="button" onclick="chapterHomeGo('ceu')"><b>🎓 อบรมและต่ออายุ</b><small>ดูหลักสูตรและเรื่องสมาชิกภาพ</small></button><button type="button" onclick="chapterHomeGo('issue')"><b>💬 ขอความช่วยเหลือ</b><small>ระบบส่งต่อให้ทีมที่เหมาะสม</small></button></div>`;
+  box.innerHTML=`<section class="chapter-next"><h3>ทำต่อก่อน 1–3 เรื่อง</h3>${actions.slice(0,3).join('')}</section>${chapterBlueprintPulse(r.blueprint)}<div class="chapter-pulse"><div><b>${r.pendingVisitors||0}</b><small>Visitor ที่ติดตาม</small></div><div><b>${r.upcomingTraining||0}</b><small>การอบรมที่กำลังมา</small></div><div><b>${r.openRequests||0}</b><small>คำขอที่กำลังดูแล</small></div></div><div class="chapter-links chapter-links-primary"><button type="button" onclick="chapterHomeGo('absence')"><b>🗓️ แจ้งลา / ส่งตัวแทน</b><small>แจ้งทีมประชุมล่วงหน้า</small></button><button type="button" onclick="chapterHomeGo('visitor')"><b>👥 มี Visitor มา</b><small>ลงทะเบียนและติดตามแขก</small></button><button type="button" onclick="chapterHomeHelp('referral')"><b>🔗 Connection / Referral</b><small>ให้ทีมช่วยเปิดโอกาสทางธุรกิจ</small></button><button type="button" onclick="chapterHomeGo('goal')"><b>🎯 ตั้งเป้าหมาย</b><small>เลือกเรื่องสำคัญที่อยากพัฒนา</small></button><button type="button" onclick="chapterHomeGo('ceu')"><b>🎓 อบรมและต่ออายุ</b><small>ดูหลักสูตรและเรื่องสมาชิกภาพ</small></button><button type="button" onclick="chapterHomeGo('issue')"><b>💬 ขอความช่วยเหลือ</b><small>ระบบส่งต่อให้ทีมที่เหมาะสม</small></button></div>`;
 }
