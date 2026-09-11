@@ -384,7 +384,7 @@ function deskTestLineToken() {
 function deskSetupRichMenu() {
   if (!confirm('ตั้งค่า LINE Rich Menu (เมนูถาวรที่ด้านล่าง chat)?\nระบบจะอัปโหลดภาพเมนูเวอร์ชันล่าสุดและมอบหมายให้สมาชิกที่เชื่อม LINE')) return;
   gsr('setupRichMenu',{role:S.role},function(r){
-    if (r&&r.ok) alert('✅ Rich Menu ตั้งค่าแล้ว!\n\n'+r.note);
+    if (r&&r.ok) { alert('✅ Rich Menu ตั้งค่าแล้ว!\n\n'+(r.note||('มอบหมาย '+(r.assignedUsers||0)+' บัญชี'))); if(typeof loadLineHealth==='function') setTimeout(loadLineHealth,500); }
     else toast((r&&r.error)||'เกิดข้อผิดพลาด','err');
   });
 }

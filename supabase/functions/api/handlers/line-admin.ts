@@ -15,6 +15,7 @@ import {
   buildTabbedRichMenuPage,
   type RichMenuRole,
 } from '../../_shared/line-rich-menu.ts';
+import { provisionLineExperience } from '../../_shared/line-provision.ts';
 import { trackLineEvent } from '../../_shared/analytics.ts';
 import { lineAutomationDefaultPreview } from '../../_shared/line-automation-preview.ts';
 
@@ -1776,6 +1777,22 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         ? [requestedRole as RichMenuRole]
         : [];
       if (!roles.length) return errResponse('menuRole ต้องเป็น member, mentor, mc, growth หรือ all');
+
+      // The primary Desktop action must replace the default menu *and* every
+      // old per-user assignment. A default menu alone does not override users
+      // who were previously assigned an individual Rich Menu.
+      if (requestedRole === 'all') {
+        try {
+          const provisioned = await provisionLineExperience(db);
+          return jsonResponse({
+            ok: true,
+            note: `อัปเดต Rich Menu ${String(provisioned.menuVersion)} แล้ว · มอบหมาย ${Number(provisioned.assignedUsers || 0)} บัญชี`,
+            ...provisioned,
+          });
+        } catch (error) {
+          return errResponse(error instanceof Error ? error.message : String(error));
+        }
+      }
 
       const results: Record<string, unknown>[] = [];
       for (const role of roles) {
