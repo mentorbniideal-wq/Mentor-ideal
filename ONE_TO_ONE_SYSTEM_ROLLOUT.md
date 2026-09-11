@@ -130,6 +130,16 @@ For two-person pilots, MC can create a locked manual round without a Check-in CS
 - The shared notification guard is active for 1-2-1 round sends. Existing non-1-2-1 cron modules still need staged adoption before every LINE notification is governed by the same caps.
 - Future work: Smart Referral Matching, mentor-assisted late opt-in pairing, Outlook deep links, richer completion insights, and retention automation for private feedback.
 
+## Unfinished-pair re-match lifecycle
+
+Migration `20260911000001_one_to_one_rematch_lifecycle.sql` adds an MC-approved release path for an unfinished pair. Releasing never deletes the original pair, its LINE delivery evidence, schedules, feedback, or status events. It marks the pair `released`, archives it from active queues, records the MC reason/audit event, closes only unconfirmed schedule proposals and open follow-up/attention work, and creates a waiting re-match request for each participant.
+
+Only MC can release a pair, with an explicit reason and confirmation. A confirmed appointment must be cancelled or rescheduled first; completed pairs cannot be released. The weekly and manual match APIs exclude members who are already active in an approved/sent round, so one member cannot receive parallel active assignments. At the next eligible imported round, a waiting re-match request increases that member's matching priority; it is consumed and linked back to the old pair only after the new round is delivered to every recipient. Draft deletion or partial delivery therefore cannot lose a member's re-match priority.
+
+Deployment order: apply migration `20260911000001_one_to_one_rematch_lifecycle.sql`, deploy the Edge API, then deploy the Desktop assets. Roll back application behavior by deploying the previous API/UI, but retain the additive schema and audit history.
+
+Migration `20260911000002_one_to_one_active_pair_integrity.sql` adds the database-level concurrency guard. It serializes activation of a round per participant and rejects an active-round transition when any participant already has another active pair. This complements (rather than replaces) the API preflight, which gives MC a readable error before sending LINE. Releasing a pair is one database transaction, so schedules, open care work, queue requests, pair state, and audit events cannot be left half-updated. Cancelling an appointment returns an otherwise active pair to `matched`; it does not cancel the relationship or silently make the members eligible for re-matching.
+
 ## Member Relationship Follow-up
 
 MY121 now aggregates member-owned Follow-up actions across all pairs, supports due-date changes and a closed set of completion outcomes, and writes an audit status event for every member update. A member may see shared work related to a pair but may only change actions where they are the owner.

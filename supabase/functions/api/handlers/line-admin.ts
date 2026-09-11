@@ -1795,7 +1795,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         }
         const richMenuId = String((JSON.parse(createBody) as Record<string, unknown>).richMenuId || '');
         const assetRole = 'member';
-        const imageUrl = `${appUrl}/assets/line/rich-menu-${assetRole}-v5.jpg`;
+        const imageUrl = `${appUrl}/assets/line/rich-menu-${assetRole}-v7.jpg`;
         const imageRes = await fetch(imageUrl);
         if (!imageRes.ok) {
           results.push({ role, ok: false, richMenuId, error: `image ${imageRes.status}: ${imageUrl}` });
@@ -1872,7 +1872,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         });
         if (!createRes.ok) return errResponse(`สร้าง Rich Menu ${page} ไม่สำเร็จ: ${createRes.status} ${(await createRes.text()).slice(0, 300)}`);
         created[page] = String(((await createRes.json()) as Record<string, unknown>).richMenuId || '');
-        const imageUrl = `${appUrl}/assets/line/rich-menu-member-tabs-${page}-v1.jpg`;
+        const imageUrl = `${appUrl}/assets/line/rich-menu-member-tabs-${page}-v2.jpg`;
         const imageRes = await fetch(imageUrl);
         if (!imageRes.ok) return errResponse(`ไม่พบภาพ Rich Menu ${page}: ${imageUrl}`);
         const uploadRes = await fetch(`https://api-data.line.me/v2/bot/richmenu/${created[page]}/content`, {

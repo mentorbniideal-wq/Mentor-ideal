@@ -8586,11 +8586,19 @@ function msbPairsRender(group){
     +(pairs.length?'<div class="row2">'+pairs.slice(0,6).map(pairCard).join('')+'</div>':'<div style="font-size:12px;color:var(--sub);padding:18px;border-top:1px solid var(--bd)">ยังไม่มีคู่ที่ระบบมั่นใจพอ ลองเติม profession / company / Looking For / Power Team ให้ครบขึ้น</div>')
     +'</div>';
 }
+function msbPopulateGrowthTeamFilter(rows){
+  var select=document.getElementById('msb-gr-team');if(!select)return;
+  var selected=select.value||'',teams=[].concat(rows||[]).map(function(row){return String(row.mentorTeam||'').trim();}).filter(Boolean).filter(function(team,index,list){return list.indexOf(team)===index;}).sort(function(a,b){return a.localeCompare(b,'th');});
+  var signature=teams.join('|');if(select.dataset.teams===signature)return;
+  select.dataset.teams=signature;select.innerHTML='<option value="">ทุกทีม</option>'+teams.map(function(team){return '<option value="'+esc(team)+'">'+esc(team)+'</option>';}).join('');
+  if(teams.indexOf(selected)>=0)select.value=selected;
+}
 function msbRender(group){
   group=group==='gr'?'gr':'mc';
   var state=MSB[group], rows=(state.rows||[]).slice(), sm=state.summary||{}, ov=state.overview||{};
   var intelById={};
   (state.intelRows||[]).forEach(function(x){if(x&&x.memberId)intelById[x.memberId]=x;});
+  if(group==='gr')msbPopulateGrowthTeamFilter(rows);
   var qEl=document.getElementById(group==='gr'?'msb-gr-search':'msb-mc-search');
   var teamEl=document.getElementById('msb-gr-team');
   var q=(qEl&&qEl.value||'').toLowerCase().trim();
@@ -9282,98 +9290,23 @@ function renderFlow(r){
     +flowHTML+imbHTML;
 }
 
-// ── ⚡ Power Team Manager ─────────────────────────────────────
+// ── ⚡ Power Team Proposals ───────────────────────────────────
 var _ptMgrData=null,_ptMgrLoaded=false;
 function ptLoad(force){
   if(_ptMgrLoaded&&!force)return; _ptMgrLoaded=true;
   document.getElementById('pt-mgr-content').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div>';
-  gsr('getPTMembers',{role:S.role},function(r){
+  gsr('getPowerTeamProposals',{role:S.role},function(r){
     if(!r.ok){document.getElementById('pt-mgr-content').innerHTML='<div style="color:var(--re);padding:20px">❌ '+(r.error||'')+'</div>';return;}
     _ptMgrData=r; renderPTMgr(r);
   });
 }
 function renderPTMgr(r){
   var el=document.getElementById('pt-mgr-content');
-  if(!(r.teams||[]).length){
-    el.innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)">'
-      +'ยังไม่มีข้อมูลใน Sheet ⚡ POWER TEAMS<br><small>กด ➕ เพิ่มสมาชิก เพื่อเริ่ม</small></div>';
-    return;
-  }
-  var tlBadge={'G':'🟢','Y':'🟡','R':'🔴','':''};
-  var teamsHTML=(r.teams||[]).map(function(t){
-    var memHTML=t.members.map(function(m){
-      var safeName=(m.nick||m.firstName||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      return '<tr style="border-bottom:1px solid var(--bd)">'
-        +'<td style="padding:6px 8px;font-weight:600">'+esc(m.nick||m.firstName||'')+(m.lastName?' '+esc(m.lastName):'')+'</td>'
-        +'<td style="padding:6px 8px;font-size:11px;color:var(--sub)">'+esc(m.profession||'—')+'</td>'
-        +'<td style="padding:6px 8px;text-align:center">'+(tlBadge[m.tl||'']||'')+'</td>'
-        +'<td style="padding:6px 8px;text-align:right;font-size:11px">฿'+fmtMon(m.bniGoal||0)+'</td>'
-        +'<td style="padding:6px 8px;text-align:right;font-size:11px;color:var(--gr)">฿'+fmtMon(m.recv||0)+'</td>'
-        +'<td style="padding:6px 8px;text-align:right;font-size:11px;color:var(--ac)">'+Math.round(m.goalPct||0)+'%</td>'
-        +'<td style="padding:6px 4px;white-space:nowrap">'
-        +'<button onclick="ptOpenEdit('+m.row+',\''+esc(t.team)+'\')" style="font-size:11px;background:var(--sf2);border:1px solid var(--bd);border-radius:5px;padding:2px 7px;cursor:pointer;color:var(--tx)">✏️</button> '
-        +'<button onclick="ptOpenMove('+m.row+',\''+safeName+'\')" style="font-size:11px;background:var(--sf2);border:1px solid var(--bd);border-radius:5px;padding:2px 7px;cursor:pointer;color:var(--tx)">↩️</button> '
-        +'<button onclick="ptDelete('+m.row+',\''+safeName+'\')" style="font-size:11px;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);border-radius:5px;padding:2px 7px;cursor:pointer;color:var(--re)">🗑️</button>'
-        +'</td>'
-        +'</tr>';
-    }).join('');
-    var tPct=t.teamGoal>0?Math.round(t.teamRecv/t.teamGoal*100):0;
-    return '<div style="margin-bottom:24px">'
-      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
-      +'<span style="font-size:13px;font-weight:700">'+esc(t.team)+'</span>'
-      +'<span style="font-size:11px;color:var(--sub)">'+t.memberCount+' คน</span>'
-      +'<span style="font-size:11px;color:var(--ac)">฿'+fmtBig(t.teamRecv)+' / ฿'+fmtBig(t.teamGoal)+' ('+tPct+'%)</span>'
-      +'<button onclick="ptOpenAdd(\''+esc(t.team)+'\')" style="margin-left:auto;font-size:11px;background:rgba(60,120,80,.1);border:1px solid rgba(60,120,80,.3);border-radius:6px;padding:3px 10px;cursor:pointer;color:var(--ac)">➕ เพิ่ม</button>'
-      +'</div>'
-      +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'
-      +'<thead><tr style="background:var(--sf2)"><th style="padding:6px 8px;text-align:left">ชื่อ</th><th style="padding:6px 8px;text-align:left">อาชีพ</th><th style="padding:6px 8px;text-align:center">TL</th><th style="padding:6px 8px;text-align:right">เป้า</th><th style="padding:6px 8px;text-align:right">รับจริง</th><th style="padding:6px 8px;text-align:right">%</th><th style="padding:6px 4px"></th></tr></thead>'
-      +'<tbody>'+memHTML+'</tbody></table></div></div>';
-  }).join('');
-
-  el.innerHTML='<div style="font-size:11px;color:var(--sub);margin-bottom:16px;padding:8px 12px;background:var(--sf2);border-radius:8px;border-left:3px solid var(--ac)">'
-    +'📝 ข้อมูลจาก Sheet <b>⚡ POWER TEAMS</b> — แก้ได้ทั้งใน UI นี้และใน Sheet โดยตรง</div>'
-    +teamsHTML;
+  var saved=(r.proposals||[]).map(function(p){var ms=(p.power_team_proposal_members||[]).map(function(x){var m=x.members||{};return esc(m.nickname||m.name||'สมาชิก');}).join(' · ');return '<article style="border:1px solid var(--bd);border-radius:10px;padding:13px;margin-bottom:10px;background:var(--sf2)"><b>'+esc(p.title)+'</b><span style="margin-left:8px;font-size:10px;color:var(--ac)">ข้อเสนอ '+esc(p.status||'proposed')+'</span><div style="font-size:11px;margin-top:7px"><b>กลุ่มลูกค้า:</b> '+esc(p.target_customer_group)+'</div><div style="font-size:11px;color:var(--sub);margin-top:4px">'+esc(p.rationale)+'</div><div style="font-size:10px;color:var(--sub);margin-top:7px">สมาชิก: '+ms+'</div></article>';}).join('');
+  var candidates=(r.candidates||[]).map(function(c,i){var people=(c.members||[]).map(function(m){return esc(m.nickname||m.name||'สมาชิก')+(m.profession?' <small style="color:var(--sub)">('+esc(m.profession)+')</small>':'');}).join(' · ');return '<article style="border:1px solid var(--bd-hover);border-radius:10px;padding:14px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:10px;align-items:start"><div><b>'+esc(c.category)+'</b><div style="font-size:11px;color:var(--sub);margin-top:5px"><b>กลุ่มลูกค้าที่คาดร่วมกัน:</b> '+esc(c.targetCustomerGroup)+'</div></div><button onclick="ptCreateProposal('+i+')" style="white-space:nowrap;background:var(--ac-dim);border:1px solid var(--bd-hover);color:var(--ac);border-radius:7px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer">สร้างข้อเสนอ</button></div><div style="font-size:11px;margin-top:8px">'+people+'</div><div style="font-size:10px;color:var(--sub);margin-top:7px">เหตุผล: '+esc(c.rationale)+'</div></article>';}).join('');
+  el.innerHTML='<div style="font-size:11px;color:var(--sub);margin-bottom:16px;padding:9px 12px;background:var(--sf2);border-radius:8px;border-left:3px solid var(--ac)">ใช้ข้อมูล Blueprint ที่สมาชิกระบุเองเพื่อเสนอวงทดลอง ไม่ย้าย Mentor Team และไม่ประกาศเป็น Power Team โดยอัตโนมัติ</div>'+(saved?'<h3 style="font-size:12px;margin:0 0 8px">ข้อเสนอที่บันทึกแล้ว</h3>'+saved:'')+'<h3 style="font-size:12px;margin:16px 0 8px">กลุ่มที่น่าลองสร้าง</h3>'+(candidates||'<div style="padding:18px;color:var(--sub);border:1px dashed var(--bd);border-radius:8px">ยังไม่พบอย่างน้อย 2 คนที่ระบุกลุ่มลูกค้าเดียวกันใน Blueprint</div>');
 }
-function ptOpenAdd(teamName){
-  var t=prompt('ชื่อทีม:',teamName||'');if(t===null)return;
-  var firstName=prompt('ชื่อ:','');if(firstName===null)return;
-  var lastName=prompt('นามสกุล:','')||'';
-  var nick=prompt('ชื่อเล่น:',firstName||'')||'';
-  var prof=prompt('อาชีพ:','')||'';
-  var tl=prompt('TL (G/Y/R):','')||'';
-  var goal=parseFloat(prompt('เป้าหมาย (฿):','0')||'0');
-  var recv=parseFloat(prompt('รับจริง (฿):','0')||'0');
-  gsr('savePTMember',{role:S.role,team:t,firstName:firstName,lastName:lastName,nick:nick,profession:prof,tl:tl.toUpperCase(),bniGoal:goal,recv:recv},function(r){
-    if(!r.ok){toast('❌ '+(r.error||''),'err');return;}
-    toast('✅ เพิ่ม '+nick+' แล้ว','ok'); _ptMgrLoaded=false;ptLoad();
-  });
-}
-function ptOpenEdit(row,team){
-  var t=prompt('ชื่อทีม:',team);if(t===null)return;
-  var firstName=prompt('ชื่อ:','')||'';
-  var nick=prompt('ชื่อเล่น:','')||'';
-  var prof=prompt('อาชีพ:','')||'';
-  var tl=prompt('TL (G/Y/R):','')||'';
-  var goal=parseFloat(prompt('เป้าหมาย (฿):','0')||'0');
-  var recv=parseFloat(prompt('รับจริง (฿):','0')||'0');
-  gsr('savePTMember',{role:S.role,row:row,team:t,firstName:firstName,nick:nick,profession:prof,tl:tl.toUpperCase(),bniGoal:goal,recv:recv},function(r){
-    if(!r.ok){toast('❌ '+(r.error||''),'err');return;}
-    toast('✅ แก้ไขแล้ว','ok'); _ptMgrLoaded=false;ptLoad();
-  });
-}
-function ptOpenMove(row,nick){
-  var newTeam=prompt('ย้าย '+nick+' ไปทีม:','');if(!newTeam)return;
-  gsr('movePTMember',{role:S.role,row:row,newTeam:newTeam},function(r){
-    if(!r.ok){toast('❌ '+(r.error||''),'err');return;}
-    toast('✅ ย้าย '+nick+' → '+newTeam+' แล้ว','ok'); _ptMgrLoaded=false;ptLoad();
-  });
-}
-function ptDelete(row,nick){
-  gsr('deletePTMember',{role:S.role,row:row},function(r){
-    if(!r.ok){toast('❌ '+(r.error||''),'err');return;}
-    toast('✅ ลบ '+nick+' แล้ว','ok'); _ptMgrLoaded=false;ptLoad();
-  });
-}
+function ptCreateProposal(index){var c=(_ptMgrData&&_ptMgrData.candidates||[])[index];if(!c)return;var title=prompt('ชื่อข้อเสนอ Power Team:',c.category);if(title===null)return;var target=prompt('กลุ่มลูกค้าที่คาดว่าต้องการร่วมกัน:',c.targetCustomerGroup||'');if(target===null)return;var rationale=prompt('เหตุผลที่ควรทดลองรวมกลุ่ม:',c.rationale||'');if(rationale===null)return;gsr('savePowerTeamProposal',{role:S.role,title:title,targetCustomerGroup:target,rationale:rationale,sourceCategory:c.category,memberIds:c.memberIds},function(r){if(!r||!r.ok){toast('❌ '+(r&&r.error||'บันทึกไม่สำเร็จ'),'err');return;}toast('✅ บันทึกข้อเสนอแล้ว ยังไม่ใช่การประกาศทีม','ok');_ptMgrLoaded=false;ptLoad(true);});}
 
 // ── Growth Sheet Tab ──────────────────────────────────────────
 var _gshData=null,_gshLoaded=false;

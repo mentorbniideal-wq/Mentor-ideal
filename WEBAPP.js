@@ -374,6 +374,12 @@ var LINE_QR_MAIN = [
 
 // ── LINE Webhook (รับข้อความจาก Bot → ตอบกลับ User ID) ────────
 function doPost(e) {
+  // Retired on 2026-09-11 after LINE Developers was verified to target the
+  // Supabase line-webhook endpoint.  Return 200 for any stale caller without
+  // parsing or replying to a LINE event.
+  Logger.log('RETIRED: legacy GAS webhook ignored. Supabase owns LINE webhooks.');
+  return ContentService.createTextOutput('retired');
+  /*
   try {
     var body = JSON.parse(e.postData.contents);
     (body.events || []).forEach(function(ev) {
@@ -394,6 +400,7 @@ function doPost(e) {
     });
   } catch(e2) { Logger.log('doPost error: ' + e2.message); }
   return ContentService.createTextOutput('OK');
+  */
 }
 
 function _lineBotWelcome() {
@@ -1444,18 +1451,11 @@ function _lineLeanPolicyEnabled() {
 // these legacy Apps Script triggers otherwise bypass the central delivery log,
 // quota guard and duplicate protection.
 function enforceEssentialLinePolicy() {
-  PropertiesService.getScriptProperties().setProperty('LINE_NOTIFICATION_POLICY', 'essential_only');
-  var retired = ['thursdayBotPush','fridayEveningReminder','fridayTeamLeaderboard','fridayPostMeetingPrompt','_lineChapterPulse'];
-  var removed = [];
-  ScriptApp.getProjectTriggers().forEach(function(trigger) {
-    var handler = trigger.getHandlerFunction();
-    if (retired.indexOf(handler) >= 0) {
-      ScriptApp.deleteTrigger(trigger);
-      removed.push(handler);
-    }
-  });
-  Logger.log('Essential LINE policy active. Removed: ' + removed.join(', '));
-  return {ok:true, policy:'essential_only', removed:removed};
+  // Keep one source of truth for the complete retirement list.  This function
+  // is intentionally safe to run repeatedly from the Apps Script editor.
+  var result = applyLeanLinePolicy();
+  Logger.log('Supabase-only LINE policy active. Removed: ' + (result.results || []).join(', '));
+  return result;
 }
 
 function thursdayBotPush() {
@@ -1497,15 +1497,7 @@ function thursdayBotPush() {
 }
 
 function setupThursdayBotTrigger() {
-  ScriptApp.getProjectTriggers().forEach(function(t) {
-    if (t.getHandlerFunction() === 'thursdayBotPush') ScriptApp.deleteTrigger(t);
-  });
-  ScriptApp.newTrigger('thursdayBotPush')
-    .timeBased()
-    .onWeekDay(ScriptApp.WeekDay.FRIDAY)
-    .atHour(7)
-    .create();
-  Browser.msgBox('✅ ตั้ง Trigger thursdayBotPush แล้ว!\n\nทุกวันศุกร์ 07:00 น. ระบบจะส่งสรุปคะแนน\nให้สมาชิกที่ลงทะเบียน LINE Bot ทุกคนครับ');
+  return enforceEssentialLinePolicy();
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1542,15 +1534,7 @@ function fridayEveningReminder() {
 }
 
 function setupFridayEveningTrigger() {
-  ScriptApp.getProjectTriggers().forEach(function(t) {
-    if (t.getHandlerFunction() === 'fridayEveningReminder') ScriptApp.deleteTrigger(t);
-  });
-  ScriptApp.newTrigger('fridayEveningReminder')
-    .timeBased()
-    .onWeekDay(ScriptApp.WeekDay.THURSDAY)
-    .atHour(18)
-    .create();
-  Browser.msgBox('✅ ตั้ง Trigger แล้ว!\n\nทุกวันพฤหัส 18:00 น. ระบบจะส่งแจ้งเตือน\nให้เตรียมพร้อมก่อนประชุมวันศุกร์ครับ');
+  return enforceEssentialLinePolicy();
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1648,15 +1632,7 @@ function _lineBNIAnniversary() {
 }
 
 function setupAnniversaryCheckTrigger() {
-  ScriptApp.getProjectTriggers().forEach(function(t) {
-    if (t.getHandlerFunction() === '_lineBNIAnniversary') ScriptApp.deleteTrigger(t);
-  });
-  ScriptApp.newTrigger('_lineBNIAnniversary')
-    .timeBased()
-    .onWeekDay(ScriptApp.WeekDay.FRIDAY)
-    .atHour(8)
-    .create();
-  Browser.msgBox('✅ ตั้ง Trigger BNI Anniversary แล้ว!\n\nทุกวันศุกร์ 08:00 น. ระบบจะเช็คว่าสมาชิกคนไหน\nครบรอบใน 30 วันข้างหน้าและส่งแจ้งเตือนครับ');
+  return enforceEssentialLinePolicy();
 }
 
 function apiTriggerAnniversary(p) {
@@ -2752,22 +2728,8 @@ function applyLeanLinePolicy() {
       results.push('🛑 ปิด '+t.getHandlerFunction());
     }
   });
-  // Supabase is now the only scheduler. Do not recreate any GAS LINE trigger;
-  // even a useful message must be catalogued and governed centrally first.
-  var fns = [];
-  fns.forEach(function(cfg) {
-    try {
-      ScriptApp.getProjectTriggers().forEach(function(t) {
-        if (t.getHandlerFunction() === cfg.name) ScriptApp.deleteTrigger(t);
-      });
-      var t2 = ScriptApp.newTrigger(cfg.name).timeBased().onWeekDay(cfg.day).atHour(cfg.hour);
-      if (cfg.minute) t2 = t2.nearMinute(cfg.minute);
-      t2.create();
-      results.push('✅ ' + cfg.label);
-    } catch(e) {
-      results.push('❌ ' + cfg.label + ': ' + e.message);
-    }
-  });
+  // Supabase is the only scheduler. This function intentionally never creates
+  // an Apps Script trigger; every LINE schedule must be catalogued there.
   PropertiesService.getScriptProperties().setProperty('LINE_NOTIFICATION_POLICY','supabase_only');
   return {ok:true, policy:'supabase_only', results:results};
 }
@@ -5161,6 +5123,11 @@ function apiAssignToTeam(p) {
 
 // ── Auto Cleanup: ลบ Core Issue ที่ปิดเกิน 30 วัน ─────────────
 function autoCleanupOldCases() {
+  // Retired: historical cases must remain auditable.  Keep this no-op guard
+  // because old installable triggers may survive until their owner removes them.
+  Logger.log('RETIRED: autoCleanupOldCases skipped; historical data is retained.');
+  return {ok:true, skipped:true, reason:'retired_preserve_audit_history'};
+  /*
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var teams = MENTOR_TEAMS;
   var now   = new Date();
@@ -5203,22 +5170,19 @@ function autoCleanupOldCases() {
   });
 
   Logger.log('Auto cleanup done: '+cleaned+' cases removed');
+  */
 }
 
 function setupCleanupTrigger() {
-  // ลบ trigger เก่าก่อน
+  // This legacy task permanently deletes closed-case history from Sheets.
+  // Supabase retains audit history, so never recreate the old trigger.
   ScriptApp.getProjectTriggers().forEach(function(t) {
     if (t.getHandlerFunction() === 'autoCleanupOldCases') {
       ScriptApp.deleteTrigger(t);
     }
   });
-  // สร้าง trigger ใหม่ — รันทุกวันตี 2
-  ScriptApp.newTrigger('autoCleanupOldCases')
-    .timeBased()
-    .everyDays(1)
-    .atHour(2)
-    .create();
-  Logger.log('Trigger created: autoCleanupOldCases runs daily at 2am');
+  Logger.log('Legacy autoCleanupOldCases trigger removed; no replacement is created.');
+  return {ok:true, retired:'autoCleanupOldCases'};
 }
 
 // รันครั้งเดียวเพื่อล้าง col Z ของ cases ที่ปิดไปแล้ว

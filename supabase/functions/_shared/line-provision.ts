@@ -37,9 +37,9 @@ export async function provisionLineExperience(db: Db) {
   });
 
   const roles: RichMenuRole[] = ['member', 'mentor', 'mc', 'growth'];
-  const desiredMenuVersion = 'v14';
-  const menuAssetVersion = 'v6';
-  const desiredMenuSource = `${desiredMenuVersion}|ceu-calendar|${appUrl}`;
+  const desiredMenuVersion = 'v15';
+  const menuAssetVersion = 'v7';
+  const desiredMenuSource = `${desiredMenuVersion}|member-goal-setting-blueprint|${appUrl}`;
   const { data: menuSettings } = await db.from('settings')
     .select('key, value')
     .in('key', ['LINE_RICH_MENU_VERSION', 'LINE_RICH_MENU_SOURCE']);

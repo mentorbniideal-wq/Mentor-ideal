@@ -99,7 +99,7 @@ Deno.serve(async (req: Request) => {
   }
 
   async function ownPair(pairId?:string){
-    let query=db.from('matching_pairs').select('id,round_id,member_a_id,member_b_id,optional_member_c_id,status,matching_rounds!inner(meeting_date,starts_at,ends_at,system_version)').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId},optional_member_c_id.eq.${memberId}`).is('archived_at',null);
+    let query=db.from('matching_pairs').select('id,round_id,member_a_id,member_b_id,optional_member_c_id,status,matching_rounds!inner(meeting_date,starts_at,ends_at,system_version)').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId},optional_member_c_id.eq.${memberId}`).is('archived_at',null).neq('status','cancelled');
     if(pairId)query=query.eq('id',pairId);else query=query.eq('matching_rounds.system_version',2).order('created_at',{ascending:false}).limit(1);
     const {data,error}=await query.maybeSingle();return{pair:data as Record<string,unknown>|null,error};
   }
@@ -260,7 +260,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if(action==='get-my-one-to-one-history'){
-    const {data:pairs,error:pairError}=await db.from('matching_pairs').select('id,round_id,status,member_a_id,member_b_id,optional_member_c_id,created_at,round:matching_rounds(meeting_date,system_version),schedules:one_to_one_schedules(id,starts_at,status,meeting_mode,location_or_link)').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId},optional_member_c_id.eq.${memberId}`).is('archived_at',null).order('created_at',{ascending:false}).limit(100);
+    const {data:pairs,error:pairError}=await db.from('matching_pairs').select('id,round_id,status,member_a_id,member_b_id,optional_member_c_id,created_at,round:matching_rounds(meeting_date,system_version),schedules:one_to_one_schedules(id,starts_at,status,meeting_mode,location_or_link)').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId},optional_member_c_id.eq.${memberId}`).order('created_at',{ascending:false}).limit(100);
     if(pairError)return response({ok:false,error:'ยังเปิดประวัติ 1-2-1 ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'},400);
     const pairRows=(pairs||[]) as Record<string,unknown>[],pairIds=pairRows.map(x=>String(x.id));
     const partnerIds=[...new Set(pairRows.flatMap(x=>[x.member_a_id,x.member_b_id,x.optional_member_c_id].filter(Boolean).map(String)).filter(id=>id!==memberId))];
@@ -432,7 +432,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if(action==='cancel-one-to-one-schedule'){
-    const pairId=String(body.pairId||''),scheduleId=String(body.scheduleId||'');const {pair}=await ownPair(pairId);if(!pair)return response({ok:false,error:'ไม่มีสิทธิ์ยกเลิกนัดนี้'},403);const {error}=await db.from('one_to_one_schedules').update({status:'cancelled',updated_at:new Date().toISOString()}).eq('id',scheduleId).eq('pair_id',pairId);if(error)return response({ok:false,error:error.message},400);await db.from('matching_pairs').update({status:'cancelled'}).eq('id',pairId);await db.from('one_to_one_status_events').insert({round_id:String(pair.round_id),pair_id:pairId,member_id:memberId,event_type:'cancelled',actor_type:'member',actor_ref:memberId,metadata:{scheduleId,reason:String(body.reason||'')}});return response({ok:true,message:'ยกเลิกนัดแล้ว หากต้องการสามารถเสนอเวลาใหม่ได้'});
+    const pairId=String(body.pairId||''),scheduleId=String(body.scheduleId||'');const {pair}=await ownPair(pairId);if(!pair)return response({ok:false,error:'ไม่มีสิทธิ์ยกเลิกนัดนี้'},403);const {error}=await db.from('one_to_one_schedules').update({status:'cancelled',updated_at:new Date().toISOString()}).eq('id',scheduleId).eq('pair_id',pairId);if(error)return response({ok:false,error:error.message},400);await db.from('matching_pairs').update({status:'matched'}).eq('id',pairId);await db.from('one_to_one_status_events').insert({round_id:String(pair.round_id),pair_id:pairId,member_id:memberId,event_type:'schedule_cancelled',actor_type:'member',actor_ref:memberId,metadata:{scheduleId,reason:String(body.reason||'')}});return response({ok:true,message:'ยกเลิกนัดแล้ว คู่ยังดำเนินการต่อได้ หรือขอให้ MC ปล่อยเพื่อจับคู่ใหม่'});
   }
 
   if(action==='reschedule-one-to-one'){

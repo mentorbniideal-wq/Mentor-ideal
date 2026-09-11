@@ -14,7 +14,9 @@ const PERSONAL_SUPPORT_ITEMS: RichMenuItem[] = [
   { icon: '↗', label: 'ประวัติ', sublabel: 'My Progress', action: { type: 'uri', uri: 'LIFF_URL?action=progress' } },
   { icon: '◇', label: 'นัด 1-2-1', sublabel: 'Connect', action: { type: 'uri', uri: 'LIFF_URL?action=121' } },
   { icon: '▦', label: 'ปฏิทิน / การอบรม', sublabel: 'Calendar Training', action: { type: 'uri', uri: 'LIFF_URL?action=ceu' } },
-  { icon: '△', label: 'เป้าหมาย', sublabel: 'My Goal', action: { type: 'uri', uri: 'LIFF_URL?action=goal' } },
+  // Blueprint links carry an opaque, member-scoped token. Route through the
+  // webhook command so the server can derive the LINE identity and issue it.
+  { icon: '△', label: 'Member Goal Setting', sublabel: 'BLUEPRINT', action: { type: 'message', text: 'Blueprint' } },
   { icon: '?', label: 'ขอความช่วยเหลือ', sublabel: 'Private Support', action: { type: 'uri', uri: 'LIFF_URL?action=issue' } },
   { icon: '121', label: 'MY121', sublabel: 'My 1-2-1', action: { type: 'uri', uri: 'LIFF_URL?action=121' } },
 ];
@@ -68,7 +70,7 @@ export function buildRichMenu(role: RichMenuRole, liffUrl: string, appUrl: strin
   return {
     size: { width: 2500, height: 1686 },
     selected: true,
-    name: `BNI IDEAL ${role.toUpperCase()} v1`,
+    name: `BNI IDEAL ${role.toUpperCase()} Member Goal Setting v2`,
     chatBarText: 'MY IDEAL',
     areas,
   };
@@ -79,13 +81,14 @@ export function buildTabbedRichMenuPage(
   aliases = { today: 'bni-ideal-today', more: 'bni-ideal-more' },
 ) {
   const uri = (action: string) => ({ type: 'uri' as const, uri: resolveRichMenuUri(`LIFF_URL?action=${action}`, liffUrl, appUrl) });
+  const message = (text: string) => ({ type: 'message' as const, text });
   const switchTo = (target: 'today' | 'more'): RichMenuSwitchAction => ({ type: 'richmenuswitch', richMenuAliasId: aliases[target], data: `tab=${target}` });
   const actions = page === 'today'
-    ? [uri('121'), uri('progress'), uri('visitor'), uri('ceu'), uri('goal'), switchTo('more')]
+    ? [uri('121'), uri('progress'), uri('visitor'), uri('ceu'), message('Blueprint'), switchTo('more')]
     : [uri('renewal'), uri('issue'), uri('assignments'), uri('visitor'), uri('progress'), switchTo('today')];
   return {
     size: { width: 2500, height: 1686 }, selected: true,
-    name: `BNI IDEAL MEMBER TABS ${page.toUpperCase()} v1`, chatBarText: page === 'today' ? 'MY IDEAL' : 'เมนูเพิ่มเติม',
+    name: `BNI IDEAL MEMBER TABS ${page.toUpperCase()} Member Goal Setting v2`, chatBarText: page === 'today' ? 'MY IDEAL' : 'เมนูเพิ่มเติม',
     areas: actions.map((action, index) => { const col = index % 3, row = Math.floor(index / 3); return { bounds: { x: col * 833, y: row * 843, width: col === 2 ? 834 : 833, height: 843 }, action }; }),
   };
 }

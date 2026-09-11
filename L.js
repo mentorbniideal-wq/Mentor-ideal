@@ -284,28 +284,15 @@ function _sendEachMentorAlert(teamData, dateStr) {
 // ตั้ง Trigger ทุกพฤหัสบดี 07:00 (Run ครั้งเดียว)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function setupThursdayTrigger() {
-  // ลบ trigger เก่า
+  // This sender was superseded by Supabase LINE AUTO.  If an old trigger
+  // exists, remove it; never create a replacement in Apps Script.
   ScriptApp.getProjectTriggers().forEach(function(t) {
     if (t.getHandlerFunction() === 'thursdayMorningAlert') {
       ScriptApp.deleteTrigger(t);
     }
   });
-
-  // สร้างใหม่
-  ScriptApp.newTrigger('thursdayMorningAlert')
-    .timeBased()
-    .onWeekDay(ScriptApp.WeekDay.FRIDAY)
-    .atHour(7)
-    .create();
-
-  Browser.msgBox(
-    '✅ ตั้ง Trigger เรียบร้อย!\n\n' +
-    'ทุกวันศุกร์ 07:00 น. ระบบจะส่ง Line แจ้งเตือนอัตโนมัติ:\n\n' +
-    '• กลุ่ม MC — สรุปภาพรวมทุกทีม\n' +
-    '• กลุ่ม Mentor แต่ละทีม — เฉพาะ Mentee ที่ต้องดูแล\n\n' +
-    '⚠️ อย่าลืมใส่ LINE_TOKENS ใน Script L ก่อนนะครับ!\n' +
-    'ไปที่: https://notify-bot.line.me/th/'
-  );
+  Logger.log('Legacy thursdayMorningAlert trigger removed; Supabase LINE AUTO owns scheduling.');
+  return {ok:true, retired:'thursdayMorningAlert'};
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

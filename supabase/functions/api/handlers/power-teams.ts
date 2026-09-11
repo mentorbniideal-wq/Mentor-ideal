@@ -11,6 +11,59 @@ const TEAM_MAP: Record<string, string> = {
 
 const ALL_TEAMS = ['TOOMTAM', 'Aof', 'Draft', 'PHAI', 'AMP'];
 
+async function activeChapterId(db: ReturnType<typeof getServiceClient>): Promise<string> {
+  const { data, error } = await db.from('chapter_profiles').select('id')
+    .eq('is_active', true).order('created_at').limit(1).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data?.id) throw new Error('ยังไม่ได้ตั้งค่า Active Chapter');
+  return String(data.id);
+}
+
+function cleanText(value: unknown, limit: number): string {
+  return String(value ?? '').trim().replace(/\s+/g, ' ').slice(0, limit);
+}
+
+async function powerTeamCandidates(db: ReturnType<typeof getServiceClient>) {
+  const year = new Date().getFullYear();
+  const { data: plans, error: planError } = await db.from('member_success_blueprints')
+    .select('member_id,blueprint_year,power_team_categories,power_team_detail,updated_at')
+    .gte('blueprint_year', year - 1).lte('blueprint_year', year + 1)
+    .order('blueprint_year', { ascending: false }).order('updated_at', { ascending: false });
+  if (planError) throw new Error(planError.message);
+  const newestByMember = new Map<string, Record<string, unknown>>();
+  for (const plan of (plans || []) as Record<string, unknown>[]) {
+    const memberId = String(plan.member_id || '');
+    if (memberId && !newestByMember.has(memberId)) newestByMember.set(memberId, plan);
+  }
+  const ids = [...newestByMember.keys()];
+  if (!ids.length) return [];
+  const { data: members, error: memberError } = await db.from('members')
+    .select('id,name,nickname,profession,company_name,mentor_team,is_archived').in('id', ids).eq('is_archived', false);
+  if (memberError) throw new Error(memberError.message);
+  const groups = new Map<string, { memberIds: string[]; members: Record<string, unknown>[]; details: string[] }>();
+  for (const member of (members || []) as Record<string, unknown>[]) {
+    const plan = newestByMember.get(String(member.id));
+    const categories = Array.isArray(plan?.power_team_categories) ? plan.power_team_categories : [];
+    const detail = cleanText(plan?.power_team_detail, 500);
+    for (const rawCategory of categories) {
+      const category = cleanText(rawCategory, 120);
+      if (!category) continue;
+      const group = groups.get(category) || { memberIds: [], members: [], details: [] };
+      group.memberIds.push(String(member.id)); group.members.push(member);
+      if (detail && !group.details.includes(detail)) group.details.push(detail);
+      groups.set(category, group);
+    }
+  }
+  return [...groups.entries()].filter(([, group]) => group.memberIds.length >= 2)
+    .map(([category, group]) => ({
+      category,
+      memberIds: group.memberIds,
+      members: group.members.map(member => ({ id: member.id, name: member.name, nickname: member.nickname, profession: member.profession, companyName: member.company_name, mentorTeam: member.mentor_team })),
+      targetCustomerGroup: group.details.slice(0, 3).join(' · ') || `กลุ่มลูกค้าที่เกี่ยวข้องกับ ${category}`,
+      rationale: `สมาชิก ${group.memberIds.length} คนระบุ ${category} ใน Blueprint จึงควรทดลอง 1-2-1 เพื่อพิสูจน์ว่ามีกลุ่มลูกค้าและ referral trigger ร่วมกัน`,
+    })).sort((a, b) => b.memberIds.length - a.memberIds.length || a.category.localeCompare(b.category, 'th'));
+}
+
 /** Build per-team member groups from v_member_dashboard. */
 async function fetchTeamGroups(db: ReturnType<typeof getServiceClient>) {
   const { data: rows, error } = await db
@@ -107,6 +160,49 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
   const action = String(p.action || '');
 
   switch (action) {
+
+    // These are proposals, not mentor teams and not official Power Teams.
+    case 'getPowerTeamProposals': {
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      try {
+        const chapterId = await activeChapterId(db);
+        const [candidates, saved] = await Promise.all([
+          powerTeamCandidates(db),
+          db.from('power_team_proposals').select('id,title,target_customer_group,rationale,source_category,status,created_by,created_at,updated_at,power_team_proposal_members(member_id,members(id,name,nickname,profession,company_name,mentor_team))')
+            .eq('chapter_id', chapterId).neq('status', 'archived').order('updated_at', { ascending: false }),
+        ]);
+        if (saved.error) throw new Error(saved.error.message);
+        return jsonResponse({ ok: true, candidates, proposals: saved.data || [] });
+      } catch (error) { return errResponse(error instanceof Error ? error.message : String(error)); }
+    }
+
+    case 'savePowerTeamProposal': {
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const title = cleanText(p.title, 120), targetCustomerGroup = cleanText(p.targetCustomerGroup, 500);
+      const rationale = cleanText(p.rationale, 1500), sourceCategory = cleanText(p.sourceCategory, 120) || null;
+      const memberIds = [...new Set(Array.isArray(p.memberIds) ? p.memberIds.map(value => String(value)).filter(Boolean) : [])];
+      if (title.length < 2 || targetCustomerGroup.length < 2 || rationale.length < 5 || memberIds.length < 2) {
+        return errResponse('ต้องระบุชื่อข้อเสนอ กลุ่มลูกค้า เหตุผล และสมาชิกอย่างน้อย 2 คน');
+      }
+      try {
+        const chapterId = await activeChapterId(db);
+        const { data: eligible, error: eligibleError } = await db.from('members').select('id').in('id', memberIds).eq('is_archived', false);
+        if (eligibleError) throw new Error(eligibleError.message);
+        if ((eligible || []).length !== memberIds.length) return errResponse('พบสมาชิกที่ไม่อยู่ในสถานะใช้งาน');
+        const { data: proposal, error: proposalError } = await db.from('power_team_proposals').insert({
+          chapter_id: chapterId, title, target_customer_group: targetCustomerGroup, rationale, source_category: sourceCategory,
+          created_by: String(auth.email || auth.displayName || auth.role || 'growth'),
+        }).select('id').single();
+        if (proposalError || !proposal?.id) throw new Error(proposalError?.message || 'สร้างข้อเสนอไม่สำเร็จ');
+        const proposalId = String(proposal.id);
+        const { error: memberError } = await db.from('power_team_proposal_members').insert(memberIds.map(member_id => ({ proposal_id: proposalId, member_id })));
+        if (memberError) throw new Error(memberError.message);
+        await db.from('chapter_audit_events').insert({ event_type: 'power_team_proposal_created', actor_role: auth.role || 'growth', actor_ref: String(auth.email || auth.displayName || ''), metadata: { proposal_id: proposalId, chapter_id: chapterId, member_count: memberIds.length, source_category: sourceCategory } });
+        return jsonResponse({ ok: true, proposalId });
+      } catch (error) { return errResponse(error instanceof Error ? error.message : String(error)); }
+    }
 
     // ── Get Power Teams ──────────────────────────────────────────
     case 'getPowerTeams': {

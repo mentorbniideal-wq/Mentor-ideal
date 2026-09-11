@@ -149,7 +149,7 @@
     <span class="tb-fold-label" id="gr-fold-label" style="display:none"></span>
     <div class="nav-group-label">ภาพรวม</div>
     <button class="tb on" aria-current="page" onclick="sw('gr-ov',this,'gr')">🏛 Chapter Overview</button>
-    <button class="tb" onclick="sw('gr-msb',this,'gr');msbLoad('gr')" style="display:none">🎯 Chapter Blueprint</button>
+    <button class="tb" onclick="sw('gr-msb',this,'gr');msbLoad('gr')">🎯 Chapter Blueprint</button>
     <button class="tb" onclick="sw('gr-bal',this,'gr')">⚖️ Referral Balance</button>
     <div class="nav-group-label">งานที่ต้องทำ</div>
     <button class="tb" onclick="sw('gr-task',this,'gr')">📌 Growth Tasks<span class="nb" id="badge-task"></span></button>
@@ -164,7 +164,7 @@
     <button class="tb" onclick="sw('gr-cross',this,'gr');crossLoad()">🔀 Cross-Team</button>
     <button class="tb" onclick="sw('gr-sprint',this,'gr');sprintLoad()">🏃 Sprint</button>
     <button class="tb" onclick="sw('gr-flow',this,'gr');flowLoad()">🌊 Referral Flow</button>
-    <button class="tb" onclick="sw('gr-pt',this,'gr');ptLoad()">⚡ Power Teams</button>
+    <button class="tb" onclick="sw('gr-pt',this,'gr');ptLoad()">⚡ Power Team Proposals</button>
     <button class="tb" onclick="sw('gr-sheet',this,'gr');gshLoad()" style="display:none">📄 Sheet</button>
     <button class="tb" onclick="sw('gr-gw',this,'gr');renderGrowthWatchGR()">🔵 Growth Watch<span class="nb" id="badge-gw-gr"></span></button>
   </div></div>
@@ -946,9 +946,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       <div style="background:var(--sf);border:1px solid var(--bd);border-radius:14px;overflow:hidden">
         <div style="padding:12px 14px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span style="font-size:13px;font-weight:800">📋 Chapter Blueprint Table</span>
-          <select id="msb-gr-team" onchange="msbRender('gr')" style="margin-left:auto;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;color:var(--tx);padding:6px 10px;font-size:12px">
-            <option value="">ทุกทีม</option><option>TOOMTAM</option><option>Aof</option><option>Draft</option><option>PHAI</option><option>AMP</option>
-          </select>
+          <select id="msb-gr-team" onchange="msbRender('gr')" style="margin-left:auto;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;color:var(--tx);padding:6px 10px;font-size:12px"><option value="">ทุกทีม</option></select>
           <input id="msb-gr-search" oninput="msbRender('gr')" placeholder="ค้นหาสมาชิก..." style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;color:var(--tx);padding:6px 10px;font-size:12px;min-width:180px">
         </div>
         <div id="msb-gr-table" style="overflow-x:auto"></div>
@@ -1750,12 +1748,11 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       <div id="flow-content"><div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div></div>
     </div>
 
-    <!-- ⚡ Power Team Manager -->
+    <!-- ⚡ Power Team Proposals -->
     <div id="gr-pt" class="sec">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-        <div><h2 style="font-size:15px;font-weight:800;margin:0">⚡ Power Team Manager</h2>
-          <div style="font-size:11px;color:var(--sub);margin-top:3px">เพิ่ม / แก้ไข / ย้ายทีม / ลบ สมาชิก Power Team</div></div>
-        <button onclick="ptOpenAdd()" style="background:var(--ac-dim);border:1px solid var(--bd-hover);color:var(--ac);border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">➕ เพิ่มสมาชิก</button>
+        <div><h2 style="font-size:15px;font-weight:800;margin:0">⚡ Power Team Proposals</h2>
+          <div style="font-size:11px;color:var(--sub);margin-top:3px">ข้อเสนอจากกลุ่มลูกค้าเป้าหมายร่วมกัน — ยังไม่ใช่ Mentor Team หรือ Power Team ที่ประกาศแล้ว</div></div>
       </div>
       <div id="pt-mgr-content"><div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div></div>
     </div>

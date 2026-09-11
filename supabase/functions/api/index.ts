@@ -149,6 +149,7 @@ const ROUTES: Record<string, string> = {
 
   // Power Teams
   'getPowerTeams': 'power-teams', 'getPTMembers': 'power-teams',
+  'getPowerTeamProposals': 'power-teams', 'savePowerTeamProposal': 'power-teams',
   'savePTMember': 'power-teams', 'deletePTMember': 'power-teams',
   'setPTMemberStatus': 'power-teams', 'updatePTMember': 'power-teams',
   'movePTMember': 'power-teams', 'moveSynMember': 'power-teams',
