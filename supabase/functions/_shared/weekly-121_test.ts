@@ -1,10 +1,13 @@
-import { createOneToOneMatches, createWeekly121Matches, fullyDeliveredOneToOnePairIds, hasUsableLineId, normalize121Name, oneToOneRoundDeliveryStatus, parseWeekly121Csv, weekly121Message, weekly121PairScore, weekly121RealDeliveryByMember, weekly121TestMessage } from './weekly-121.ts';
+import { createOneToOneMatches, createWeekly121Matches, fullyDeliveredOneToOnePairIds, hasUsableLineId, normalize121Name, oneToOneRoundDeliveryStatus, parseWeekly121Csv, selectRematchWaveCandidateIds, weekly121Message, weekly121PairScore, weekly121RealDeliveryByMember, weekly121TestMessage } from './weekly-121.ts';
 const eq = (a: unknown, b: unknown) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${JSON.stringify(a)} != ${JSON.stringify(b)}`); };
 Deno.test('CSV รองรับ BOM ไทย quoted comma และ multiline', () => {
   const csv = '\uFEFF"ชื่อผู้เข้าประชุม (ภาษาอังกฤษ)","นามสกุล (ภาษาอังกฤษ)",มาประชุมแทน,"Looking for",date,time,user_role\nMayuree,Issard,,"โรงแรม, ขอนแก่น\nแห่งใหม่",18/08/2026,07:49:02,member';
   const out = parseWeekly121Csv(csv); eq(out.rows.length, 1); eq(out.rows[0].lookingFor, 'โรงแรม, ขอนแก่น\nแห่งใหม่');
 });
 Deno.test('normalize ชื่อ', () => eq(normalize121Name('  MAYUREE   Issard '), 'mayuree issard'));
+Deno.test('Re-match Wave ตัดคนมีคู่ active คนไม่มี LINE และรายการซ้ำออกโดยรักษาลำดับคิว',()=>{
+  eq(selectRematchWaveCandidateIds(['released','done-1','active','done-1','no-line','done-2'],new Set(['active']),new Set(['released','done-1','active','done-2'])),['released','done-1','done-2']);
+});
 Deno.test('ระบบใหม่สร้างกลุ่มพิเศษ 3 คนเมื่อจำนวนผู้เข้าร่วมเป็นเลขคี่', () => {
   const ms = ['a','b','c','d','e'].map(id => ({ id, name: id }));
   const result = createOneToOneMatches(ms, new Set(), [], () => .5);

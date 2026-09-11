@@ -67,6 +67,14 @@ export type MatchGroup = { id?: string; members: MatchMember[]; locked?: boolean
 export type MatchResult = { groups: MatchGroup[]; waiting: MatchMember | null };
 const pairKey = (a: string, b: string) => [a, b].sort().join('|');
 
+export function selectRematchWaveCandidateIds(
+  queuedIds: string[], activeIds: Set<string>, lineReadyIds: Set<string>, limit = 200,
+): string[] {
+  const selected: string[]=[];const seen=new Set<string>();
+  for(const rawId of queuedIds){const id=String(rawId||'');if(!id||seen.has(id)||activeIds.has(id)||!lineReadyIds.has(id))continue;seen.add(id);selected.push(id);if(selected.length>=limit)break;}
+  return selected;
+}
+
 function matchTokens(value: string | undefined): Set<string> {
   return new Set(normalize121Name(value || '').replace(/[^\p{L}\p{N}]+/gu, ' ').split(' ').filter(t => t.length >= 2));
 }
