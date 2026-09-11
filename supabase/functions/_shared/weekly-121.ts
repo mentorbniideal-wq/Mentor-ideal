@@ -263,6 +263,69 @@ export function weekly121TestMessage(message: string): string {
   return `🧪 นี่คือการทดลองระบบ\nข้อความนี้ใช้สำหรับทดสอบระบบ Weekly 1-2-1 เท่านั้น\n\n${message}`;
 }
 
+type Weekly121FlexOptions = {
+  liffUrl: string;
+  pairId?: string;
+  isTest?: boolean;
+  templateKey?: string;
+};
+
+// Keep the real pairing link server-authorized in MY121. The pair id is only a
+// locator; LIFF re-checks that the logged-in LINE member belongs to that pair.
+export function weekly121FlexMessage(
+  recipient: { name: string; business?: string; lookingFor?: string },
+  partners: Array<{ name: string; business?: string; lookingFor?: string }>,
+  options: Weekly121FlexOptions,
+): Record<string, unknown> {
+  const primary = partners[0] || { name: 'คู่ของคุณ' };
+  const partnerNames = partners.map(p => `คุณ ${compact121(p.name, 'สมาชิก')}`).join(' · ');
+  const partnerBusiness = compact121(primary.business, 'ดูข้อมูลธุรกิจและ Looking For ใน MY121');
+  const partnerLooking = compact121(primary.lookingFor);
+  const liffBase = String(options.liffUrl || '').replace(/\/$/, '');
+  const target = new URLSearchParams({ action: '121' });
+  if (options.pairId) target.set('pair', options.pairId);
+  const uri = `${liffBase}?${target}`;
+  const eyebrow = options.isTest ? 'MY121 · ตัวอย่างก่อนส่งจริง' : 'MY121 · 1-2-1 CHAPTER MATCH';
+  const title = options.isTest ? 'ตัวอย่างการ์ดแจ้งคู่ 1-2-1' : 'คู่ 1-2-1 ใหม่ของคุณพร้อมแล้ว';
+  const focusByTemplate: Record<string, string> = {
+    warm_connection: 'เริ่มจากการฟังและรู้จักเรื่องราวของกันและกัน',
+    referral_focus: 'เตรียม Ideal Client และ Referral Trigger ที่ชัดเจน',
+    story_trust: 'แลกเรื่องราวและจุดเปลี่ยนเพื่อสร้างความไว้ใจ',
+    quick_action: 'คุยกระชับ 20 นาที แล้วกำหนด Next Action',
+    growth_opportunity: 'รู้จักธุรกิจ Looking For และโอกาสช่วยกันต่อยอด',
+  };
+  const detail = options.isTest
+    ? 'ปุ่มนี้เปิด MY121 หน้าหลักสำหรับตรวจการแสดงผลเท่านั้น ไม่กระทบคู่หรือสถานะจริง'
+    : `เปิด MY121 เพื่อดูข้อมูลคู่ เสนอเวลานัด และเริ่มบทสนทนาอย่างมีเป้าหมาย`;
+  const content: Record<string, unknown>[] = [
+    { type: 'text', text: eyebrow, size: 'xs', weight: 'bold', color: '#E8D49B', wrap: true },
+    { type: 'text', text: title, size: 'xl', weight: 'bold', color: '#FFFFFF', wrap: true, margin: 'md' },
+  ];
+  const body: Record<string, unknown>[] = [
+    { type: 'text', text: options.isTest ? 'ตัวอย่างคู่ที่ระบบจะส่งให้สมาชิก' : 'คู่ของคุณในรอบนี้', size: 'xs', color: '#6B6A63' },
+    { type: 'text', text: partnerNames, size: 'lg', weight: 'bold', color: '#173B34', wrap: true, margin: 'sm' },
+    { type: 'separator', margin: 'lg', color: '#D7C892' },
+    { type: 'text', text: partnerBusiness, size: 'sm', color: '#28433D', wrap: true, margin: 'lg' },
+  ];
+  if (partnerLooking) body.push({ type: 'text', text: `Looking For: ${partnerLooking}`, size: 'sm', color: '#28433D', wrap: true, margin: 'sm' });
+  if (!options.isTest) body.push({ type: 'text', text: `โฟกัสการคุย: ${focusByTemplate[options.templateKey || 'growth_opportunity'] || focusByTemplate.growth_opportunity}`, size: 'xs', color: '#6B6A63', wrap: true, margin: 'md' });
+  body.push({ type: 'text', text: detail, size: 'sm', color: '#28433D', wrap: true, margin: 'lg' });
+  return {
+    type: 'flex',
+    altText: options.isTest ? 'ตัวอย่างข้อความแจ้งคู่ 1-2-1 · เปิด MY121 เพื่อตรวจปุ่ม' : `คุณได้คู่ 1-2-1 ใหม่แล้ว: ${partnerNames} · เปิด MY121 เพื่อดูรายละเอียด`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: { type: 'box', layout: 'vertical', backgroundColor: '#004B3E', paddingAll: '20px', contents: content },
+      body: { type: 'box', layout: 'vertical', backgroundColor: '#FAF7F0', paddingAll: '20px', contents: body },
+      footer: {
+        type: 'box', layout: 'vertical', backgroundColor: '#FAF7F0', paddingAll: '20px', paddingTop: '0px',
+        contents: [{ type: 'button', style: 'primary', color: '#004B3E', height: 'md', action: { type: 'uri', label: options.isTest ? 'เปิด MY121 เพื่อตรวจ' : 'เปิด MY121', uri } }],
+      },
+    },
+  };
+}
+
 export function weekly121RealDeliveryByMember(rows: Record<string, unknown>[]): Map<string, Record<string, unknown>> {
   const byMember = new Map<string, Record<string, unknown>>();
   rows.filter(row => String(row.notification_type || '') === 'weekly_121_matching').forEach(row => {

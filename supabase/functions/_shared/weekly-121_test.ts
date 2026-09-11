@@ -1,4 +1,4 @@
-import { createOneToOneMatches, createWeekly121Matches, fullyDeliveredOneToOnePairIds, hasUsableLineId, normalize121Name, oneToOneRoundDeliveryStatus, parseWeekly121Csv, selectRematchWaveCandidateIds, weekly121Message, weekly121PairScore, weekly121RealDeliveryByMember, weekly121TestMessage } from './weekly-121.ts';
+import { createOneToOneMatches, createWeekly121Matches, fullyDeliveredOneToOnePairIds, hasUsableLineId, normalize121Name, oneToOneRoundDeliveryStatus, parseWeekly121Csv, selectRematchWaveCandidateIds, weekly121FlexMessage, weekly121Message, weekly121PairScore, weekly121RealDeliveryByMember, weekly121TestMessage } from './weekly-121.ts';
 const eq = (a: unknown, b: unknown) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${JSON.stringify(a)} != ${JSON.stringify(b)}`); };
 Deno.test('CSV รองรับ BOM ไทย quoted comma และ multiline', () => {
   const csv = '\uFEFF"ชื่อผู้เข้าประชุม (ภาษาอังกฤษ)","นามสกุล (ภาษาอังกฤษ)",มาประชุมแทน,"Looking for",date,time,user_role\nMayuree,Issard,,"โรงแรม, ขอนแก่น\nแห่งใหม่",18/08/2026,07:49:02,member';
@@ -61,6 +61,20 @@ Deno.test('โหมดข้ามทีมให้คะแนนสมาช
 Deno.test('ข้อความทดสอบขึ้นต้นชัดเจนและเก็บข้อความจริงไว้', () => {
   const out=weekly121TestMessage('ข้อความคู่จริง');
   if(!out.startsWith('🧪 นี่คือการทดลองระบบ')||!out.includes('ข้อความคู่จริง'))throw new Error('invalid test prefix');
+});
+Deno.test('Flex Card 1-2-1 มีปุ่ม MY121 และไม่ใส่ pair ในตัวอย่าง', () => {
+  const card=weekly121FlexMessage({name:'Pete'},[{name:'Ideal',business:'ที่ปรึกษาธุรกิจ',lookingFor:'เจ้าของโรงแรม'}],{liffUrl:'https://liff.line.me/example',isTest:true});
+  eq(card.type,'flex');
+  if(!String(card.altText||'').includes('ตัวอย่าง'))throw new Error('missing test alt text');
+  const button=(((card.contents as Record<string,unknown>).footer as Record<string,unknown>).contents as Record<string,unknown>[])[0];
+  const uri=String((((button.action as Record<string,unknown>).uri)||''));
+  if(!uri.includes('action=121')||uri.includes('pair='))throw new Error('test card must open MY121 home');
+});
+Deno.test('Flex Card จริงเปิดคู่ด้วย pair locator และมี altText', () => {
+  const card=weekly121FlexMessage({name:'Pete'},[{name:'Ideal'}],{liffUrl:'https://liff.line.me/example',pairId:'pair-123'});
+  const button=(((card.contents as Record<string,unknown>).footer as Record<string,unknown>).contents as Record<string,unknown>[])[0];
+  if(!String((button.action as Record<string,unknown>).uri||'').includes('pair=pair-123'))throw new Error('missing pair locator');
+  if(!String(card.altText||'').includes('MY121'))throw new Error('missing accessible alt text');
 });
 Deno.test('Template มาตรฐานทั้งห้าแบบสร้างข้อความเฉพาะและปลอดภัย', () => {
   const keys=['growth_opportunity','warm_connection','referral_focus','story_trust','quick_action'];
