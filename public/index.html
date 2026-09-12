@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&amp;family=IBM+Plex+Mono:wght@500&amp;family=Sarabun:wght@400;600;700&amp;display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&amp;family=IBM+Plex+Mono:wght@500&amp;family=Sarabun:wght@400;600;700&amp;display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="/assets/css/mobile-operations.css?v=20260905q">
+<link rel="stylesheet" href="/assets/css/mobile-operations.css?v=20260912-workspace.1">
 <link rel="stylesheet" href="/assets/css/mobile-focus.css?v=20260905c">
 <link rel="stylesheet" href="/assets/css/login-experience.css?v=20260906-audit.1">
 </head>
@@ -132,40 +132,44 @@
 <div class="entry-chooser" id="entryChooser">
   <div class="entry-card">
     <div class="entry-top">
-      <div class="entry-kicker">Choose Workspace</div>
+      <div class="entry-kicker"><span>Choose Workspace</span><span class="entry-secure">🔒 สิทธิ์ตามบัญชี</span></div>
       <div class="entry-title" id="entry-title">เลือกหน้าที่ต้องการเข้า</div>
       <div class="entry-sub" id="entry-sub">เลือก Desktop สำหรับศูนย์บัญชาการ หรือ Mobile สำหรับทำงานจากมือถือ</div>
     </div>
     <div class="entry-options">
-      <button class="entry-option" onclick="entryOpenDesktop('mc')">
+      <button class="entry-option workspace-mc" onclick="entryOpenDesktop('mc')" aria-label="เข้า MC Desktop สำหรับจัดการ Chapter">
         <span class="entry-ico">💻</span>
-        <span>
+        <span class="entry-copy">
+          <span class="entry-meta">DESKTOP · COMMAND CENTER</span>
           <span class="entry-name">MC Desktop</span>
-          <span class="entry-desc">Dashboard หลักสำหรับ MC และภาพรวมทั้ง Chapter</span>
+          <span class="entry-desc">ภาพรวม Chapter, ทีม, งานค้าง และการตั้งค่า</span>
         </span>
         <span class="entry-arrow">›</span>
       </button>
-      <button class="entry-option growth" id="entry-growth-desktop" onclick="entryOpenDesktop('growth')">
+      <button class="entry-option growth" id="entry-growth-desktop" onclick="entryOpenDesktop('growth')" aria-label="เข้า Growth Desktop สำหรับวิเคราะห์ Growth">
         <span class="entry-ico">📈</span>
-        <span>
+        <span class="entry-copy">
+          <span class="entry-meta">DESKTOP · GROWTH COMMAND</span>
           <span class="entry-name">Growth Desktop</span>
-          <span class="entry-desc">Growth command center, Power Team และ Analytics</span>
+          <span class="entry-desc">Growth health, Power Team, เป้าหมาย และ Analytics</span>
         </span>
         <span class="entry-arrow">›</span>
       </button>
-      <button class="entry-option growth" id="entry-growth-mobile" onclick="entryOpenGrowthMobile()">
+      <button class="entry-option growth workspace-mobile" id="entry-growth-mobile" onclick="entryOpenGrowthMobile()" aria-label="เข้า Growth Mobile สำหรับช่วยเหลือสมาชิก">
         <span class="entry-ico">📱</span>
-        <span>
+        <span class="entry-copy">
+          <span class="entry-meta">MOBILE · MEMBER SUPPORT</span>
           <span class="entry-name">Growth Mobile</span>
-          <span class="entry-desc">เช็คงาน Growth, สมาชิก และ Referral ได้ทันทีจากมือถือ</span>
+          <span class="entry-desc">เปิดข้อมูลสมาชิก, ติดตามงาน และช่วย Referral ได้ทันที</span>
         </span>
         <span class="entry-arrow">›</span>
       </button>
-      <button class="entry-option wide" onclick="entryOpenMobile('mc')">
+      <button class="entry-option workspace-mobile" onclick="entryOpenMobile('mc')" aria-label="เข้า MC Mobile สำหรับตอบสนองงานด่วน">
         <span class="entry-ico">📱</span>
-        <span>
+        <span class="entry-copy">
+          <span class="entry-meta">MOBILE · FAST RESPONSE</span>
           <span class="entry-name">MC Mobile</span>
-          <span class="entry-desc">หน้า MC แบบมือถือ สำหรับเช็คงานและตอบสนองเร็ว</span>
+          <span class="entry-desc">เช็คงานเร่งด่วน, แจ้งเตือน และตอบสนองจากหน้างาน</span>
         </span>
         <span class="entry-arrow">›</span>
       </button>
@@ -178,6 +182,7 @@
         <span class="entry-arrow">›</span>
       </button>
     </div>
+    <div class="entry-foot">เลือกใหม่ได้ทุกครั้งหลังเข้าสู่ระบบ · Desktop รองรับหน้าจอขนาดกลางและแท็บเล็ต</div>
   </div>
 </div>
 
