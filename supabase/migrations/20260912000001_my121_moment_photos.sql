@@ -20,9 +20,9 @@ ON CONFLICT (id) DO UPDATE
       file_size_limit = 1048576,
       allowed_mime_types = ARRAY['image/webp', 'image/jpeg'];
 
--- No anon/authenticated object policy is created. MY121 validates the linked
--- LINE member and pair membership server-side before issuing signed URLs.
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+-- No anon/authenticated object policy is created. The bucket is private and
+-- MY121 validates the linked LINE member and pair membership server-side
+-- before issuing signed URLs. storage.objects is Supabase-managed here.
 
 COMMENT ON COLUMN public.matching_pairs.moment_photo_path IS
   'Private Supabase Storage path for one optional MY121 meeting photo; never a public URL.';
