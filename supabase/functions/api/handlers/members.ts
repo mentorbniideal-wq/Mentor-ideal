@@ -3804,8 +3804,10 @@ export async function handleMembers(
         "amp",
       ]);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
-      const lookup = await findMemberByLegacyPayload(db, p);
+      const lookup = await findMemberByLegacyPayload(db, p, scope.chapterId);
       if (lookup.error || !lookup.member) {
         return errResponse(lookup.error || "member not found");
       }
@@ -3823,6 +3825,7 @@ export async function handleMembers(
       }
 
       const { error } = await db.from("monthly_scores").upsert({
+        chapter_id: scope.chapterId,
         member_id: memberId,
         year,
         month,

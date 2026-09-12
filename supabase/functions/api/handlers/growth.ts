@@ -1,5 +1,6 @@
 // Handler: growth — getRiskMembers, getWeeklyActions, getGrowthData, etc.
 import { requireAuth } from '../../_shared/auth.ts';
+import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { findEvolutionAverageColumn } from '../../_shared/traffic-evolution.ts';
 import { calcPalmsScore } from '../../_shared/palms.ts';
@@ -386,7 +387,7 @@ function parseMemberTrafficLightData(rows: string[][]): Record<string, {
   return map;
 }
 
-async function upsertMonthlyScores(db: ReturnType<typeof getServiceClient>, rows: Array<{ member_id: string; year: number; month: number; score: number; source: string }>): Promise<number> {
+async function upsertMonthlyScores(db: ReturnType<typeof getServiceClient>, rows: Array<{ member_id: string; chapter_id?: string; year: number; month: number; score: number; source: string }>): Promise<number> {
   if (!rows.length) return 0;
   const deduped = Array.from(
     new Map(rows.map(row => [`${row.member_id}|${row.year}|${row.month}`, row])).values(),
@@ -826,9 +827,15 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'getRiskMembers': {
       const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const { data: scopedMembers } = await db.from('members').select('id').eq('chapter_id', scope.chapterId).eq('is_archived', false);
+      const scopedIds = (scopedMembers || []).map((row: Record<string, unknown>) => String(row.id));
+      if (!scopedIds.length) return jsonResponse({ ok: true, risks: [] });
       const { data: members } = await db
         .from('v_member_dashboard')
         .select('id, name, nickname, mentor_team, display_score, traffic_light')
+        .in('id', scopedIds)
         .eq('is_archived', false)
         .not('mentor_team', 'is', null);
 
@@ -836,6 +843,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const { data: allScores } = await db
         .from('monthly_scores')
         .select('member_id, score, year, month')
+        .eq('chapter_id', scope.chapterId)
         .in('member_id', memberIds)
         .order('year', { ascending: false })
         .order('month', { ascending: false });
@@ -933,10 +941,17 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'getGrowthData': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const { data: scopedMembers, error: scopedMembersError } = await db.from('members').select('id').eq('chapter_id', scope.chapterId).eq('is_archived', false);
+      if (scopedMembersError) return errResponse(scopedMembersError.message);
+      const scopedIds = (scopedMembers || []).map((row: Record<string, unknown>) => String(row.id));
+      if (!scopedIds.length) return jsonResponse({ ok: true, members: [], summary: { total: 0, totalTYFCB: 0, totalVisitors: 0, total121: 0, chapterAttend: 0, chapterAbsent: 0, chapterAttendRate: 0, highGiverLowRecv: 0, lowGiverHighRecv: 0, balanced: 0 } });
       // Flat member list for MC/mentor dashboard (not the growth sheet UI)
       const { data: rows, error } = await db
         .from('v_member_dashboard')
         .select('id, name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb, tyfcb_thb, absent, attend, rg, rr, visitors, one_to_one, ceu, bni_days')
+        .in('id', scopedIds)
         .eq('is_archived', false)
         .order('display_score', { ascending: true });
       if (error) return errResponse(error.message);
@@ -946,11 +961,13 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const [{ data: scoreRows }, { data: modeMemberRows }] = await Promise.all([
         allMemberIds.length
           ? db.from('monthly_scores').select('member_id, year, month, score')
+              .eq('chapter_id', scope.chapterId)
               .in('member_id', allMemberIds)
               .order('year', { ascending: true }).order('month', { ascending: true })
           : Promise.resolve({ data: [] }),
         allMemberIds.length
           ? db.from('members').select('id, mentoring_mode').in('id', allMemberIds)
+              .eq('chapter_id', scope.chapterId)
           : Promise.resolve({ data: [] }),
       ]);
       const growthModeMap: Record<string, string> = {};
@@ -1999,11 +2016,13 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'importScoreHistory': {
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
       const rawRows = Array.isArray(p.rows) ? p.rows as Record<string, unknown>[] : [];
       if (!rawRows.length) return errResponse('rows required');
 
-      const { data: members } = await db.from('members').select('id, name, nickname').eq('is_archived', false);
+      const { data: members } = await db.from('members').select('id, name, nickname').eq('is_archived', false).eq('chapter_id', scope.chapterId);
       const memberMap: Record<string, string> = {};
       for (const m of (members || []) as Record<string, unknown>[]) {
         const name = normalizeName(m.name as string);
@@ -2012,7 +2031,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         if (nick && !memberMap[nick]) memberMap[nick] = String(m.id);
       }
 
-      const scoreRows: Array<{ member_id: string; year: number; month: number; score: number; source: string }> = [];
+      const scoreRows: Array<{ member_id: string; chapter_id?: string; year: number; month: number; score: number; source: string }> = [];
       const unmatched: string[] = [];
       for (const r of rawRows) {
         const rawName = normalizeName(String(r.name || ''));
@@ -2022,7 +2041,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         const month = Number(r.month);
         const score = Number(r.score);
         if (!year || !month || !score || month < 1 || month > 12 || year < 2020) continue;
-        scoreRows.push({ member_id: memberId, year, month, score, source: 'manual' });
+        scoreRows.push({ member_id: memberId, chapter_id: scope.chapterId, year, month, score, source: 'manual' });
       }
 
       if (!scoreRows.length) return errResponse(`ไม่พบข้อมูลที่ import ได้ (unmatched: ${unmatched.slice(0,5).join(', ')})`);

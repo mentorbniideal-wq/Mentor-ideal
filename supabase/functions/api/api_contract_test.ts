@@ -159,3 +159,15 @@ Deno.test('renewal workflow resolves Chapter scope for reads and writes', async 
   }
   assert(migration.includes('idx_renewals_chapter_expiry') && migration.includes('idx_renewal_events_chapter_member'), 'renewal records and audit events must have tenant indexes');
 });
+
+Deno.test('Growth score entrypoints derive Chapter scope before reading score data', async () => {
+  const growthHandler = await read('supabase/functions/api/handlers/growth.ts');
+  for (const action of ['getRiskMembers', 'getGrowthData', 'importScoreHistory']) {
+    const start = growthHandler.indexOf(`case '${action}':`);
+    assert(start >= 0, `${action} must remain implemented`);
+    const next = growthHandler.indexOf('\n    case ', start + 1);
+    const block = growthHandler.slice(start, next < 0 ? undefined : next);
+    assert(block.includes('resolveChapterScope(db, auth)'), `${action} must derive Chapter scope server-side`);
+    assert(block.includes('scope.chapterId'), `${action} must use the resolved Chapter`);
+  }
+});
