@@ -9,7 +9,7 @@ async function getTeamIdentity(db: ReturnType<typeof getServiceClient>, teamName
   for (const row of (data || []) as Record<string, unknown>[]) {
     const code = String(row.name || '');
     if (!code) continue;
-    teamLabels[code] = String(row.display_name || `ทีม ${String(row.leader_name || code)}`);
+    teamLabels[code] = String(row.display_name || `Mentor : ${String(row.leader_name || code)}`);
   }
   return {
     teamLabels,

@@ -563,7 +563,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
 
   if (action === 'getLineTeamMappings') {
     const [{ data: teams }, { data: settings }, { data: lineMembers }] = await Promise.all([
-      db.from('mentor_teams').select('name, leader_name').order('name'),
+      db.from('mentor_teams').select('name, leader_name, display_name').order('name'),
       db.from('settings').select('key, value').like('key', 'LINE_ID_%'),
       db.from('line_members').select('line_user_id, member_id, members(name, nickname)').limit(200),
     ]);
@@ -581,6 +581,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
       return {
         name,
         leader_name: String(team.leader_name || ''),
+        display_name: String(team.display_name || `Mentor : ${String(team.leader_name || name)}`),
         currentLineId,
         linkedMember: linkedRec ? (linkedRec.members as Record<string, unknown>) : null,
       };
@@ -672,7 +673,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
       db.from('settings').select('key, value')
         .or('key.like.LINE_ID_%,key.like.LINE_RICH_MENU_%,key.eq.LINE_PROVISIONED_AT'),
       db.from('line_members').select('line_user_id, member_id, members(name, nickname)').limit(300),
-      db.from('mentor_teams').select('name, leader_name').order('name'),
+      db.from('mentor_teams').select('name, leader_name, display_name').order('name'),
       db.from('system_job_runs').select('job_name,status,started_at,finished_at,duration_ms,error,reason').order('started_at', { ascending: false }).limit(100),
       db.from('monthly_scores').select('year,month,created_at').order('year', { ascending: false }).order('month', { ascending: false }).limit(1).maybeSingle(),
     ]);
@@ -691,7 +692,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
       { key: 'LINE_ID_GROWTH', label: 'Growth', expectedRole: 'member' },
       ...(teams || []).map((team: Record<string, unknown>) => ({
         key: `LINE_ID_${String(team.name || '').toUpperCase()}`,
-        label: `Mentor · ${String(team.name || '')}`,
+        label: String(team.display_name || `Mentor : ${String(team.leader_name || team.name || '')}`),
         expectedRole: 'member',
         leaderName: String(team.leader_name || ''),
       })),

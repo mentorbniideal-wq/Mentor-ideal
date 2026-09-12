@@ -14,7 +14,7 @@ function applyTeamDisplayLabels(){
     option.textContent=movePrefix+teamDisplayName(code);
   });
 }
-function teamLeaderLabel(code){return String(teamDisplayName(code)||code).replace(/^ทีม\s+/,'');}
+function teamLeaderLabel(code){return String(teamDisplayName(code)||code).replace(/^Mentor\s*:\s*/i,'').replace(/^ทีม\s+/,'');}
 function loadPublicTeamLabels(){
   return fetch(SUPABASE_API,{method:'POST',headers:API_HEADERS,body:JSON.stringify({action:'getPublicTeamCatalog'})})
     .then(function(res){return res.json();})
@@ -2871,7 +2871,7 @@ function ltMentorTeamName(item,assignment,members,mentorTeams){
   if(item.role.indexOf('Mentor Team · ')!==0)return'';
   var code=item.role.replace('Mentor Team · ',''),member=members.find(function(m){return assignment&&m.id===assignment.assigned_member_id;}),saved=(mentorTeams.find(function(t){return t.name===code;})||{}).leader_name;
   var owner=member&&(member.nickname||member.name)||saved||'';
-  return owner?'ทีม '+owner:'เมื่อเลือก Mentor ระบบจะตั้งชื่อทีมตามชื่อบุคคล';
+  return owner?'Mentor : '+owner:'เมื่อเลือก Mentor ระบบจะตั้งชื่อทีมตามชื่อบุคคล';
 }
 function ltRoleCard(item,i,byRole,members,linked,opts,mentorTeams){
   var a=byRole[item.role]||{},main=a.assigned_member_id||'',mainReady=main&&linked[main];
@@ -3535,7 +3535,7 @@ function loadLineTeamMappings(){
       var linked=t.linkedMember?'✅ '+(t.linkedMember.nickname||t.linkedMember.name||''):
                  t.currentLineId?'⚠️ '+t.currentLineId.slice(0,10)+'…':'—';
       return '<tr>'
-        +'<td style="padding:7px 10px;font-weight:700;white-space:nowrap">'+escH(t.name)+'</td>'
+        +'<td style="padding:7px 10px;font-weight:700;white-space:nowrap">'+escH(t.display_name||t.name)+'</td>'
         +'<td style="padding:7px 10px;font-size:12px;color:var(--sub)">'+escH(t.leader_name||'—')+'</td>'
         +'<td style="padding:7px 10px;font-size:12px">'+linked+'</td>'
         +'<td style="padding:7px 10px"><select id="ltsel-'+escH(t.name)+'" style="background:var(--sf);border:1px solid var(--bd);color:var(--tx);border-radius:6px;padding:5px 8px;font-size:12px;max-width:160px">'

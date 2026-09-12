@@ -101,7 +101,7 @@ export async function handlePublic(p: Record<string, unknown>): Promise<Response
       if (error) return errResponse(error.message);
       const teams = ((data || []) as Record<string, unknown>[]).map((row) => ({
         code: text(row.name),
-        displayName: text(row.display_name) || `ทีม ${text(row.leader_name) || text(row.name)}`,
+        displayName: text(row.display_name) || `Mentor : ${text(row.leader_name) || text(row.name)}`,
       }));
       return jsonResponse({ ok: true, teams });
     }
