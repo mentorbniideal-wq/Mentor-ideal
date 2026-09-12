@@ -1218,11 +1218,22 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
     case 'getMSBDashboardBundle': {
       const auth = await requireAuth(db, p, DASHBOARD_ROLES);
       if (!auth.ok) return errResponse(auth.error!);
-      const [dashboardRows, planRows, followups] = await Promise.all([
-        listDashboardRows(db, auth, year),
+      // The member Blueprint list is the primary working data. Intelligence
+      // views and follow-up aggregation are additive: a failed optional query
+      // must never blank the whole Growth workspace.
+      const dashboardRows = await listDashboardRows(db, auth, year);
+      const [planResult, followupResult] = await Promise.allSettled([
         fetchPlanRows(db, auth, year),
         buildFollowUpQueue(db, auth),
       ]);
+      const planRows = planResult.status === 'fulfilled' ? planResult.value : [];
+      const followups = followupResult.status === 'fulfilled'
+        ? followupResult.value
+        : { error: 'โหลด Follow-up Queue ไม่สำเร็จ' };
+      const partialErrors = [
+        planResult.status === 'rejected' ? 'plan_vs_actual' : '',
+        followupResult.status === 'rejected' ? 'followups' : '',
+      ].filter(Boolean);
       const summary = summarizeDashboardRows(dashboardRows);
       const overview = intelligenceOverviewFromRows(planRows);
       return jsonResponse({
@@ -1241,6 +1252,7 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
           bundled: true,
           generatedAt: new Date().toISOString(),
           source: 'getMSBDashboardBundle',
+          partialErrors,
         },
       });
     }
