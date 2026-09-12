@@ -180,3 +180,9 @@ Deno.test('workspace chooser presents Mentor and Growth with explicit Desktop an
   assert(page.includes("entryOpenDesktop('growth')") && page.includes('entryOpenGrowthMobile()'), 'Growth must expose Desktop and Mobile actions');
   assert(script.includes("getElementById('entry-growth-group')") && script.includes("growth.style.display=isOwner?'block':'none'"), 'Growth workspace visibility must remain server-derived from the authenticated owner identity');
 });
+
+Deno.test('successful 1-2-1 profile reminder results are not marked failed in the UI', async () => {
+  const source = await read('public/assets/js/desktop-one-to-one.js');
+  assert(source.includes("if(response&&response.ok)updateLineBulkRows(chunkIds,'sent',response.results||[])"), 'Successful reminder batches must default to sent while preserving provider-specific result statuses');
+  assert(!source.includes("if(response&&response.ok)updateLineBulkRows(chunkIds,'failed',response.results||[])"), 'Successful reminder batches must never be labeled failed');
+});
