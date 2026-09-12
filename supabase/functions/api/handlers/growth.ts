@@ -1052,6 +1052,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         .map(m => m.member_id).filter(Boolean) as string[];
       const bniDaysMap: Record<string, number> = {};
       const bniGoalMap: Record<string, number> = {};
+      const monthlyActualMap: Record<string, { given: number; received: number }> = {};
       const msbMap: Record<string, Record<string, unknown>> = {};
       const memberMetaMap: Record<string, Record<string, unknown>> = {};
       const lineLinkedSet = new Set<string>();
@@ -1061,7 +1062,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       if (linkedIds.length) {
         const [{ data: r2yRows }, { data: goalRows }, { data: msbRows }, { data: memberMetaRows }, { data: lineRows }, { data: reviewRows }] = await Promise.all([
           db.from('r2y_stats').select('member_id, bni_days, synced_at').in('member_id', linkedIds),
-          db.from('members').select('id, bni_goal, profession, company_name').in('id', linkedIds),
+          db.from('members').select('id, bni_goal, given_thb, received_thb, profession, company_name').in('id', linkedIds),
           db.from('member_success_blueprints')
             .select('member_id, blueprint_year, status, expected_sales_from_bni_year, referral_needed, looking_for_categories, looking_for_detail, power_team_categories, power_team_detail')
             .eq('blueprint_year', blueprintYear)
@@ -1077,6 +1078,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         }
         for (const r of (goalRows || []) as Record<string, unknown>[]) {
           bniGoalMap[String(r.id)] = Number(r.bni_goal) || 0;
+          monthlyActualMap[String(r.id)] = { given: Number(r.given_thb) || 0, received: Number(r.received_thb) || 0 };
         }
         for (const r of (msbRows || []) as Record<string, unknown>[]) {
           msbMap[String(r.member_id)] = r;
@@ -1125,7 +1127,10 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           const syncedBniGoal = memberId ? (bniGoalMap[memberId] || 0) : 0;
           const msbGoal = msbGoalSubmitted || syncedBniGoal;
           const tgt  = msbGoalSubmitted > 0 ? msbGoalSubmitted : legacyTarget;
-          const recv = Number(m.received_thb) || 0;
+          // Current actuals always come from the monthly R2Y sync on members.
+          // The Growth sheet's received_thb is only a legacy 2026 snapshot fallback.
+          const actual = memberId ? monthlyActualMap[memberId] : null;
+          const recv = actual ? actual.received : (Number(m.received_thb) || 0);
           const pct  = tgt > 0 ? Math.round(recv / tgt * 100) : 0;
           const gap  = Math.max(0, tgt - recv);
           const delta = msbGoalSubmitted > 0 && legacyTarget > 0 ? msbGoalSubmitted - legacyTarget : 0;
@@ -1170,6 +1175,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
             target:   tgt,
             targetSource: msbGoalSubmitted > 0 ? 'msb' : (legacyTarget > 0 ? 'legacy' : (msbGoal > 0 ? 'msb_fallback' : 'none')),
             received: recv,
+            given: actual ? actual.given : 0,
+            actualSource: actual ? 'monthly_sync' : 'legacy_snapshot',
             gap,
             pct,
             goalDelta: delta,
@@ -1909,13 +1916,16 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
 
       // col is 1-based; map to DB field
       const COL_TO_FIELD: Record<number, string> = {
-        3: 'nickname', 4: 'membership_age', 5: 'note',
-        6: 'target_thb', 7: 'received_thb',
+        3: 'nickname', 4: 'membership_age', 5: 'note', 6: 'target_thb',
       };
       const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
       for (const u of (Array.isArray(p.updates) ? p.updates : []) as { col: number; val: unknown }[]) {
         const field = COL_TO_FIELD[u.col];
         if (field) updates[field] = u.val;
+      }
+
+      if ((Array.isArray(p.updates) ? p.updates : []).some((u: { col: number }) => Number(u.col) === 7)) {
+        return errResponse('ยอดรับจริงต้องอัปเดตผ่าน Monthly Sync เพื่อรักษาที่มาและประวัติข้อมูล');
       }
 
       const { error } = await db.from('growth_referral_members').update(updates).eq('id', memberId);
