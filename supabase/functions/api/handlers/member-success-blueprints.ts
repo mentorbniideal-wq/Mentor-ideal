@@ -4,6 +4,7 @@
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { sha256Hex } from '../../_shared/line.ts';
+import { calculateMsbGoal } from '../../_shared/msb-goal-calculation.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
 
@@ -45,27 +46,26 @@ function monthlyMarketingPlan(value: unknown) {
 
 function calculate(input: Record<string, unknown>) {
   const totalSales = num(input.total_sales_target_year);
-  const bniSales = num(input.expected_sales_from_bni_year);
-  const avgCustomer = num(input.average_customer_value_year);
-  const conversion = num(input.conversion_rate_percent);
-  const customerNeeded = ceilSafe(bniSales / avgCustomer);
-  const referralNeeded = conversion > 0 ? ceilSafe(customerNeeded / (conversion / 100)) : 0;
-  const referralPerWeek = referralNeeded / 52;
+  const goal = calculateMsbGoal({ existingCustomerRevenue: input.existing_customer_revenue_from_bni, newCustomerRevenue: input.new_customer_revenue_from_bni, annualCustomerValue: input.average_customer_value_year, conversionRatePercent: input.conversion_rate_percent });
   return {
-    bni_contribution_percent: totalSales > 0 ? (bniSales / totalSales) * 100 : 0,
-    customer_needed: customerNeeded,
-    referral_needed: referralNeeded,
-    referral_per_month: referralNeeded / 12,
-    referral_per_week: referralPerWeek,
-    quality_121_target_per_week: ceilSafe(num(input.quality_121_target_per_week) || referralPerWeek),
+    bni_contribution_percent: totalSales > 0 ? (goal.totalExpectedBniRevenue / totalSales) * 100 : 0,
+    customer_needed: goal.requiredCustomers,
+    referral_needed: goal.requiredReferrals,
+    referral_per_month: goal.referralsPerMonth,
+    referral_per_week: goal.referralsPerWeek,
+    quality_121_target_per_week: ceilSafe(num(input.quality_121_target_per_week) || goal.referralsPerWeek),
     calculated_at: new Date().toISOString(),
   };
 }
 
 function validate(input: Record<string, unknown>): string | null {
   if (num(input.total_sales_target_year) <= 0) return 'กรุณาระบุเป้ายอดขายรวมทั้งปี';
-  if (num(input.expected_sales_from_bni_year) <= 0) return 'กรุณาระบุยอดขายที่คาดหวังจาก BNI';
-  if (num(input.expected_sales_from_bni_year) > num(input.total_sales_target_year)) {
+  if (num(input.existing_customer_revenue_from_bni) < 0 || num(input.new_customer_revenue_from_bni) < 0) {
+    return 'รายได้จากลูกค้า BNI ต้องไม่ติดลบ';
+  }
+  const totalBniRevenue = num(input.existing_customer_revenue_from_bni) + num(input.new_customer_revenue_from_bni);
+  if (totalBniRevenue <= 0) return 'กรุณาระบุยอดจากลูกค้า BNI เดิมหรือยอดจากลูกค้า BNI ใหม่';
+  if (totalBniRevenue > num(input.total_sales_target_year)) {
     return 'ยอดขายที่คาดหวังจาก BNI ไม่ควรมากกว่าเป้ายอดขายรวมทั้งปี';
   }
   if (num(input.average_customer_value_year) <= 0) return 'กรุณาระบุมูลค่าลูกค้าเฉลี่ยต่อปี';
@@ -82,7 +82,8 @@ function validate(input: Record<string, unknown>): string | null {
 function buildWarnings(row: Record<string, unknown>): string[] {
   const warnings: string[] = [];
   const calc = calculate(row);
-  if (calc.referral_needed > 100) warnings.push('เป้านี้อาจต้องใช้ Referral มากกว่า 100 ใบ/ปี');
+  if (calc.customer_needed > 100) warnings.push('เป้านี้ต้องการลูกค้าใหม่มากกว่า 100 ราย/ปี กรุณาตรวจสอบมูลค่าเฉลี่ยต่อลูกค้า และพิจารณาว่าเป็นธุรกิจลูกค้าจำนวนมากหรือไม่');
+  if (calc.referral_needed > 200) warnings.push('เป้านี้ต้องการ Referral มากกว่า 200 ราย/ปี กรุณาตรวจสอบ Conversion Rate และมูลค่าต่อลูกค้าอีกครั้ง');
   if (num(row.conversion_rate_percent) < 10) warnings.push('Conversion rate ต่ำกว่า 10% ควรเพิ่มคุณภาพ Referral หรือระบบ Follow-up');
   if (calc.bni_contribution_percent > 50) warnings.push('สัดส่วนยอดขายจาก BNI สูงกว่า 50% ควรบริหารความเสี่ยงช่องทางรายได้');
   const existingNew = num(row.existing_customer_revenue_from_bni) + num(row.new_customer_revenue_from_bni);
@@ -719,13 +720,16 @@ async function saveBlueprintForMember(db: Db, memberId: string, year: number, p:
   const error = validate(p);
   if (error) return { error, status: 400 };
   const calculated = calculate(p);
+  const existingRevenue = num(p.existing_customer_revenue_from_bni);
+  const newRevenue = num(p.new_customer_revenue_from_bni);
   const payload = {
     member_id: memberId,
     blueprint_year: year,
     total_sales_target_year: num(p.total_sales_target_year),
-    expected_sales_from_bni_year: num(p.expected_sales_from_bni_year),
-    existing_customer_revenue_from_bni: num(p.existing_customer_revenue_from_bni),
-    new_customer_revenue_from_bni: num(p.new_customer_revenue_from_bni),
+    // Retain the legacy aggregate field for existing dashboards.
+    expected_sales_from_bni_year: existingRevenue + newRevenue,
+    existing_customer_revenue_from_bni: existingRevenue,
+    new_customer_revenue_from_bni: newRevenue,
     average_customer_value_year: num(p.average_customer_value_year),
     conversion_rate_percent: num(p.conversion_rate_percent),
     ...calculated,
@@ -1089,10 +1093,12 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       if (identity.error || !identity.memberId) return errResponse(identity.error || 'Unauthorized', 401);
       const tokenYear = identity.blueprintYear || year;
       const blueprint = await getBlueprint(db, identity.memberId, tokenYear);
+      const previousBlueprint = tokenYear > 2020 ? await getBlueprint(db, identity.memberId, tokenYear - 1) : null;
       return jsonResponse({
         ok: true,
         member: identity.member,
         blueprint: normalizeBlueprint(blueprint),
+        previousBlueprint: normalizeBlueprint(previousBlueprint),
         blueprintYear: tokenYear,
       });
     }

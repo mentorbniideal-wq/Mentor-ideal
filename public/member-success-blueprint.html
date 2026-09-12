@@ -84,7 +84,7 @@
     var API='https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
     var ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
     var HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+ANON};
-    var step=0,formToken='',member=null,blueprint=null,year=new Date().getFullYear();
+    var step=0,formToken='',member=null,blueprint=null,previousBlueprint=null,year=new Date().getFullYear();
     var data={blueprintYear:year,total_sales_target_year:'',expected_sales_from_bni_year:'',existing_customer_revenue_from_bni:'',new_customer_revenue_from_bni:'',average_customer_value_year:'',conversion_rate_percent:'',quality_121_target_per_week:'',monthly_marketing_plan:[],looking_for_categories:[],looking_for_detail:'',power_team_categories:[],power_team_detail:'',personal_goal_category:'',personal_goal_detail:''};
     var helperState={avgMonthly:'',convReferrals:'10',convClosed:'3'},categorySuggestions={looking_for:[],power_team:[]},categoryDraft={looking_for_categories:'',power_team_categories:''};
     var LOOK=['SME Owner','เจ้าของกิจการ','HR / People','Finance / Accounting','Real Estate','Health / Wellness','Education','Retail / F&B','Marketing / Media','Legal / Consulting','IT / Digital','ครอบครัว/เพื่อนของลูกค้า'];
@@ -97,17 +97,17 @@
     function toast(s){var t=document.getElementById('toast');t.textContent=s;t.classList.add('on');setTimeout(function(){t.classList.remove('on');},2600);}
     function call(action,p,cb){fetch(API,{method:'POST',headers:HEADERS,body:JSON.stringify(Object.assign({action:action,token:formToken},p||{}))}).then(function(r){return r.json();}).then(cb).catch(function(e){cb({ok:false,error:e.message});});}
     function calc(){
-      var total=n(data.total_sales_target_year), bni=n(data.expected_sales_from_bni_year), avg=n(data.average_customer_value_year), conv=n(data.conversion_rate_percent);
-      var cust=avg>0?Math.ceil(bni/avg):0;
+      var total=n(data.total_sales_target_year), existing=n(data.existing_customer_revenue_from_bni), fresh=n(data.new_customer_revenue_from_bni), bni=existing+fresh, avg=n(data.average_customer_value_year), conv=n(data.conversion_rate_percent);
+      var cust=avg>0?Math.ceil(fresh/avg):0;
       var ref=conv>0?Math.ceil(cust/(conv/100)):0;
-      return {pct:total>0?bni/total*100:0,cust:cust,ref:ref,month:ref/12,week:ref/52};
+      return {pct:total>0?bni/total*100:0,bni:bni,cust:cust,ref:ref,month:ref/12,week:ref/52};
     }
     function persist(){try{localStorage.setItem('msb_draft_'+year,JSON.stringify(data));}catch(e){}}
     function hydrateDraft(){try{var raw=localStorage.getItem('msb_draft_'+year);if(raw)Object.assign(data,JSON.parse(raw));}catch(e){}}
     function loadServer(){
       call('getMemberSuccessBlueprintByToken',{},function(r){
         if(!r.ok){showState('<b>ลิงก์นี้ยังใช้งานไม่ได้</b><br>'+esc(r.error||'ลิงก์ไม่ถูกต้องหรือหมดอายุ')+'<br><br>กรุณาขอลิงก์ใหม่จาก MC หรือ Growth หรือพิมพ์ <b>Goal</b> ใน LINE Official Account');return;}
-        member=r.member||{};blueprint=r.blueprint||null;
+        member=r.member||{};blueprint=r.blueprint||null;previousBlueprint=r.previousBlueprint||null;
         year=Number(r.blueprintYear)||year;
         data.blueprintYear=year;
         document.getElementById('memberName').textContent=(member.nickname||member.name||'สมาชิก BNI IDEAL');
@@ -198,7 +198,7 @@
     }
     function learn(text){return '<details class="learn"><summary>ดูวิธีคิด</summary><div>'+text+'</div></details>';}
     function coach(id){
-      var total=n(data.total_sales_target_year), bni=n(data.expected_sales_from_bni_year), avg=n(data.average_customer_value_year), conv=n(data.conversion_rate_percent);
+      var total=n(data.total_sales_target_year), bni=calc().bni, avg=n(data.average_customer_value_year), conv=n(data.conversion_rate_percent);
       if(id==='h-total'){
         var monthly=total?Math.round(total/12):100000, yearly=monthly*12;
         return '<div class="title">ยอดขายรวมทั้งปี</div>นี่คือยอดขายทั้งหมดที่คุณอยากให้ธุรกิจทำได้ในปีนี้ รวมลูกค้าเก่า ลูกค้าใหม่ และทุกช่องทางการขาย<br><br><b>ตัวอย่าง</b><br>ถ้าธุรกิจอยากขายได้เดือนละ '+money(monthly)+' ระบบจะแนะนำเป้าทั้งปีประมาณ <b>'+money(yearly)+'</b>'+quickMonthly()+learn('เอายอดขายที่อยากได้ต่อเดือน × 12 เดือน = ยอดขายรวมทั้งปี เช่น 100,000 × 12 = 1,200,000 บาท');
@@ -225,8 +225,14 @@
     }
     function resultExplain(){
       var c=calc(), conv=n(data.conversion_rate_percent), avg=n(data.average_customer_value_year);
-      if(!n(data.expected_sales_from_bni_year)||!avg||!conv)return '<div class="result-note"><span>เมื่อกรอกมูลค่าลูกค้าเฉลี่ยและ Conversion แล้ว ระบบจะแปลเป้าหมายให้เป็นจำนวนลูกค้าและ Referral ที่ต้องใช้ครับ</span></div>';
-      return '<div class="result-note">จากข้อมูลที่คุณกรอก<br>คุณต้องการลูกค้าประมาณ <b id="custText">'+fmt(c.cust)+'</b> ราย<br><span>หากปิดการขายได้ '+fmt(conv)+'% คุณต้องได้รับ Referral ประมาณ '+fmt(c.ref)+' ครั้งต่อปี หรือเฉลี่ย '+fmt(c.month)+' ครั้งต่อเดือน</span></div>';
+      if(!n(data.new_customer_revenue_from_bni)||!avg||!conv)return '<div class="result-note"><span>เมื่อกรอกยอดจากลูกค้า BNI ใหม่ มูลค่าลูกค้าเฉลี่ย และ Conversion แล้ว ระบบจะแปลเป็นจำนวนลูกค้าและ Referral ที่ต้องใช้ครับ</span></div>';
+      return '<div class="result-note">เพื่อสร้างยอดใหม่จาก BNI '+money(data.new_customer_revenue_from_bni)+'<br>คุณต้องการลูกค้าใหม่ประมาณ <b id="custText">'+fmt(c.cust)+'</b> ราย<br><span>หากปิดการขายได้เฉลี่ย '+fmt(conv)+'% คุณควรได้รับ Referral ประมาณ '+fmt(c.ref)+' ราย/ปี หรือเฉลี่ย '+fmt(c.month)+' ราย/เดือน</span></div>';
+    }
+    function previousGoalCard(){
+      if(!previousBlueprint)return '<div class="coach"><div class="title">Goal Setting ครั้งก่อน</div>ยังไม่มีข้อมูล Goal Setting ครั้งก่อน อาจเป็นสมาชิกใหม่ หรือข้อมูลเดิมยังไม่ครบ</div>';
+      var p=previousBlueprint, pc={bni:n(p.expected_sales_from_bni_year),avg:n(p.average_customer_value_year),conv:n(p.conversion_rate_percent),cust:n(p.customer_needed),ref:n(p.referral_needed)};
+      var higher=calc().bni>pc.bni&&pc.bni>0;
+      return '<div class="coach"><div class="title">Goal Setting ครั้งก่อน ('+esc(p.blueprint_year||year-1)+')</div>ยอดเป้าหมายจาก BNI: <b>'+money(pc.bni)+'</b><br>มูลค่าเฉลี่ยต่อลูกค้า: '+money(pc.avg)+'<br>Conversion Rate: '+fmt(pc.conv)+'%<br>จำนวนลูกค้าที่ต้องการ: '+fmt(pc.cust)+' ราย<br>จำนวน Referral ที่ต้องการ: '+fmt(pc.ref)+' ราย'+(higher?'<div class="mini">เป้าหมายปีนี้สูงกว่าปีก่อน ควรวางแผน Target Customer และ Referral ให้สอดคล้องกับเป้าหมายใหม่</div>':'')+'</div>';
     }
     function hasCat(words){
       var all=(data.looking_for_categories||[]).concat(data.power_team_categories||[]).join(' ').toLowerCase();
@@ -236,7 +242,7 @@
       var c=calc(), score=0, done=[], todo=[], warn=[];
       function add(ok,pts,yes,no){if(ok){score+=pts;done.push(yes);}else todo.push(no);}
       add(n(data.total_sales_target_year)>0,10,'มีเป้ายอดขายรวมทั้งปีแล้ว','ใส่เป้ายอดขายรวมทั้งปีก่อน');
-      add(n(data.expected_sales_from_bni_year)>0,12,'มีเป้าจาก BNI แล้ว','ใส่ยอดขายที่อยากให้ BNI ช่วยสร้าง');
+      add(c.bni>0,12,'มีเป้าจาก BNI แล้ว','ใส่ยอดขายจากลูกค้า BNI เดิมและใหม่');
       add(n(data.average_customer_value_year)>0,10,'รู้มูลค่าลูกค้าเฉลี่ยแล้ว','ประเมินว่าลูกค้า 1 รายมีมูลค่าทั้งปีเท่าไร');
       add(n(data.conversion_rate_percent)>0&&n(data.conversion_rate_percent)<=100,10,'มี Conversion ที่ใช้วางแผนได้','ใส่ Conversion จาก Referral เป็นลูกค้า');
       add((data.looking_for_categories||[]).length>0,10,'เลือกกลุ่มคนที่อยากให้ Chapter หาให้แล้ว','เลือก Looking For อย่างน้อย 1 หมวด');
@@ -246,7 +252,8 @@
       add(data.personal_goal_category,8,'มี Personal Goal ให้ Mentor ติดตามแล้ว','เลือก Personal Goal หนึ่งเรื่อง');
       add(c.ref>0&&c.ref<=100,12,'จำนวน Referral ที่ต้องใช้ยังอยู่ในช่วงวางแผนได้','ทบทวนเป้า/มูลค่าลูกค้า/Conversion เพราะ Referral ที่ต้องใช้สูงมาก');
       if(c.pct>50)warn.push('เป้าจาก BNI เกิน 50% ของยอดขายรวม อาจทำให้แผนพึ่งพา Chapter มากเกินไป');
-      if(c.ref>100)warn.push('ต้องใช้ Referral มากกว่า 100 ใบ/ปี ควรแตกเป้าเป็นกลุ่มลูกค้าที่คมขึ้น หรือเพิ่ม Conversion');
+      if(c.cust>100)warn.push('ต้องการลูกค้าใหม่มากกว่า 100 ราย/ปี: ตรวจสอบมูลค่าลูกค้า และพิจารณาว่าเป็นธุรกิจลูกค้าจำนวนมากหรือไม่');
+      if(c.ref>200)warn.push('ต้องใช้ Referral มากกว่า 200 ราย/ปี: ควรตรวจสอบ Conversion Rate และมูลค่าต่อลูกค้า');
       if(n(data.conversion_rate_percent)>0&&n(data.conversion_rate_percent)<10)warn.push('Conversion ต่ำกว่า 10% อาจต้องเสริมเรื่อง follow-up หรือ offer');
       score=Math.min(100,score);
       var level=score>=85?'พร้อมใช้':score>=65?'ดีขึ้นแล้ว':score>=40?'ควรเติมอีกนิด':'ยังต้องตั้งหลัก';
@@ -254,7 +261,7 @@
     }
     function realityCoach(){
       var c=calc(), pct=c.pct, level='รอข้อมูล', note='กรอกเป้ายอดขายและตัวเลขลูกค้าให้ครบก่อน ระบบจะช่วยดูว่าเป้านี้หนักหรือเบาเกินไปไหม', tips=[];
-      if(n(data.expected_sales_from_bni_year)&&n(data.average_customer_value_year)&&n(data.conversion_rate_percent)){
+      if(n(data.new_customer_revenue_from_bni)&&n(data.average_customer_value_year)&&n(data.conversion_rate_percent)){
         if(pct<=10&&c.month<=2){level='เริ่มแบบมั่นคง';note='เป้านี้ค่อนข้างปลอดภัย เหมาะกับการเริ่มทำให้สม่ำเสมอก่อน';tips=['เลือก Looking For ให้คม 1–2 กลุ่ม','นัด 1-2-1 กับคนที่มีฐานลูกค้าตรงกัน'];}
         else if(pct<=25&&c.month<=5){level='พอดีและท้าทายกำลังดี';note='เป้านี้เหมาะกับสมาชิกที่อยากใช้ BNI เป็นช่องทางเติบโตจริง แต่ยังไม่กดดันเกินไป';tips=['ทำ Referral Trigger ให้เพื่อนจำง่าย','ตั้งเป้า 1-2-1 อย่างน้อยสัปดาห์ละ 1–2 ครั้ง'];}
         else if(pct<=50&&c.month<=8){level='ท้าทาย';note='เป้านี้ทำได้ แต่ต้องมี Power Team และการ follow-up ที่ชัด ไม่ควรปล่อยให้เกิดเอง';tips=['เลือก Power Team ที่ส่งลูกค้าต่อกันได้จริง','ขอให้ Mentor ช่วยซ้อมวิธีเล่า referral trigger'];}
@@ -298,9 +305,8 @@
       var ref=document.getElementById('ref');if(ref)ref.textContent=fmt(c.ref);
       var month=document.getElementById('month');if(month)month.textContent=fmt(c.month);
       var week=document.getElementById('week');if(week)week.textContent=fmt(c.week);
-      var split=n(data.existing_customer_revenue_from_bni)+n(data.new_customer_revenue_from_bni), bni=n(data.expected_sales_from_bni_year);
-      var sw=document.getElementById('splitWarn');if(sw){sw.className='warn '+(split&&bni&&Math.abs(split-bni)/bni>.1?'on':'');sw.textContent='ยอด Existing + New ยังไม่ใกล้เคียงกับยอดขายที่คาดหวังจาก BNI แต่สามารถบันทึกได้';}
-      var lw=document.getElementById('logicWarn');if(lw){var msg=[];if(c.ref>100)msg.push('Referral ที่ต้องการมากกว่า 100 ใบ/ปี');if(n(data.conversion_rate_percent)<10&&n(data.conversion_rate_percent)>0)msg.push('Conversion ต่ำกว่า 10%');if(c.pct>50)msg.push('พึ่งพา BNI เกิน 50%');lw.className='warn '+(msg.length?'on':'');lw.innerHTML=msg.map(esc).join('<br>');}
+      var sw=document.getElementById('splitWarn');if(sw){sw.className='warn '+(c.bni>n(data.total_sales_target_year)?'on':'');sw.textContent='ยอดจาก BNI รวมไม่ควรมากกว่ายอดขายรวมทั้งปี';}
+      var lw=document.getElementById('logicWarn');if(lw){var msg=[];if(c.cust>100)msg.push('เป้าหมายนี้ต้องการลูกค้าใหม่มากกว่า 100 ราย/ปี กรุณาตรวจสอบมูลค่าเฉลี่ยต่อลูกค้า และพิจารณาว่าเป็นธุรกิจลูกค้าจำนวนมากหรือไม่');if(c.ref>200)msg.push('เป้าหมายนี้ต้องการ Referral มากกว่า 200 ราย/ปี กรุณาตรวจสอบ Conversion Rate และมูลค่าต่อลูกค้าอีกครั้ง');if(n(data.conversion_rate_percent)<10&&n(data.conversion_rate_percent)>0)msg.push('Conversion ต่ำกว่า 10%');lw.className='warn '+(msg.length?'on':'');lw.innerHTML=msg.map(esc).join('<br>');}
       var avgMini=document.getElementById('avgMiniResult');if(avgMini)avgMini.textContent=money(data.average_customer_value_year);
       var convMini=document.getElementById('convMiniResult');if(convMini)convMini.textContent=fmt(data.conversion_rate_percent)+'%';
       var rn=document.getElementById('resultExplain');if(rn)rn.innerHTML=resultExplain();
@@ -309,10 +315,12 @@
       ['h-total','h-bni','h-avg','h-conv','h-existing','h-new'].forEach(function(id){var el=document.getElementById(id);if(el)el.innerHTML=coach(id);});
     }
     function validateStep(){
-      if(step===0&&(!n(data.total_sales_target_year)||!n(data.expected_sales_from_bni_year)))return 'กรุณากรอกเป้ายอดขาย';
-      if(step===0&&n(data.expected_sales_from_bni_year)>n(data.total_sales_target_year))return 'ยอดขายจาก BNI ไม่ควรเกินเป้ายอดขายรวม';
+      if(step===0&&!n(data.total_sales_target_year))return 'กรุณากรอกเป้ายอดขายรวมทั้งปี';
+      if(step===2&&(n(data.existing_customer_revenue_from_bni)<0||n(data.new_customer_revenue_from_bni)<0))return 'รายได้จากลูกค้า BNI ต้องไม่ติดลบ';
+      if(step===2&&(!n(data.existing_customer_revenue_from_bni)&&!n(data.new_customer_revenue_from_bni)))return 'กรุณากรอกยอดจากลูกค้า BNI เดิมหรือใหม่';
+      if(step===2&&calc().bni>n(data.total_sales_target_year))return 'ยอดขายจาก BNI ไม่ควรเกินเป้ายอดขายรวม';
       if(step===1&&(!n(data.average_customer_value_year)||!n(data.conversion_rate_percent)||n(data.conversion_rate_percent)>100))return 'กรุณากรอกมูลค่าลูกค้าเฉลี่ยและ Conversion 1–100%';
-      if(step===3&&(!(data.looking_for_categories||[]).length||!data.looking_for_detail.trim()))return 'กรุณาเลือกและอธิบายคนที่มองหา';
+      if(step===3&&(!(data.looking_for_categories||[]).length||!data.looking_for_detail.trim()))return 'กรุณาเลือกและอธิบายกลุ่มลูกค้าเป้าหมาย';
       if(step===4&&(!(data.power_team_categories||[]).length||!data.power_team_detail.trim()))return 'กรุณาเลือกและอธิบาย Power Team';
       if(step===5&&!data.personal_goal_category)return 'กรุณาเลือก Personal Goal';
       return '';
@@ -335,14 +343,14 @@
       document.getElementById('bar').style.width=((Math.min(step+1,7)/7)*100)+'%';
       var c=calc(), html='';
       var legend='<div class="coach" style="margin-top:0"><b>วิธีดูช่องกรอก</b><br>ช่องที่มีคำว่า <b>ต้องกรอก/ต้องเลือก</b> คือข้อมูลที่ระบบจะบันทึก ส่วนช่องที่บอกว่า <b>ใช้ช่วยคำนวณ</b> เป็นตัวช่วยคิด ไม่ใช่ช่องบันทึกหลักครับ</div>';
-      if(step===0)html='<div class="step on"><h2>1. Business Goal</h2>'+legend+'<div class="hint">เริ่มจากภาพใหญ่ก่อนครับ ปีนี้อยากให้ธุรกิจโตประมาณไหน และอยากให้ BNI ช่วยสร้างยอดขายส่วนไหน</div>'+field('total_sales_target_year','ยอดขายรวมทั้งปี (ต้องกรอกตรงนี้)','number','เช่น 1200000','h-total')+field('expected_sales_from_bni_year','ยอดขายที่คาดหวังจาก BNI (ต้องกรอกตรงนี้)','number','เช่น 240000','h-bni')+'<div class="calc"><small>BNI Contribution · สัดส่วนที่อยากให้ BNI ช่วย (ระบบคำนวณอัตโนมัติ)</small><b id="pct">'+fmt(c.pct)+'%</b></div><div id="goalCoach_reality">'+goalCoachHtml('reality')+'</div>'+nav(false)+'</div>';
+      if(step===0)html='<div class="step on"><h2>1. Business Goal</h2>'+previousGoalCard()+legend+'<div class="hint">เริ่มจากภาพใหญ่ก่อนครับ ปีหน้าต้องการยอดขายรวมเท่าไร แล้วค่อยแยกยอดจาก BNI ในขั้นถัดไป</div>'+field('total_sales_target_year','ยอดขายรวมทั้งปี (ต้องกรอกตรงนี้)','number','เช่น 1200000','h-total')+nav(false)+'</div>';
       if(step===1)html='<div class="step on"><h2>2. Customer & Referral Guide</h2>'+legend+'<div class="hint">หน้านี้ช่วยแปลงเป้ายอดขายให้เป็นภาษาง่าย ๆ ว่าต้องการลูกค้ากี่ราย และควรได้รับ Referral ประมาณเท่าไร</div>'+field('average_customer_value_year','มูลค่าลูกค้าเฉลี่ยต่อปี (ต้องกรอกตรงนี้)','number','เช่น 30000','h-avg')+field('conversion_rate_percent','Conversion rate จาก Referral เป็นลูกค้า (%) (ต้องกรอกตรงนี้)','number','เช่น 30','h-conv')+'<div id="resultExplain">'+resultExplain()+'</div><div class="metrics"><div class="metric"><span>ลูกค้าที่ต้องการ (ระบบคำนวณอัตโนมัติ)</span><b id="cust">'+fmt(c.cust)+'</b></div><div class="metric"><span>Referral/ปี (ระบบคำนวณอัตโนมัติ)</span><b id="ref">'+fmt(c.ref)+'</b></div><div class="metric"><span>Referral/เดือน (ระบบคำนวณอัตโนมัติ)</span><b id="month">'+fmt(c.month)+'</b></div><div class="metric"><span>Referral/สัปดาห์ (ระบบคำนวณอัตโนมัติ)</span><b id="week">'+fmt(c.week)+'</b></div></div>'+field('quality_121_target_per_week','Quality 1-2-1 ต่อสัปดาห์ (แนะนำจาก Referral/สัปดาห์)','number',String(Math.ceil(c.week||0)))+'<div class="hint">ถ้าเว้นว่าง ระบบจะใช้ค่าที่ปัดขึ้นจาก Good Referral ต่อสัปดาห์ตาม Worksheet</div><div id="goalCoach_feasibility">'+goalCoachHtml('feasibility')+'</div><div class="warn" id="logicWarn"></div>'+nav(false)+'</div>';
-      if(step===2)html='<div class="step on"><h2>3. Existing vs New Business</h2><div class="hint">แยกแบบง่าย ๆ ว่ายอดจาก BNI ปีนี้มาจากลูกค้าเดิมเท่าไร และต้องหาลูกค้าใหม่เพิ่มประมาณเท่าไร</div>'+field('existing_customer_revenue_from_bni','ยอดจากลูกค้าเดิมที่มาจาก BNI (ต้องกรอกตรงนี้)','number','เช่น 100000','h-existing')+field('new_customer_revenue_from_bni','ยอดจากลูกค้าใหม่ที่ต้องการจาก BNI (ต้องกรอกตรงนี้)','number','เช่น 140000','h-new')+'<div class="warn" id="splitWarn"></div>'+nav(false)+'</div>';
-      if(step===3){var lookList=uniqueCats(LOOK,categorySuggestions.looking_for);html='<div class="step on"><h2>4. Looking For</h2><div class="hint">เลือกให้น้อยแต่ชัด เพื่อให้คนใน Chapter แนะนำได้ง่าย</div><label>หมวดคนที่กำลังมองหา (ต้องเลือกอย่างน้อย 1 ข้อ)</label>'+categorySmartPick('looking_for','looking_for_categories')+chips(lookList,'looking_for_categories')+area('looking_for_detail','รายละเอียดที่อยากให้ช่วยมองหา (ต้องกรอกตรงนี้)','เช่น เจ้าของโรงงาน 50–300 คน ที่กำลังทำประกันกลุ่ม / วางระบบ HR')+'<div id="goalCoach_trigger">'+goalCoachHtml('trigger')+'</div>'+nav(false)+'</div>';}
+      if(step===2)html='<div class="step on"><h2>3. Existing vs New BNI Revenue</h2><div class="hint">แยกยอดจากลูกค้า BNI เดิม กับยอดจากลูกค้าใหม่ที่ต้องหาใหม่ โดยเฉพาะยอดใหม่เท่านั้นที่จะนำไปคำนวณจำนวนลูกค้าและ Referral</div>'+field('existing_customer_revenue_from_bni','A. รายได้จากลูกค้า BNI เดิมในปีหน้า','number','เช่น 300000','h-existing')+field('new_customer_revenue_from_bni','B. รายได้จากลูกค้า BNI ใหม่ในปีหน้า','number','เช่น 600000','h-new')+'<div class="calc"><small>ยอดที่คาดหวังจาก BNI รวม (A + B)</small><b>'+money(c.bni)+'</b></div><div class="warn" id="splitWarn"></div>'+nav(false)+'</div>';
+      if(step===3){var lookList=uniqueCats(LOOK,categorySuggestions.looking_for);html='<div class="step on"><h2>4. Target Customer Groups</h2><div class="hint">ระบุกลุ่มลูกค้าเป้าหมายที่ต้องการในปีหน้า แนะนำ 3–6 กลุ่ม เพื่อให้ Referral Matching, 1-2-1 และ Mentor ช่วยต่อได้ตรงขึ้น</div><label>กลุ่มลูกค้าเป้าหมาย (อย่างน้อย 1 กลุ่ม)</label>'+categorySmartPick('looking_for','looking_for_categories')+chips(lookList,'looking_for_categories')+area('looking_for_detail','รายละเอียดกลุ่มลูกค้าเป้าหมาย (ต้องกรอกตรงนี้)','เช่น เจ้าของโรงงาน 50–300 คน ที่กำลังทำประกันกลุ่ม / วางระบบ HR')+'<div id="goalCoach_trigger">'+goalCoachHtml('trigger')+'</div>'+nav(false)+'</div>';}
       if(step===4){var powerList=uniqueCats(POWER,categorySuggestions.power_team);html='<div class="step on"><h2>5. Power Team</h2><div class="hint">ใครคือกลุ่มอาชีพที่ช่วยส่งงานต่อกันได้จริง</div><label>หมวด Power Team (ต้องเลือกอย่างน้อย 1 ข้อ)</label>'+categorySmartPick('power_team','power_team_categories')+chips(powerList,'power_team_categories')+area('power_team_detail','รายละเอียด Power Team ที่อยากสร้าง (ต้องกรอกตรงนี้)','เช่น Real estate + loan + insurance + interior สำหรับลูกค้าซื้อบ้านใหม่')+'<div id="goalCoach_power">'+goalCoachHtml('power')+'</div>'+nav(false)+'</div>';}
       if(step===5)html='<div class="step on"><h2>6. Personal Goal</h2><div class="hint">เลือกเป้าหมายส่วนตัวหนึ่งเรื่องที่อยากให้ Mentor ช่วยติดตาม</div><label>Personal Goal (ต้องเลือกตรงนี้)</label>'+chips(PERSONAL,'personal_goal_category',true)+area('personal_goal_detail','รายละเอียดเพิ่มเติม (ไม่บังคับ)','เช่น อยากนัด 1-2-1 อย่างน้อยสัปดาห์ละ 2 ครั้ง')+nav(false)+'</div>';
       if(step===6){var months=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];html='<div class="step on"><h2>7. Monthly Marketing Plan</h2><div class="hint">เลือกเฉพาะเดือนที่มีแผนชัด เพื่อให้ Growth เห็น Specific Looking For ของ Chapter โดยยังไม่สร้าง Power Team อัตโนมัติ</div><div style="overflow-x:auto"><table style="width:100%;min-width:620px;border-collapse:collapse;font-size:12px"><thead><tr><th>เดือน</th><th>Season / Event</th><th>Product / Service</th><th>Specific Looking For</th></tr></thead><tbody>'+marketingPlanRows().map(function(row){return '<tr><td>'+months[row.month-1]+'</td><td><input value="'+esc(row.season_event)+'" oninput="setMarketingPlan('+row.month+',\'season_event\',this.value)"></td><td><input value="'+esc(row.product_service)+'" oninput="setMarketingPlan('+row.month+',\'product_service\',this.value)"></td><td><input value="'+esc(row.specific_looking_for)+'" oninput="setMarketingPlan('+row.month+',\'specific_looking_for\',this.value)"></td></tr>';}).join('')+'</tbody></table></div>'+nav(false)+'</div>';}
-      if(step===7)html='<div class="step on"><h2>Final Summary</h2><div class="summary"><h3>แผนธุรกิจ '+year+'</h3><div>ยอดขายรวม: ฿'+fmt(data.total_sales_target_year)+'</div><div>คาดหวังจาก BNI: ฿'+fmt(data.expected_sales_from_bni_year)+' ('+fmt(c.pct)+'%)</div><div>ต้องการลูกค้า '+fmt(c.cust)+' ราย · Referral '+fmt(c.ref)+' ใบ/ปี · '+fmt(c.week)+' ใบ/สัปดาห์ · Quality 1-2-1 '+fmt(data.quality_121_target_per_week||Math.ceil(c.week||0))+' ครั้ง/สัปดาห์</div><hr style="border:0;border-top:1px solid var(--line);margin:12px 0"><div><b>Looking For:</b> '+esc((data.looking_for_categories||[]).join(', '))+'</div><div>'+esc(data.looking_for_detail)+'</div><br><div><b>Power Team:</b> '+esc((data.power_team_categories||[]).join(', '))+'</div><div>'+esc(data.power_team_detail)+'</div><br><div><b>Personal Goal:</b> '+esc(data.personal_goal_category)+'</div><div>'+esc(data.personal_goal_detail)+'</div></div><div id="goalCoach_final">'+goalCoachHtml('final')+'</div><div class="warn on" id="logicWarn"></div>'+nav(true)+'</div>';
+      if(step===7)html='<div class="step on"><h2>Final Summary</h2><div class="summary"><h3>เป้าหมาย BNI ปี '+year+'</h3><div>รายได้จากลูกค้า BNI เดิม: '+money(data.existing_customer_revenue_from_bni)+'</div><div>รายได้จากลูกค้า BNI ใหม่: '+money(data.new_customer_revenue_from_bni)+'</div><div><b>เป้าหมายรวมจาก BNI: '+money(c.bni)+'</b> ('+fmt(c.pct)+'%)</div><hr style="border:0;border-top:1px solid var(--line);margin:12px 0"><div><b>Target Customer:</b> '+esc((data.looking_for_categories||[]).join(', '))+'</div><div>มูลค่าเฉลี่ย / ลูกค้า / ปี: '+money(data.average_customer_value_year)+'</div><div>Conversion Rate: '+fmt(data.conversion_rate_percent)+'%</div><div><b>ต้องการลูกค้าใหม่ '+fmt(c.cust)+' ราย · Referral '+fmt(c.ref)+' ราย/ปี · ≈ '+fmt(c.month)+' ราย/เดือน</b></div><br><div><b>Power Team:</b> '+esc((data.power_team_categories||[]).join(', '))+'</div><div>'+esc(data.power_team_detail)+'</div></div><div id="goalCoach_final">'+goalCoachHtml('final')+'</div><div class="warn on" id="logicWarn"></div>'+nav(true)+'</div>';
       document.getElementById('app').innerHTML=html;updateLive();
     }
     init();
