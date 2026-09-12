@@ -8,6 +8,16 @@
   function apply(root){
     var host=root&&root.querySelectorAll?root:document;
     host.querySelectorAll('[data-team-label]').forEach(function(el){var code=el.getAttribute('data-team-label');el.textContent=display(code,el.getAttribute('data-team-fallback'));});
+    host.querySelectorAll('[onclick]').forEach(function(el){
+      if(el.hasAttribute('data-team-label'))return;
+      var call=String(el.getAttribute('onclick')||''),match=call.match(/(?:pinSelectRole|setMentorFilter|setCGTeamFilter|rsSwitchTo)\('([^']+)'/);
+      if(!match)return;
+      var code=roleCodes[String(match[1]||'').toLowerCase()]||match[1];
+      if(!labels[code])return;
+      var first=el.firstChild,current=first&&first.nodeType===3?String(first.nodeValue||''):'';
+      var prefix=current.indexOf('·')>=0?current.slice(0,current.indexOf('·')+2):(/^\s*[\u{1F300}-\u{1FAFF}]\s*/u.test(current)?current.match(/^\s*[\u{1F300}-\u{1FAFF}]\s*/u)[0]:'');
+      if(first&&first.nodeType===3)first.nodeValue=prefix+display(code);else el.textContent=prefix+display(code);
+    });
     host.querySelectorAll('select option').forEach(function(option){
       var select=option.parentElement,id=String(select&&(select.id||select.name)||'');
       if(!(select&&select.hasAttribute('data-team-select'))&&!/(team|mentor|role)/i.test(id))return;
