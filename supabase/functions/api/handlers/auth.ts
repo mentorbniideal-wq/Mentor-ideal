@@ -165,6 +165,13 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
     });
     if (updateErr) return jsonResponse({ ok: false, error: updateErr.message });
 
+    await db.from('chapter_audit_events').insert({
+      event_type: 'pin_reset', actor_role: authResult.role,
+      actor_ref: String(authResult.displayName || authResult.role || 'Chapter Admin'),
+      subject_type: 'pin_role', subject_ref: targetRole,
+      metadata: { pin_length: newPin.length },
+    });
+
     return jsonResponse({ ok: true, message: `เปลี่ยน PIN ของ ${targetRole} แล้ว` });
   }
 

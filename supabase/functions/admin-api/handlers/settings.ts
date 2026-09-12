@@ -462,17 +462,21 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     const isMC        = Boolean(p.isMC    ?? p.is_mc    ?? false);
     const isMentor    = Boolean(p.isMentor ?? p.is_mentor ?? false);
     const isAdmin     = role === 'admin' || Boolean(p.isAdmin ?? p.is_admin ?? false);
+    const accessStatus = String(p.accessStatus || p.access_status || 'active');
+    const accessExpiresAt = p.accessExpiresAt || p.access_expires_at || null;
     const hasAdminSections = Array.isArray(p.adminSections);
     const adminSections = (hasAdminSections ? p.adminSections as string[] : [])
       .filter(s => ADMIN_SECTIONS.includes(s as typeof ADMIN_SECTIONS[number]));
 
     if (!email || !role) return errResponse('email and role required');
+    if (!['active','suspended','revoked'].includes(accessStatus)) return errResponse('Invalid access status');
     const validRoles = ['admin','mc','toomtam','aof','draft','phai','amp','mentor_support','growth'];
     if (!validRoles.includes(role)) return errResponse(`Invalid role. Must be one of: ${validRoles.join(', ')}`);
 
     const assignment: Record<string, unknown> = {
       email, role, display_name: displayName, team_name: teamName,
       is_mc: isMC || isAdmin, is_mentor: isMentor, is_admin: isAdmin,
+      access_status: accessStatus, access_expires_at: accessExpiresAt,
     };
     if (hasAdminSections) assignment.admin_sections = adminSections;
     if (p.adminEditAccess !== undefined) {
@@ -488,6 +492,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
       { onConflict: 'email' },
     );
     if (error) return errResponse(error.message);
+    await db.from('chapter_audit_events').insert({ event_type:'role_assignment_saved', actor_role:String(auth.role), actor_ref:String(auth.displayName || auth.role), subject_type:'role_assignment', subject_ref:email, metadata:{ role, team_name:teamName, access_status:accessStatus, has_expiry:Boolean(accessExpiresAt), admin_sections:adminSections, admin_edit_access:Boolean(p.adminEditAccess) } });
     return jsonResponse({ ok: true });
   }
 

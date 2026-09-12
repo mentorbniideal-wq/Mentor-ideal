@@ -1205,14 +1205,15 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       <!-- Viewer PIN -->
       <div class="viewer-pin-card">
         <div class="viewer-pin-copy">
-          <small>EXTERNAL VIEWER</small>
-          <strong>👁 รหัสสำหรับผู้เข้าชมระบบ</strong>
-          <span>ผู้ใช้รหัสนี้ดู Desktop ได้ทุกหมวด แต่ API ไม่อนุญาตให้แก้ไข ลบ หรือส่ง LINE</span>
+          <small>PIN CONTROL</small>
+          <strong>🔐 ตั้งหรือ Reset PIN ของบทบาท</strong>
+          <span>รหัสเดิมถูกเก็บแบบ hash จึงเรียกดูไม่ได้ ปุ่มรูปตาใช้ตรวจ PIN ใหม่ก่อนบันทึกเท่านั้น</span>
         </div>
         <div class="viewer-pin-form">
-          <input id="viewer-pin-new" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password" placeholder="PIN ใหม่ 4–8 ตัว">
-          <input id="viewer-pin-confirm" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password" placeholder="ยืนยัน PIN อีกครั้ง" onkeydown="if(event.key==='Enter')saveViewerPin()">
-          <button id="viewer-pin-save" type="button" onclick="saveViewerPin()">บันทึกรหัส Viewer</button>
+          <select id="access-pin-role" aria-label="เลือกบทบาทที่จะตั้ง PIN"><option value="viewer">Viewer</option><option value="mc">Mentor Co.</option><option value="growth">Growth</option><option value="toomtam">Mentor : ตูมตาม</option><option value="aof">Mentor : อ็อฟ</option><option value="draft">Mentor : ดราฟ</option><option value="phai">Mentor : ไผ่</option><option value="amp">Mentor : ติ๊ก</option><option value="mentor_support">Mentor Support</option></select>
+          <span style="display:flex;gap:4px"><input id="viewer-pin-new" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password" placeholder="PIN ใหม่ 4–8 ตัว"><button type="button" class="bsm" onclick="toggleAccessPin('viewer-pin-new',this)" aria-label="แสดง PIN">👁</button></span>
+          <span style="display:flex;gap:4px"><input id="viewer-pin-confirm" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password" placeholder="ยืนยัน PIN อีกครั้ง" onkeydown="if(event.key==='Enter')saveViewerPin()"><button type="button" class="bsm" onclick="toggleAccessPin('viewer-pin-confirm',this)" aria-label="แสดง PIN">👁</button></span>
+          <button type="button" class="bsm" onclick="generateAccessPin()">สร้าง PIN</button><button id="viewer-pin-save" type="button" onclick="saveViewerPin()">บันทึก PIN</button>
         </div>
         <div id="viewer-pin-msg" class="viewer-pin-msg">ระบบจะไม่แสดงรหัสเดิม หากลืมให้ตั้งรหัสใหม่จากจุดนี้</div>
       </div>
@@ -1230,7 +1231,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       <div style="background:var(--sf2);border-radius:10px;overflow:hidden;margin-bottom:18px">
         <div style="padding:12px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:8px">
           <span style="font-size:13px;font-weight:700">✅ อีเมลที่มีสิทธิ์อยู่ตอนนี้</span>
-          <span id="acc-total-count" style="font-size:11px;color:var(--sub)">—</span>
+          <span id="acc-total-count" style="font-size:11px;color:var(--sub)">—</span><input id="acc-search" type="search" oninput="renderAccList()" placeholder="ค้นหาชื่อหรืออีเมล" style="margin-left:auto;min-width:190px;background:var(--sf);border:1px solid var(--bd);color:var(--tx);padding:7px 10px;border-radius:7px;font-size:11px"><select id="acc-status-filter" onchange="renderAccList()" style="background:var(--sf);border:1px solid var(--bd);color:var(--tx);padding:7px;border-radius:7px;font-size:11px"><option value="all">ทุกสถานะ</option><option value="active">ใช้งาน</option><option value="suspended">ระงับ</option><option value="revoked">ยกเลิก</option></select>
         </div>
         <div id="acc-list"><div style="color:var(--sub);font-size:12px;text-align:center;padding:20px">⏳ กำลังโหลด...</div></div>
       </div>
@@ -1251,18 +1252,22 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
             <div style="font-size:11px;color:var(--sub);margin-bottom:4px">Role</div>
             <select id="acc-role" onchange="accRoleSync(this.value)" style="width:100%;background:var(--sf);border:1px solid var(--bd);color:var(--tx);padding:7px 10px;border-radius:7px;font-size:12px;outline:none">
               <option value="growth">growth</option>
+              <option value="admin">admin</option>
               <option value="toomtam">toomtam</option>
               <option value="aof">aof</option>
               <option value="draft">draft</option>
               <option value="phai">phai</option>
               <option value="amp">amp</option>
               <option value="mc">mc</option>
+              <option value="mentor_support">mentor_support</option>
             </select>
           </div>
           <div>
             <div style="font-size:11px;color:var(--sub);margin-bottom:4px">ทีม (ถ้าเป็น Mentor)</div>
             <input id="acc-team" type="text" placeholder="TOOMTAM / Aof / ... (เว้นว่างได้)" style="width:100%;background:var(--sf);border:1px solid var(--bd);color:var(--tx);padding:7px 10px;border-radius:7px;font-size:12px;outline:none;box-sizing:border-box">
           </div>
+          <div><div style="font-size:11px;color:var(--sub);margin-bottom:4px">สถานะสิทธิ์</div><select id="acc-status" style="width:100%;background:var(--sf);border:1px solid var(--bd);color:var(--tx);padding:7px 10px;border-radius:7px;font-size:12px"><option value="active">ใช้งาน</option><option value="suspended">ระงับชั่วคราว</option><option value="revoked">ยกเลิก</option></select></div>
+          <div><div style="font-size:11px;color:var(--sub);margin-bottom:4px">สิ้นสุดสิทธิ์ (ถ้ามี)</div><input id="acc-expires-at" type="date" style="width:100%;background:var(--sf);border:1px solid var(--bd);color:var(--tx);padding:7px 10px;border-radius:7px;font-size:12px;box-sizing:border-box"></div>
         </div>
         <div style="margin-bottom:10px">
           <div style="font-size:11px;color:var(--sub);margin-bottom:6px">หมวด Admin ที่เข้าได้ (เว้นว่าง = ไม่ได้เข้า Admin Panel)</div>
@@ -2198,7 +2203,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
   <button class="bk-btn" style="background:transparent;color:var(--sub);border:1px solid var(--bd)" onclick="clearBulk()">✕ ยกเลิก</button>
 </div>
 
-<script src="/assets/js/desktop-operations.js?v=20260912-mentor-team-labels.1" defer></script>
+<script src="/assets/js/desktop-operations.js?v=20260912-access-control-center.1" defer></script>
 <script src="/assets/js/desktop-line-compose.js?v=20260909-audit.1" defer></script>
 <script src="/assets/js/desktop-navigation.js?v=20260909-audit.1" defer></script>
 <script src="/assets/js/desktop-member-360.js" defer></script>

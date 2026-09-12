@@ -3248,7 +3248,7 @@ function saveViewerPin(){
   var firstEl=document.getElementById('viewer-pin-new');
   var secondEl=document.getElementById('viewer-pin-confirm');
   var msg=document.getElementById('viewer-pin-msg');
-  var btn=document.getElementById('viewer-pin-save');
+  var btn=document.getElementById('viewer-pin-save'),role=(document.getElementById('access-pin-role')||{}).value||'viewer';
   if(!firstEl||!secondEl||!msg||!btn){
     if(typeof toast==='function')toast('❌ โหลดหน้าจัดการรหัสไม่ครบ กรุณารีเฟรชหน้า','err');
     return;
@@ -3261,9 +3261,10 @@ function saveViewerPin(){
   btn.disabled=true;
   btn.textContent='กำลังบันทึก…';
   msg.textContent='กำลังบันทึก…';
-  gsr('changePIN',{target:'viewer',newPin:first},function(r){
+  if(!confirm('ยืนยันตั้ง PIN ใหม่สำหรับ '+role+'? PIN เดิมจะใช้ไม่ได้ทันที')){btn.disabled=false;btn.textContent='บันทึก PIN';return;}
+  gsr('changePIN',{target:role,newPin:first},function(r){
     btn.disabled=false;
-    btn.textContent='บันทึกรหัส Viewer';
+    btn.textContent='บันทึก PIN';
     if(!r||!r.ok){
       msg.classList.add('err');
       msg.textContent='❌ '+(r&&r.error||'เปลี่ยนรหัสไม่ได้ กรุณาลองใหม่');
@@ -3273,23 +3274,26 @@ function saveViewerPin(){
     firstEl.value='';
     secondEl.value='';
     msg.classList.add('ok');
-    msg.textContent='✅ ตั้งรหัส Viewer ใหม่แล้ว สามารถส่งรหัสนี้ให้ผู้เข้าชมได้';
-    if(typeof toast==='function')toast('✅ บันทึกรหัส Viewer สำเร็จ','ok');
+    msg.textContent='✅ ตั้ง PIN ใหม่สำหรับ '+role+' แล้ว';
+    if(typeof toast==='function')toast('✅ บันทึก PIN สำเร็จ','ok');
   });
 }
+function toggleAccessPin(id,button){var input=document.getElementById(id);if(!input)return;var reveal=input.type==='password';input.type=reveal?'text':'password';if(button){button.textContent=reveal?'🙈':'👁';button.setAttribute('aria-label',reveal?'ซ่อน PIN':'แสดง PIN');}}
+function generateAccessPin(){var value=String(Math.floor(100000+Math.random()*900000)),first=document.getElementById('viewer-pin-new'),second=document.getElementById('viewer-pin-confirm');if(first)first.value=value;if(second)second.value=value;toggleAccessPin('viewer-pin-new');toggleAccessPin('viewer-pin-confirm');}
 var ACC_SECTION_LABELS={dashboard:'Dashboard',members:'Members',issues:'Issues',checkin:'Check-in',revenue:'Revenue',broadcast:'Broadcast',settings:'Settings'};
 function renderAccList(){
-  var list=_accData.assignments;
+  var query=String((document.getElementById('acc-search')||{}).value||'').trim().toLowerCase(),status=String((document.getElementById('acc-status-filter')||{}).value||'all');var list=(_accData.assignments||[]).filter(function(a){return(status==='all'||String(a.access_status||'active')===status)&&(!query||[a.email,a.display_name,a.role,a.team_name].join(' ').toLowerCase().indexOf(query)>=0);});
   var el=document.getElementById('acc-list');
   var cnt=document.getElementById('acc-total-count');
   if(!el)return;
-  if(cnt)cnt.textContent=list.length+' อีเมล';
+  if(cnt)cnt.textContent=list.length+' / '+_accData.assignments.length+' อีเมล';
   if(!list.length){el.innerHTML='<div style="color:var(--sub);font-size:12px;text-align:center;padding:20px">ยังไม่มีอีเมลในระบบ</div>';return;}
   el.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:12px">'
     +'<thead><tr style="border-bottom:1px solid var(--bd)">'
     +'<th style="padding:8px 14px;text-align:left;color:var(--sub);font-size:10px;font-weight:700;white-space:nowrap">Email</th>'
     +'<th style="padding:8px 14px;text-align:left;color:var(--sub);font-size:10px;font-weight:700">ชื่อ</th>'
-    +'<th style="padding:8px 14px;text-align:left;color:var(--sub);font-size:10px;font-weight:700">Role</th>'
+    +'<th style="padding:8px 14px;text-align:left;color:var(--sub);font-size:10px;font-weight:700">Role / ทีม</th>'
+    +'<th style="padding:8px 14px;text-align:left;color:var(--sub);font-size:10px;font-weight:700">สถานะ</th>'
     +'<th style="padding:8px 14px;text-align:left;color:var(--sub);font-size:10px;font-weight:700">Admin Sections</th>'
     +'<th style="padding:8px 14px;text-align:center;color:var(--sub);font-size:10px;font-weight:700">แก้ไขได้</th>'
     +'<th style="padding:8px 14px;text-align:left;color:var(--sub);font-size:10px;font-weight:700"></th>'
@@ -3300,7 +3304,8 @@ function renderAccList(){
       return '<tr style="border-bottom:1px solid var(--bd)" onmouseenter="this.style.background=\'var(--sf2)\'" onmouseleave="this.style.background=\'\'">'
         +'<td style="padding:8px 14px;font-size:11px;color:var(--sub)">'+escH(a.email)+'</td>'
         +'<td style="padding:8px 14px;font-weight:600">'+escH(a.display_name||'—')+'</td>'
-        +'<td style="padding:8px 14px">'+badge+'</td>'
+        +'<td style="padding:8px 14px">'+badge+(a.team_name?'<div style="font-size:10px;color:var(--sub);margin-top:3px">'+escH((D.teamLabels&&D.teamLabels[a.team_name])||a.team_name)+'</div>':'')+'</td>'
+        +'<td style="padding:8px 14px"><span style="font-size:10px;font-weight:700;color:'+(a.access_status==='active'?'var(--gr)':a.access_status==='suspended'?'var(--ye)':'var(--re)')+'">'+escH(a.access_status||'active')+'</span>'+(a.access_expires_at?'<div style="font-size:9px;color:var(--sub);margin-top:3px">ถึง '+escH(String(a.access_expires_at).slice(0,10))+'</div>':'')+'</td>'
         +'<td style="padding:8px 14px">'+(secs||'<span style="color:var(--sub);font-size:10px">—</span>')+'</td>'
         +'<td style="padding:8px 14px;text-align:center">'+(a.admin_edit_access?'✏️':'👁')+'</td>'
         +'<td style="padding:8px 14px;white-space:nowrap">'
@@ -3342,6 +3347,7 @@ function accSave(){
   var role=document.getElementById('acc-role').value;
   var displayName=document.getElementById('acc-name').value.trim()||role;
   var teamName=document.getElementById('acc-team').value.trim()||null;
+  var accessStatus=(document.getElementById('acc-status')||{}).value||'active',expiry=(document.getElementById('acc-expires-at')||{}).value||'';
   var isMC=document.getElementById('acc-is-mc').checked;
   var isMentor=document.getElementById('acc-is-mentor').checked;
   var editAccess=document.getElementById('acc-edit-access').checked;
@@ -3349,7 +3355,7 @@ function accSave(){
   var msg=document.getElementById('acc-form-msg');
   if(!email){msg.textContent='❌ กรุณาใส่ email';msg.style.color='var(--re)';return;}
   msg.textContent='กำลังบันทึก...';msg.style.color='var(--sub)';
-  adminCall({action:'addRoleAssignment',email,role,displayName,teamName,isMC,isMentor,adminSections:sections,adminEditAccess:editAccess},function(r){
+  adminCall({action:'addRoleAssignment',email,role,displayName,teamName,isMC,isMentor,adminSections:sections,adminEditAccess:editAccess,accessStatus:accessStatus,accessExpiresAt:expiry?new Date(expiry+'T23:59:59+07:00').toISOString():null},function(r){
     if(!r||!r.ok){msg.textContent='❌ '+(r&&r.error||'error');msg.style.color='var(--re)';return;}
     msg.textContent='✅ บันทึกแล้ว';msg.style.color='var(--gr)';
     accClear();
@@ -3359,6 +3365,7 @@ function accSave(){
 }
 function accClear(){
   ['acc-email','acc-name','acc-team'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  var status=document.getElementById('acc-status'),expiry=document.getElementById('acc-expires-at');if(status)status.value='active';if(expiry)expiry.value='';
   ['acc-is-mc','acc-is-mentor','acc-edit-access'].forEach(function(id){var el=document.getElementById(id);if(el)el.checked=false;});
   document.querySelectorAll('.acc-sec-cb').forEach(function(cb){cb.checked=false;});
   document.getElementById('acc-role').value='growth';
@@ -3373,6 +3380,7 @@ function accEdit(email){
   document.getElementById('acc-is-mc').checked=!!a.is_mc;
   document.getElementById('acc-is-mentor').checked=!!a.is_mentor;
   document.getElementById('acc-edit-access').checked=!!a.admin_edit_access;
+  document.getElementById('acc-status').value=a.access_status||'active';document.getElementById('acc-expires-at').value=a.access_expires_at?String(a.access_expires_at).slice(0,10):'';
   document.querySelectorAll('.acc-sec-cb').forEach(function(cb){cb.checked=(a.admin_sections||[]).includes(cb.value);});
   document.getElementById('acc-email').scrollIntoView({behavior:'smooth',block:'center'});
   document.getElementById('acc-form-msg').textContent='กำลังแก้ไข: '+email;
