@@ -38,3 +38,15 @@
 4. เมื่อทุก session derive scope ได้แล้ว ให้เลิก legacy single-active-Chapter
    fallback; งาน LINE secret/token ยังอยู่นอกขอบเขตจนกว่า readiness ใน roadmap
    จะครบและได้รับอนุมัติใหม่
+
+## ความคืบหน้า Phase 2C (12 กันยายน 2569)
+
+- LT management batch ใช้ Chapter scope ใน LT roster, Growth team, preview,
+  create term และ Passport LT assignment แล้ว; active term ถูกบังคับหนึ่งวาระ
+  ต่อ Chapter ผ่าน `fn_create_lt_term_scoped`.
+- Member boundary batch ใช้ Chapter scope ใน member list, create/batch import,
+  move team, update, archive/unarchive, delete, new-member queue และ Member 360.
+- Batch import จะปฏิเสธชื่อที่พบใน Chapter อื่น แทนการ upsert ทับ record เดิม.
+- ยังไม่เปลี่ยน global unique key ของระบบเดิม จนกว่าจะทำ staging synthetic-tenant
+  test และ row-count verification ครบ; domain scoring, renewal, 1-2-1, Growth
+  และ notification จะย้าย scope เป็น batch ถัดไป.
