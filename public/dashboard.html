@@ -148,26 +148,21 @@
   <div class="tabs-wrap" id="gr-tabs-wrap" style="display:none"><div class="tabs" id="gr-tabs" style="display:none">
     <button class="tb-fold" id="gr-fold-btn" onclick="toggleTabFold('gr')" title="พับ/ขยาย Tab Bar" aria-expanded="true" aria-label="พับเมนูด้านข้าง">☰</button>
     <span class="tb-fold-label" id="gr-fold-label" style="display:none"></span>
-    <div class="nav-group-label">ภาพรวม</div>
-    <button class="tb on" aria-current="page" onclick="sw('gr-ov',this,'gr')">🏛 Chapter Overview</button>
-    <button class="tb" onclick="sw('gr-msb',this,'gr');msbLoad('gr')">🎯 Chapter Blueprint</button>
-    <button class="tb" onclick="sw('gr-bal',this,'gr')">⚖️ Referral Balance</button>
     <div class="nav-group-label">งานที่ต้องทำ</div>
-    <button class="tb" onclick="sw('gr-task',this,'gr')">📌 Growth Tasks<span class="nb" id="badge-task"></span></button>
-    <button class="tb" onclick="sw('gr-nm',this,'gr')">🆕 New Members<span class="nb" id="badge-nm"></span></button>
-    <button class="tb" onclick="sw('gr-ren',this,'gr');loadGrowthRenewals()">🔄 Renewals<span class="nb" id="badge-gr-ren"></span></button>
-    <button class="tb" onclick="sw('gr-dec',this,'gr')">📉 Score Trend<span class="nb" id="badge-dec"></span></button>
-    <div class="nav-group-label">วิเคราะห์และวางแผน</div>
-    <button class="tb" onclick="sw('gr-top',this,'gr')">🥇 Top Performance</button>
-    <button class="tb" onclick="sw('gr-heat',this,'gr')">🔥 Heatmap</button>
-    <button class="tb" onclick="sw('gr-rev',this,'gr');rvLoad()">💰 Growth Plan</button>
-    <button class="tb" onclick="sw('gr-cmd',this,'gr');cmdLoad()">🎮 Command</button>
-    <button class="tb" onclick="sw('gr-cross',this,'gr');crossLoad()">🔀 Cross-Team</button>
-    <button class="tb" onclick="sw('gr-sprint',this,'gr');sprintLoad()">🏃 Sprint</button>
+    <button class="tb on" aria-current="page" onclick="sw('gr-task',this,'gr')">📥 Growth Inbox<span class="nb" id="badge-task"></span></button>
     <button class="tb" onclick="sw('gr-flow',this,'gr');flowLoad()">🌊 Referral Flow</button>
-    <button class="tb" onclick="sw('gr-pt',this,'gr');ptLoad()">⚡ Power Team Proposals</button>
-    <button class="tb" onclick="sw('gr-sheet',this,'gr');gshLoad()" style="display:none">📄 Sheet</button>
     <button class="tb" onclick="sw('gr-gw',this,'gr');renderGrowthWatchGR()">🔵 Growth Watch<span class="nb" id="badge-gw-gr"></span></button>
+    <button class="tb" onclick="sw('gr-nm',this,'gr')">🆕 New Member Success<span class="nb" id="badge-nm"></span></button>
+    <div class="nav-group-label">วิเคราะห์และวางแผน</div>
+    <button class="tb" onclick="sw('gr-rev',this,'gr');rvLoad()">💰 Growth Plan</button>
+    <button class="tb" onclick="sw('gr-pt',this,'gr');ptLoad()">⚡ Opportunity Matching</button>
+    <button class="tb" onclick="sw('gr-cross',this,'gr');crossLoad()">🔀 Connection Map</button>
+    <button class="tb" onclick="sw('gr-sprint',this,'gr');sprintLoad()">🏃 Growth Sprint</button>
+    <div class="nav-group-label">ข้อมูลประกอบการตัดสินใจ</div>
+    <button class="tb" onclick="sw('gr-ov',this,'gr')">📊 Chapter Growth Health</button>
+    <button class="tb" onclick="sw('gr-bal',this,'gr')">👥 Member 360 & Balance</button>
+    <button class="tb" onclick="sw('gr-msb',this,'gr');msbLoad('gr')">🎯 Blueprint Intelligence</button>
+    <button class="tb" onclick="sw('gr-sheet',this,'gr');gshLoad()" style="display:none">📄 Sheet</button>
   </div></div>
 
   <main id="app-workspace" tabindex="-1">
@@ -1032,9 +1027,9 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 
     <!-- Growth Tasks -->
     <div id="gr-task" class="sec">
-      <div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:12px"><div><h2 style="font-size:16px;margin:0">📥 Growth Inbox</h2><div style="font-size:11px;color:var(--sub);margin-top:3px">งานช่วยเหลือที่มีเจ้าของ กำหนดติดตาม และเชื่อมไปยัง Referral / Member 360</div></div><div style="display:flex;gap:7px;flex-wrap:wrap">
         <button class="bsm bac" onclick="toggleTaskForm()" id="btnNewTask">＋ สร้าง Task ใหม่</button>
-      </div>
+        <button class="bsm" onclick="sw('gr-flow',null,'gr');flowLoad()">Referral Flow</button><button class="bsm" onclick="sw('gr-gw',null,'gr');renderGrowthWatchGR()">Growth Watch</button></div></div>
       <div class="task-form" id="taskForm">
         <div class="desktop-fluid-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
           <select id="tf-team" data-team-select><option value="">เลือกทีม Mentor</option><option value="TOOMTAM">Mentor 1</option><option value="Aof">Mentor 2</option><option value="Draft">Mentor 3</option><option value="PHAI">Mentor 4</option><option value="AMP">Mentor 5</option></select>
@@ -1076,7 +1071,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 
     <!-- Growth New Members -->
     <div id="gr-nm" class="sec">
-      <div class="sh"><h2>🆕 New Members</h2><span class="ctag" id="nmn">0</span></div>
+      <div class="sh"><h2>🆕 New Member Success</h2><span class="ctag" id="nmn">0</span></div><div style="font-size:11px;color:var(--sub);margin:-5px 0 12px">ติดตาม 90 วันแรก: Profile, Goal, 1-2-1 และ Referral Trigger โดย Mentor เป็นเจ้าภาพหลัก</div>
       <div class="tw">
         <table><thead><tr><th>#</th><th>ชื่อ / นิคเนม</th><th>ทีม Mentor</th><th>เริ่ม</th><th>สิ้นสุด</th><th>ความก้าวหน้า</th><th>Status</th><th></th></tr></thead>
         <tbody id="nmtb"></tbody></table>
@@ -1730,8 +1725,8 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
     <!-- 🔗 Cross-Team 1-2-1 Intelligence -->
     <div id="gr-cross" class="sec">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-        <div><h2 style="font-size:15px;font-weight:800;margin:0">🔗 Cross-Team 1-2-1 Intelligence</h2>
-          <div style="font-size:11px;color:var(--sub);margin-top:3px">AI แนะนำคู่ 1-2-1 ข้ามทีมเพื่อสร้าง Referral สูงสุด</div></div>
+        <div><h2 style="font-size:15px;font-weight:800;margin:0">🔗 Connection Map</h2>
+          <div style="font-size:11px;color:var(--sub);margin-top:3px">โอกาสเชื่อมต่อข้ามทีมจากความต้องการธุรกิจ — ตรวจและขออนุญาตก่อนแนะนำเสมอ</div></div>
         <button class="bsm" onclick="crossLoad(true)">🔄 รีเฟรช</button>
       </div>
       <div id="cross-content"><div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div></div>
@@ -1740,8 +1735,8 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
     <!-- 🗓️ Monthly Sprint Board -->
     <div id="gr-sprint" class="sec">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-        <div><h2 style="font-size:15px;font-weight:800;margin:0">🗓️ Monthly Sprint Board</h2>
-          <div style="font-size:11px;color:var(--sub);margin-top:3px">วางแผนรายเดือน Growth + Mentor ร่วมกัน</div></div>
+        <div><h2 style="font-size:15px;font-weight:800;margin:0">🗓️ Growth Sprint</h2>
+          <div style="font-size:11px;color:var(--sub);margin-top:3px">ใช้เฉพาะ campaign 30/60/90 วัน เพื่อวางแผน Growth + Mentor ร่วมกัน</div></div>
         <button onclick="sprintOpenAdd()" style="background:var(--ac-dim);border:1px solid var(--bd-hover);color:var(--ac);border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">➕ สร้าง Sprint</button>
       </div>
       <div id="sprint-content"><div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div></div>
@@ -1750,8 +1745,8 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
     <!-- 🌊 Referral Flow -->
     <div id="gr-flow" class="sec">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-        <div><h2 style="font-size:15px;font-weight:800;margin:0">🌊 Referral Flow Map</h2>
-          <div style="font-size:11px;color:var(--sub);margin-top:3px">เห็นว่า Referral ไหลยังไงระหว่างทีม</div></div>
+        <div><h2 style="font-size:15px;font-weight:800;margin:0">🌊 Referral Flow</h2>
+          <div style="font-size:11px;color:var(--sub);margin-top:3px">ติดตาม Need → Match → Introduce → Follow-up → Outcome โดยไม่ส่งข้อมูลส่วนตัวเกินจำเป็น</div></div>
         <button class="bsm" onclick="flowLoad(true)">🔄</button>
       </div>
       <div id="flow-content"><div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div></div>
@@ -1760,8 +1755,8 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
     <!-- ⚡ Power Team Proposals -->
     <div id="gr-pt" class="sec">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-        <div><h2 style="font-size:15px;font-weight:800;margin:0">⚡ Power Team Proposals</h2>
-          <div style="font-size:11px;color:var(--sub);margin-top:3px">ข้อเสนอจากกลุ่มลูกค้าเป้าหมายร่วมกัน — ยังไม่ใช่ Mentor Team หรือ Power Team ที่ประกาศแล้ว</div></div>
+        <div><h2 style="font-size:15px;font-weight:800;margin:0">⚡ Opportunity Matching</h2>
+          <div style="font-size:11px;color:var(--sub);margin-top:3px">จับคู่จากลูกค้าเป้าหมายและ Referral Trigger ร่วมกัน — ยังไม่ใช่ทีมที่ประกาศแล้ว</div></div>
       </div>
       <div id="pt-mgr-content"><div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div></div>
     </div>
@@ -2203,7 +2198,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
   <button class="bk-btn" style="background:transparent;color:var(--sub);border:1px solid var(--bd)" onclick="clearBulk()">✕ ยกเลิก</button>
 </div>
 
-<script src="/assets/js/desktop-operations.js?v=20260912-growth-mobile.1" defer></script>
+<script src="/assets/js/desktop-operations.js?v=20260912-growth-ops.1" defer></script>
 <script src="/assets/js/desktop-line-compose.js?v=20260909-audit.1" defer></script>
 <script src="/assets/js/desktop-navigation.js?v=20260909-audit.1" defer></script>
 <script src="/assets/js/desktop-member-360.js" defer></script>

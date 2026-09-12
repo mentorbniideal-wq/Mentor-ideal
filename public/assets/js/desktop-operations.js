@@ -259,7 +259,7 @@ function enterApp(r){
   if(growthMobile)growthMobile.style.display=(!S.isViewer&&(S.role==='growth'||S.canRoleSwitch))?'':'none';
   document.querySelectorAll('.sec').forEach(function(s){s.classList.remove('on');});
   document.querySelectorAll('#mc-tabs .tb,#gr-tabs .tb').forEach(function(b){b.classList.remove('on');});
-  var defSec=S.role==='growth'?'gr-ov':'mc-ov';
+  var defSec=S.role==='growth'?'gr-task':'mc-ov';
   document.getElementById(defSec).classList.add('on');
   var firstTab=document.querySelector('#'+(S.role==='growth'?'gr':'mc')+'-tabs .tb');
   if(firstTab)firstTab.classList.add('on');
@@ -544,7 +544,6 @@ function loadGrowth(){
       console.error('[dashboard] new member render failed',e);
     }finally{chk();}
   });
-  loadGrowthRenewals();
 }
 
 // ─── MC: Build Filters ────────────────────────────
