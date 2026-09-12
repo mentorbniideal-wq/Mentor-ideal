@@ -82,6 +82,7 @@ Deno.serve(async (req: Request) => {
     'propose-one-to-one-schedule','propose-one-to-one-schedule-options','confirm-one-to-one-schedule',
     'cancel-one-to-one-schedule','reschedule-one-to-one','get-one-to-one-calendar',
     'get-one-to-one-verification-help','request-one-to-one-verification-help','start-one-to-one-verification','submit-one-to-one-code','submit-one-to-one-reflection','request-one-to-one-help',
+    'create-one-to-one-moment-upload','complete-one-to-one-moment-upload',
     'get-member-self-121','create-member-self-121-invite','respond-member-self-121-invite',
   ]);
   if (oneToOneActions.has(action)) {
@@ -100,7 +101,7 @@ Deno.serve(async (req: Request) => {
   }
 
   async function ownPair(pairId?:string){
-    let query=db.from('matching_pairs').select('id,round_id,member_a_id,member_b_id,optional_member_c_id,status,matching_rounds!inner(meeting_date,starts_at,ends_at,system_version,journey_type)').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId},optional_member_c_id.eq.${memberId}`).is('archived_at',null).neq('status','cancelled');
+    let query=db.from('matching_pairs').select('id,round_id,member_a_id,member_b_id,optional_member_c_id,status,moment_photo_path,moment_photo_uploaded_at,moment_photo_uploaded_by,moment_photo_content_type,matching_rounds!inner(meeting_date,starts_at,ends_at,system_version,journey_type)').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId},optional_member_c_id.eq.${memberId}`).is('archived_at',null).neq('status','cancelled');
     if(pairId)query=query.eq('id',pairId);else query=query.eq('matching_rounds.system_version',2).eq('matching_rounds.journey_type','chapter').order('created_at',{ascending:false}).limit(1);
     const {data,error}=await query.maybeSingle();return{pair:data as Record<string,unknown>|null,error};
   }
@@ -303,8 +304,39 @@ Deno.serve(async (req: Request) => {
     const attentionId=String((data as Record<string,unknown>).id);await db.from('one_to_one_status_events').insert({round_id:String(pair.round_id),pair_id:pairId,member_id:memberId,event_type:'member_requested_help',actor_type:'member',actor_ref:memberId,idempotency_key:clientActionId?`member-help-event:${clientActionId}`:null,metadata:{attentionId,reason}});await notifyOneToOneMentorAndMc(db,{feedbackId:`help-${attentionId}`,pairId,memberId,memberName:String(member.name||''),nickname:String(member.nickname||''),mentorTeam:String(member.mentor_team||''),message});return response({ok:true,message:'รับเรื่องแล้ว Mentor หรือ MC จะตรวจสอบและติดต่อกลับ'});
   }
 
+  if(action==='create-one-to-one-moment-upload'){
+    const pairId=cleanGuidedText(body.pairId,100),contentType=String(body.contentType||'');
+    if(!['image/webp','image/jpeg'].includes(contentType))return response({ok:false,error:'รองรับเฉพาะรูป WebP หรือ JPEG'},400);
+    const {pair}=await ownPair(pairId);
+    if(!pair)return response({ok:false,error:'คุณไม่มีสิทธิ์แนบรูปสำหรับ 1-2-1 นี้'},403);
+    if(!['verified','late_verified'].includes(String(pair.status)))return response({ok:false,error:'แนบรูปได้หลังยืนยัน Digital Handshake ครบแล้ว'},400);
+    const now=new Date(),year=String(now.getUTCFullYear()),month=String(now.getUTCMonth()+1).padStart(2,'0'),extension=contentType==='image/webp'?'webp':'jpg';
+    const path=`my121-moments/${year}/${month}/${pairId}/${crypto.randomUUID()}.${extension}`;
+    const {data,error}=await db.storage.from('my121-moments').createSignedUploadUrl(path);
+    if(error||!data)return response({ok:false,error:'ยังเตรียมการอัปโหลดรูปไม่ได้ กรุณาลองใหม่'},500);
+    return response({ok:true,path,uploadUrl:data.signedUrl,token:data.token});
+  }
+
+  if(action==='complete-one-to-one-moment-upload'){
+    const pairId=cleanGuidedText(body.pairId,100),photoPath=cleanGuidedText(body.photoPath,300),contentType=String(body.contentType||'');
+    const {pair}=await ownPair(pairId);
+    if(!pair)return response({ok:false,error:'คุณไม่มีสิทธิ์บันทึกรูปสำหรับ 1-2-1 นี้'},403);
+    if(!['verified','late_verified'].includes(String(pair.status)))return response({ok:false,error:'บันทึกรูปได้หลังยืนยัน Digital Handshake ครบแล้ว'},400);
+    if(!['image/webp','image/jpeg'].includes(contentType)||!new RegExp(`^my121-moments/[0-9]{4}/(0[1-9]|1[0-2])/${pairId}/[0-9a-f-]{36}\\.(webp|jpg)$`).test(photoPath))return response({ok:false,error:'ข้อมูลรูปไม่ถูกต้อง กรุณาเลือกรูปใหม่'},400);
+    const segments=photoPath.split('/'),fileName=segments.pop()||'',folder=segments.join('/');
+    const {data:objects,error:objectError}=await db.storage.from('my121-moments').list(folder,{search:fileName,limit:1});
+    if(objectError||!(objects||[]).some(item=>item.name===fileName))return response({ok:false,error:'ไม่พบไฟล์รูปที่อัปโหลด กรุณาลองใหม่'},400);
+    const previousPath=String(pair.moment_photo_path||''),now=new Date().toISOString();
+    const {error}=await db.from('matching_pairs').update({moment_photo_path:photoPath,moment_photo_uploaded_at:now,moment_photo_uploaded_by:memberId,moment_photo_content_type:contentType}).eq('id',pairId);
+    if(error){await db.storage.from('my121-moments').remove([photoPath]);return response({ok:false,error:'บันทึกรูปไม่สำเร็จ รูปนี้ถูกนำออกแล้ว กรุณาลองใหม่'},500);}
+    if(previousPath&&previousPath!==photoPath)await db.storage.from('my121-moments').remove([previousPath]);
+    await db.from('one_to_one_status_events').insert({round_id:String(pair.round_id),pair_id:pairId,member_id:memberId,event_type:'moment_photo_attached',actor_type:'member',actor_ref:memberId,metadata:{contentType}});
+    const {data:signed}=await db.storage.from('my121-moments').createSignedUrl(photoPath,60*15);
+    return response({ok:true,photoPath,photoUrl:signed?.signedUrl||null,message:'เพิ่มรูปการ 1-2-1 แล้ว'});
+  }
+
   if(action==='get-my-one-to-one-history'){
-    const {data:pairs,error:pairError}=await db.from('matching_pairs').select('id,round_id,status,member_a_id,member_b_id,optional_member_c_id,created_at,round:matching_rounds(meeting_date,system_version),schedules:one_to_one_schedules(id,starts_at,status,meeting_mode,location_or_link)').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId},optional_member_c_id.eq.${memberId}`).order('created_at',{ascending:false}).limit(100);
+    const {data:pairs,error:pairError}=await db.from('matching_pairs').select('id,round_id,status,member_a_id,member_b_id,optional_member_c_id,created_at,moment_photo_path,moment_photo_uploaded_at,round:matching_rounds(meeting_date,system_version),schedules:one_to_one_schedules(id,starts_at,status,meeting_mode,location_or_link)').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId},optional_member_c_id.eq.${memberId}`).order('created_at',{ascending:false}).limit(100);
     if(pairError)return response({ok:false,error:'ยังเปิดประวัติ 1-2-1 ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'},400);
     const pairRows=(pairs||[]) as Record<string,unknown>[],pairIds=pairRows.map(x=>String(x.id));
     const partnerIds=[...new Set(pairRows.flatMap(x=>[x.member_a_id,x.member_b_id,x.optional_member_c_id].filter(Boolean).map(String)).filter(id=>id!==memberId))];
@@ -325,9 +357,11 @@ Deno.serve(async (req: Request) => {
     const businessMap=new Map(((businessProfiles||[]) as Record<string,unknown>[]).map(x=>[String(x.member_id),x]));
     const partnerMap=new Map(((partners||[]) as Record<string,unknown>[]).map(x=>[String(x.id),{...x,businessProfile:businessMap.get(String(x.id))||null}]));
     const feedbackRows=(feedback||[]) as Record<string,unknown>[],followRows=(followUps||[]) as Record<string,unknown>[],triggerRows=(triggers||[]) as Record<string,unknown>[];
+    const photoUrls=new Map<string,string>();
+    await Promise.all(pairRows.filter(pair=>Boolean(pair.moment_photo_path)).map(async pair=>{const {data}=await db.storage.from('my121-moments').createSignedUrl(String(pair.moment_photo_path),60*15);if(data?.signedUrl)photoUrls.set(String(pair.id),data.signedUrl);}));
     const history=pairRows.map(pair=>{
       const otherIds=[pair.member_a_id,pair.member_b_id,pair.optional_member_c_id].filter(Boolean).map(String).filter(id=>id!==memberId),round=(pair.round||{}) as Record<string,unknown>,schedules=(pair.schedules||[]) as Record<string,unknown>[],guided=guidedRows.find(x=>String(x.pair_id)===String(pair.id))||null;
-      return{id:String(pair.id),meetingDate:String(round.meeting_date||''),status:String(pair.status||'matched'),partners:otherIds.map(id=>partnerMap.get(id)||{id,name:'สมาชิกเดิม'}),schedule:schedules.sort((a,b)=>String(b.starts_at).localeCompare(String(a.starts_at)))[0]||null,sharedFeedback:feedbackRows.filter(x=>String(x.pair_id)===String(pair.id)),followUps:followRows.filter(x=>String(x.pair_id)===String(pair.id)),guidedSession:guided?{...guided,referralTriggers:triggerRows.filter(t=>String(t.session_id)===String(guided.id))}:null};
+      return{id:String(pair.id),meetingDate:String(round.meeting_date||''),status:String(pair.status||'matched'),partners:otherIds.map(id=>partnerMap.get(id)||{id,name:'สมาชิกเดิม'}),schedule:schedules.sort((a,b)=>String(b.starts_at).localeCompare(String(a.starts_at)))[0]||null,sharedFeedback:feedbackRows.filter(x=>String(x.pair_id)===String(pair.id)),followUps:followRows.filter(x=>String(x.pair_id)===String(pair.id)),momentPhotoUrl:photoUrls.get(String(pair.id))||null,momentPhotoUploadedAt:pair.moment_photo_uploaded_at||null,guidedSession:guided?{...guided,referralTriggers:triggerRows.filter(t=>String(t.session_id)===String(guided.id))}:null};
     });
     const verified=history.filter(x=>['verified','late_verified'].includes(x.status)).length,pendingActions=followRows.filter(x=>['pending','in_progress','overdue'].includes(String(x.status))).length;
     const safeLegacy=((legacy||[]) as Record<string,unknown>[]).map(row=>{const other=String(row.initiator_id)===memberId?row.partner:row.initiator;return{id:row.id,partnerName:((other||{}) as Record<string,unknown>).nickname||((other||{}) as Record<string,unknown>).name||row.partner_name||'สมาชิก',profession:((other||{}) as Record<string,unknown>).profession||((other||{}) as Record<string,unknown>).company_name||'',notes:row.notes,outcome:row.outcome,metAt:row.met_at,scheduledDate:row.scheduled_date,createdAt:row.created_at};});
