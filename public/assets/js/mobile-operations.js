@@ -499,14 +499,10 @@ function showEntryChooser(r){
   var isOwner=Boolean(r.isSystemOwner);
   var ttl=document.getElementById('entry-title');
   var sub=document.getElementById('entry-sub');
-  var growth=document.getElementById('entry-growth-desktop');
-  var growthMobile=document.getElementById('entry-growth-mobile');
-  var toom=document.getElementById('entry-toomtam-mobile');
+  var growth=document.getElementById('entry-growth-group');
   if(ttl)ttl.textContent=isOwner?'เลือก Workspace สำหรับเจ้าของระบบ':'Mentor Co. ต้องการเข้าโหมดไหน?';
-  if(sub)sub.textContent=isOwner?'เลือก MC, Growth Desktop หรือ MC Mobile':'เลือกเฉพาะ MC Desktop หรือ MC Mobile';
-  if(growth)growth.style.display=isOwner?'flex':'none';
-  if(growthMobile)growthMobile.style.display=isOwner?'flex':'none';
-  if(toom)toom.style.display='none';
+  if(sub)sub.textContent=isOwner?'เลือกพื้นที่ทำงานให้เหมาะกับงานที่กำลังทำ':'เลือก Desktop เพื่อจัดการภาพรวม หรือ Mobile สำหรับตอบสนองหน้างาน';
+  if(growth)growth.style.display=isOwner?'block':'none';
   document.getElementById('entryChooser').style.display='flex';
 }
 function hideEntryChooser(){

@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&amp;family=IBM+Plex+Mono:wght@500&amp;family=Sarabun:wght@400;600;700&amp;display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&amp;family=IBM+Plex+Mono:wght@500&amp;family=Sarabun:wght@400;600;700&amp;display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="/assets/css/mobile-operations.css?v=20260912-workspace.1">
+<link rel="stylesheet" href="/assets/css/mobile-operations.css?v=20260912-workspace.2">
 <link rel="stylesheet" href="/assets/css/mobile-focus.css?v=20260905c">
 <link rel="stylesheet" href="/assets/css/login-experience.css?v=20260906-audit.1">
 </head>
@@ -136,53 +136,23 @@
       <div class="entry-title" id="entry-title">เลือกหน้าที่ต้องการเข้า</div>
       <div class="entry-sub" id="entry-sub">เลือก Desktop สำหรับศูนย์บัญชาการ หรือ Mobile สำหรับทำงานจากมือถือ</div>
     </div>
-    <div class="entry-options">
-      <button class="entry-option workspace-mc" onclick="entryOpenDesktop('mc')" aria-label="เข้า MC Desktop สำหรับจัดการ Chapter">
-        <span class="entry-ico">💻</span>
-        <span class="entry-copy">
-          <span class="entry-meta">DESKTOP · COMMAND CENTER</span>
-          <span class="entry-name">MC Desktop</span>
-          <span class="entry-desc">ภาพรวม Chapter, ทีม, งานค้าง และการตั้งค่า</span>
-        </span>
-        <span class="entry-arrow">›</span>
-      </button>
-      <button class="entry-option growth" id="entry-growth-desktop" onclick="entryOpenDesktop('growth')" aria-label="เข้า Growth Desktop สำหรับวิเคราะห์ Growth">
-        <span class="entry-ico">📈</span>
-        <span class="entry-copy">
-          <span class="entry-meta">DESKTOP · GROWTH COMMAND</span>
-          <span class="entry-name">Growth Desktop</span>
-          <span class="entry-desc">Growth health, Power Team, เป้าหมาย และ Analytics</span>
-        </span>
-        <span class="entry-arrow">›</span>
-      </button>
-      <button class="entry-option growth workspace-mobile" id="entry-growth-mobile" onclick="entryOpenGrowthMobile()" aria-label="เข้า Growth Mobile สำหรับช่วยเหลือสมาชิก">
-        <span class="entry-ico">📱</span>
-        <span class="entry-copy">
-          <span class="entry-meta">MOBILE · MEMBER SUPPORT</span>
-          <span class="entry-name">Growth Mobile</span>
-          <span class="entry-desc">เปิดข้อมูลสมาชิก, ติดตามงาน และช่วย Referral ได้ทันที</span>
-        </span>
-        <span class="entry-arrow">›</span>
-      </button>
-      <button class="entry-option workspace-mobile" onclick="entryOpenMobile('mc')" aria-label="เข้า MC Mobile สำหรับตอบสนองงานด่วน">
-        <span class="entry-ico">📱</span>
-        <span class="entry-copy">
-          <span class="entry-meta">MOBILE · FAST RESPONSE</span>
-          <span class="entry-name">MC Mobile</span>
-          <span class="entry-desc">เช็คงานเร่งด่วน, แจ้งเตือน และตอบสนองจากหน้างาน</span>
-        </span>
-        <span class="entry-arrow">›</span>
-      </button>
-      <button class="entry-option toomtam wide" id="entry-toomtam-mobile" onclick="entryOpenMobile('toomtam')" style="display:none">
-        <span class="entry-ico">🧑</span>
-        <span>
-          <span class="entry-name">TOOMTAM Mobile</span>
-          <span class="entry-desc">หน้า Mentor ทีม TOOMTAM แบบมือถือ</span>
-        </span>
-        <span class="entry-arrow">›</span>
-      </button>
+    <div class="entry-workspaces">
+      <section class="workspace-group mentor-workspace" aria-labelledby="mentor-workspace-title">
+        <div class="workspace-group__head"><span class="workspace-group__icon">🤝</span><div><h2 id="mentor-workspace-title">Mentor</h2><p>ดูแล Chapter, ทีม และงานของสมาชิก</p></div></div>
+        <div class="workspace-actions">
+          <button class="workspace-launch" onclick="entryOpenDesktop('mc')"><span>🖥️</span><strong>Desktop</strong><small>จัดการและวิเคราะห์</small></button>
+          <button class="workspace-launch" onclick="entryOpenMobile('mc')"><span>📱</span><strong>Mobile</strong><small>ติดตามและตอบสนอง</small></button>
+        </div>
+      </section>
+      <section class="workspace-group growth-workspace" id="entry-growth-group" aria-labelledby="growth-workspace-title">
+        <div class="workspace-group__head"><span class="workspace-group__icon">📈</span><div><h2 id="growth-workspace-title">Growth</h2><p>ขับเคลื่อน Growth Health, Referral และ Power Team</p></div></div>
+        <div class="workspace-actions">
+          <button class="workspace-launch growth-launch" id="entry-growth-desktop" onclick="entryOpenDesktop('growth')"><span>🖥️</span><strong>Desktop</strong><small>วางแผนและวิเคราะห์</small></button>
+          <button class="workspace-launch growth-launch" id="entry-growth-mobile" onclick="entryOpenGrowthMobile()"><span>📱</span><strong>Mobile</strong><small>ช่วยเหลือสมาชิกทันที</small></button>
+        </div>
+      </section>
     </div>
-    <div class="entry-foot">เลือกใหม่ได้ทุกครั้งหลังเข้าสู่ระบบ · Desktop รองรับหน้าจอขนาดกลางและแท็บเล็ต</div>
+    <div class="entry-foot">สิทธิ์และข้อมูลถูกจำกัดตามบัญชี · สามารถเลือก Workspace ใหม่ได้ทุกครั้งหลังเข้าสู่ระบบ</div>
   </div>
 </div>
 

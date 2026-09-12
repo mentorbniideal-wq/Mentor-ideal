@@ -171,3 +171,12 @@ Deno.test('Growth score entrypoints derive Chapter scope before reading score da
     assert(block.includes('scope.chapterId'), `${action} must use the resolved Chapter`);
   }
 });
+
+Deno.test('workspace chooser presents Mentor and Growth with explicit Desktop and Mobile actions', async () => {
+  const page = await read('public/index.html');
+  const script = await read('public/assets/js/mobile-operations.js');
+  assert(page.includes('>Mentor</h2>') && page.includes('>Growth</h2>'), 'Workspace chooser must name its two work areas clearly');
+  assert(page.includes("entryOpenDesktop('mc')") && page.includes("entryOpenMobile('mc')"), 'Mentor must expose Desktop and Mobile actions');
+  assert(page.includes("entryOpenDesktop('growth')") && page.includes('entryOpenGrowthMobile()'), 'Growth must expose Desktop and Mobile actions');
+  assert(script.includes("getElementById('entry-growth-group')") && script.includes("growth.style.display=isOwner?'block':'none'"), 'Growth workspace visibility must remain server-derived from the authenticated owner identity');
+});
