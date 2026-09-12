@@ -38,9 +38,25 @@ export async function resolveLtLineRecipients(
     if (!term) return true; // compatibility with assignments created before terms
     return term.status === 'active' && String(term.starts_on || '') <= today && String(term.ends_on || '') >= today;
   });
-  const memberIds = [...new Set(activeRows.flatMap((row: Record<string, unknown>) =>
-    [row.assigned_member_id, row.fallback_member_id].map(String).filter(Boolean)
-  ))];
+  // Growth requests go to the configured Growth LT roster first. The legacy
+  // Growth Coordinator assignment above remains backward-compatible fallback.
+  const isGrowthScope = ['goal', 'referral'].includes(scope);
+  const { data: activeTerms } = isGrowthScope
+    ? await db.from('lt_terms').select('id,starts_on,ends_on,status').eq('status', 'active')
+    : { data: [] };
+  const activeTermIds = [...new Set([
+    ...activeRows.map((row: Record<string, unknown>) => String(row.term_id || '')).filter(Boolean),
+    ...((activeTerms || []) as Record<string, unknown>[])
+      .filter((term) => String(term.starts_on || '') <= today && String(term.ends_on || '') >= today)
+      .map((term) => String(term.id || '')).filter(Boolean),
+  ])];
+  const { data: growthTeam } = isGrowthScope && activeTermIds.length
+    ? await db.from('lt_growth_team_members').select('member_id,position,term_id').in('term_id', activeTermIds)
+    : { data: [] };
+  const memberIds = [...new Set([
+    ...activeRows.flatMap((row: Record<string, unknown>) => [row.assigned_member_id, row.fallback_member_id].map(String).filter(Boolean)),
+    ...(growthTeam || []).map((row: Record<string, unknown>) => String(row.member_id || '')).filter(Boolean),
+  ])];
   const { data: links } = memberIds.length
     ? await db.from('line_members').select('member_id,line_user_id').in('member_id', memberIds)
     : { data: [] };
@@ -54,10 +70,14 @@ export async function resolveLtLineRecipients(
     if (primary) recipients.add(primary);
     else if (fallback) recipients.add(fallback);
   }
+  if (isGrowthScope) for (const row of (growthTeam || []) as Record<string, unknown>[]) {
+    const recipient = byMember.get(String(row.member_id || ''));
+    if (recipient) recipients.add(recipient);
+  }
   const configuredRoles = new Set(activeRows.map((row: Record<string, unknown>) => String(row.lt_role)));
   return {
     recipients: [...recipients],
     roles,
-    missingRoles: roles.filter(role => !configuredRoles.has(role)),
+    missingRoles: roles.filter(role => !configuredRoles.has(role) && !(role === 'Growth Coordinator' && (growthTeam || []).length)),
   };
 }

@@ -1709,6 +1709,7 @@ export async function handleMembers(
       const [
         { data: terms, error: termErr },
         { data: assignments, error: assignmentErr },
+        { data: growthTeam, error: growthTeamErr },
         { data: members, error: memberErr },
         { data: mentorTeams, error: mentorTeamErr },
       ] = await Promise.all([
@@ -1716,6 +1717,7 @@ export async function handleMembers(
           ascending: false,
         }),
         db.from("passport_lt_assignments").select("*").order("lt_role"),
+        db.from("lt_growth_team_members").select("term_id,member_id,position,created_at").order("position"),
         db.from("members").select("id,name,nickname,email,is_archived").eq(
           "is_archived",
           false,
@@ -1724,9 +1726,9 @@ export async function handleMembers(
           "name,leader_name,leader_member_id,display_name,active_term_id,updated_at",
         ).order("id"),
       ]);
-      if (termErr || assignmentErr || memberErr || mentorTeamErr) {
+      if (termErr || assignmentErr || growthTeamErr || memberErr || mentorTeamErr) {
         return errResponse(
-          termErr?.message || assignmentErr?.message || memberErr?.message ||
+          termErr?.message || assignmentErr?.message || growthTeamErr?.message || memberErr?.message ||
             mentorTeamErr?.message || "โหลด LT Team ไม่สำเร็จ",
         );
       }
@@ -1751,10 +1753,46 @@ export async function handleMembers(
         ok: true,
         terms: terms || [],
         assignments: assignments || [],
+        growthTeam: growthTeam || [],
         members: memberRows,
         mentorTeams: mentorTeams || [],
         roles: LT_ROLE_CATALOG,
       });
+    }
+
+    case "saveLtGrowthTeam": {
+      const auth = await requireAuth(db, p, ["admin"]);
+      if (!auth.ok || !auth.isAdmin) return errResponse("เฉพาะ Chapter Admin เท่านั้น", 403);
+      const termId = textValue(p.termId);
+      const leadMemberId = textValue(p.leadMemberId);
+      const coLeadMemberIds = Array.isArray(p.coLeadMemberIds)
+        ? p.coLeadMemberIds.map((value) => textValue(value)).filter(Boolean)
+        : [];
+      if (!termId || !leadMemberId || coLeadMemberIds.length > 2) {
+        return errResponse("กรุณาเลือก Growth Lead และ Co-Lead ได้ไม่เกิน 2 คน");
+      }
+      const memberIds = [leadMemberId, ...coLeadMemberIds];
+      if (new Set(memberIds).size !== memberIds.length) return errResponse("Growth Lead และ Co-Lead ต้องเป็นคนละคน");
+      const [{ data: term }, { data: validMembers }] = await Promise.all([
+        db.from("lt_terms").select("id,status").eq("id", termId).maybeSingle(),
+        db.from("members").select("id").in("id", memberIds).eq("is_archived", false),
+      ]);
+      if (!term || String((term as Record<string, unknown>).status) !== "active") return errResponse("ต้องกำหนดทีมให้วาระ LT ที่กำลังใช้งาน", 409);
+      if ((validMembers || []).length !== memberIds.length) return errResponse("พบสมาชิกที่ไม่พร้อมใช้งาน", 400);
+      const { error: deleteError } = await db.from("lt_growth_team_members").delete().eq("term_id", termId);
+      if (deleteError) return errResponse(deleteError.message);
+      const { error: insertError } = await db.from("lt_growth_team_members").insert([
+        { term_id: termId, member_id: leadMemberId, position: "lead" },
+        ...coLeadMemberIds.map((memberId) => ({ term_id: termId, member_id: memberId, position: "co_lead" })),
+      ]);
+      if (insertError) return errResponse(insertError.message);
+      await db.from("chapter_audit_events").insert({
+        event_type: "lt_growth_team_updated", actor_role: auth.role,
+        actor_ref: String(auth.displayName || auth.role || "Chapter Admin"),
+        subject_type: "lt_growth_team", subject_ref: termId,
+        metadata: { leadMemberId, coLeadMemberIds },
+      });
+      return jsonResponse({ ok: true });
     }
 
     // Unified Chapter Admin control plane. This projects existing sources of
