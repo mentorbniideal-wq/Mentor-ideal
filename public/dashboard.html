@@ -149,7 +149,7 @@
     <button class="tb-fold" id="gr-fold-btn" onclick="toggleTabFold('gr')" title="พับ/ขยาย Tab Bar" aria-expanded="true" aria-label="พับเมนูด้านข้าง">☰</button>
     <span class="tb-fold-label" id="gr-fold-label" style="display:none"></span>
     <div class="nav-group-label">งานที่ต้องทำ</div>
-    <button class="tb on" aria-current="page" onclick="sw('gr-task',this,'gr')">📥 Growth Inbox<span class="nb" id="badge-task"></span></button>
+    <button class="tb" onclick="sw('gr-task',this,'gr')">📥 Growth Inbox<span class="nb" id="badge-task"></span></button>
     <button class="tb" onclick="sw('gr-flow',this,'gr');flowLoad()">🌊 Referral Flow</button>
     <button class="tb" onclick="sw('gr-gw',this,'gr');renderGrowthWatchGR()">🔵 Growth Watch<span class="nb" id="badge-gw-gr"></span></button>
     <button class="tb" onclick="sw('gr-nm',this,'gr')">🆕 New Member Success<span class="nb" id="badge-nm"></span></button>
@@ -159,7 +159,7 @@
     <button class="tb" onclick="sw('gr-cross',this,'gr');crossLoad()">🔀 Connection Map</button>
     <button class="tb" onclick="sw('gr-sprint',this,'gr');sprintLoad()">🏃 Growth Sprint</button>
     <div class="nav-group-label">ข้อมูลประกอบการตัดสินใจ</div>
-    <button class="tb" onclick="sw('gr-ov',this,'gr')">📊 Chapter Growth Health</button>
+    <button class="tb on" aria-current="page" onclick="sw('gr-ov',this,'gr')">📊 Chapter Growth Health</button>
     <button class="tb" onclick="sw('gr-bal',this,'gr')">👥 Member 360 & Balance</button>
     <button class="tb" onclick="sw('gr-msb',this,'gr');msbLoad('gr')">🎯 Blueprint Intelligence</button>
     <button class="tb" onclick="sw('gr-sheet',this,'gr');gshLoad()" style="display:none">📄 Sheet</button>
@@ -2198,7 +2198,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
   <button class="bk-btn" style="background:transparent;color:var(--sub);border:1px solid var(--bd)" onclick="clearBulk()">✕ ยกเลิก</button>
 </div>
 
-<script src="/assets/js/desktop-operations.js?v=20260912-growth-ops.1" defer></script>
+<script src="/assets/js/desktop-operations.js?v=20260912-growth-health-default.1" defer></script>
 <script src="/assets/js/desktop-line-compose.js?v=20260909-audit.1" defer></script>
 <script src="/assets/js/desktop-navigation.js?v=20260909-audit.1" defer></script>
 <script src="/assets/js/desktop-member-360.js" defer></script>
