@@ -1,5 +1,6 @@
 // Handler: renewal — getRenewal, updateRenewalStatus, extendRenewal
 import { requireAuth } from '../../_shared/auth.ts';
+import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 
 const TEAM_MAP: Record<string, string> = {
@@ -44,6 +45,8 @@ export async function handleRenewal(p: Record<string, unknown>): Promise<Respons
     case 'getRenewal': {
       const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const role = String(auth.role || p.role || '').toLowerCase();
       const teamName = TEAM_MAP[role] || null;
 
@@ -51,6 +54,7 @@ export async function handleRenewal(p: Record<string, unknown>): Promise<Respons
       const { data: rows, error } = await db
         .from('renewals')
         .select('id, expiry_date, extended_at, notes, member_id, workflow_status, contacted_at, contacted_by, decision_at, decision_by, payment_at, payment_by, completed_at, completed_by, decline_reason, members(name, nickname, mentor_team)')
+        .eq('chapter_id', scope.chapterId)
         .order('expiry_date', { ascending: true });
       if (error) return errResponse(error.message);
 
@@ -99,6 +103,8 @@ export async function handleRenewal(p: Record<string, unknown>): Promise<Respons
     case 'updateRenewalStatus': {
       const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
       const memberName = String(p.memberName || p.name || '').trim();
       const nextStatus = String(p.status || '').trim();
@@ -111,6 +117,7 @@ export async function handleRenewal(p: Record<string, unknown>): Promise<Respons
         .from('members')
         .select('id, name, nickname, mentor_team')
         .eq('name', memberName)
+        .eq('chapter_id', scope.chapterId)
         .maybeSingle();
       if (memberError) return errResponse(memberError.message);
       if (!member) return errResponse(`ไม่พบสมาชิก: ${memberName}`);
@@ -128,6 +135,7 @@ export async function handleRenewal(p: Record<string, unknown>): Promise<Respons
         .from('renewals')
         .select('id, expiry_date, workflow_status')
         .eq('member_id', memberId)
+        .eq('chapter_id', scope.chapterId)
         .maybeSingle();
       if (renewalError) return errResponse(renewalError.message);
       if (!renewal) return errResponse('ไม่พบข้อมูล Renewal ของสมาชิกคนนี้');
@@ -191,10 +199,11 @@ export async function handleRenewal(p: Record<string, unknown>): Promise<Respons
       const { error: updateError } = await db
         .from('renewals')
         .update(update)
-        .eq('id', String(current.id));
+        .eq('id', String(current.id)).eq('chapter_id', scope.chapterId);
       if (updateError) return errResponse(updateError.message);
 
       await db.from('renewal_events').insert({
+        chapter_id: scope.chapterId,
         renewal_id: String(current.id),
         member_id: memberId,
         from_status: previousStatus,
@@ -234,18 +243,20 @@ export async function handleRenewal(p: Record<string, unknown>): Promise<Respons
     case 'extendRenewal': {
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
       const memberName = String(p.memberName || p.name || '').trim();
       if (!memberName) return errResponse('memberName required');
 
-      const { data: member } = await db.from('members').select('id').eq('name', memberName).maybeSingle();
+      const { data: member } = await db.from('members').select('id').eq('name', memberName).eq('chapter_id', scope.chapterId).maybeSingle();
       if (!member) return errResponse(`ไม่พบสมาชิก: ${memberName}`);
       const memberId = String((member as Record<string, unknown>).id);
 
       // If newExpiry not provided, extend current expiry by 1 year (or from today if no record)
       let newExpiry = String(p.newExpiry || p.expiry || '').trim();
       if (!newExpiry) {
-        const { data: existing } = await db.from('renewals').select('expiry_date').eq('member_id', memberId).maybeSingle();
+        const { data: existing } = await db.from('renewals').select('expiry_date').eq('member_id', memberId).eq('chapter_id', scope.chapterId).maybeSingle();
         const baseDate = existing
           ? new Date(String((existing as Record<string, unknown>).expiry_date))
           : new Date();
@@ -255,6 +266,7 @@ export async function handleRenewal(p: Record<string, unknown>): Promise<Respons
       }
 
       const { error } = await db.from('renewals').upsert({
+        chapter_id: scope.chapterId,
         member_id:   memberId,
         expiry_date: newExpiry,
         extended_at: new Date().toISOString(),

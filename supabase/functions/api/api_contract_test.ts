@@ -145,3 +145,17 @@ Deno.test('member CRUD and Member 360 resolve Chapter before accessing a member'
   assert(memberDetailBlock.includes('resolveChapterScope(db, auth)'), 'Member 360 must derive Chapter scope server-side');
   assert(memberDetailBlock.includes("from('members').select('id').eq('chapter_id', scope.chapterId)"), 'Member 360 must resolve member identity within the Chapter before reading related records');
 });
+
+Deno.test('renewal workflow resolves Chapter scope for reads and writes', async () => {
+  const renewalHandler = await read('supabase/functions/api/handlers/renewal.ts');
+  const migration = await read('supabase/migrations/20260912000010_phase_2c_scoped_renewals.sql');
+  for (const action of ['getRenewal', 'updateRenewalStatus', 'extendRenewal']) {
+    const start = renewalHandler.indexOf(`case '${action}':`);
+    assert(start >= 0, `${action} must remain implemented`);
+    const next = renewalHandler.indexOf('\n    case ', start + 1);
+    const block = renewalHandler.slice(start, next < 0 ? undefined : next);
+    assert(block.includes('resolveChapterScope(db, auth)'), `${action} must derive Chapter scope server-side`);
+    assert(block.includes('scope.chapterId'), `${action} must constrain the resolved Chapter`);
+  }
+  assert(migration.includes('idx_renewals_chapter_expiry') && migration.includes('idx_renewal_events_chapter_member'), 'renewal records and audit events must have tenant indexes');
+});

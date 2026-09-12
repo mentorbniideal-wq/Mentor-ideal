@@ -3425,7 +3425,7 @@ export async function handleMembers(
       const expDate = textValue(p.expDate || p.expiryDate || p.expiry);
       if (expDate) {
         await db.from("renewals").upsert(
-          { member_id: memberId, expiry_date: expDate },
+          { chapter_id: scope.chapterId, member_id: memberId, expiry_date: expDate },
           { onConflict: "member_id" },
         );
       }
@@ -3613,6 +3613,7 @@ export async function handleMembers(
         expiryDate.setFullYear(expiryDate.getFullYear() + 1);
         const expiryStr = expiryDate.toISOString().split("T")[0];
         const { error: renErr } = await db.from("renewals").insert({
+          chapter_id: scope.chapterId,
           member_id: memberId,
           expiry_date: expiryStr,
           notes: "Auto-created on member add",
@@ -4600,6 +4601,7 @@ export async function handleMembers(
           const exp = new Date(String(m.joined_date));
           exp.setFullYear(exp.getFullYear() + 1);
           return {
+            chapter_id: scope.chapterId,
             member_id: m.id,
             expiry_date: exp.toISOString().split("T")[0],
             notes: "Auto-created on batch add",
