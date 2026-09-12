@@ -1,5 +1,6 @@
 // Handler: coaching — saveCoreIssue, getCoachingGuide, saveMentorLog, getMentorLogs
 import { requireAuth } from '../../_shared/auth.ts';
+import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { memberAccessError, resolveMemberAccess } from '../../_shared/authorization.ts';
 
@@ -71,8 +72,10 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
     }
 
     case 'getMemberTimeline': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
       const memberName = String(p.memberName || p.name || '').trim();
       if (!memberName) return errResponse('memberName required');
@@ -87,7 +90,7 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
         return errResponse('ไม่มีสิทธิ์ดูข้อมูลสมาชิกทีมอื่น');
       }
 
-      const [issuesRes, logsRes, oneRes, renewalRes, assignmentsRes] = await Promise.all([
+      const [issuesRes, logsRes, oneRes, renewalRes, assignmentsRes, journeyRes] = await Promise.all([
         db.from('core_issues')
           .select('id, issue_text, action_taken, action_plan, mc_reply, replied_at, status, opened_at, closed_at, follow_up_at')
           .eq('member_id', memberId).order('opened_at', { ascending: false }).limit(30),
@@ -103,6 +106,10 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
         db.from('mc_assignments')
           .select('id, assignment_text, due_date, acknowledged_at, created_at')
           .eq('member_id', memberId).order('created_at', { ascending: false }).limit(30),
+        db.from('member_journey_events')
+          .select('id,event_type,role_title,starts_on,ends_on,occurred_on,note,source,created_at')
+          .eq('chapter_id', scope.chapterId).eq('member_id', memberId)
+          .order('occurred_on', { ascending: false }).limit(80),
       ]);
 
       const events: Record<string, unknown>[] = [];
@@ -137,9 +144,66 @@ export async function handleCoaching(p: Record<string, unknown>): Promise<Respon
         detail: row.due_date ? `กำหนด ${String(row.due_date)}` : '',
         status: row.acknowledged_at ? 'done' : 'pending', at: row.created_at,
       });
+      const journeyIcons: Record<string, string> = {
+        membership_started: '🎉', membership_ended: '👋',
+        lt_role_started: '🎖️', lt_role_ended: '🏁',
+        growth_role_started: '🌱', growth_role_ended: '🏁', note: '📝',
+      };
+      for (const row of (journeyRes.data || []) as Record<string, unknown>[]) {
+        const kind = String(row.event_type || 'note');
+        const roleTitle = String(row.role_title || '');
+        const startsOn = String(row.starts_on || '');
+        const endsOn = String(row.ends_on || '');
+        const period = startsOn ? `วาระ ${startsOn}${endsOn ? ` – ${endsOn}` : ''}` : '';
+        const labels: Record<string, string> = {
+          membership_started: 'เริ่มเป็นสมาชิก', membership_ended: 'สิ้นสุดสมาชิกภาพ',
+          lt_role_started: `รับตำแหน่ง LT${roleTitle ? ` · ${roleTitle}` : ''}`,
+          lt_role_ended: `สิ้นสุดตำแหน่ง LT${roleTitle ? ` · ${roleTitle}` : ''}`,
+          growth_role_started: `รับหน้าที่ Growth${roleTitle ? ` · ${roleTitle}` : ''}`,
+          growth_role_ended: `สิ้นสุดหน้าที่ Growth${roleTitle ? ` · ${roleTitle}` : ''}`,
+          note: 'บันทึกประวัติสมาชิก',
+        };
+        events.push({ id: `journey-${row.id}`, type: 'member_journey', icon: journeyIcons[kind] || '•',
+          title: labels[kind] || 'ประวัติสมาชิก', detail: [period, String(row.note || '')].filter(Boolean).join(' · '),
+          status: row.source === 'manual' ? 'verified' : 'logged', at: row.occurred_on || row.created_at });
+      }
 
       events.sort((a, b) => new Date(String(b.at || 0)).getTime() - new Date(String(a.at || 0)).getTime());
-      return jsonResponse({ ok: true, events: events.slice(0, 80) });
+      return jsonResponse({ ok: true, memberId, events: events.slice(0, 80) });
+    }
+
+    case 'saveMemberJourneyEvent': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok || !auth.isMC) return errResponse('เฉพาะ Mentor Co. หรือ Chapter Admin เท่านั้น', 403);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const memberId = String(p.memberId || '').trim();
+      const eventType = String(p.eventType || '').trim();
+      const roleTitle = String(p.roleTitle || '').trim().slice(0, 140);
+      const note = String(p.note || '').trim().slice(0, 1200);
+      const occurredOn = String(p.occurredOn || '').trim();
+      const startsOn = String(p.startsOn || '').trim() || null;
+      const endsOn = String(p.endsOn || '').trim() || null;
+      const allowed = new Set(['membership_started', 'membership_ended', 'lt_role_started', 'lt_role_ended', 'growth_role_started', 'growth_role_ended', 'note']);
+      const validDate = (value: string | null) => !value || /^\d{4}-\d{2}-\d{2}$/.test(value);
+      if (!memberId || !allowed.has(eventType) || !validDate(occurredOn) || !validDate(startsOn) || !validDate(endsOn)) {
+        return errResponse('ข้อมูลประวัติหรือวันที่ไม่ถูกต้อง');
+      }
+      if (startsOn && endsOn && endsOn < startsOn) return errResponse('วันสิ้นสุดต้องไม่ก่อนวันเริ่ม');
+      const { data: member } = await db.from('members').select('id,chapter_id').eq('id', memberId).maybeSingle();
+      if (!member || String((member as Record<string, unknown>).chapter_id || '') !== scope.chapterId) return errResponse('ไม่พบสมาชิกใน Chapter นี้', 404);
+      const sourceRef = crypto.randomUUID();
+      const { data, error } = await db.from('member_journey_events').insert({
+        chapter_id: scope.chapterId, member_id: memberId, event_type: eventType, role_title: roleTitle || null,
+        starts_on: startsOn, ends_on: endsOn, occurred_on: occurredOn, note: note || null,
+        source: 'manual', source_ref: `manual:${sourceRef}`, created_by: String(auth.email || auth.displayName || auth.role || 'mc'),
+      }).select('id').single();
+      if (error) return errResponse(error.message);
+      await db.from('chapter_audit_events').insert({
+        event_type: 'member_journey_event_added', actor_role: auth.role, actor_ref: String(auth.email || auth.displayName || auth.role),
+        subject_type: 'member', subject_ref: memberId, metadata: { eventType, roleTitle: roleTitle || null, occurredOn, source: 'manual' },
+      });
+      return jsonResponse({ ok: true, eventId: (data as Record<string, unknown>).id });
     }
 
     case 'getCoachingGuide': {

@@ -6654,6 +6654,7 @@ function loadIMDHealthTimeline(memberName,containerId){
       return;
     }
     var events=(r.events||[]).slice(0,12);
+    var canEditJourney=['admin','mc'].indexOf(String(S&&S.role||'').toLowerCase())>=0;
     function fmtDate(v){
       if(!v)return '—';
       try{var d=new Date(v);return d.toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'});}catch(e){return String(v).slice(0,10);}
@@ -6668,9 +6669,29 @@ function loadIMDHealthTimeline(memberName,containerId){
         +'</div>';
     }
     el.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">'
-      +'<div><div style="font-size:13px;font-weight:900">🧵 Member Health Timeline</div><div style="font-size:10px;color:var(--sub);margin-top:2px">ล่าสุด '+events.length+' รายการ จาก report / mentor log / 1-2-1 / renewal / assignment</div></div>'
-      +'<button class="bsm" onclick="loadIMDHealthTimeline('+JSON.stringify(memberName)+','+JSON.stringify(containerId)+')" style="font-size:10px">↺</button></div>'
+      +'<div><div style="font-size:13px;font-weight:900">🧵 Member Journey & Health Timeline</div><div style="font-size:10px;color:var(--sub);margin-top:2px">รวมประวัติสมาชิก / ตำแหน่ง LT-Growth / report / mentor log / 1-2-1 / renewal / assignment</div></div>'
+      +'<div style="display:flex;gap:6px;align-items:center">'+(canEditJourney?'<button class="bsm" onclick="openMemberJourneyEditor('+JSON.stringify(memberName)+','+JSON.stringify(r.memberId||'')+','+JSON.stringify(containerId)+')" style="font-size:10px">＋ เพิ่มประวัติ</button>':'')+'<button class="bsm" onclick="loadIMDHealthTimeline('+JSON.stringify(memberName)+','+JSON.stringify(containerId)+')" style="font-size:10px">↺</button></div></div>'
       +(events.length?events.map(evCard).join(''):'<div style="font-size:12px;color:var(--sub);padding:14px 0;border-top:1px solid var(--bd)">ยังไม่มี timeline event จากระบบกลาง</div>');
+  });
+}
+function openMemberJourneyEditor(memberName,memberId,containerId){
+  if(!memberId){alert('ไม่พบรหัสสมาชิก กรุณาลองโหลดข้อมูลใหม่');return;}
+  var modal=document.createElement('div');
+  modal.id='member-journey-editor';
+  modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');modal.setAttribute('aria-label','เพิ่มประวัติสมาชิก');
+  modal.style.cssText='position:fixed;inset:0;z-index:10020;background:rgba(1,7,14,.78);backdrop-filter:blur(5px);display:grid;place-items:center;padding:16px';
+  modal.innerHTML='<form style="width:min(540px,100%);max-height:90dvh;overflow:auto;box-sizing:border-box;background:var(--sf);border:1px solid var(--bd);border-radius:18px;padding:20px;box-shadow:0 24px 80px rgba(0,0,0,.55)"><div style="display:flex;align-items:flex-start;gap:12px"><div style="flex:1"><small style="color:var(--ac);font-weight:900;letter-spacing:.1em">MEMBER JOURNEY</small><h2 style="font-size:18px;margin:5px 0">เพิ่มประวัติ · '+esc(memberName)+'</h2><p style="font-size:11px;color:var(--sub);line-height:1.55;margin:0">บันทึกย้อนหลังได้ โดยระบุวันที่ตามหลักฐานที่มี ระบบเก็บผู้บันทึกไว้ใน audit log</p></div><button type="button" aria-label="ปิด" onclick="this.closest(\'#member-journey-editor\').remove()" class="bsm">×</button></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px"><label style="display:grid;gap:5px;font-size:11px">ประเภท<select name="eventType" required style="min-height:42px"><option value="membership_started">เริ่มเป็นสมาชิก</option><option value="membership_ended">สิ้นสุดสมาชิกภาพ</option><option value="lt_role_started">รับตำแหน่ง LT</option><option value="lt_role_ended">สิ้นสุดตำแหน่ง LT</option><option value="growth_role_started">รับหน้าที่ Growth</option><option value="growth_role_ended">สิ้นสุดหน้าที่ Growth</option><option value="note">บันทึกเพิ่มเติม</option></select></label><label style="display:grid;gap:5px;font-size:11px">วันที่เกิดเหตุ<input name="occurredOn" type="date" required style="min-height:40px"></label><label style="display:grid;gap:5px;font-size:11px">ตำแหน่ง / บทบาท<input name="roleTitle" maxlength="140" placeholder="เช่น President" style="min-height:40px"></label><label style="display:grid;gap:5px;font-size:11px">วันเริ่มวาระ<input name="startsOn" type="date" style="min-height:40px"></label><label style="display:grid;gap:5px;font-size:11px">วันสิ้นสุดวาระ<input name="endsOn" type="date" style="min-height:40px"></label></div><label style="display:grid;gap:5px;font-size:11px;margin-top:10px">หมายเหตุ / แหล่งอ้างอิง<textarea name="note" maxlength="1200" rows="4" placeholder="เช่น ตรวจจากรายงานวาระ LT ปี 2567"></textarea></label><div id="member-journey-editor-error" role="alert" style="display:none;color:var(--re);font-size:11px;margin-top:10px"></div><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px"><button type="button" class="bsm" onclick="this.closest(\'#member-journey-editor\').remove()">ยกเลิก</button><button type="submit" class="btn primary">บันทึกประวัติ</button></div></form>';
+  document.body.appendChild(modal);
+  var form=modal.querySelector('form');var dateInput=form.querySelector('[name=occurredOn]');
+  dateInput.value=new Date().toISOString().slice(0,10);dateInput.focus();
+  form.addEventListener('submit',function(e){e.preventDefault();var fd=new FormData(form);var errorEl=modal.querySelector('#member-journey-editor-error');var submit=form.querySelector('[type=submit]');
+    var startsOn=String(fd.get('startsOn')||''),endsOn=String(fd.get('endsOn')||'');
+    if(startsOn&&endsOn&&endsOn<startsOn){errorEl.textContent='วันสิ้นสุดต้องไม่ก่อนวันเริ่ม';errorEl.style.display='block';return;}
+    submit.disabled=true;submit.textContent='กำลังบันทึก…';errorEl.style.display='none';
+    gsr('saveMemberJourneyEvent',{memberId:memberId,eventType:fd.get('eventType'),occurredOn:fd.get('occurredOn'),roleTitle:fd.get('roleTitle'),startsOn:startsOn||null,endsOn:endsOn||null,note:fd.get('note')},function(r){
+      if(!r||!r.ok){errorEl.textContent=(r&&r.error)||'บันทึกไม่สำเร็จ';errorEl.style.display='block';submit.disabled=false;submit.textContent='บันทึกประวัติ';return;}
+      modal.remove();loadIMDHealthTimeline(memberName,containerId);
+    });
   });
 }
 // ── Training event cache for Fast-Track suggestions ──────────────
