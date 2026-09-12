@@ -88,24 +88,28 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
     if (mErr) return errResponse(mErr.message);
     const memberRows = (members || []) as Record<string, unknown>[];
     const ids = memberRows.map(m => String(m.id));
-    const [{ data: links }, { data: biz }] = await Promise.all([
+    const [{ data: links }, { data: biz }, { data: aliases }] = await Promise.all([
       ids.length ? db.from('line_members').select('member_id,line_user_id').in('member_id', ids) : Promise.resolve({data:[]}),
       ids.length ? db.from('biz_profiles').select('member_id,description').in('member_id', ids) : Promise.resolve({data:[]}),
+      db.from('one_to_one_member_name_aliases').select('normalized_name,member_id,confirmation_count').limit(5000),
     ]);
     const lineBy = new Map(((links||[]) as Record<string,unknown>[]).filter(x => hasUsableLineId(x.line_user_id)).map(x => [String(x.member_id),String(x.line_user_id).trim()]));
     const bizBy = new Map(((biz||[]) as Record<string,unknown>[]).map(x => [String(x.member_id),String(x.description)]));
     const byName = new Map<string,Record<string,unknown>[]>();
     memberRows.forEach(m => { const k=normalize121Name(String(m.name||'')); byName.set(k,[...(byName.get(k)||[]),m]); });
+    const activeMemberById=new Map(memberRows.map(m=>[String(m.id),m]));
+    const aliasByName=new Map(((aliases||[]) as Record<string,unknown>[]).map(a=>[String(a.normalized_name),activeMemberById.get(String(a.member_id))]).filter((entry):entry is [string,Record<string,unknown>]=>Boolean(entry[1])));
     const seen = new Set<string>();
     const reconciled = dayRows.map(r => {
-      const key=normalize121Name(r.fullName); const found=byName.get(key)||[]; let status='not_found', message='ไม่พบชื่อในฐานสมาชิก', member:Record<string,unknown>|null=null;
+      const key=normalize121Name(r.fullName); const found=byName.get(key)||[]; let status='not_found', message='ไม่พบชื่อในฐานสมาชิก', member:Record<string,unknown>|null=null,matchedBy='none';
       const isSub=Boolean(r.substituteFor)||normalize121Name(r.userRole)==='substitute';
       if (isSub) { status='substitute'; message=`ผู้มาประชุมแทน ${r.substituteFor||''}`.trim(); }
       else if (seen.has(key)) { status='duplicate'; message='ข้อมูลซ้ำในวันเดียวกัน'; }
       else if (found.length>1) { status='ambiguous'; message='พบสมาชิกมากกว่าหนึ่งคน'; }
-      else if (found.length===1) { member=found[0]; status=lineBy.has(String(member.id))?'ready':'no_line'; message=status==='ready'?'พร้อมจับคู่':'สมาชิกยังไม่ได้เชื่อม LINE'; }
+      else if (found.length===1) { member=found[0]; matchedBy='exact'; status=lineBy.has(String(member.id))?'ready':'no_line'; message=status==='ready'?'พร้อมจับคู่':'สมาชิกยังไม่ได้เชื่อม LINE'; }
+      else if (aliasByName.has(key)) { member=aliasByName.get(key)!; matchedBy='history'; status=lineBy.has(String(member.id))?'ready':'no_line'; message=status==='ready'?`จำจากประวัติ: ${String(member.name||'สมาชิก')}`:'จำจากประวัติ แต่สมาชิกยังไม่ได้เชื่อม LINE'; }
       seen.add(key);
-      return { ...r, normalizedName:key, status, message, member:member?{...member,business:bizBy.get(String(member.id))||'',lineUserId:lineBy.get(String(member.id))||''}:null, candidates:found.map(m=>({id:m.id,name:m.name,nickname:m.nickname})) };
+      return { ...r, normalizedName:key, status, message, matchedBy, member:member?{...member,business:bizBy.get(String(member.id))||'',lineUserId:lineBy.get(String(member.id))||''}:null, candidates:found.map(m=>({id:m.id,name:m.name,nickname:m.nickname})) };
     });
     const meetingDate=isoDate(selectedDate);
     const friday=new Date(`${meetingDate}T00:00:00+07:00`); const saturday=new Date(friday.getTime()+86400000); const thursday=new Date(friday.getTime()+6*86400000+16*60*60*1000+59*60*1000);
@@ -115,7 +119,7 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
     const { error:iErr }=await db.from('matching_import_rows').insert(inserts); if(iErr){await db.from('matching_rounds').delete().eq('id',roundId);return errResponse(iErr.message);}
     const eligibility=reconciled.filter(r=>r.member&&!['substitute','duplicate','excluded'].includes(r.status)).map(r=>({round_id:roundId,member_id:String((r.member as Record<string,unknown>).id),source:'attendee',status:r.status==='ready'?'eligible':'excluded',reason:r.message}));
     if(eligibility.length){const {error:eErr}=await db.from('round_eligibility').upsert(eligibility,{onConflict:'round_id,member_id'});if(eErr){await db.from('matching_rounds').delete().eq('id',roundId);return errResponse(eErr.message);}}
-    return jsonResponse({ok:true,roundId,meetingDate:selectedDate,dates:parsed.dates,rows:reconciled,memberOptions:memberRows.map(m=>({id:m.id,name:m.name,nickname:m.nickname})),summary:Object.fromEntries(['ready','no_line','not_found','ambiguous','substitute','duplicate'].map(s=>[s,reconciled.filter(r=>r.status===s).length]))});
+    return jsonResponse({ok:true,roundId,meetingDate:selectedDate,dates:parsed.dates,rows:reconciled,memberOptions:memberRows.map(m=>({id:m.id,name:m.name,nickname:m.nickname})),summary:{...Object.fromEntries(['ready','no_line','not_found','ambiguous','substitute','duplicate'].map(s=>[s,reconciled.filter(r=>r.status===s).length])),remembered:reconciled.filter(r=>r.matchedBy==='history').length}});
   }
 
   if (action === 'generateWeekly121Matches') {
@@ -227,12 +231,18 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
     if(!roundId||!rowNumber||!memberId)return errResponse('กรุณาเลือกรายการและสมาชิก');
     const {data:round}=await db.from('matching_rounds').select('status').eq('id',roundId).maybeSingle();
     if(!round||String((round as Record<string,unknown>).status)!=='draft')return errResponse('แก้รายชื่อได้เฉพาะรอบร่าง');
+    const {data:row}=await db.from('matching_import_rows').select('normalized_name').eq('round_id',roundId).eq('row_number',rowNumber).maybeSingle();
+    if(!row)return errResponse('ไม่พบแถวที่ต้องการยืนยัน');
+    const normalizedName=String((row as Record<string,unknown>).normalized_name||'');
+    const {data:knownAlias}=await db.from('one_to_one_member_name_aliases').select('member_id,confirmation_count').eq('normalized_name',normalizedName).maybeSingle();
+    if(knownAlias&&String((knownAlias as Record<string,unknown>).member_id)!==memberId)return errResponse('ชื่อนี้เคยยืนยันเป็นสมาชิกอีกคน ระบบหยุดไว้เพื่อป้องกันจับคู่ผิด กรุณาตรวจข้อมูลสมาชิกก่อน');
     const {data:duplicate}=await db.from('matching_import_rows').select('row_number').eq('round_id',roundId).eq('matched_member_id',memberId).eq('import_status','ready').neq('row_number',rowNumber).limit(1).maybeSingle();
     if(duplicate)return errResponse(`สมาชิกคนนี้อยู่ในรายชื่อพร้อมจับคู่แล้ว (แถว ${String((duplicate as Record<string,unknown>).row_number)}) กรุณาเลือกคนอื่นหรือยืนยันว่ารายการนี้ซ้ำ`);
     const {data:link}=await db.from('line_members').select('line_user_id').eq('member_id',memberId).maybeSingle();
     const status=hasUsableLineId((link as Record<string,unknown>|null)?.line_user_id)?'ready':'no_line';
     const {error}=await db.from('matching_import_rows').update({matched_member_id:memberId,import_status:status,validation_message:status==='ready'?'Admin ยืนยันสมาชิกแล้ว':'Admin ยืนยันแล้ว แต่สมาชิกยังไม่มี LINE'}).eq('round_id',roundId).eq('row_number',rowNumber);
     if(error)return errResponse(error.message);
+    if(normalizedName){const now=new Date().toISOString(),actor=String(auth.displayName||auth.role||'MC'),existingCount=Number((knownAlias as Record<string,unknown>|null)?.confirmation_count||0);const aliasWrite=knownAlias?db.from('one_to_one_member_name_aliases').update({last_confirmed_at:now,confirmation_count:existingCount+1,last_confirmed_by:actor,updated_at:now}).eq('normalized_name',normalizedName):db.from('one_to_one_member_name_aliases').insert({normalized_name:normalizedName,member_id:memberId,first_confirmed_at:now,last_confirmed_at:now,confirmation_count:1,last_confirmed_by:actor,updated_at:now});const {error:aliasError}=await aliasWrite;if(aliasError)return errResponse(`ยืนยันรายการแล้ว แต่ยังจำชื่อนี้ไม่ได้: ${aliasError.message}`,500);}
     const {error:eligibilityError}=await db.from('round_eligibility').upsert({round_id:roundId,member_id:memberId,source:'attendee',status:status==='ready'?'eligible':'excluded',reason:status==='ready'?'แก้ไขรายชื่อโดย MC':'ยังไม่เชื่อม LINE',updated_at:new Date().toISOString()},{onConflict:'round_id,member_id'});
     return eligibilityError?errResponse(eligibilityError.message):jsonResponse({ok:true,status});
   }
