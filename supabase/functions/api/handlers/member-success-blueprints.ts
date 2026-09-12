@@ -5,6 +5,7 @@ import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { sha256Hex } from '../../_shared/line.ts';
 import { calculateMsbGoal } from '../../_shared/msb-goal-calculation.ts';
+import { annualGoalProgress } from '../../_shared/msb-goal-progress.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
 
@@ -711,6 +712,21 @@ async function getBlueprint(db: Db, memberId: string, year: number) {
   return data as Record<string, unknown> | null;
 }
 
+async function getGrowth2026Actual(db: Db, memberId: string) {
+  // This is a historical Growth snapshot. It is reference-only and never
+  // overwrites a member's MSB plan or current revenue fields.
+  const { data, error } = await db.from('growth_referral_members')
+    .select('target_thb, received_thb')
+    .eq('member_id', memberId);
+  if (error || !data?.length) return null;
+  const totals = (data as Record<string, unknown>[]).reduce<{ target: number; actual: number }>((result, row) => ({
+    target: result.target + num(row.target_thb),
+    actual: result.actual + num(row.received_thb),
+  }), { target: 0, actual: 0 });
+  const progress = annualGoalProgress(totals.target, totals.actual);
+  return progress.target > 0 ? { ...progress, sourceYear: 2026, source: 'growth_revenue_snapshot' } : null;
+}
+
 function normalizeBlueprint(row: Record<string, unknown> | null) {
   if (!row) return null;
   return { ...row, warnings: buildWarnings(row) };
@@ -1094,11 +1110,13 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       const tokenYear = identity.blueprintYear || year;
       const blueprint = await getBlueprint(db, identity.memberId, tokenYear);
       const previousBlueprint = tokenYear > 2020 ? await getBlueprint(db, identity.memberId, tokenYear - 1) : null;
+      const historicalActual = tokenYear > 2026 ? await getGrowth2026Actual(db, identity.memberId) : null;
       return jsonResponse({
         ok: true,
         member: identity.member,
         blueprint: normalizeBlueprint(blueprint),
         previousBlueprint: normalizeBlueprint(previousBlueprint),
+        historicalActual,
         blueprintYear: tokenYear,
       });
     }
