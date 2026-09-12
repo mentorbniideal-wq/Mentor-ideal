@@ -22,7 +22,7 @@ CREATE INDEX IF NOT EXISTS idx_121_name_aliases_member ON public.one_to_one_memb
 -- member. Conflicting names deliberately remain unresolved for human review.
 INSERT INTO public.one_to_one_member_name_aliases
   (normalized_name, member_id, first_confirmed_at, last_confirmed_at, confirmation_count, last_confirmed_by)
-SELECT r.normalized_name, min(r.matched_member_id), min(r.created_at), max(r.created_at), count(*), 'historical backfill'
+SELECT r.normalized_name, min(r.matched_member_id::text)::uuid, min(r.created_at), max(r.created_at), count(*), 'historical backfill'
 FROM public.matching_import_rows r
 JOIN public.members m ON m.id = r.matched_member_id
 WHERE r.matched_member_id IS NOT NULL
