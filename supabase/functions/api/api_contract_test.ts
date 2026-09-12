@@ -126,3 +126,22 @@ Deno.test('LT management derives tenant scope and never accepts a browser chapte
     'LT term migration must enforce one active term per Chapter and use a scoped creator',
   );
 });
+
+Deno.test('member CRUD and Member 360 resolve Chapter before accessing a member', async () => {
+  const membersHandler = await read('supabase/functions/api/handlers/members.ts');
+  const dashboardHandler = await read('supabase/functions/api/handlers/dashboard.ts');
+  for (const action of ['getMemberList', 'moveMemberToTeam', 'assignToTeam', 'archiveMember', 'unarchiveMember', 'addNewMember', 'updateMember', 'deleteMember', 'getArchivedMembers', 'addNewMembersBatch', 'getNewMembers']) {
+    const caseMarker = `case "${action}":`;
+    let start = membersHandler.indexOf(caseMarker);
+    assert(start >= 0, `${action} must remain implemented`);
+    if (action === 'moveMemberToTeam') start = membersHandler.indexOf('case "assignToTeam":', start);
+    const next = membersHandler.indexOf('\n    case ', start + caseMarker.length);
+    const block = membersHandler.slice(start, next < 0 ? undefined : next);
+    assert(block.includes('resolveChapterScope(db, auth)'), `${action} must derive Chapter scope server-side`);
+    assert(block.includes('scope.chapterId'), `${action} must constrain the resolved Chapter`);
+  }
+  const memberDetailStart = dashboardHandler.indexOf("case 'getMemberDetail':");
+  const memberDetailBlock = dashboardHandler.slice(memberDetailStart, dashboardHandler.indexOf("\n    case ", memberDetailStart + 1));
+  assert(memberDetailBlock.includes('resolveChapterScope(db, auth)'), 'Member 360 must derive Chapter scope server-side');
+  assert(memberDetailBlock.includes("from('members').select('id').eq('chapter_id', scope.chapterId)"), 'Member 360 must resolve member identity within the Chapter before reading related records');
+});

@@ -1632,14 +1632,16 @@ export async function parseStructuredPdf(
 async function findMemberByLegacyPayload(
   db: ReturnType<typeof getServiceClient>,
   p: Record<string, unknown>,
+  chapterId?: string,
 ): Promise<{ member?: MemberRef; error?: string }> {
   const directId = textValue(p.memberId || p.member_id);
   if (directId) {
-    const { data, error } = await db
+    let query = db
       .from("members")
       .select("id, name, nickname, mentor_team")
-      .eq("id", directId)
-      .maybeSingle();
+      .eq("id", directId);
+    if (chapterId) query = query.eq("chapter_id", chapterId);
+    const { data, error } = await query.maybeSingle();
     if (error) return { error: error.message };
     if (!data) return { error: `Member not found: ${directId}` };
     return { member: data as MemberRef };
@@ -1654,6 +1656,7 @@ async function findMemberByLegacyPayload(
     .from("members")
     .select("id, name, nickname, mentor_team")
     .eq("is_archived", false);
+  if (chapterId) query = query.eq("chapter_id", chapterId);
   if (team && VALID_TEAMS.has(team)) query = query.eq("mentor_team", team);
   if (name) query = query.ilike("name", name);
   else query = query.ilike("nickname", nick);
@@ -1669,6 +1672,7 @@ async function findMemberByLegacyPayload(
       .select("id, name, nickname, mentor_team")
       .eq("is_archived", false)
       .ilike("nickname", nick);
+    if (chapterId) nickQuery = nickQuery.eq("chapter_id", chapterId);
     if (team && VALID_TEAMS.has(team)) {
       nickQuery = nickQuery.eq("mentor_team", team);
     }
@@ -1695,10 +1699,15 @@ export async function handleMembers(
     case "getMemberList": {
       const auth = await requireAuth(db, p, ["mc"]);
       if (!auth.ok) return errResponse(auth.error!);
-
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const { data: scopedRows, error: scopedError } = await db.from("members").select("id").eq("chapter_id", scope.chapterId);
+      if (scopedError) return errResponse(scopedError.message);
+      const memberIds = (scopedRows || []).map((row: Record<string, unknown>) => String(row.id));
+      if (!memberIds.length) return jsonResponse({ ok: true, members: [] });
       const { data, error } = await db
         .from("v_members_by_team")
-        .select("*");
+        .select("*").in("id", memberIds);
       if (error) return errResponse(error.message);
       return jsonResponse({ ok: true, members: data });
     }
@@ -3366,8 +3375,10 @@ export async function handleMembers(
     case "assignToTeam": {
       const auth = await requireAuth(db, p, ["mc"]);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
-      const lookup = await findMemberByLegacyPayload(db, p);
+      const lookup = await findMemberByLegacyPayload(db, p, scope.chapterId);
       if (lookup.error || !lookup.member) {
         return errResponse(lookup.error || "member not found");
       }
@@ -3486,8 +3497,10 @@ export async function handleMembers(
     case "archiveMember": {
       const auth = await requireAuth(db, p, ["mc"]);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
-      const lookup = await findMemberByLegacyPayload(db, p);
+      const lookup = await findMemberByLegacyPayload(db, p, scope.chapterId);
       if (lookup.error || !lookup.member) {
         return errResponse(lookup.error || "member not found");
       }
@@ -3503,7 +3516,7 @@ export async function handleMembers(
           archived_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
-        .eq("id", lookup.member.id);
+        .eq("id", lookup.member.id).eq("chapter_id", scope.chapterId);
       if (error) return errResponse(error.message);
       return jsonResponse({ ok: true });
     }
@@ -3513,12 +3526,14 @@ export async function handleMembers(
     case "unarchiveMember": {
       const auth = await requireAuth(db, p, ["mc"]);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
       // For unarchive, allow searching archived members too
       const memberNameRaw = textValue(p.memberName || p.name);
       if (!memberNameRaw) return errResponse("memberName required");
       const { data: mRow, error: mErr } = await db.from("members").select("id")
-        .ilike("name", memberNameRaw).maybeSingle();
+        .ilike("name", memberNameRaw).eq("chapter_id", scope.chapterId).maybeSingle();
       if (mErr) return errResponse(mErr.message);
       if (!mRow) return errResponse(`ไม่พบสมาชิก: ${memberNameRaw}`);
 
@@ -3529,7 +3544,7 @@ export async function handleMembers(
           archived_at: null,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", String((mRow as Record<string, unknown>).id));
+        .eq("id", String((mRow as Record<string, unknown>).id)).eq("chapter_id", scope.chapterId);
       if (error) return errResponse(error.message);
       return jsonResponse({ ok: true });
     }
@@ -3538,6 +3553,8 @@ export async function handleMembers(
     case "addNewMember": {
       const auth = await requireAuth(db, p, ["mc"]);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
       const name = textValue(p.name || p.memberName);
       const nickname = textValue(p.nickname || p.nick) || null;
@@ -3562,6 +3579,7 @@ export async function handleMembers(
       const { data, error } = await db
         .from("members")
         .insert({
+          chapter_id: scope.chapterId,
           name,
           nickname,
           mentor_team: mentorTeam,
@@ -3637,8 +3655,10 @@ export async function handleMembers(
     case "updateMember": {
       const auth = await requireAuth(db, p, ["mc"]);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
-      const lookup = await findMemberByLegacyPayload(db, p);
+      const lookup = await findMemberByLegacyPayload(db, p, scope.chapterId);
       if (lookup.error || !lookup.member) {
         return errResponse(lookup.error || "member not found");
       }
@@ -3660,7 +3680,7 @@ export async function handleMembers(
       if (newName !== lookup.member.name) {
         const { data: dup, error: dupErr } = await db.from("members").select(
           "id",
-        ).eq("name", newName).neq("id", mid).limit(1);
+        ).eq("name", newName).eq("chapter_id", scope.chapterId).neq("id", mid).limit(1);
         if (dupErr) return errResponse(dupErr.message);
         if (dup && dup.length > 0) {
           return errResponse(`ชื่อ "${newName}" มีอยู่ในระบบแล้ว`);
@@ -3680,6 +3700,8 @@ export async function handleMembers(
       const { error: updErr } = await db.from("members").update(updates).eq(
         "id",
         mid,
+      ).eq(
+        "chapter_id", scope.chapterId,
       );
       if (updErr) return errResponse(updErr.message);
 
@@ -3726,8 +3748,10 @@ export async function handleMembers(
     case "deleteMember": {
       const auth = await requireAuth(db, p, ["mc"]);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
-      const lookup = await findMemberByLegacyPayload(db, p);
+      const lookup = await findMemberByLegacyPayload(db, p, scope.chapterId);
       if (lookup.error || !lookup.member) {
         return errResponse(lookup.error || "member not found");
       }
@@ -3763,7 +3787,7 @@ export async function handleMembers(
         mid,
       );
 
-      const { error } = await db.from("members").delete().eq("id", mid);
+      const { error } = await db.from("members").delete().eq("id", mid).eq("chapter_id", scope.chapterId);
       if (error) return errResponse(error.message);
       return jsonResponse({ ok: true, deleted: lookup.member.name });
     }
@@ -3928,9 +3952,12 @@ export async function handleMembers(
     case "getArchivedMembers": {
       const auth = await requireAuth(db, p, ["mc"]);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const { data, error } = await db
         .from("members")
         .select("id, name, nickname, mentor_team")
+        .eq("chapter_id", scope.chapterId)
         .eq("is_archived", true)
         .order("name");
       if (error) return errResponse(error.message);
@@ -4522,6 +4549,8 @@ export async function handleMembers(
     case "addNewMembersBatch": {
       const auth = await requireAuth(db, p, ["mc"]);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
       const rawMembers = Array.isArray(p.members)
         ? p.members as Record<string, unknown>[]
@@ -4536,6 +4565,7 @@ export async function handleMembers(
         const nm = String(m.name || "").trim();
         if (biz && nm) businessMap[nm] = biz;
         return {
+          chapter_id: scope.chapterId,
           name: nm,
           nickname: String(m.nick || m.nickname || "").trim(),
           mentor_team: m.mentor_team || m.mentorTeam
@@ -4546,6 +4576,16 @@ export async function handleMembers(
           joined_date: /^\d{4}-\d{2}-\d{2}$/.test(jd) ? jd : null,
         };
       }).filter((m) => m.name);
+
+      const names = rows.map((row) => row.name);
+      const { data: existingNames, error: existingNamesError } = names.length
+        ? await db.from("members").select("name,chapter_id").in("name", names)
+        : { data: [], error: null };
+      if (existingNamesError) return errResponse(existingNamesError.message);
+      const foreignName = ((existingNames || []) as Record<string, unknown>[]).find(
+        (row) => String(row.chapter_id || "") !== scope.chapterId,
+      );
+      if (foreignName) return errResponse("พบชื่อสมาชิกซ้ำใน Chapter อื่น จึงไม่สามารถ import ทับได้", 409);
 
       const { data: inserted, error } = await db
         .from("members")
@@ -4608,6 +4648,8 @@ export async function handleMembers(
         "growth",
       ]);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       let callerTeam: string | null = null;
       if (auth.role && auth.role !== "mc" && auth.role !== "growth") {
         callerTeam = auth.teamName ?? null;
@@ -4617,6 +4659,7 @@ export async function handleMembers(
       let q1 = db
         .from("members")
         .select("id, name, nickname, mentor_team, created_at, joined_date")
+        .eq("chapter_id", scope.chapterId)
         .eq("is_new_member", true)
         .eq("is_archived", false);
       if (callerTeam) q1 = q1.eq("mentor_team", callerTeam);
@@ -4644,6 +4687,7 @@ export async function handleMembers(
           .from("members")
           .select("id, name, nickname, mentor_team, created_at, joined_date")
           .in("id", recentIds)
+          .eq("chapter_id", scope.chapterId)
           .eq("is_archived", false);
         if (callerTeam) q2 = q2.eq("mentor_team", callerTeam);
         const { data: recentByDays } = await q2;

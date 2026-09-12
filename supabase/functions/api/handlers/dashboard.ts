@@ -1,5 +1,6 @@
 // Handler: dashboard — getDashboard, getMemberDetail, getMentorActivity, getMyTeam, etc.
 import { requireAuth } from '../../_shared/auth.ts';
+import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { memberAccessError, resolveMemberAccess } from '../../_shared/authorization.ts';
 import { calcPalmsScore, trafficLight } from '../../_shared/palms.ts';
@@ -546,11 +547,17 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     case 'getMemberDetail': {
       const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const memberName = String(p.memberName || p.name || '').replace(/\s*\([^)]+\)\s*$/,'').trim();
       if (!memberName) return errResponse('memberName required');
 
+      const { data: scopedMember, error: scopedMemberErr } = await db
+        .from('members').select('id').eq('chapter_id', scope.chapterId).eq('name', memberName).eq('is_archived', false).maybeSingle();
+      if (scopedMemberErr) return errResponse(scopedMemberErr.message);
+      if (!scopedMember) return errResponse(`ไม่พบ "${memberName}"`);
       const { data: m, error: mErr } = await db
-        .from('v_member_dashboard').select('*').eq('name', memberName).single();
+        .from('v_member_dashboard').select('*').eq('id', String((scopedMember as Record<string, unknown>).id)).single();
       if (mErr || !m) return errResponse(`ไม่พบ "${memberName}"`);
 
       const mv = m as Record<string, unknown>;
