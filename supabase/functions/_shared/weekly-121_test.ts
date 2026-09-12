@@ -76,6 +76,12 @@ Deno.test('Flex Card จริงเปิดคู่ด้วย pair locator 
   if(!String((button.action as Record<string,unknown>).uri||'').includes('pair=pair-123'))throw new Error('missing pair locator');
   if(!String(card.altText||'').includes('MY121'))throw new Error('missing accessible alt text');
 });
+Deno.test('Flex Card ใช้โครงสร้าง LINE bubble ที่มีปุ่ม URI จริง', () => {
+  const card=weekly121FlexMessage({name:'Pete'},[{name:'Ideal'}],{liffUrl:'https://liff.line.me/example',pairId:'pair-123',templateKey:'referral_focus'});
+  const bubble=card.contents as Record<string,unknown>,footer=bubble.footer as Record<string,unknown>,button=(footer.contents as Record<string,unknown>[])[0],action=button.action as Record<string,unknown>;
+  eq(bubble.type,'bubble');eq(button.type,'button');eq(action.type,'uri');
+  if(!String(action.uri||'').startsWith('https://liff.line.me/example?'))throw new Error('Flex CTA must use the configured LIFF URL');
+});
 Deno.test('Template มาตรฐานทั้งห้าแบบสร้างข้อความเฉพาะและปลอดภัย', () => {
   const keys=['growth_opportunity','warm_connection','referral_focus','story_trust','quick_action'];
   const messages=keys.map(key=>weekly121Message({name:'Pete',lookingFor:'เจ้าของโรงแรม'},[{name:'Ideal',business:'สถาปนิก'}],key));

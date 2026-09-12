@@ -105,7 +105,10 @@ export async function verifyToken(
     displayName: String(r.display_name || r.role),
     teamName:    r.team_name != null ? String(r.team_name) : null,
     memberId:    r.member_id != null ? String(r.member_id) : null,
-    isMC:        Boolean(r.is_mc),
+    // Chapter Admin/System Owner has the full operational scope of Mentor Co.
+    // Keep this server-derived so a browser cannot elevate itself by sending a
+    // role label, while every MC-only handler has one consistent authority rule.
+    isMC:        isSystemOwner || Boolean(r.is_mc),
     isMentor:    Boolean(r.is_mentor),
     isAdmin,
     isSystemOwner,
