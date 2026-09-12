@@ -231,7 +231,9 @@ function enterApp(r){
   var viewerBanner=document.getElementById('viewer-mode-banner');
   if(!viewerBanner){viewerBanner=document.createElement('div');viewerBanner.id='viewer-mode-banner';viewerBanner.className='viewer-mode-banner';viewerBanner.textContent='👁 VIEWER · โหมดดูอย่างเดียว — ไม่สามารถแก้ไขข้อมูลหรือส่ง LINE';document.body.prepend(viewerBanner);}
   viewerBanner.style.display=(S.isViewer||S.isReadOnly)?'block':'none';
-  S.canRoleSwitch=!S.isViewer&&(S.canRoleSwitch||S.isMC||S.role==='toomtam');
+  // Workspace switching is a System Owner privilege. MC and Growth remain
+  // in their own workspaces even when their UI is loaded directly by URL.
+  S.canRoleSwitch=!S.isViewer&&Boolean(r.isSystemOwner);
   if(DESKTOP_ROLE_TARGET&&DESKTOP_ROLE_TARGET!==S.role&&(S.isMC||S.role==='toomtam')){
     var target=DESKTOP_ROLE_TARGET;
     DESKTOP_ROLE_TARGET='';

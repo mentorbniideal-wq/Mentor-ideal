@@ -110,7 +110,7 @@ const ROUTES: Record<string, string> = {
   'getPassportBoard': 'members', 'syncPassportEnrollments': 'members',
   'updatePassportSession': 'members', 'savePassportLtAssignment': 'members',
   'getPassportCalendar': 'members',
-  'getLtTeam': 'members', 'saveLtTeamAssignment': 'members',
+  'getLtTeam': 'members', 'saveLtTeamAssignment': 'members', 'saveLtGrowthTeam': 'members',
   'previewLtTerm': 'members', 'createLtTerm': 'members',
   'getChapterOperationsCenter': 'members', 'updateChapterHandoverItem': 'members',
   'updateLtRoleHandoverItem': 'members', 'createLtTermSnapshot': 'members',
@@ -391,6 +391,12 @@ Deno.serve(async (req: Request) => {
     if (!PUBLIC_ACTIONS.has(action) && !AUTH_ACTIONS.has(action)) {
       const auth = await requireAuth(getServiceClient(), payload);
       if (!auth.ok) return errResponse(auth.error || 'Authentication required', 401);
+      // Growth is a separate operational workspace. Never grant it merely
+      // because a caller can authenticate as Mentor Co.; only its assigned
+      // Growth role or the verified System Owner may enter this domain.
+      if (domain === 'growth' && !auth.isSystemOwner && auth.role !== 'growth') {
+        return errResponse('ไม่มีสิทธิ์เข้าพื้นที่ Growth', 403);
+      }
     }
 
     // Log usage (non-blocking, fire-and-forget)
