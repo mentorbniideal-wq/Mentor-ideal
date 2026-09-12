@@ -253,6 +253,8 @@ function enterApp(r){
   document.querySelectorAll('[data-admin-only="1"]').forEach(function(el){el.style.display=S.isAdmin?'':'none';});
   document.getElementById('btn-role-growth').style.display=(S.canRoleSwitch&&S.role==='mc')?'':'none';
   document.getElementById('btn-role-mc').style.display=(S.canRoleSwitch&&S.role==='growth')?'':'none';
+  var growthMobile=document.getElementById('btn-growth-mobile');
+  if(growthMobile)growthMobile.style.display=(!S.isViewer&&(S.role==='growth'||S.canRoleSwitch))?'':'none';
   document.querySelectorAll('.sec').forEach(function(s){s.classList.remove('on');});
   document.querySelectorAll('#mc-tabs .tb,#gr-tabs .tb').forEach(function(b){b.classList.remove('on');});
   var defSec=S.role==='growth'?'gr-ov':'mc-ov';
@@ -263,6 +265,7 @@ function enterApp(r){
   startAR();
   reload();
 }
+function openGrowthMobile(){window.location.href='/growth-mobile.html';}
 function switchDesktopRole(target){
   target=String(target||'').toLowerCase();
   if(!target||target===S.role)return;

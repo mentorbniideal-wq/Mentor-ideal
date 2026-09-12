@@ -500,10 +500,12 @@ function showEntryChooser(r){
   var ttl=document.getElementById('entry-title');
   var sub=document.getElementById('entry-sub');
   var growth=document.getElementById('entry-growth-desktop');
+  var growthMobile=document.getElementById('entry-growth-mobile');
   var toom=document.getElementById('entry-toomtam-mobile');
   if(ttl)ttl.textContent=isOwner?'เลือก Workspace สำหรับเจ้าของระบบ':'Mentor Co. ต้องการเข้าโหมดไหน?';
   if(sub)sub.textContent=isOwner?'เลือก MC, Growth Desktop หรือ MC Mobile':'เลือกเฉพาะ MC Desktop หรือ MC Mobile';
   if(growth)growth.style.display=isOwner?'flex':'none';
+  if(growthMobile)growthMobile.style.display=isOwner?'flex':'none';
   if(toom)toom.style.display='none';
   document.getElementById('entryChooser').style.display='flex';
 }
@@ -515,6 +517,7 @@ function entryOpenDesktop(role){
   role=String(role||'mc').toLowerCase();
   window.location.href='dashboard.html?role='+encodeURIComponent(role);
 }
+function entryOpenGrowthMobile(){window.location.href='growth-mobile.html';}
 function entryOpenMobile(role){
   role=String(role||'mc').toLowerCase();
   if(!_entryAuth)return;
