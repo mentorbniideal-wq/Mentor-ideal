@@ -2,6 +2,7 @@
 // Covers: getMemberList, moveMemberToTeam, assignToTeam,
 //         archiveMember, unarchiveMember, addNewMember, saveScore, saveStatus, etc.
 import { requireAuth } from "../../_shared/auth.ts";
+import { resolveChapterScope } from "../../_shared/chapter-scope.ts";
 import {
   errResponse,
   getServiceClient,
@@ -1706,6 +1707,8 @@ export async function handleMembers(
     case "getLtTeam": {
       const auth = await requireAuth(db, p, ["mc"]);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const [
         { data: terms, error: termErr },
         { data: assignments, error: assignmentErr },
@@ -1713,15 +1716,15 @@ export async function handleMembers(
         { data: members, error: memberErr },
         { data: mentorTeams, error: mentorTeamErr },
       ] = await Promise.all([
-        db.from("lt_terms").select("*").order("starts_on", {
+        db.from("lt_terms").select("*").eq("chapter_id", scope.chapterId).order("starts_on", {
           ascending: false,
         }),
-        db.from("passport_lt_assignments").select("*").order("lt_role"),
-        db.from("lt_growth_team_members").select("term_id,member_id,position,created_at").order("position"),
+        db.from("passport_lt_assignments").select("*").eq("chapter_id", scope.chapterId).order("lt_role"),
+        db.from("lt_growth_team_members").select("term_id,member_id,position,created_at").eq("chapter_id", scope.chapterId).order("position"),
         db.from("members").select("id,name,nickname,email,is_archived").eq(
           "is_archived",
           false,
-        ).order("name"),
+        ).eq("chapter_id", scope.chapterId).order("name"),
         db.from("mentor_teams").select(
           "name,leader_name,leader_member_id,display_name,active_term_id,updated_at",
         ).order("id"),
@@ -1763,6 +1766,8 @@ export async function handleMembers(
     case "saveLtGrowthTeam": {
       const auth = await requireAuth(db, p, ["admin"]);
       if (!auth.ok || !auth.isAdmin) return errResponse("เฉพาะ Chapter Admin เท่านั้น", 403);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const termId = textValue(p.termId);
       const leadMemberId = textValue(p.leadMemberId);
       const coLeadMemberIds = Array.isArray(p.coLeadMemberIds)
@@ -1774,16 +1779,16 @@ export async function handleMembers(
       const memberIds = [leadMemberId, ...coLeadMemberIds];
       if (new Set(memberIds).size !== memberIds.length) return errResponse("Growth Lead และ Co-Lead ต้องเป็นคนละคน");
       const [{ data: term }, { data: validMembers }] = await Promise.all([
-        db.from("lt_terms").select("id,status").eq("id", termId).maybeSingle(),
-        db.from("members").select("id").in("id", memberIds).eq("is_archived", false),
+        db.from("lt_terms").select("id,status").eq("id", termId).eq("chapter_id", scope.chapterId).maybeSingle(),
+        db.from("members").select("id").in("id", memberIds).eq("is_archived", false).eq("chapter_id", scope.chapterId),
       ]);
       if (!term || String((term as Record<string, unknown>).status) !== "active") return errResponse("ต้องกำหนดทีมให้วาระ LT ที่กำลังใช้งาน", 409);
       if ((validMembers || []).length !== memberIds.length) return errResponse("พบสมาชิกที่ไม่พร้อมใช้งาน", 400);
-      const { error: deleteError } = await db.from("lt_growth_team_members").delete().eq("term_id", termId);
+      const { error: deleteError } = await db.from("lt_growth_team_members").delete().eq("term_id", termId).eq("chapter_id", scope.chapterId);
       if (deleteError) return errResponse(deleteError.message);
       const { error: insertError } = await db.from("lt_growth_team_members").insert([
-        { term_id: termId, member_id: leadMemberId, position: "lead" },
-        ...coLeadMemberIds.map((memberId) => ({ term_id: termId, member_id: memberId, position: "co_lead" })),
+        { chapter_id: scope.chapterId, term_id: termId, member_id: leadMemberId, position: "lead" },
+        ...coLeadMemberIds.map((memberId) => ({ chapter_id: scope.chapterId, term_id: termId, member_id: memberId, position: "co_lead" })),
       ]);
       if (insertError) return errResponse(insertError.message);
       await db.from("chapter_audit_events").insert({
@@ -3003,6 +3008,8 @@ export async function handleMembers(
     case "previewLtTerm": {
       const auth = await requireAuth(db, p, ["admin"]);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const name = textValue(p.name).slice(0, 120),
         startsOn = textValue(p.startsOn),
         endsOn = textValue(p.endsOn);
@@ -3014,13 +3021,13 @@ export async function handleMembers(
         { data: terms, error: termError },
         { data: roles, error: roleError },
       ] = await Promise.all([
-        db.from("lt_terms").select("id,name,starts_on,ends_on,status").order(
+        db.from("lt_terms").select("id,name,starts_on,ends_on,status").eq("chapter_id", scope.chapterId).order(
           "starts_on",
           { ascending: false },
         ),
         db.from("passport_lt_assignments").select(
           "lt_role,assigned_member_id,fallback_member_id,assigned_name",
-        ).eq("is_active", true),
+        ).eq("is_active", true).eq("chapter_id", scope.chapterId),
       ]);
       if (termError) return errResponse(termError.message);
       if (roleError) return errResponse(roleError.message);
@@ -3058,6 +3065,8 @@ export async function handleMembers(
     case "createLtTerm": {
       const auth = await requireAuth(db, p, ["admin"]);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const name = textValue(p.name).slice(0, 120),
         startsOn = textValue(p.startsOn),
         endsOn = textValue(p.endsOn);
@@ -3065,7 +3074,8 @@ export async function handleMembers(
         !name || !parseYmdDate(startsOn) || !parseYmdDate(endsOn) ||
         endsOn < startsOn
       ) return errResponse("กรุณาระบุชื่อและช่วงวันที่วาระให้ถูกต้อง");
-      const { data, error } = await db.rpc("fn_create_lt_term", {
+      const { data, error } = await db.rpc("fn_create_lt_term_scoped", {
+        p_chapter_id: scope.chapterId,
         p_name: name,
         p_starts_on: startsOn,
         p_ends_on: endsOn,
@@ -3237,6 +3247,8 @@ export async function handleMembers(
     case "savePassportLtAssignment": {
       const auth = await requireAuth(db, p, ["mc"]);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const ltRole = textValue(p.ltRole || p.lt_role);
       if (!ltRole) return errResponse("ltRole required");
       const assignedMemberId = textValue(
@@ -3246,7 +3258,7 @@ export async function handleMembers(
       if (assignedMemberId) {
         const { data: member } = await db.from("members").select(
           "name, nickname",
-        ).eq("id", assignedMemberId).maybeSingle();
+        ).eq("id", assignedMemberId).eq("chapter_id", scope.chapterId).maybeSingle();
         if (member) {
           assignedName =
             textValue((member as Record<string, unknown>).nickname) ||
@@ -3254,6 +3266,7 @@ export async function handleMembers(
         }
       }
       const row = {
+        chapter_id: scope.chapterId,
         lt_role: ltRole,
         assigned_member_id: assignedMemberId || null,
         assigned_name: assignedName || null,
@@ -3270,6 +3283,7 @@ export async function handleMembers(
         .select("id")
         .eq("lt_role", ltRole)
         .eq("is_active", true)
+        .eq("chapter_id", scope.chapterId)
         .maybeSingle();
       const q = existing
         ? db.from("passport_lt_assignments").update(row).eq(

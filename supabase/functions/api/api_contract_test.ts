@@ -109,3 +109,20 @@ Deno.test('dark iPad rail keeps the Desktop workspace visible beside navigation'
     'iPad navigation wrapper must remain in the second row beside the workspace',
   );
 });
+
+Deno.test('LT management derives tenant scope and never accepts a browser chapter id', async () => {
+  const membersHandler = await read('supabase/functions/api/handlers/members.ts');
+  const migration = await read('supabase/migrations/20260912000009_phase_2c_scoped_lt_operations.sql');
+  for (const action of ['getLtTeam', 'saveLtGrowthTeam', 'previewLtTerm', 'createLtTerm', 'savePassportLtAssignment']) {
+    const start = membersHandler.indexOf(`case "${action}":`);
+    assert(start >= 0, `${action} must remain implemented`);
+    const next = membersHandler.indexOf('\n    case ', start + 1);
+    const block = membersHandler.slice(start, next < 0 ? undefined : next);
+    assert(block.includes('resolveChapterScope(db, auth)'), `${action} must derive Chapter scope server-side`);
+    assert(block.includes('scope.chapterId'), `${action} must constrain reads or writes to the resolved Chapter`);
+  }
+  assert(
+    migration.includes('idx_lt_terms_one_active_per_chapter') && migration.includes('fn_create_lt_term_scoped'),
+    'LT term migration must enforce one active term per Chapter and use a scoped creator',
+  );
+});
