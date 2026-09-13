@@ -4,6 +4,7 @@
 //   getCrossTeamSynergy, saveCrossTeamPair
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
+import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
 
 const TEAM_MAP: Record<string, string> = {
   toomtam: 'TOOMTAM', aof: 'Aof', draft: 'Draft', phai: 'PHAI', amp: 'AMP',
@@ -11,23 +12,20 @@ const TEAM_MAP: Record<string, string> = {
 
 const ALL_TEAMS = ['TOOMTAM', 'Aof', 'Draft', 'PHAI', 'AMP'];
 
-async function activeChapterId(db: ReturnType<typeof getServiceClient>): Promise<string> {
-  const { data, error } = await db.from('chapter_profiles').select('id')
-    .eq('is_active', true).order('created_at').limit(1).maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data?.id) throw new Error('ยังไม่ได้ตั้งค่า Active Chapter');
-  return String(data.id);
-}
-
 function cleanText(value: unknown, limit: number): string {
   return String(value ?? '').trim().replace(/\s+/g, ' ').slice(0, limit);
 }
 
-async function powerTeamCandidates(db: ReturnType<typeof getServiceClient>) {
+async function powerTeamCandidates(db: ReturnType<typeof getServiceClient>, chapterId: string) {
   const year = new Date().getFullYear();
+  const { data: scopedMembers, error: scopeError } = await db.from('members').select('id')
+    .eq('chapter_id', chapterId).eq('is_archived', false);
+  if (scopeError) throw new Error(scopeError.message);
+  const scopedIds = (scopedMembers || []).map((member: Record<string, unknown>) => String(member.id));
+  if (!scopedIds.length) return [];
   const { data: plans, error: planError } = await db.from('member_success_blueprints')
     .select('member_id,blueprint_year,power_team_categories,power_team_detail,updated_at')
-    .gte('blueprint_year', year - 1).lte('blueprint_year', year + 1)
+    .in('member_id', scopedIds).gte('blueprint_year', year - 1).lte('blueprint_year', year + 1)
     .order('blueprint_year', { ascending: false }).order('updated_at', { ascending: false });
   if (planError) throw new Error(planError.message);
   const newestByMember = new Map<string, Record<string, unknown>>();
@@ -38,7 +36,7 @@ async function powerTeamCandidates(db: ReturnType<typeof getServiceClient>) {
   const ids = [...newestByMember.keys()];
   if (!ids.length) return [];
   const { data: members, error: memberError } = await db.from('members')
-    .select('id,name,nickname,profession,company_name,mentor_team,is_archived').in('id', ids).eq('is_archived', false);
+    .select('id,name,nickname,profession,company_name,mentor_team,is_archived').in('id', ids).eq('chapter_id', chapterId).eq('is_archived', false);
   if (memberError) throw new Error(memberError.message);
   const groups = new Map<string, { memberIds: string[]; members: Record<string, unknown>[]; details: string[] }>();
   for (const member of (members || []) as Record<string, unknown>[]) {
@@ -166,9 +164,11 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
       try {
-        const chapterId = await activeChapterId(db);
+        const scope = await resolveChapterScope(db, auth);
+        if (!scope.ok) return errResponse(scope.error, 403);
+        const chapterId = scope.chapterId;
         const [candidates, saved] = await Promise.all([
-          powerTeamCandidates(db),
+          powerTeamCandidates(db, chapterId),
           db.from('power_team_proposals').select('id,title,target_customer_group,rationale,source_category,status,created_by,created_at,updated_at,power_team_proposal_members(member_id,members(id,name,nickname,profession,company_name,mentor_team))')
             .eq('chapter_id', chapterId).neq('status', 'archived').order('updated_at', { ascending: false }),
         ]);
@@ -187,8 +187,10 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
         return errResponse('ต้องระบุชื่อข้อเสนอ กลุ่มลูกค้า เหตุผล และสมาชิกอย่างน้อย 2 คน');
       }
       try {
-        const chapterId = await activeChapterId(db);
-        const { data: eligible, error: eligibleError } = await db.from('members').select('id').in('id', memberIds).eq('is_archived', false);
+        const scope = await resolveChapterScope(db, auth);
+        if (!scope.ok) return errResponse(scope.error, 403);
+        const chapterId = scope.chapterId;
+        const { data: eligible, error: eligibleError } = await db.from('members').select('id').in('id', memberIds).eq('chapter_id', chapterId).eq('is_archived', false);
         if (eligibleError) throw new Error(eligibleError.message);
         if ((eligible || []).length !== memberIds.length) return errResponse('พบสมาชิกที่ไม่อยู่ในสถานะใช้งาน');
         const { data: proposal, error: proposalError } = await db.from('power_team_proposals').insert({

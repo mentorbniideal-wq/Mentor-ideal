@@ -5,6 +5,7 @@ import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts
 import { findEvolutionAverageColumn } from '../../_shared/traffic-evolution.ts';
 import { calcPalmsScore } from '../../_shared/palms.ts';
 import { getMentorActivityData } from './dashboard.ts';
+import { buildGrowthIntelligence } from '../../_shared/growth-intelligence.ts';
 
 const TEAM_ROLE: Record<string, string> = {
   toomtam: 'TOOMTAM', aof: 'Aof', draft: 'Draft', phai: 'PHAI', amp: 'AMP',
@@ -823,6 +824,43 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
 
   switch (action) {
 
+    // Read-only, explainable Growth Intelligence. It composes existing sources
+    // and never changes PALMS, Traffic Light, RGI/RR, or TYFCB definitions.
+    case 'getGrowthPriorities': {
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const year = Number(p.blueprintYear || new Date().getFullYear());
+      const { data: members, error: memberError } = await db.from('members')
+        .select('id,name,nickname,profession,is_archived').eq('chapter_id', scope.chapterId).eq('is_archived', false);
+      if (memberError) return errResponse(memberError.message);
+      const ids = (members || []).map((m: Record<string, unknown>) => String(m.id));
+      if (!ids.length) return jsonResponse({ ok: true, priorities: [], opportunities: [], connections: [], dataConfidence: 'INSUFFICIENT', freshness: null });
+      const [plansQ, tasksQ, proposalsQ, pairsAQ, pairsBQ] = await Promise.all([
+        db.from('member_success_blueprints').select('member_id,looking_for_categories,power_team_categories,updated_at').eq('blueprint_year', year).eq('status', 'submitted').in('member_id', ids),
+        db.from('growth_tasks').select('id,status,task_text,member_id,created_at').eq('chapter_id', scope.chapterId).not('status', 'in', '(completed,cancelled)').order('created_at', { ascending: false }).limit(100),
+        db.from('power_team_proposals').select('id,status,source_category,power_team_proposal_members(member_id)').eq('chapter_id', scope.chapterId).neq('status', 'archived'),
+        db.from('matching_pairs').select('member_a_id,member_b_id,status,round:matching_rounds(meeting_date)').in('member_a_id', ids).limit(1000),
+        db.from('matching_pairs').select('member_a_id,member_b_id,status,round:matching_rounds(meeting_date)').in('member_b_id', ids).limit(1000),
+      ]);
+      const failed = [plansQ, tasksQ, proposalsQ, pairsAQ, pairsBQ].find(q => q.error);
+      if (failed?.error) return errResponse(failed.error.message);
+      const plans = (plansQ.data || []).map((row: Record<string, unknown>) => ({ memberId: String(row.member_id), lookingFor: Array.isArray(row.looking_for_categories) ? row.looking_for_categories.map(String) : [], powerTeam: Array.isArray(row.power_team_categories) ? row.power_team_categories.map(String) : [], updatedAt: row.updated_at ? String(row.updated_at) : null }));
+      const proposals = (proposalsQ.data || []).map((row: Record<string, unknown>) => ({ id: String(row.id), status: String(row.status), sourceCategory: row.source_category ? String(row.source_category) : null, memberIds: (Array.isArray(row.power_team_proposal_members) ? row.power_team_proposal_members : []).map((x: Record<string, unknown>) => String(x.member_id)).filter(Boolean) }));
+      const pairMap = new Map<string, Record<string, unknown>>();
+      for (const pair of [...(pairsAQ.data || []), ...(pairsBQ.data || [])] as Record<string, unknown>[]) pairMap.set(`${pair.member_a_id}:${pair.member_b_id}`, pair);
+      const pairs = [...pairMap.values()].filter(pair => ids.includes(String(pair.member_a_id)) && ids.includes(String(pair.member_b_id))).map(pair => {
+        const round = pair.round as Record<string, unknown> | null;
+        const status = String(pair.status || '');
+        return { a: String(pair.member_a_id), b: String(pair.member_b_id), completedAt: ['verified', 'late_verified', 'completed'].includes(status) ? String(round?.meeting_date || '') : null, active: ['matched','contacted','scheduled','confirmed_schedule','awaiting_verification','partially_verified','overdue'].includes(status) };
+      });
+      const result = buildGrowthIntelligence({ members: (members || []).map((m: Record<string, unknown>) => ({ id: String(m.id), name: String(m.name), nickname: m.nickname ? String(m.nickname) : null, profession: m.profession ? String(m.profession) : null, isArchived: Boolean(m.is_archived) })), plans, tasks: (tasksQ.data || []).map((t: Record<string, unknown>) => ({ id: String(t.id), status: String(t.status), taskText: t.task_text ? String(t.task_text) : null, memberId: t.member_id ? String(t.member_id) : null, createdAt: t.created_at ? String(t.created_at) : null })), proposals, pairs });
+      const memberMap = new Map((members || []).map((m: Record<string, unknown>) => [String(m.id), { id: String(m.id), name: String(m.name), nickname: m.nickname ? String(m.nickname) : null, profession: m.profession ? String(m.profession) : null }]));
+      const hydrate = (item: Record<string, unknown>) => ({ ...item, affectedMembers: (Array.isArray(item.memberIds) ? item.memberIds : []).map(id => memberMap.get(String(id))).filter(Boolean), source: 'MSB Blueprint + MY121 + Growth actions', freshness: result.dataConfidence === 'INSUFFICIENT' ? 'ข้อมูล MSB ยังไม่ครบ' : 'ข้อมูลจาก Blueprint ที่ submit แล้ว' });
+      return jsonResponse({ ok: true, priorities: result.priorities.map(hydrate), opportunities: result.opportunities.map(hydrate), connections: result.connections.map(hydrate), dataConfidence: result.dataConfidence, freshness: plans.length ? plans.map(x => x.updatedAt).filter(Boolean).sort().at(-1) : null });
+    }
+
     // ── Risk Monitor: คะแนนลดต่อเนื่อง ──────────────────────
     case 'getRiskMembers': {
       const auth = await requireAuth(db, p);
@@ -1045,6 +1083,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'getGrowthSheetData': {
       const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       // Grouped structure for the Growth Sheet UI
       // Columns: 0=seq, 1=ชื่อ-สกุล, 2=ชื่อเล่น, 3=อายุสมาชิก, 4=หมายเหตุ, 5=เป้าหมาย ฿, 6=รับจริง ฿, 7=%ทำได้
       const HEADERS = ['', 'ชื่อ-สกุล', 'ชื่อเล่น', 'อายุสมาชิก', 'หมายเหตุ', 'เป้า Growth/MSB ฿', 'รับจริง ฿', '%ทำได้'];
@@ -1053,12 +1093,14 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const { data: groupRows, error: gErr } = await db
         .from('growth_referral_groups')
         .select('id, name, sort_order')
+        .eq('chapter_id', scope.chapterId)
         .order('sort_order', { ascending: true });
       if (gErr) return errResponse(gErr.message);
 
       const { data: memberRows, error: mErr } = await db
         .from('growth_referral_members')
         .select('id, group_id, member_id, raw_name, nickname, seq_no, target_thb, received_thb, membership_age, note')
+        .eq('chapter_id', scope.chapterId)
         .order('seq_no', { ascending: true });
       if (mErr) return errResponse(mErr.message);
 
@@ -1397,6 +1439,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'createGrowthTask': {
       const auth = await requireAuth(db, p, ['mc', 'toomtam', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       // Accept both old (assignedTo/taskText) and new (teamName/memberName/taskType/note) params
       const assignedTo  = String(p.assignedTo || p.teamName || '').toLowerCase();
       const taskText    = String(p.taskText || p.task || p.note || '').trim();
@@ -1412,7 +1456,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       // Look up member_id if memberName provided
       let memberId: string | null = null;
       if (requestedMemberId || memberName) {
-        let memberQuery = db.from('members').select('id,name,nickname,mentor_team').eq('is_archived', false);
+        let memberQuery = db.from('members').select('id,name,nickname,mentor_team').eq('chapter_id', scope.chapterId).eq('is_archived', false);
         memberQuery = requestedMemberId ? memberQuery.eq('id', requestedMemberId) : memberQuery.eq('name', memberName);
         const { data: mem } = await memberQuery.maybeSingle();
         if (mem) memberId = (mem as Record<string, unknown>).id as string;
@@ -1427,6 +1471,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       }
 
       const { error } = await db.from('growth_tasks').insert({
+        chapter_id:  scope.chapterId,
         created_by:  String(auth.role || 'growth'),
         assigned_to: assignedTo,
         task_text:   taskText,
@@ -1446,10 +1491,12 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'getGrowthTasks': {
       const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const role = String(auth.role || '').toLowerCase();
       const statusFilter = String(p.statusFilter || 'all');
 
-      let query = db.from('growth_tasks').select('id, created_by, assigned_to, task_text, response, responded_at, created_at, priority, task_type, member_name, member_id, status, due_date, assigned_owner_email, assigned_owner_name, started_at, completed_at, updated_at');
+      let query = db.from('growth_tasks').select('id, created_by, assigned_to, task_text, response, responded_at, created_at, priority, task_type, member_name, member_id, status, due_date, assigned_owner_email, assigned_owner_name, started_at, completed_at, updated_at').eq('chapter_id', scope.chapterId);
       // Mentors only see tasks assigned to them; MC/growth see all
       if (role !== 'mc' && role !== 'growth') query = query.eq('assigned_to', role);
       // Status filter
@@ -1492,13 +1539,15 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'respondGrowthTask': {
       const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const taskId   = String(p.taskId || p.id || '');
       const response = String(p.response || '').trim();
       const nextStatus = String(p.status || 'completed');
       if (!['accepted','in_progress','waiting_member','completed','cancelled'].includes(nextStatus)) return errResponse('สถานะ Growth Task ไม่ถูกต้อง');
       if (!taskId) return errResponse('taskId required');
       const { data: task, error: taskError } = await db.from('growth_tasks')
-        .select('assigned_to,assigned_owner_email').eq('id', taskId).maybeSingle();
+        .select('assigned_to,assigned_owner_email').eq('id', taskId).eq('chapter_id', scope.chapterId).maybeSingle();
       if (taskError) return errResponse(taskError.message);
       if (!task) return errResponse('ไม่พบ Growth Task');
       const assignedTo = String((task as Record<string, unknown>).assigned_to || '').toLowerCase();
@@ -1513,7 +1562,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       if(nextStatus==='cancelled')changes.completed_at=now;
       const { error } = await db.from('growth_tasks')
         .update(changes)
-        .eq('id', taskId);
+        .eq('id', taskId).eq('chapter_id', scope.chapterId);
       if (error) return errResponse(error.message);
       return jsonResponse({ ok: true });
     }

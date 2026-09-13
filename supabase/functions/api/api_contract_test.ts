@@ -172,6 +172,21 @@ Deno.test('Growth score entrypoints derive Chapter scope before reading score da
   }
 });
 
+Deno.test('Growth Intelligence and legacy Growth Sheet derive tenant scope server-side', async () => {
+  const growthHandler = await read('supabase/functions/api/handlers/growth.ts');
+  const powerHandler = await read('supabase/functions/api/handlers/power-teams.ts');
+  const migration = await read('supabase/migrations/20260913000001_growth_intelligence_scope.sql');
+  for (const action of ['getGrowthPriorities', 'getGrowthSheetData', 'createGrowthTask', 'getGrowthTasks', 'respondGrowthTask']) {
+    const start = growthHandler.indexOf(`case '${action}':`);
+    assert(start >= 0, `${action} must remain implemented`);
+    const next = growthHandler.indexOf('\n    case ', start + 1);
+    const block = growthHandler.slice(start, next < 0 ? undefined : next);
+    assert(block.includes('resolveChapterScope(db, auth)') && block.includes('scope.chapterId'), `${action} must use server-derived Chapter scope`);
+  }
+  assert(powerHandler.includes('powerTeamCandidates(db, chapterId)') && powerHandler.includes('resolveChapterScope(db, auth)'), 'Power Team proposals must use the authenticated Chapter scope');
+  assert(migration.includes('idx_growth_referral_groups_chapter_order') && migration.includes('idx_growth_tasks_chapter_status_due'), 'legacy Growth records need Chapter indexes');
+});
+
 Deno.test('workspace chooser presents Mentor and Growth with explicit Desktop and Mobile actions', async () => {
   const page = await read('public/index.html');
   const script = await read('public/assets/js/mobile-operations.js');

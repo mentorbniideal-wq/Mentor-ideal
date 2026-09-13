@@ -137,6 +137,7 @@ const ROUTES: Record<string, string> = {
 
   // Growth System
   'getGrowthData': 'growth', 'getGrowthSheetData': 'growth',
+  'getGrowthPriorities': 'growth',
   'getMSBCategoryLibrary': 'growth', 'saveMSBCategoryAlias': 'growth',
   'saveGrowthGoalReview': 'growth',
   'updateGrowthMember': 'growth', 'addGrowthMember': 'growth',

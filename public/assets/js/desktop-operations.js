@@ -21,7 +21,7 @@ function loadPublicTeamLabels(){
     .then(function(r){if(!r||!r.ok)return;var labels={};(r.teams||[]).forEach(function(t){if(t.code)labels[t.code]=t.displayName||t.code;});D.teamLabels=Object.assign({},D.teamLabels||{},labels);applyTeamDisplayLabels();})
     .catch(function(){});
 }
-var G={mem:[],sm:{},tasks:[],nm:[],dec:[],assignees:[]};
+var G={mem:[],sm:{},tasks:[],nm:[],dec:[],assignees:[],intel:{priorities:[],opportunities:[],connections:[]}};
 var S={role:'',token:null,sr:''};
 var mzf='all',ftf='all',rff='all',gzf='all',tsf='all';
 var gwModeFilter='all'; // 'all' | 'active' | 'growth_watch'
@@ -511,13 +511,13 @@ function loadGrowth(){
   ld(true);
   var done=0;
   var guard=setTimeout(function(){
-    if(done<3){
+    if(done<4){
       console.warn('[dashboard] loadGrowth timeout guard released overlay',done);
       ld(false);
       toast('โหลดข้อมูลช้ากว่าปกติ แต่เมนูยังใช้งานได้ครับ','err');
     }
   },12000);
-  function chk(){done++;if(done===3){clearTimeout(guard);ld(false);updateBadges();}}
+  function chk(){done++;if(done===4){clearTimeout(guard);ld(false);updateBadges();}}
   gsr('getGrowthData',{},function(r){
     try{
       if(r.ok){G.mem=(r.members||[]).map(normalizeGrowthMember);G.sm=r.summary||{};
@@ -544,6 +544,7 @@ function loadGrowth(){
       console.error('[dashboard] new member render failed',e);
     }finally{chk();}
   });
+  loadGrowthIntelligence(false,chk);
 }
 
 // ─── MC: Build Filters ────────────────────────────
@@ -5163,7 +5164,36 @@ function renderGrowthToday(){
   el.innerHTML='<div class="cc" style="border-color:rgba(96,165,250,.35)"><div class="sh"><h2>☀️ Growth Today</h2><span style="font-size:11px;color:var(--sub)">สิ่งที่ควรจัดการก่อน</span></div><div class="kgrid" style="margin-bottom:12px"><div class="kc pu"><div class="kl">งานเปิด</div><div class="kv">'+open.length+'</div><div class="ks">Growth Tasks</div></div><div class="kc re"><div class="kl">เกินกำหนด</div><div class="kv">'+overdue.length+'</div><div class="ks">ควรติดตามวันนี้</div></div><div class="kc ye"><div class="kl">สมาชิกต้องดูแล</div><div class="kv">'+risk.length+'</div><div class="ks">Red / Black / ขาดสูง</div></div><div class="kc bl"><div class="kl">แนวโน้มลดลง</div><div class="kv">'+declining.length+'</div><div class="ks">จากข้อมูลล่าสุด</div></div></div><div style="display:flex;gap:7px;flex-wrap:wrap">'+(focus||'<span style="font-size:12px;color:var(--gr)">✅ ไม่มีสมาชิกเร่งด่วน</span>')+'</div></div>';
 }
 
-function renderGrowthAll(){renderGrowthToday();renderHealthScore();renderGKPI();renderJIBar();renderGOvActivity();renderGOvBalance();renderBal();renderTop();renderGoals();renderTrendChart();buildHeatmapFilters();renderTrendSection();}
+function renderGrowthAll(){renderGrowthIntelligence();renderGrowthToday();renderHealthScore();renderGKPI();renderJIBar();renderGOvActivity();renderGOvBalance();renderBal();renderTop();renderGoals();renderTrendChart();buildHeatmapFilters();renderTrendSection();}
+
+function loadGrowthIntelligence(force,done){
+  gsr('getGrowthPriorities',{},function(r){
+    try{if(r&&r.ok){G.intel={priorities:r.priorities||[],opportunities:r.opportunities||[],connections:r.connections||[],dataConfidence:r.dataConfidence||'INSUFFICIENT'};renderGrowthIntelligence();}else if(force)toast('โหลด Growth Intelligence ไม่สำเร็จ','err');}
+    catch(e){console.error('[dashboard] growth intelligence render failed',e);}
+    finally{if(done)done();}
+  });
+}
+function growthIntelMembers(item){return(item.affectedMembers||[]).map(function(m){return esc(m.nickname||m.name);}).join(' · ')||'ยังไม่มีรายชื่อที่พร้อมแสดง';}
+function growthIntelCard(item,compact){
+  var type={MISSING_CATEGORY:'✦ CHAPTER OPPORTUNITY',CONNECTION_OPPORTUNITY:'↔ CONNECTION OPPORTUNITY',GROWTH_FOLLOW_UP:'✓ GROWTH FOLLOW-UP'}[item.type]||'GROWTH INSIGHT';
+  var tone=item.confidence==='STALE'?'var(--ye)':item.confidence==='INSUFFICIENT'?'var(--sub)':'var(--pu)';
+  var actions='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px"><button class="bsm" onclick="growthIntelOpen(\''+esc(item.id)+'\')">ดูสมาชิก</button>';
+  if(item.type!=='GROWTH_FOLLOW_UP'&&!item.existingTask)actions+='<button class="bsm" onclick="growthIntelTask(\''+esc(item.id)+'\')">สร้าง Growth Task</button>';
+  if(item.type==='MISSING_CATEGORY'&&!item.covered&&!item.existingProposal&&(item.memberIds||[]).length>=2)actions+='<button class="bsm" onclick="growthIntelProposal(\''+esc(item.id)+'\')">Draft Power Team</button>';
+  if(item.type==='CONNECTION_OPPORTUNITY')actions+='<button class="bsm" onclick="sw(\'gr-flow\',null,\'gr\');flowLoad()">เปิด MY121</button>';
+  return'<article style="padding:'+(compact?'9px 0':'11px')+';border-bottom:1px solid var(--bd)"><div style="font-size:10px;font-weight:900;letter-spacing:.07em;color:'+tone+'">'+type+'</div><div style="font-size:13px;font-weight:800;margin-top:3px">'+esc(item.title||item.category||'โอกาสของ Chapter')+'</div><div style="font-size:11px;color:var(--sub);line-height:1.55;margin-top:3px">'+esc(item.why||'')+'</div><div style="font-size:10px;color:var(--tx);margin-top:5px">'+growthIntelMembers(item)+'</div><div style="font-size:10px;color:var(--sub);margin-top:4px">'+(item.evidence||[]).map(esc).join(' · ')+'</div>'+actions+'</article>';
+}
+function renderGrowthIntelligence(){
+  var intel=G.intel||{}, priorities=intel.priorities||[], opp=intel.opportunities||[], con=intel.connections||[];
+  var p=document.getElementById('growth-priorities'),o=document.getElementById('growth-opportunities'),c=document.getElementById('growth-connections');
+  if(p)p.innerHTML=priorities.length?priorities.map(function(x){return growthIntelCard(x,false);}).join(''):'<div class="es">ยังไม่มีข้อมูล MSB เพียงพอสำหรับคำแนะนำ · ให้สมาชิก submit Blueprint ก่อน</div>';
+  if(o)o.innerHTML=opp.length?opp.slice(0,5).map(function(x){return growthIntelCard(x,true);}).join(''):'<div class="es">ยังไม่มี Chapter Opportunity ที่ยืนยันได้</div>';
+  if(c)c.innerHTML=con.length?con.slice(0,5).map(function(x){return growthIntelCard(x,true);}).join(''):'<div class="es">ยังไม่มี Connection Opportunity ที่ข้อมูลรองรับ</div>';
+}
+function growthIntelFind(id){return[].concat(G.intel&&G.intel.priorities||[],G.intel&&G.intel.opportunities||[],G.intel&&G.intel.connections||[]).find(function(x){return x.id===id;});}
+function growthIntelOpen(id){var x=growthIntelFind(id),m=x&&x.affectedMembers&&x.affectedMembers[0];if(m)openIMD(m.name);else toast('ยังไม่มีข้อมูลสมาชิกให้เปิด','warn');}
+function growthIntelTask(id){var x=growthIntelFind(id);if(!x)return;var note=prompt('Growth Task ที่จะสร้าง',x.recommendedAction||x.title);if(note===null||!note.trim())return;var m=(x.affectedMembers||[])[0]||{};gsr('createGrowthTask',{assignedTo:'growth',memberId:m.id||'',memberName:m.name||'',taskType:'Growth Intelligence',priority:'✦',taskText:note.trim()},function(r){if(!r||!r.ok){toast('สร้าง Growth Task ไม่สำเร็จ','err');return;}toast('สร้าง Growth Task แล้ว','ok');loadGrowth();});}
+function growthIntelProposal(id){var x=growthIntelFind(id);if(!x)return;var members=x.affectedMembers||[];if(members.length<2){toast('ต้องมีสมาชิกอย่างน้อย 2 คนเพื่อสร้าง Draft','warn');return;}gsr('savePowerTeamProposal',{title:x.category||x.title,targetCustomerGroup:'กลุ่มลูกค้าที่เกี่ยวข้องกับ '+(x.category||''),rationale:x.why||'สร้างจาก Chapter Opportunity',sourceCategory:x.category||'',memberIds:members.map(function(m){return m.id;})},function(r){if(!r||!r.ok){toast('สร้าง Draft Power Team ไม่สำเร็จ','err');return;}toast('สร้าง Draft Power Team แล้ว','ok');loadGrowthIntelligence(true);});}
 
 function renderGKPI(){
   var sm=G.sm;

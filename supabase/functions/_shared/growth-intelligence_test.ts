@@ -1,0 +1,11 @@
+import { assertEquals, assert } from 'https://deno.land/std@0.224.0/assert/mod.ts';
+import { buildGrowthIntelligence, categoryKey } from './growth-intelligence.ts';
+
+const members=[{id:'a',name:'A',profession:'Designer'},{id:'b',name:'B',profession:'Builder'},{id:'old',name:'Old',profession:'Architect',isArchived:true}];
+const plans=[{memberId:'a',lookingFor:['Architect'],powerTeam:['Property'],updatedAt:'2026-09-12T00:00:00Z'},{memberId:'b',lookingFor:['architect '],powerTeam:['Property'],updatedAt:'2026-09-12T00:00:00Z'}];
+const base={members,plans,tasks:[],proposals:[],pairs:[],now:new Date('2026-09-13T00:00:00Z')};
+Deno.test('canonical category aggregation excludes archived coverage',()=>{const r=buildGrowthIntelligence(base);assertEquals(categoryKey('Architect '),'architect');assertEquals(r.opportunities[0].memberIds.length,2);assertEquals(r.opportunities[0].covered,false);});
+Deno.test('existing task or proposal suppresses duplicate category recommendation',()=>{const task=buildGrowthIntelligence({...base,tasks:[{id:'t',status:'new',taskText:'หา Architect'}]});assertEquals(task.priorities.some(x=>x.type==='MISSING_CATEGORY'&&x.category==='Architect'),false);const proposal=buildGrowthIntelligence({...base,proposals:[{id:'p',status:'proposed',sourceCategory:'Architect',memberIds:['a','b']}]});assertEquals(proposal.priorities.some(x=>x.type==='MISSING_CATEGORY'&&x.category==='Architect'),false);});
+Deno.test('recent or active MY121 pairs are excluded',()=>{const recent=buildGrowthIntelligence({...base,pairs:[{a:'a',b:'b',completedAt:'2026-09-01T00:00:00Z'}]});assertEquals(recent.connections.length,0);const active=buildGrowthIntelligence({...base,pairs:[{a:'a',b:'b',active:true}]});assertEquals(active.connections.length,0);});
+Deno.test('missing and stale MSB data are explicit',()=>{assertEquals(buildGrowthIntelligence({...base,plans:[]}).dataConfidence,'INSUFFICIENT');assertEquals(buildGrowthIntelligence({...base,plans:[{...plans[0],updatedAt:'2026-01-01T00:00:00Z'}]}).opportunities[0].confidence,'STALE');});
+Deno.test('empty Chapter returns no recommendations',()=>{const r=buildGrowthIntelligence({...base,members:[],plans:[]});assertEquals(r.priorities,[]);assertEquals(r.opportunities,[]);});
