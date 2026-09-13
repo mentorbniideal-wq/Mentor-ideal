@@ -187,18 +187,19 @@ Deno.test('Growth Intelligence and legacy Growth Sheet derive tenant scope serve
   assert(migration.includes('idx_growth_referral_groups_chapter_order') && migration.includes('idx_growth_tasks_chapter_status_due'), 'legacy Growth records need Chapter indexes');
 });
 
-Deno.test('Growth Mobile uses a privacy-minimised member context contract', async () => {
+Deno.test('Growth Mobile uses the shared, privacy-minimised member context contract', async () => {
   const index = await read('supabase/functions/api/index.ts');
   const dashboard = await read('supabase/functions/api/handlers/dashboard.ts');
   const mobile = await read('public/assets/js/growth-mobile2.js');
-  const start = dashboard.indexOf("case 'getGrowthMemberContext':");
-  const end = dashboard.indexOf("case 'getMemberDetail':", start);
+  const start = dashboard.indexOf("case 'getSharedMemberSupportContext':");
+  const end = dashboard.indexOf("case 'getGrowthMemberContext':", start);
   const contract = dashboard.slice(start, end);
-  assert(index.includes("'getGrowthMemberContext': 'dashboard'"), 'Growth-safe context must be routed');
+  assert(index.includes("'getSharedMemberSupportContext': 'dashboard'"), 'Growth-safe shared context must be routed');
   assert(contract.includes('resolveChapterScope') && contract.includes("eq('chapter_id', scope.chapterId)"), 'Growth context must derive and enforce Chapter scope');
-  assert(contract.includes('Growth context excludes Mentor logs, reviews, notes'), 'Growth context must document private-field exclusion');
+  assert(contract.includes('Shared context excludes Mentor logs, notes, reviews'), 'Growth context must document private-field exclusion');
   assert(!contract.includes('mentor_logs') && !contract.includes('member_notes') && !contract.includes('ninety_day_reviews'), 'Growth context must not query Mentor-private records');
-  assert(mobile.includes("api('getGrowthMemberContext'"), 'Growth Mobile must use the privacy-minimised contract');
+  assert(mobile.includes("api('getSharedMemberSupportContext'"), 'Growth Mobile must use the privacy-minimised shared contract');
+  assert(mobile.includes("api('createSupportHandoff'") && mobile.includes("targetRole:'mentor'"), 'Growth Mobile must offer a server-authorized handoff to Mentor');
 });
 
 Deno.test('Member Support OS shared context is role-safe and Chapter-scoped', async () => {
