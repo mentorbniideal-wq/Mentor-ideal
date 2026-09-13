@@ -2152,7 +2152,7 @@ function buildDetail(d){
 
   var heroHTML = '<div class="hero">'
     +'<div class="hero-name">'+escHtml(d.name)+' ('+escHtml(d.nick)+')</div>'
-    +'<div class="hero-meta">'+escHtml(d.mentor)+' · '+d.actual.bniDays+' วันใน BNI · '+d.weeks+' สัปดาห์</div>'
+    +'<div class="hero-meta">'+escHtml(mobileTeamDisplay(d.mentor))+' · '+d.actual.bniDays+' วันใน BNI · '+d.weeks+' สัปดาห์</div>'
     +'<div class="hero-row"><div class="hero-score" style="color:'+sc(score)+'">'+score+'</div>'
     +'<div><div style="font-size:1rem;">'+(score>=70?'🟢 เขียว':score>=50?'🟡 เหลือง':score>=30?'🔴 แดง':'⚫ ดำ')+'</div>'
     +'<div style="font-size:.72rem;color:var(--gray2);">Balance: '+escHtml(d.balance)+'</div></div></div>'
@@ -2664,7 +2664,7 @@ function buildExportText(){
   if(alerts.length){
     lines.push('🚨 ต้องติดตามด่วน ('+alerts.length+' คน)');
     alerts.forEach(function(m){
-      lines.push('  • '+m.name+' ('+m.nick+') — Mentor: '+(m.mentor||'—')+' | คะแนน: '+(m.score||0)+(m.absent>4?' | ขาด '+m.absent+' ครั้ง':''));
+      lines.push('  • '+m.name+' ('+m.nick+') — Mentor: '+mobileTeamDisplay(m.mentor||'')+' | คะแนน: '+(m.score||0)+(m.absent>4?' | ขาด '+m.absent+' ครั้ง':''));
     });
     lines.push('');
   }
@@ -2812,7 +2812,7 @@ function renderNudges(){
       '<div class="nudge-top">'+
         '<div class="nudge-who">'+
           '<div class="nudge-name">'+escHtml(n.m.nick||n.m.name.split(' ')[0])+'<span style="font-weight:400;font-size:.72rem;color:var(--gray2);"> — '+escHtml(n.m.name.split(' ').slice(0,2).join(' '))+'</span></div>'+
-          '<div class="nudge-team">ทีม '+escHtml(n.m.mentor||'ไม่มีทีม')+' · Score '+n.m.score+' · '+pLabel[n.p]+'</div>'+
+          '<div class="nudge-team">'+escHtml(mobileTeamDisplay(n.m.mentor||''))+' · Score '+n.m.score+' · '+pLabel[n.p]+'</div>'+
         '</div>'+
         (n.safeTeam?'<button class="nudge-quick-btn" onclick="toggleGrowthTaskForm(\''+fid+'\',\''+n.safeN+'\',\''+n.safeTeam+'\')">🎯 Task</button>':'<span style="font-size:.72rem;color:var(--gray2);">ไม่มี Mentor</span>')+
       '</div>'+
@@ -2986,7 +2986,7 @@ function renderStrategy(){
     html+='<div class="strategy-item" style="border-color:var(--border)">'+
       inactive.map(function(m){
         return '<div class="strat-inactive-row">'+
-          '<div><span style="font-weight:600">'+m.name.split(' ')[0]+' ('+m.nick+')</span> <span style="font-size:.65rem;color:var(--gray2)">'+m.mentor+'</span></div>'+
+          '<div><span style="font-weight:600">'+m.name.split(' ')[0]+' ('+m.nick+')</span> <span style="font-size:.65rem;color:var(--gray2)">'+mobileTeamDisplay(m.mentor)+'</span></div>'+
           '<span style="font-size:.68rem;color:var(--gray2)">'+m.score+' pts</span>'+
         '</div>';
       }).join('')+
@@ -3862,7 +3862,7 @@ function renderNewMembers(appType, members) {
         + ' data-nick="' + escHtml(m.nick) + '"'
         + ' data-mentor="' + escHtml(m.mentor) + '"'
         + ' data-exp="' + escHtml(m.expDate) + '"'
-        + ' onclick="assignToTeam(this)">✅ เพิ่มเข้าทีม ' + escHtml(m.mentor) + '</button>'
+        + ' onclick="assignToTeam(this)">✅ เพิ่มเข้าทีม ' + escHtml(mobileTeamDisplay(m.mentor)) + '</button>'
       : '';
     return '<div class="nm-card">'
       + '<div style="cursor:pointer" onclick="openCL(\'' + encodeURIComponent(m.fileUrl) + '\',\'' + encodeURIComponent(m.name) + '\')">'
@@ -3870,7 +3870,7 @@ function renderNewMembers(appType, members) {
       + '<div class="nm-av">' + initials + '</div>'
       + '<div style="flex:1">'
       + '<div class="nm-name">' + escHtml(m.name) + ' (' + escHtml(m.nick) + ')</div>'
-      + '<div class="nm-meta">Mentor: ' + escHtml(m.mentor) + ' · เริ่ม ' + escHtml(m.startDate) + ' · ครบ 8W: ' + escHtml(m.w8Date) + '</div>'
+      + '<div class="nm-meta">' + escHtml(mobileTeamDisplay(m.mentor)) + ' · เริ่ม ' + escHtml(m.startDate) + ' · ครบ 8W: ' + escHtml(m.w8Date) + '</div>'
       + '</div>'
       + '<div style="text-align:right;font-size:.8rem;font-weight:700;color:' + statusColor + '">' + pct + '%</div>'
       + '</div>'
@@ -3950,7 +3950,7 @@ function assignToTeam(btn) {
     setTimeout(function() {
       if (btn.dataset.confirm === '1') {
         btn.dataset.confirm = '0';
-        btn.textContent = '✅ เพิ่มเข้าทีม ' + mentor;
+        btn.textContent = '✅ เพิ่มเข้าทีม ' + mobileTeamDisplay(mentor);
         btn.style.background = '';
         btn.style.color = '';
         btn.style.borderColor = '';
@@ -3982,7 +3982,7 @@ function renderChecklist(d) {
   var progColor = d.pct >= 100 ? 'var(--green)' : d.pct >= 50 ? 'var(--yellow)' : '#8B5CF6';
   var html = '<div class="cl-hero">'
     + '<div class="cl-hero-name">' + escHtml(d.memberName) + ' (' + escHtml(d.nick) + ')</div>'
-    + '<div class="cl-hero-meta">Mentor: ' + escHtml(d.mentor) + ' · เริ่ม ' + escHtml(d.startDate) + '</div>'
+    + '<div class="cl-hero-meta">' + escHtml(mobileTeamDisplay(d.mentor)) + ' · เริ่ม ' + escHtml(d.startDate) + '</div>'
     + '<div class="cl-prog">'
     + '<div class="cl-prog-bar"><div class="cl-prog-fill" style="width:' + d.pct + '%"></div></div>'
     + '<div class="cl-prog-txt"><span>✅ ' + d.done + '/' + d.total + ' tasks</span><span style="color:' + progColor + ';font-weight:700;">' + d.pct + '%</span></div>'
@@ -5243,7 +5243,7 @@ function _ssRenderList(members,q){
         '</div>'+
         '<div style="flex:1;overflow:hidden">'+
           '<div style="font-size:.88rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(m.name||'')+(m.nick?' <span style="font-size:.72rem;color:var(--gray2)">('+m.nick+')</span>':'')+'</div>'+
-          '<div style="font-size:.68rem;color:var(--gray2);margin-top:2px">ทีม '+(m.mentor||'—')+'</div>'+
+          '<div style="font-size:.68rem;color:var(--gray2);margin-top:2px">'+escHtml(mobileTeamDisplay(m.mentor||''))+'</div>'+
         '</div>'+
         '<div style="font-size:.7rem;color:'+cl+';font-weight:700">→</div>'+
       '</div>';
@@ -5332,7 +5332,7 @@ function buildDirCard(m) {
     +'</div>'
     +'<div class="dir-info">'
     +'<div class="dir-name">'+escHtml(m.name)+(m.nick?' <span style="color:var(--muted);font-weight:400;font-size:.82em;">('+escHtml(m.nick)+')</span>':'')+'</div>'
-    +(m.mentor?'<div class="dir-contact">Mentor: '+escHtml(m.mentor)+'</div>':'')
+    +(m.mentor?'<div class="dir-contact">'+escHtml(mobileTeamDisplay(m.mentor))+'</div>':'')
     +(acts?'<div class="dir-acts">'+acts+'</div>':'')
     +'</div></div>';
 }
@@ -5356,7 +5356,7 @@ function openDirProfile(name) {
       +'</div><div>'
       +'<div class="dpp-iname">'+escHtml(m.name)+'</div>'
       +(m.nick?'<div class="dpp-nick">('+escHtml(m.nick)+')</div>':'')
-      +(m.mentor?'<div class="dpp-mentor">👥 '+escHtml(m.mentor)+'</div>':'')
+    +(m.mentor?'<div class="dpp-mentor">👥 '+escHtml(mobileTeamDisplay(m.mentor))+'</div>':'')
       +'</div></div>';
 
     if(dm&&dm.cats){
@@ -7106,7 +7106,7 @@ function gWatchLoad(){
       '<div class="av" style="background:rgba(96,165,250,.15);color:#60A5FA;">'+escHtml(initials)+'</div>'+
       '<div class="mi">'+
         '<div class="mn">'+escHtml(m.name.split(' ').slice(0,2).join(' '))+(m.nick?' ('+escHtml(m.nick)+')':'')+'</div>'+
-        '<div class="ms" style="color:var(--gray2);">เดิม: '+escHtml(m.mentor||'ไม่มีทีม')+'</div>'+
+        '<div class="ms" style="color:var(--gray2);">เดิม: '+escHtml(mobileTeamDisplay(m.mentor||''))+'</div>'+
         evo+
       '</div>'+
       '<div style="text-align:right;"><div class="msc" style="color:'+sColor+'">'+score+'</div></div>'+
