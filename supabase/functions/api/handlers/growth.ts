@@ -1443,15 +1443,25 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       if (!scope.ok) return errResponse(scope.error, 403);
       // Accept both old (assignedTo/taskText) and new (teamName/memberName/taskType/note) params
       const assignedTo  = String(p.assignedTo || p.teamName || '').toLowerCase();
-      const taskText    = String(p.taskText || p.task || p.note || '').trim();
+      const taskText    = String(p.taskText || p.task || p.note || '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
       const memberName  = String(p.memberName || '').trim();
       const taskType    = String(p.taskType || 'ทั่วไป').trim();
       const priority    = String(p.priority || '📋');
       const requestedMemberId = String(p.memberId || '').trim();
       const dueDate = String(p.dueDate || '').trim();
       const ownerEmail = String(p.assignedOwnerEmail || '').trim().toLowerCase();
+      const idempotencyKey = String(p.idempotencyKey || '').trim().replace(/[^a-zA-Z0-9:_-]/g, '').slice(0, 180) || null;
       if (!assignedTo) return errResponse('assignedTo or teamName required');
+      if (!taskText) return errResponse('กรุณาระบุสิ่งที่ต้องติดตาม');
+      if (taskText.length > 1000) return errResponse('รายละเอียดงานต้องไม่เกิน 1,000 ตัวอักษร');
       if (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return errResponse('dueDate ไม่ถูกต้อง');
+      if (dueDate && Number.isNaN(new Date(`${dueDate}T00:00:00Z`).getTime())) return errResponse('dueDate ไม่ถูกต้อง');
+      if (idempotencyKey) {
+        const { data: existing, error: existingError } = await db.from('growth_tasks')
+          .select('id,status,due_date').eq('chapter_id', scope.chapterId).eq('idempotency_key', idempotencyKey).maybeSingle();
+        if (existingError) return errResponse(existingError.message);
+        if (existing) return jsonResponse({ ok:true, duplicate:true, task:existing });
+      }
 
       // Look up member_id if memberName provided
       let memberId: string | null = null;
@@ -1465,12 +1475,13 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
 
       let ownerName: string | null = null;
       if (ownerEmail) {
-        const { data: owner } = await db.from('role_assignments').select('email,display_name,access_status').ilike('email', ownerEmail).eq('access_status','active').maybeSingle();
+        const { data: owner } = await db.from('role_assignments').select('email,display_name,access_status')
+          .eq('chapter_id', scope.chapterId).ilike('email', ownerEmail).eq('access_status','active').maybeSingle();
         if (!owner) return errResponse('ไม่พบผู้รับผิดชอบที่มีสิทธิ์ใช้งาน');
         ownerName = String((owner as Record<string,unknown>).display_name || ownerEmail);
       }
 
-      const { error } = await db.from('growth_tasks').insert({
+      const { data: createdTask, error } = await db.from('growth_tasks').insert({
         chapter_id:  scope.chapterId,
         created_by:  String(auth.role || 'growth'),
         assigned_to: assignedTo,
@@ -1483,9 +1494,16 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         due_date: dueDate || null,
         assigned_owner_email: ownerEmail || null,
         assigned_owner_name: ownerName,
-      });
+        idempotency_key: idempotencyKey,
+      }).select('id,status,due_date').single();
+      if (error && idempotencyKey && error.code === '23505') {
+        const { data: existing } = await db.from('growth_tasks')
+          .select('id,status,due_date').eq('chapter_id', scope.chapterId)
+          .eq('idempotency_key', idempotencyKey).maybeSingle();
+        if (existing) return jsonResponse({ ok:true, duplicate:true, task:existing });
+      }
       if (error) return errResponse(error.message);
-      return jsonResponse({ ok: true });
+      return jsonResponse({ ok: true, task: createdTask });
     }
 
     case 'getGrowthTasks': {
@@ -1546,6 +1564,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const nextStatus = String(p.status || 'completed');
       if (!['accepted','in_progress','waiting_member','completed','cancelled'].includes(nextStatus)) return errResponse('สถานะ Growth Task ไม่ถูกต้อง');
       if (!taskId) return errResponse('taskId required');
+      if (nextStatus === 'completed' && !response) return errResponse('กรุณาระบุผลลัพธ์ก่อนปิดงาน');
       const { data: task, error: taskError } = await db.from('growth_tasks')
         .select('assigned_to,assigned_owner_email').eq('id', taskId).eq('chapter_id', scope.chapterId).maybeSingle();
       if (taskError) return errResponse(taskError.message);

@@ -2693,6 +2693,35 @@ export async function handleMembers(
       });
     }
 
+    case "getGrowthSupportHandoffs": {
+      const auth = await requireAuth(db, p, ["growth", "mc"]);
+      if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const { data: scopedMembers, error: membersError } = await db.from('members')
+        .select('id,name,nickname').eq('chapter_id', scope.chapterId).eq('is_archived', false);
+      if (membersError) return errResponse(membersError.message);
+      const memberRows = (scopedMembers || []) as Record<string, unknown>[];
+      const memberIds = memberRows.map(row => String(row.id));
+      if (!memberIds.length) return jsonResponse({ ok:true, handoffs:[] });
+      const { data, error } = await db.from('member_signals')
+        .select('id,member_id,title,detail,status,priority,created_at,updated_at,payload,target_roles')
+        .in('member_id', memberIds).eq('subject_type', 'support_handoff')
+        .order('created_at', { ascending:false }).limit(100);
+      if (error) return errResponse(error.message);
+      const membersById = new Map(memberRows.map(row => [String(row.id), row]));
+      const handoffs = ((data || []) as Record<string, unknown>[]).filter(row => {
+        if (auth.isMC) return true;
+        const payload = (row.payload || {}) as Record<string, unknown>;
+        return String(payload.source_role || '').toLowerCase() === 'growth' && payload.safe_context === true;
+      }).map(row => {
+        const payload = (row.payload || {}) as Record<string, unknown>;
+        const member = membersById.get(String(row.member_id)) || {};
+        return { id:String(row.id), memberId:String(row.member_id), memberName:String(member.nickname || member.name || 'สมาชิก'), reason:String(row.detail || '').slice(0,500), status:String(row.status || 'new'), priority:String(row.priority || 'normal'), targetRole:String(payload.target_role || 'mentor'), createdAt:row.created_at || null, updatedAt:row.updated_at || null };
+      });
+      return jsonResponse({ ok:true, handoffs });
+    }
+
     case "createSupportHandoff": {
       const auth = await requireAuth(db, p, ["growth", "toomtam", "aof", "draft", "phai", "amp", "mentor_support", "mc"]);
       if (!auth.ok) return errResponse(auth.error!);

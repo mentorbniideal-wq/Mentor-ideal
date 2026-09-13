@@ -2,6 +2,8 @@ import type { AuthResult } from './auth.ts';
 
 export type SignalAccessRow = {
   signal_type?: unknown;
+  subject_type?: unknown;
+  payload?: unknown;
   target_roles?: unknown;
   assigned_member_id?: unknown;
   members?: unknown;
@@ -19,7 +21,12 @@ export function canViewMemberSignal(
   const targets = Array.isArray(row.target_roles) ? row.target_roles.map(String) : [];
   if (auth.memberId && String(row.assigned_member_id || '') === auth.memberId) return true;
   if (activeLtRoles.some(role => targets.includes(role))) return true;
-  if (auth.role === 'growth') return type === 'goal' || type === 'referral';
+  if (auth.role === 'growth') {
+    const payload = (row.payload || {}) as Record<string, unknown>;
+    const isOwnSafeHandoff = String(row.subject_type || '') === 'support_handoff' &&
+      String(payload.source_role || '').toLowerCase() === 'growth' && payload.safe_context === true;
+    return type === 'goal' || type === 'referral' || isOwnSafeHandoff;
+  }
   if (auth.role === 'mc') return type === 'member_help' || type === 'confidential';
   if (auth.role === 'mentor_support') return type === 'member_help';
   if (MENTOR_TEAM_ROLES.has(String(auth.role || '')) && ['member_help', 'referral'].includes(type)) {

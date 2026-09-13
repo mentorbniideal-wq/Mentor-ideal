@@ -190,17 +190,18 @@ Deno.test('Growth Intelligence and legacy Growth Sheet derive tenant scope serve
 Deno.test('Growth Mobile uses the shared, privacy-minimised member context contract', async () => {
   const index = await read('supabase/functions/api/index.ts');
   const dashboard = await read('supabase/functions/api/handlers/dashboard.ts');
-  const mobile = await read('public/assets/js/growth-mobile2.js');
-  const start = dashboard.indexOf("case 'getSharedMemberSupportContext':");
-  const end = dashboard.indexOf("case 'getGrowthMemberContext':", start);
+  const page = await read('public/growth-mobile.html');
+  const mobile = await read('public/assets/js/growth-mobile-ops.js');
+  const baseMobile = await read('public/assets/js/growth-mobile.js');
+  const start = dashboard.indexOf("case 'getGrowthMemberContext':");
+  const end = dashboard.indexOf("case 'getMemberDetail':", start);
   const contract = dashboard.slice(start, end);
-  assert(index.includes("'getSharedMemberSupportContext': 'dashboard'"), 'Growth-safe shared context must be routed');
+  assert(index.includes("'getGrowthMemberContext': 'dashboard'"), 'Growth-safe member context must be routed');
   assert(contract.includes('resolveChapterScope') && contract.includes("eq('chapter_id', scope.chapterId)"), 'Growth context must derive and enforce Chapter scope');
-  assert(contract.includes('Shared context excludes Mentor logs, notes, reviews'), 'Growth context must document private-field exclusion');
+  assert(contract.includes('Growth context excludes Mentor logs, reviews, notes'), 'Growth context must document private-field exclusion');
   assert(!contract.includes('mentor_logs') && !contract.includes('member_notes') && !contract.includes('ninety_day_reviews'), 'Growth context must not query Mentor-private records');
-  assert(!contract.includes('company,company_name'), 'Growth context must only select columns present in the Members schema');
-  assert(mobile.includes("api('getSharedMemberSupportContext'"), 'Growth Mobile must use the privacy-minimised shared contract');
-  assert(mobile.includes("api('createSupportHandoff'") && mobile.includes("targetRole:'mentor'"), 'Growth Mobile must offer a server-authorized handoff to Mentor');
+  assert(page.includes('/assets/js/growth-mobile-ops.js'), 'the privacy-safe operational layer must be loaded by Growth Mobile');
+  assert(mobile.includes("api('getGrowthMemberContext'") && !baseMobile.includes("api('getMemberDetail'"), 'every loaded Growth Mobile member-card path must use the privacy-minimised contract');
   assert(mobile.includes('window.growthMobileState') && mobile.includes('window.growthMobileApi') && mobile.includes("replace(/[&<>\"']/g"), 'Growth extension must use the explicit base-Mobile interface rather than private helpers');
 });
 
@@ -228,6 +229,24 @@ Deno.test('Member Support OS handoff reuses signals with tenant-safe duplicate p
   assert(contract.includes('support-handoff:${scope.chapterId}:${memberId}:${intent}:${target}'), 'duplicate key must include server-derived Chapter, member, intent and target');
   assert(contract.includes("subject_type:'support_handoff'") && contract.includes('safe_context:true'), 'handoff must be represented by existing Member Signal infrastructure');
   assert(contract.includes('คำขอเดิมปิดแล้ว'), 'closed handoff must not silently reopen');
+});
+
+Deno.test('Growth Mobile operations expose safe handoff status and auditable actions', async () => {
+  const index = await read('supabase/functions/api/index.ts');
+  const members = await read('supabase/functions/api/handlers/members.ts');
+  const access = await read('supabase/functions/_shared/member-signal-access.ts');
+  const growth = await read('supabase/functions/api/handlers/growth.ts');
+  const mobile = await read('public/assets/js/growth-mobile-ops.js');
+  const migration = await read('supabase/migrations/20260913000002_growth_mobile_os.sql');
+  assert(index.includes("'getGrowthSupportHandoffs': 'members'"), 'safe Growth handoff status must be routed');
+  assert(members.includes('case "getGrowthSupportHandoffs":') && members.includes("eq('chapter_id', scope.chapterId)"), 'handoffs must use server-derived Chapter scope');
+  assert(members.includes("payload.source_role") && members.includes("payload.safe_context === true"), 'Growth must only receive its own safe handoff context');
+  assert(access.includes("isOwnSafeHandoff") && access.includes("payload.safe_context === true"), 'shared signal access must preserve private Mentor boundaries');
+  assert(growth.includes("nextStatus === 'completed' && !response"), 'task completion must require an outcome server-side');
+  assert(growth.includes("select('id,status,due_date').single()"), 'new task id must be returned for trackable follow-on state');
+  assert(growth.includes("eq('idempotency_key', idempotencyKey)") && growth.includes("error.code === '23505'") && migration.includes('idx_growth_tasks_chapter_idempotency'), 'Growth action retries and concurrent submissions must be deduplicated inside the authenticated Chapter');
+  assert(mobile.includes('function nextActions()') && mobile.includes('function renderWorkload()'), 'Mobile must render prioritized actions and workload');
+  assert(mobile.includes("data-opportunity-action") && mobile.includes("data-profile-request") && mobile.includes("data-talk-member"), 'Mobile must convert conversations, opportunities and profile review into tracked actions');
 });
 
 Deno.test('workspace chooser presents Mentor and Growth with explicit Desktop and Mobile actions', async () => {

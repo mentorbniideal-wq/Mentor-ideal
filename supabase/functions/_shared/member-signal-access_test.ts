@@ -21,6 +21,10 @@ Deno.test('Growth sees referrals but not private member care', () => {
   const auth = { ok: true, role: 'growth', memberId: 'growth-1' };
   if (!canViewMemberSignal(auth, referral)) throw new Error('growth referral denied');
   if (canViewMemberSignal(auth, help)) throw new Error('private member care leaked to growth');
+  const ownHandoff = { ...help, subject_type: 'support_handoff', payload: { source_role: 'growth', target_role: 'mentor', safe_context: true } };
+  if (!canViewMemberSignal(auth, ownHandoff)) throw new Error('safe Growth handoff status denied');
+  if (canViewMemberSignal(auth, { ...ownHandoff, payload: { source_role: 'mentor', target_role: 'growth', safe_context: true } })) throw new Error('unrelated Mentor handoff leaked to growth');
+  if (canViewMemberSignal(auth, { ...ownHandoff, payload: { source_role: 'growth', target_role: 'mentor', safe_context: false } })) throw new Error('unsafe handoff leaked to growth');
 });
 
 Deno.test('Mentor Co sees confidential cases while Mentor Support does not', () => {

@@ -118,7 +118,7 @@ const ROUTES: Record<string, string> = {
   'sendLtHandoverLine': 'members', 'getLtTermComparison': 'members',
   'setChapterAccessStatus': 'members',
   'getMemberSignals': 'members', 'getMemberSignalHistory': 'members', 'updateMemberSignal': 'members',
-  'createSupportHandoff': 'members',
+  'createSupportHandoff': 'members', 'getGrowthSupportHandoffs': 'members',
   'addMemberSignalNote': 'members', 'reopenMemberSignal': 'members',
 
   // Coaching / Core Issue

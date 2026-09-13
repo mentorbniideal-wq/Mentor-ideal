@@ -45,10 +45,15 @@
 
       <div class="gm-content">
         <section id="gm-view-today" class="gm-view is-active">
-          <div class="gm-hero gm-action-hero"><p>GROWTH MOBILE</p><h2>วันนี้อยากช่วยใคร?</h2><label class="gm-hero-search"><span>⌕</span><input id="gm-home-search" type="search" autocomplete="off" placeholder="ค้นหาสมาชิกเพื่อเริ่มคุย"></label><p class="gm-hero-note">ค้นหา → เข้าใจโอกาส → ลงมือช่วย</p></div>
+          <div class="gm-hero gm-action-hero"><p>GROWTH MOBILE</p><h2>วันนี้อยากช่วยใคร?</h2><label class="gm-hero-search"><span>⌕</span><input id="gm-home-search" type="search" enterkeyhint="search" autocomplete="off" placeholder="ค้นหาสมาชิกเพื่อเริ่มคุย"></label><p class="gm-hero-note">พิมพ์ชื่อหรือชื่อเล่น แล้วกดค้นหา · เข้าใจโอกาส → ลงมือช่วย</p></div>
           <!-- Compatibility targets: the existing data loader updates these while
                Growth Mobile 2.0 progressively replaces its presentation. -->
           <div id="gm-kpis" hidden></div>
+          <div class="gm-section-head"><h2>ควรเริ่มที่ใคร</h2><span class="gm-meta">เรียงตามความเร่งด่วน</span></div>
+          <div id="gm-next-actions" class="gm-list"><div class="gm-empty">กำลังจัดลำดับงาน…</div></div>
+          <div class="gm-section-head"><h2>ภาระงานทีม Growth</h2><span class="gm-meta">Workload &amp; SLA</span></div>
+          <div id="gm-workload" class="gm-detail-grid"></div>
+          <div id="gm-owner-workload" class="gm-list" style="margin-top:10px"></div>
           <div class="gm-section-head"><h2>Follow-ups วันนี้</h2><button data-go="tasks">ดูทั้งหมด</button></div>
           <div id="gm-followups" class="gm-list"></div>
           <div class="gm-section-head"><h2>สมาชิกที่ต้องการ Growth</h2><button data-go="support">ดูคำขอ</button></div>
@@ -76,6 +81,10 @@
         <section id="gm-view-support" class="gm-view">
           <div class="gm-page-head"><p>MEMBER SUPPORT</p><h2>คำถามถึง Growth</h2><div class="gm-meta">รับเรื่องเป้าหมายและ Referral เปิดข้อมูลสมาชิก แล้วตอบหรือบันทึก action ได้จากจุดเดียว</div></div>
           <div id="gm-support" class="gm-list"></div>
+          <div class="gm-section-head"><h2>ส่งต่อ Mentor</h2><span class="gm-meta">เห็นเฉพาะสถานะร่วม</span></div>
+          <div id="gm-handoffs" class="gm-list"></div>
+          <div class="gm-section-head"><h2>Referral &amp; Power Team</h2><span class="gm-meta">เปลี่ยนโอกาสเป็น Action</span></div>
+          <div id="gm-opportunities" class="gm-list"></div>
         </section>
 
         <section id="gm-view-manual" class="gm-view">
@@ -98,6 +107,7 @@
   </main>
 
   <div id="gm-sheet" class="gm-sheet-backdrop" hidden><article class="gm-sheet"><button id="gm-sheet-close" class="gm-sheet-close" aria-label="ปิด">×</button><div id="gm-sheet-body"></div></article></div>
-  <script src="/assets/js/growth-mobile.js?v=20260913-growth-actions.2" defer></script>
+  <script src="/assets/js/growth-mobile.js?v=20260913-growth-os.1" defer></script>
+  <script src="/assets/js/growth-mobile-ops.js?v=20260913-growth-os.1" defer></script>
 </body>
 </html>
