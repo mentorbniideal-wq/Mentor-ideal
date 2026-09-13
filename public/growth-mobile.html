@@ -46,12 +46,16 @@
       <div class="gm-content">
         <section id="gm-view-today" class="gm-view is-active">
           <div class="gm-hero gm-action-hero"><p>GROWTH MOBILE</p><h2>วันนี้อยากช่วยใคร?</h2><label class="gm-hero-search"><span>⌕</span><input id="gm-home-search" type="search" autocomplete="off" placeholder="ค้นหาสมาชิกเพื่อเริ่มคุย"></label><p class="gm-hero-note">ค้นหา → เข้าใจโอกาส → ลงมือช่วย</p></div>
+          <!-- Compatibility targets: the existing data loader updates these while
+               Growth Mobile 2.0 progressively replaces its presentation. -->
+          <div id="gm-kpis" hidden></div>
           <div class="gm-section-head"><h2>Follow-ups วันนี้</h2><button data-go="tasks">ดูทั้งหมด</button></div>
           <div id="gm-followups" class="gm-list"></div>
           <div class="gm-section-head"><h2>สมาชิกที่ต้องการ Growth</h2><button data-go="support">ดูคำขอ</button></div>
           <div id="gm-focus" class="gm-list"></div>
           <div class="gm-section-head"><h2>Chapter focus</h2><span class="gm-meta">ข้อมูลรองรับ</span></div>
           <div id="gm-priorities" class="gm-list"></div>
+          <div id="gm-balance" hidden></div>
         </section>
 
         <section id="gm-view-members" class="gm-view">
