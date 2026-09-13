@@ -3,6 +3,7 @@ import { requireAuth } from '../../_shared/auth.ts';
 import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { memberAccessError, resolveMemberAccess } from '../../_shared/authorization.ts';
+import { canViewMemberSignal } from '../../_shared/member-signal-access.ts';
 import { calcPalmsScore, trafficLight } from '../../_shared/palms.ts';
 import { sortMember360Timeline, summarizeMember360Health } from '../../_shared/member-360.ts';
 
@@ -542,6 +543,48 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         decision: directorySettings.get('CHAPTER_DIRECTORY_REVIEW_DECISION') || 'pending',
       } : null;
       return jsonResponse({ ok: true, members, summary, teams, teamLabels, renewal, health, nmList, directoryRollout, updatedAt: new Date().toISOString() });
+    }
+
+    case 'getSharedMemberSupportContext': {
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'mentor_support', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const memberId = String(p.memberId || '').trim();
+      if (!memberId) return errResponse('memberId required');
+      const { data: member, error: memberError } = await db.from('members')
+        .select('id,name,nickname,profession,company,company_name,business_category,mentor_team,chapter_id,is_archived')
+        .eq('id', memberId).eq('chapter_id', scope.chapterId).eq('is_archived', false).maybeSingle();
+      if (memberError) return errResponse(memberError.message);
+      if (!member) return errResponse('ไม่พบสมาชิกใน Chapter นี้', 404);
+      const access = await resolveMemberAccess(db, { memberId });
+      if (!access.member) return errResponse(access.error!);
+      const allowGrowth = String(auth.role || '') === 'growth';
+      const denied = memberAccessError(auth, access.member, { allowGrowth });
+      if (denied) return errResponse(denied, 403);
+      const role = String(auth.role || '').toLowerCase();
+      const isGrowthLens = auth.isMC || role === 'growth';
+      const isMentorLens = auth.isMC || auth.isMentor || ['toomtam','aof','draft','phai','amp','mentor_support'].includes(role);
+      const year = Number(p.blueprintYear || new Date().getFullYear());
+      const [profileQ, planQ, signalsQ, taskQ, pairsQ, journeyQ] = await Promise.all([
+        db.from('member_one_to_one_profiles').select('business_summary,looking_for,ideal_client,updated_at,share_business,share_referral_focus').eq('member_id', memberId).maybeSingle(),
+        db.from('member_success_blueprints').select('looking_for_categories,power_team_categories,updated_at,status').eq('member_id', memberId).eq('blueprint_year', year).maybeSingle(),
+        db.from('member_signals').select('id,signal_type,title,detail,status,priority,target_roles,assigned_role,assigned_member_id,created_at,updated_at,payload').eq('member_id', memberId).in('status',['new','acknowledged','in_progress']).order('created_at',{ascending:false}).limit(12),
+        isGrowthLens ? db.from('growth_tasks').select('id,task_type,status,due_date,assigned_owner_name,created_at').eq('chapter_id', scope.chapterId).eq('member_id', memberId).in('status',['new','accepted','in_progress','waiting_member']).order('created_at',{ascending:false}).limit(6) : Promise.resolve({data:[],error:null}),
+        db.from('matching_pairs').select('id,status,created_at').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId}`).is('archived_at',null).order('created_at',{ascending:false}).limit(4),
+        db.from('member_journey_events').select('event_type,role_title,occurred_on,note,created_at').eq('chapter_id', scope.chapterId).eq('member_id', memberId).order('occurred_on',{ascending:false}).limit(4),
+      ]);
+      const profile = (profileQ.data || {}) as Record<string, unknown>, plan = (planQ.data || {}) as Record<string, unknown>;
+      const sharedSignals = ((signalsQ.data || []) as Record<string, unknown>[]).filter(row => canViewMemberSignal(auth, { ...row, members: { mentor_team: (member as Record<string,unknown>).mentor_team } }));
+      const safeSignal = (row: Record<string, unknown>) => ({ id:String(row.id), type:String(row.signal_type), title:String(row.title||''), detail:String(row.detail||'').slice(0,500), status:String(row.status), priority:String(row.priority), targetRoles:Array.isArray(row.target_roles)?row.target_roles.map(String):[], owner:row.assigned_role||null, createdAt:row.created_at||null });
+      const history = [
+        ...sharedSignals.map(row => ({ kind:'support_signal', title:String(row.title||'Support request'), status:String(row.status), at:row.updated_at||row.created_at, detail:String(row.detail||'').slice(0,300) })),
+        ...((taskQ.data || []) as Record<string,unknown>[]).map(row => ({ kind:'growth_action', title:String(row.task_type||'Growth action'), status:String(row.status), at:row.created_at, detail:'' })),
+        ...((pairsQ.data || []) as Record<string,unknown>[]).map(row => ({ kind:'my121', title:'MY121', status:String(row.status||''), at:row.created_at, detail:'' })),
+        ...((journeyQ.data || []) as Record<string,unknown>[]).map(row => ({ kind:'journey', title:String(row.role_title||row.event_type||''), status:'recorded', at:row.occurred_on||row.created_at, detail:'' })),
+      ].filter(row => row.at).sort((a,b) => String(b.at).localeCompare(String(a.at))).slice(0,8);
+      const m = member as Record<string, unknown>;
+      return jsonResponse({ ok:true, member:{ id:String(m.id), name:String(m.name||''), nickname:String(m.nickname||''), profession:String(m.profession||m.business_category||''), company:String(m.company||m.company_name||''), mentorTeam:String(m.mentor_team||'') }, sharedBusinessContext:{ businessSummary:profile.share_business===false?'':String(profile.business_summary||''), lookingFor:profile.share_referral_focus===false?'':String(profile.looking_for||''), idealClient:profile.share_referral_focus===false?'':String(profile.ideal_client||''), updatedAt:profile.updated_at||plan.updated_at||null, partial:!profileQ.data&&!planQ.data }, supportSummary:{ openCount:sharedSignals.length, nextAction:sharedSignals[0]?safeSignal(sharedSignals[0]):null, lastSharedInteraction:history[0]||null }, openSupportItems:sharedSignals.map(safeSignal), supportHistory:history, roleLens:{ role:isGrowthLens?'growth':isMentorLens?'mentor':'shared', growth:isGrowthLens?{ tasks:((taskQ.data||[]) as Record<string,unknown>[]).map(row=>({id:String(row.id),type:String(row.task_type||''),status:String(row.status||''),dueDate:row.due_date||null,owner:row.assigned_owner_name||null})), categories:Array.isArray(plan.looking_for_categories)?plan.looking_for_categories.map(String):[], powerTeamCategories:Array.isArray(plan.power_team_categories)?plan.power_team_categories.map(String):[] }:null, mentor:isMentorLens?{ activeMy121:((pairsQ.data||[]) as Record<string,unknown>[]).filter(row=>!['verified','late_verified','completed'].includes(String(row.status))).length }:null }, privacy:'Shared context excludes Mentor logs, notes, reviews, contact details, GAINS, and confidential coaching content.' });
     }
 
     case 'getGrowthMemberContext': {

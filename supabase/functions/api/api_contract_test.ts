@@ -201,6 +201,32 @@ Deno.test('Growth Mobile uses a privacy-minimised member context contract', asyn
   assert(mobile.includes("api('getGrowthMemberContext'"), 'Growth Mobile must use the privacy-minimised contract');
 });
 
+Deno.test('Member Support OS shared context is role-safe and Chapter-scoped', async () => {
+  const index = await read('supabase/functions/api/index.ts');
+  const dashboard = await read('supabase/functions/api/handlers/dashboard.ts');
+  const start = dashboard.indexOf("case 'getSharedMemberSupportContext':");
+  const end = dashboard.indexOf("case 'getGrowthMemberContext':", start);
+  const contract = dashboard.slice(start, end);
+  assert(index.includes("'getSharedMemberSupportContext': 'dashboard'"), 'shared context must be routed');
+  assert(contract.includes('resolveChapterScope') && contract.includes("eq('chapter_id', scope.chapterId)"), 'shared context must derive Chapter scope');
+  assert(contract.includes('const isGrowthLens') && contract.includes('const isMentorLens'), 'lens must be derived from authenticated role');
+  assert(!contract.includes('mentor_logs') && !contract.includes('member_notes') && !contract.includes('ninety_day_reviews'), 'shared context must not query Mentor-private records');
+  assert(contract.includes('Shared context excludes Mentor logs, notes, reviews'), 'privacy rule must be explicit in the response contract');
+});
+
+Deno.test('Member Support OS handoff reuses signals with tenant-safe duplicate prevention', async () => {
+  const index = await read('supabase/functions/api/index.ts');
+  const members = await read('supabase/functions/api/handlers/members.ts');
+  const start = members.indexOf('case "createSupportHandoff":');
+  const end = members.indexOf('case "getMemberSignalHistory":', start);
+  const contract = members.slice(start, end);
+  assert(index.includes("'createSupportHandoff': 'members'"), 'handoff action must be routed');
+  assert(contract.includes('resolveChapterScope') && contract.includes("eq('chapter_id', scope.chapterId)"), 'handoff member must be scoped to the authenticated Chapter');
+  assert(contract.includes('support-handoff:${scope.chapterId}:${memberId}:${intent}:${target}'), 'duplicate key must include server-derived Chapter, member, intent and target');
+  assert(contract.includes("subject_type:'support_handoff'") && contract.includes('safe_context:true'), 'handoff must be represented by existing Member Signal infrastructure');
+  assert(contract.includes('คำขอเดิมปิดแล้ว'), 'closed handoff must not silently reopen');
+});
+
 Deno.test('workspace chooser presents Mentor and Growth with explicit Desktop and Mobile actions', async () => {
   const page = await read('public/index.html');
   const script = await read('public/assets/js/mobile-operations.js');

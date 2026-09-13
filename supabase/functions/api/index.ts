@@ -73,7 +73,7 @@ const ROUTES: Record<string, string> = {
 
   // Dashboard & scores
   'getDashboard': 'dashboard', 'getDesktopDashboard': 'dashboard',
-  'getMemberDetail': 'dashboard', 'getGrowthMemberContext': 'dashboard', 'getScorecard': 'dashboard',
+  'getMemberDetail': 'dashboard', 'getGrowthMemberContext': 'dashboard', 'getSharedMemberSupportContext': 'dashboard', 'getScorecard': 'dashboard',
   'getMyTeam': 'dashboard', 'getLeaderboard': 'dashboard',
   'getChapterTrend': 'dashboard', 'getChapterPulse': 'dashboard',
   'getTrafficLightMonthlySummary': 'dashboard',
@@ -118,6 +118,7 @@ const ROUTES: Record<string, string> = {
   'sendLtHandoverLine': 'members', 'getLtTermComparison': 'members',
   'setChapterAccessStatus': 'members',
   'getMemberSignals': 'members', 'getMemberSignalHistory': 'members', 'updateMemberSignal': 'members',
+  'createSupportHandoff': 'members',
   'addMemberSignalNote': 'members', 'reopenMemberSignal': 'members',
 
   // Coaching / Core Issue

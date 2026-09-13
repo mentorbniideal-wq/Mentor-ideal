@@ -2639,12 +2639,18 @@ export async function handleMembers(
     case "getMemberSignals": {
       const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const status = textValue(p.status), signalType = textValue(p.signalType);
+      const { data: scopedMembers, error: scopedMembersError } = await db.from('members').select('id').eq('chapter_id', scope.chapterId).eq('is_archived', false);
+      if (scopedMembersError) return errResponse(scopedMembersError.message);
+      const scopedIds = (scopedMembers || []).map((row: Record<string,unknown>) => String(row.id));
+      if (!scopedIds.length) return jsonResponse({ ok:true, signals:[], counts:{}, activeLtRoles:[], assignees:[] });
       let query = db.from("member_signals")
         .select(
           "*,members!member_signals_member_id_fkey(name,nickname,mentor_team)",
         )
-        .order("created_at", { ascending: false }).limit(200);
+        .in('member_id', scopedIds).order("created_at", { ascending: false }).limit(200);
       if (status) query = query.eq("status", status);
       else query = query.in("status", ["new", "acknowledged", "in_progress"]);
       if (signalType) query = query.eq("signal_type", signalType);
@@ -2687,9 +2693,45 @@ export async function handleMembers(
       });
     }
 
+    case "createSupportHandoff": {
+      const auth = await requireAuth(db, p, ["growth", "toomtam", "aof", "draft", "phai", "amp", "mentor_support", "mc"]);
+      if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const memberId = textValue(p.memberId);
+      const sourceRole = String(auth.role || '').toLowerCase();
+      const target = textValue(p.targetRole).toLowerCase();
+      const safeReason = textValue(p.safeReason).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 500);
+      const intent = textValue(p.intent).toLowerCase().replace(/[^a-z_]/g,'').slice(0,80) || 'general_support';
+      if (!memberId || !safeReason) return errResponse('memberId และ safeReason required', 400);
+      const targetRole = target === 'growth' ? 'Growth Coordinator' : target === 'mentor' ? 'Mentor Coordinator' : '';
+      if (!targetRole) return errResponse('targetRole ต้องเป็น growth หรือ mentor', 400);
+      if (sourceRole === 'growth' && target !== 'mentor') return errResponse('Growth ส่งต่อได้เฉพาะ Mentor', 403);
+      if (['toomtam','aof','draft','phai','amp','mentor_support'].includes(sourceRole) && target !== 'growth') return errResponse('Mentor ส่งต่อได้เฉพาะ Growth', 403);
+      const { data: member, error: memberError } = await db.from('members').select('id,name,mentor_team').eq('id', memberId).eq('chapter_id', scope.chapterId).eq('is_archived', false).maybeSingle();
+      if (memberError) return errResponse(memberError.message);
+      if (!member) return errResponse('ไม่พบสมาชิกใน Chapter นี้', 404);
+      if (!auth.isMC && sourceRole !== 'growth' && String((member as Record<string,unknown>).mentor_team || '') !== String(auth.teamName || '')) return errResponse('ไม่มีสิทธิ์ส่งต่อสมาชิกทีมอื่น', 403);
+      const signalType = target === 'growth' ? 'referral' : 'member_help';
+      const key = `support-handoff:${scope.chapterId}:${memberId}:${intent}:${target}`;
+      const { data: existing, error: existingError } = await db.from('member_signals').select('id,status').eq('idempotency_key', key).maybeSingle();
+      if (existingError) return errResponse(existingError.message);
+      if (existing) {
+        const status = String((existing as Record<string,unknown>).status || '');
+        if (['new','acknowledged','in_progress'].includes(status)) return jsonResponse({ ok:true, duplicate:true, signalId:String((existing as Record<string,unknown>).id), status });
+        return errResponse('คำขอเดิมปิดแล้ว กรุณาสร้าง handoff ใหม่พร้อมเหตุผลใหม่เพื่อรักษาประวัติ', 409);
+      }
+      const now = new Date().toISOString();
+      const { data: created, error } = await db.from('member_signals').insert({ member_id:memberId, signal_type:signalType, subject_type:'support_handoff', subject_id:intent, title:`Handoff to ${targetRole}`, detail:safeReason, payload:{ support_intent:intent, source_role:sourceRole, target_role:target, safe_context:true, created_from:'member_support_os' }, target_roles:[targetRole], status:'new', priority:textValue(p.priority)==='urgent'?'urgent':textValue(p.priority)==='high'?'high':'normal', idempotency_key:key, created_at:now, updated_at:now }).select('id,status,target_roles,created_at').single();
+      if (error) return errResponse(error.message);
+      return jsonResponse({ ok:true, duplicate:false, handoff:created });
+    }
+
     case "getMemberSignalHistory": {
       const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const id = textValue(p.id);
       if (!id) return errResponse("ไม่พบงานที่ต้องการดู");
       const { data: signal, error: signalError } = await db.from(
@@ -2699,6 +2741,8 @@ export async function handleMembers(
           "*,members!member_signals_member_id_fkey(name,nickname,mentor_team)",
         ).eq("id", id).maybeSingle();
       if (signalError || !signal) return errResponse("ไม่พบงานที่ต้องการดู", 404);
+      const { data: signalMember } = await db.from('members').select('id').eq('id', String((signal as Record<string,unknown>).member_id || '')).eq('chapter_id', scope.chapterId).maybeSingle();
+      if (!signalMember) return errResponse('ไม่พบงานใน Chapter นี้', 404);
       let activeLtRoles: string[] = [];
       if (auth.memberId && !auth.isAdmin) {
         const { data: ltRows } = await db.from("passport_lt_assignments")
@@ -2729,6 +2773,8 @@ export async function handleMembers(
     case "updateMemberSignal": {
       const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const id = textValue(p.id), status = textValue(p.status);
       if (
         !id ||
@@ -2746,6 +2792,8 @@ export async function handleMembers(
       if (currentError || !current) {
         return errResponse("ไม่พบงานที่ต้องการอัปเดต", 404);
       }
+      const { data: currentMember } = await db.from('members').select('id').eq('id', String((current as Record<string,unknown>).member_id || '')).eq('chapter_id', scope.chapterId).maybeSingle();
+      if (!currentMember) return errResponse('ไม่พบงานใน Chapter นี้', 404);
       if (
         !canTransitionMemberSignal(
           String((current as Record<string, unknown>).status || ""),
