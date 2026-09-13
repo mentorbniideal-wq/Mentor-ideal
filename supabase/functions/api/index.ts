@@ -73,7 +73,7 @@ const ROUTES: Record<string, string> = {
 
   // Dashboard & scores
   'getDashboard': 'dashboard', 'getDesktopDashboard': 'dashboard',
-  'getMemberDetail': 'dashboard', 'getScorecard': 'dashboard',
+  'getMemberDetail': 'dashboard', 'getGrowthMemberContext': 'dashboard', 'getScorecard': 'dashboard',
   'getMyTeam': 'dashboard', 'getLeaderboard': 'dashboard',
   'getChapterTrend': 'dashboard', 'getChapterPulse': 'dashboard',
   'getTrafficLightMonthlySummary': 'dashboard',

@@ -10,8 +10,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/css/growth-mobile.css?v=20260912-member360.1">
+  <link rel="stylesheet" href="/assets/css/growth-mobile.css?v=20260913-growth-mobile2.0.1">
   <link rel="stylesheet" href="/assets/css/mentor-brand.css?v=20260907">
+  <style>.gm-action-hero{padding:24px 20px 18px}.gm-action-hero h2{margin-bottom:14px}.gm-hero-search{display:flex;align-items:center;gap:9px;min-height:54px;background:#fff;border-radius:16px;padding:0 14px;color:#153c35;box-shadow:0 8px 20px #062b2533}.gm-hero-search input{width:100%;border:0;outline:0;font:700 15px Sarabun;color:#153c35;background:transparent}.gm-hero-note{margin:11px 2px 0;color:#dbe8e3;font-size:11px}.gm-member-hero{padding:2px 0 18px}.gm-member-hero h2{font:700 27px Poppins;margin:5px 0}.gm-context-card{border:1px solid #c7dbd0;background:#edf5ef;border-radius:18px;padding:15px;margin:12px 0}.gm-context-card h3,.gm-talk-step h3{font-size:16px;margin:0 0 7px}.gm-context-card p{font-size:14px;line-height:1.55;margin:0}.gm-opportunity{border-left:4px solid #b98b3f;padding:12px 14px;background:#fff9ed;border-radius:0 14px 14px 0;margin:12px 0;font-size:13px;line-height:1.55}.gm-primary-action{width:100%;min-height:52px;border:0;border-radius:15px;background:#176657;color:white;font-size:15px;font-weight:800;margin:14px 0 7px}.gm-secondary-actions{display:flex;gap:8px;overflow:auto}.gm-secondary-actions button,.gm-talk-options button{min-height:44px;white-space:nowrap;border:1px solid #ded8ca;border-radius:13px;background:white;color:#153c35;padding:0 13px;font-size:12px;font-weight:800}.gm-talk-progress{color:#b98b3f;font:700 10px Poppins;letter-spacing:.14em}.gm-talk-step{min-height:300px;display:flex;flex-direction:column;justify-content:center}.gm-talk-step p{line-height:1.6}.gm-talk-options{display:grid;gap:9px;margin-top:18px}.gm-talk-options button.is-primary{background:#176657;border-color:#176657;color:white}.gm-talk-input{width:100%;min-height:86px;border:1px solid #ded8ca;border-radius:14px;padding:12px;resize:vertical;color:#153c35;background:white}.gm-summary-item{border-bottom:1px solid #ded8ca;padding:11px 0}.gm-summary-item small{display:block;color:#68756f;font-weight:800}.gm-inline-error{padding:12px;border-radius:13px;background:#fff0f0;color:#c94a54;font-size:12px}.gm-stale{font-size:11px;color:#b77712;margin-top:7px}</style>
 </head>
 <body>
   <div id="gm-toast" class="gm-toast" role="status" aria-live="polite"></div>
@@ -22,7 +23,7 @@
         <div class="gm-mark"><img src="/assets/icons/mentor-app-icon-192.png?v=20260907" alt="" width="62" height="62"></div>
         <p class="gm-eyebrow">BNI IDEAL · GROWTH</p>
         <h1>Growth Mobile</h1>
-        <p class="gm-sub">ภาพรวม Chapter และงาน Growth ที่ต้องจัดการ ออกแบบสำหรับมือถือโดยเฉพาะ</p>
+        <p class="gm-sub">ช่วยเข้าใจโอกาสของสมาชิก และเปลี่ยนการคุยเป็น action ที่ติดตามได้</p>
         <div class="gm-scope"><b>สิทธิ์เฉพาะ Growth</b><span>รหัสนี้ไม่เปิดหน้า Mentor, MC หรือ Admin</span></div>
         <form id="gm-login-form">
           <label for="gm-pin">รหัส Growth</label>
@@ -44,17 +45,17 @@
 
       <div class="gm-content">
         <section id="gm-view-today" class="gm-view is-active">
-          <div class="gm-hero"><p>GROWTH INBOX</p><h2>ตอนนี้ต้องช่วยใคร?</h2><div id="gm-kpis" class="gm-kpis"></div></div>
-          <div class="gm-section-head"><h2>Growth Priorities</h2><span class="gm-meta">Action ที่ข้อมูลรองรับ</span></div>
-          <div id="gm-priorities" class="gm-list"></div>
-          <div class="gm-section-head"><h2>ต้องจัดการก่อน</h2><button data-go="tasks">ดูงานทั้งหมด</button></div>
+          <div class="gm-hero gm-action-hero"><p>GROWTH MOBILE</p><h2>วันนี้อยากช่วยใคร?</h2><label class="gm-hero-search"><span>⌕</span><input id="gm-home-search" type="search" autocomplete="off" placeholder="ค้นหาสมาชิกเพื่อเริ่มคุย"></label><p class="gm-hero-note">ค้นหา → เข้าใจโอกาส → ลงมือช่วย</p></div>
+          <div class="gm-section-head"><h2>Follow-ups วันนี้</h2><button data-go="tasks">ดูทั้งหมด</button></div>
+          <div id="gm-followups" class="gm-list"></div>
+          <div class="gm-section-head"><h2>สมาชิกที่ต้องการ Growth</h2><button data-go="support">ดูคำขอ</button></div>
           <div id="gm-focus" class="gm-list"></div>
-          <div class="gm-section-head"><h2>Referral Balance</h2><button data-go="members">ดูสมาชิก</button></div>
-          <div id="gm-balance" class="gm-list"></div>
+          <div class="gm-section-head"><h2>Chapter focus</h2><span class="gm-meta">ข้อมูลรองรับ</span></div>
+          <div id="gm-priorities" class="gm-list"></div>
         </section>
 
         <section id="gm-view-members" class="gm-view">
-          <div class="gm-page-head"><p>CHAPTER</p><h2>สมาชิกทั้งหมด</h2></div>
+          <div class="gm-page-head"><p>MEMBER</p><h2>เลือกสมาชิกเพื่อช่วยเติบโต</h2></div>
           <label class="gm-search"><span>⌕</span><input id="gm-member-search" type="search" placeholder="ค้นหาชื่อ ชื่อเล่น หรือทีม"></label>
           <div class="gm-filter-row" id="gm-member-filters">
             <button class="is-active" data-zone="all">ทั้งหมด</button><button data-zone="highGiverLowRecv">ต้องช่วย</button><button data-zone="lowGiverHighRecv">ควรกระตุ้น</button><button data-zone="balanced">สมดุล</button><button data-zone="insufficient">ข้อมูลไม่พอ</button>
@@ -84,6 +85,7 @@
   </main>
 
   <div id="gm-sheet" class="gm-sheet-backdrop" hidden><article class="gm-sheet"><button id="gm-sheet-close" class="gm-sheet-close" aria-label="ปิด">×</button><div id="gm-sheet-body"></div></article></div>
-  <script src="/assets/js/growth-mobile.js?v=20260913-intelligence.1" defer></script>
+  <script src="/assets/js/growth-mobile.js?v=20260913-growth-mobile2.0.1" defer></script>
+  <script src="/assets/js/growth-mobile2.js?v=20260913-growth-mobile2.0.1" defer></script>
 </body>
 </html>

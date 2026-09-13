@@ -544,6 +544,58 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       return jsonResponse({ ok: true, members, summary, teams, teamLabels, renewal, health, nmList, directoryRollout, updatedAt: new Date().toISOString() });
     }
 
+    case 'getGrowthMemberContext': {
+      // Deliberately narrower than Member 360.  Growth Mobile needs business
+      // context and open Growth work, never Mentor's private coaching record.
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const memberId = String(p.memberId || '').trim();
+      if (!memberId) return errResponse('memberId required');
+      const { data: member, error: memberError } = await db.from('members')
+        .select('id,name,nickname,profession,company,company_name,business_category,mentor_team,chapter_id,is_archived')
+        .eq('id', memberId).eq('chapter_id', scope.chapterId).eq('is_archived', false).maybeSingle();
+      if (memberError) return errResponse(memberError.message);
+      if (!member) return errResponse('ไม่พบสมาชิกใน Chapter นี้', 404);
+      const access = await resolveMemberAccess(db, { memberId });
+      if (!access.member) return errResponse(access.error!);
+      const denied = memberAccessError(auth, access.member, { allowGrowth: true });
+      if (denied) return errResponse(denied, 403);
+      const year = Number(p.blueprintYear || new Date().getFullYear());
+      const [profileQ, planQ, tasksQ] = await Promise.all([
+        db.from('member_one_to_one_profiles').select('business_summary,looking_for,ideal_client,referral_trigger,good_referral,updated_at,share_business,share_referral_focus').eq('member_id', memberId).maybeSingle(),
+        db.from('member_success_blueprints').select('looking_for_categories,looking_for_detail,power_team_categories,power_team_detail,updated_at,status').eq('member_id', memberId).eq('blueprint_year', year).maybeSingle(),
+        db.from('growth_tasks').select('id,task_text,task_type,status,due_date,created_at,assigned_owner_name,assigned_owner_email').eq('chapter_id', scope.chapterId).eq('member_id', memberId).in('status', ['new','accepted','in_progress','waiting_member']).order('created_at', { ascending: false }).limit(5),
+      ]);
+      const errors = [profileQ, planQ, tasksQ].filter(q => q.error).map(q => q.error?.message).filter(Boolean);
+      const profile = (profileQ.data || {}) as Record<string, unknown>;
+      const plan = (planQ.data || {}) as Record<string, unknown>;
+      const consentBusiness = profile.share_business !== false;
+      const consentReferral = profile.share_referral_focus !== false;
+      const profileUpdatedAt = String(profile.updated_at || plan.updated_at || '');
+      const stale = profileUpdatedAt ? Date.now() - new Date(profileUpdatedAt).getTime() > 180 * 86400000 : true;
+      return jsonResponse({
+        ok: true,
+        member: { id: String((member as Record<string, unknown>).id), name: String((member as Record<string, unknown>).name || ''), nickname: String((member as Record<string, unknown>).nickname || ''), profession: String((member as Record<string, unknown>).profession || (member as Record<string, unknown>).business_category || ''), company: String((member as Record<string, unknown>).company || (member as Record<string, unknown>).company_name || '') },
+        business: {
+          lookingFor: consentReferral ? String(profile.looking_for || plan.looking_for_detail || '') : '',
+          idealClient: consentReferral ? String(profile.ideal_client || '') : '',
+          referralTrigger: consentReferral ? String(profile.referral_trigger || '') : '',
+          businessSummary: consentBusiness ? String(profile.business_summary || '') : '',
+          lookingForCategories: Array.isArray(plan.looking_for_categories) ? plan.looking_for_categories.map(String) : [],
+          powerTeamCategories: Array.isArray(plan.power_team_categories) ? plan.power_team_categories.map(String) : [],
+          updatedAt: profileUpdatedAt || null,
+          stale,
+          consent: { business: consentBusiness, referralFocus: consentReferral },
+        },
+        followUps: (tasksQ.data || []).map((task: Record<string, unknown>) => ({ id: String(task.id), text: String(task.task_text || ''), type: String(task.task_type || ''), status: String(task.status || ''), dueDate: task.due_date || null, owner: task.assigned_owner_name || null })),
+        partial: errors.length > 0,
+        unavailable: errors,
+        privacy: 'Growth context excludes Mentor logs, reviews, notes, contact details, GAINS, and private coaching data.',
+      });
+    }
+
     case 'getMemberDetail': {
       const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
