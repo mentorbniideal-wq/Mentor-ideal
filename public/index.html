@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&amp;family=IBM+Plex+Mono:wght@500&amp;family=Sarabun:wght@400;600;700&amp;display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&amp;family=IBM+Plex+Mono:wght@500&amp;family=Sarabun:wght@400;600;700&amp;display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="/assets/css/mobile-operations.css?v=20260912-workspace.2">
+<link rel="stylesheet" href="/assets/css/mobile-operations.css?v=20260913-workspace.1">
 <link rel="stylesheet" href="/assets/css/mobile-focus.css?v=20260905c">
 <link rel="stylesheet" href="/assets/css/login-experience.css?v=20260906-audit.1">
 </head>
@@ -138,17 +138,17 @@
     </div>
     <div class="entry-workspaces">
       <section class="workspace-group mentor-workspace" aria-labelledby="mentor-workspace-title">
-        <div class="workspace-group__head"><span class="workspace-group__icon">🤝</span><div><h2 id="mentor-workspace-title">Mentor</h2><p>ดูแล Chapter, ทีม และงานของสมาชิก</p></div></div>
-        <div class="workspace-actions">
-          <button class="workspace-launch" onclick="entryOpenDesktop('mc')"><span>🖥️</span><strong>Desktop</strong><small>จัดการและวิเคราะห์</small></button>
-          <button class="workspace-launch" onclick="entryOpenMobile('mc')"><span>📱</span><strong>Mobile</strong><small>ติดตามและตอบสนอง</small></button>
+        <div class="workspace-group__head"><span class="workspace-group__icon" aria-hidden="true">🤝</span><div class="workspace-group__copy"><span class="workspace-group__label">Mentor Workspace</span><h2 id="mentor-workspace-title">Mentor</h2><p>ดูแล Chapter, ทีม และงานของสมาชิก</p></div></div>
+        <div class="workspace-group__actions" aria-label="เลือกช่องทางใช้งาน Mentor">
+          <button class="workspace-launch" onclick="entryOpenDesktop('mc')"><span class="workspace-launch__icon" aria-hidden="true">🖥️</span><span class="workspace-launch__copy"><strong>Desktop</strong><small>จัดการและวิเคราะห์ภาพรวม</small></span><span class="workspace-launch__arrow" aria-hidden="true">→</span></button>
+          <button class="workspace-launch" onclick="entryOpenMobile('mc')"><span class="workspace-launch__icon" aria-hidden="true">📱</span><span class="workspace-launch__copy"><strong>Mobile</strong><small>ติดตามและตอบสนองหน้างาน</small></span><span class="workspace-launch__arrow" aria-hidden="true">→</span></button>
         </div>
       </section>
       <section class="workspace-group growth-workspace" id="entry-growth-group" aria-labelledby="growth-workspace-title">
-        <div class="workspace-group__head"><span class="workspace-group__icon">📈</span><div><h2 id="growth-workspace-title">Growth</h2><p>ขับเคลื่อน Growth Health, Referral และ Power Team</p></div></div>
-        <div class="workspace-actions">
-          <button class="workspace-launch growth-launch" id="entry-growth-desktop" onclick="entryOpenDesktop('growth')"><span>🖥️</span><strong>Desktop</strong><small>วางแผนและวิเคราะห์</small></button>
-          <button class="workspace-launch growth-launch" id="entry-growth-mobile" onclick="entryOpenGrowthMobile()"><span>📱</span><strong>Mobile</strong><small>ช่วยเหลือสมาชิกทันที</small></button>
+        <div class="workspace-group__head"><span class="workspace-group__icon" aria-hidden="true">📈</span><div class="workspace-group__copy"><span class="workspace-group__label">Growth Workspace</span><h2 id="growth-workspace-title">Growth</h2><p>ขับเคลื่อน Growth Health, Referral และ Power Team</p></div></div>
+        <div class="workspace-group__actions" aria-label="เลือกช่องทางใช้งาน Growth">
+          <button class="workspace-launch growth-launch" id="entry-growth-desktop" onclick="entryOpenDesktop('growth')"><span class="workspace-launch__icon" aria-hidden="true">🖥️</span><span class="workspace-launch__copy"><strong>Desktop</strong><small>วางแผนและวิเคราะห์ Growth</small></span><span class="workspace-launch__arrow" aria-hidden="true">→</span></button>
+          <button class="workspace-launch growth-launch" id="entry-growth-mobile" onclick="entryOpenGrowthMobile()"><span class="workspace-launch__icon" aria-hidden="true">📱</span><span class="workspace-launch__copy"><strong>Mobile</strong><small>ช่วยเหลือสมาชิกได้ทันที</small></span><span class="workspace-launch__arrow" aria-hidden="true">→</span></button>
         </div>
       </section>
     </div>

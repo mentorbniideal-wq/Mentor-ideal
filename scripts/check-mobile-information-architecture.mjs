@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 
 const html = await readFile('public/index.html', 'utf8');
 const css = await readFile('public/assets/css/mobile-focus.css', 'utf8');
+const workspaceCss = await readFile('public/assets/css/mobile-operations.css', 'utf8');
 const js = await readFile('public/assets/js/mobile-operations.js', 'utf8');
 const adminJs = await readFile('public/assets/js/mobile-operations-admin.js', 'utf8');
 const auth = await readFile('supabase/functions/api/handlers/auth.ts', 'utf8');
@@ -32,6 +33,8 @@ expect(css.includes('margin:0 auto 6px'), 'bottom navigation needs visible icon-
 expect(js.includes("(r.isSystemOwner||r.role==='mc')"), 'only owner and Mentor Co. may see workspace chooser');
 expect(js.includes("getElementById('entry-growth-group')"), 'Growth workspace group must be addressable in the chooser');
 expect(js.includes("growth.style.display=isOwner?'block':'none'"), 'Growth workspaces must be hidden from Mentor Co. chooser');
+expect(html.includes('workspace-group__actions'), 'workspace chooser actions must use an isolated component class');
+expect(workspaceCss.includes('.workspace-group__actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))'), 'workspace chooser actions must retain a balanced two-button layout');
 expect(!between('id="mentorApp"', '<!-- Growth App -->').includes('openRoleSwitcher()'), 'Mentor header must not expose role switching');
 expect(adminJs.includes("if(!S||!S.isSystemOwner)"), 'admin panel and role switcher need owner guards');
 expect(auth.includes('!authResult.isSystemOwner'), 'PIN changes must require the verified system owner');
