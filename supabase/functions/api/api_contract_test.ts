@@ -201,7 +201,7 @@ Deno.test('Growth Mobile uses the shared, privacy-minimised member context contr
   assert(!contract.includes('company,company_name'), 'Growth context must only select columns present in the Members schema');
   assert(mobile.includes("api('getSharedMemberSupportContext'"), 'Growth Mobile must use the privacy-minimised shared contract');
   assert(mobile.includes("api('createSupportHandoff'") && mobile.includes("targetRole:'mentor'"), 'Growth Mobile must offer a server-authorized handoff to Mentor');
-  assert(mobile.includes('window.growthMobileState') && mobile.includes("replace(/[&<>\"']/g"), 'Growth extension must not rely on private helpers from the base Mobile module');
+  assert(mobile.includes('window.growthMobileState') && mobile.includes('window.growthMobileApi') && mobile.includes("replace(/[&<>\"']/g"), 'Growth extension must use the explicit base-Mobile interface rather than private helpers');
 });
 
 Deno.test('Member Support OS shared context is role-safe and Chapter-scoped', async () => {

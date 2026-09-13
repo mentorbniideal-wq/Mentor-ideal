@@ -2,6 +2,7 @@
    and deliberately keeps annual MSB data read-only during a conversation. */
 (function(){
   var state=window.growthMobileState||{members:[],tasks:[],signals:[],priorities:[]};
+  var api=window.growthMobileApi, toast=window.growthMobileToast, isDone=window.growthMobileIsDone, renderTasks=window.growthMobileRenderTasks;
   function e(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function pickConnection(id){return (state.priorities||[]).filter(function(p){return p.type==='CONNECTION_OPPORTUNITY'&&(p.memberIds||[]).map(String).includes(String(id));})[0]||null;}
   function taskCard2(t){return '<article class="gm-card"><b>'+e(t.memberName||'สมาชิก')+'</b><div class="gm-meta">'+e(t.taskType||'Growth follow-up')+' · '+e(t.note||'')+'</div><div class="gm-task-actions"><button data-member="'+e(t.memberId||'')+'">เปิด Member Card</button></div></article>';}
