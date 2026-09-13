@@ -6,6 +6,7 @@ var HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+ANON};
 var AUTH_URL='https://itwyjhlfemxsfbimshby.supabase.co';
 var SESSION='bni_growth_mobile_session';
 var state={pin:'',token:'',members:[],tasks:[],summary:{},risks:[],plans:{},signals:[],matches:[],priorities:[],zone:'all',task:'open'};
+window.growthMobileState=state;
 var sbAuth=null,sdkPromise=null;
 function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function getAuth(){if(!sbAuth&&window.supabase)sbAuth=window.supabase.createClient(AUTH_URL,ANON,{auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true}});return sbAuth;}
