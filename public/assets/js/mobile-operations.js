@@ -364,7 +364,7 @@ function memberRow(m,clickFn){
   var initials=nick?nick.slice(0,2):name.slice(0,2);
   var scoreDisp=tl==='none'?'<span style="font-size:.6rem;color:#A78BFA;font-weight:700;">⭐ ใหม่</span>':String(score);
   var scoreColor=tl==='none'?'#A78BFA':sc(score);
-  var sub=escHtml(m.mentor||'')+(m.trend?' · '+m.trend:'');
+  var sub=escHtml(mobileTeamDisplay(m.mentor||''))+(m.trend?' · '+m.trend:'');
   var roiTag=m.roi>0?'<span style="font-size:.6rem;font-weight:700;color:'+(m.roi>=300?'var(--green)':m.roi>=100?'var(--yellow)':'var(--red)')+';background:rgba(0,0,0,.15);border-radius:4px;padding:1px 5px;margin-left:4px">ROI '+m.roi+'%</span>':'';
   var evo=tlEvoDots(m.scoreHistory||m.scores);
   var state=tl==='none'?'สมาชิกใหม่':tl==='black'?'ต้องดูแลด่วน':tl==='red'?'ควรติดตาม':tl==='yellow'?'กำลังพัฒนา':'สถานะดี';

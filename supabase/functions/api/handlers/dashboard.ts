@@ -218,9 +218,9 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       for (const row of (teamCatalogRows || []) as Record<string, unknown>[]) {
         const code = String(row.name || '');
         if (!code) continue;
-        teamLabels[code] = String(
-          row.display_name || `ทีม ${String(row.leader_name || code)}`,
-        );
+        // name is a durable internal code (e.g. AMP), never a UI label.
+        // Always derive the visible team name from the current Mentor owner.
+        teamLabels[code] = `Mentor : ${String(row.leader_name || code)}`;
       }
 
       const memberIds = (rows || []).map((m: Record<string, unknown>) => String(m.id));
