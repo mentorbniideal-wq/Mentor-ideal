@@ -14,7 +14,7 @@
   };
   window.showMember=function(id){
     if(!id)return; var sheet=document.getElementById('gm-sheet'), body=document.getElementById('gm-sheet-body'); sheet.hidden=false; body.innerHTML='<p class="gm-eyebrow">GROWTH MEMBER CARD</p><p class="gm-meta">กำลังโหลด business context ที่สมาชิกอนุญาต…</p>';
-    api('getSharedMemberSupportContext',{memberId:id}).then(function(r){
+    Promise.resolve().then(function(){if(typeof api!=='function')throw new Error('Growth Mobile ยังโหลดไม่ครบ กรุณารีเฟรชหน้า');return api('getSharedMemberSupportContext',{memberId:id});}).then(function(r){
       var m=r.member||{}, b=r.sharedBusinessContext||{}, c=pickConnection(id), follow=((r.roleLens||{}).growth||{}).tasks||[], focus=b.lookingFor||b.businessSummary||'';
       var opportunity=c?e(c.title)+'<br><span class="gm-meta">'+e(c.why||'Potential connection จากข้อมูลที่มี')+'</span>':focus?'ทบทวนกลุ่มลูกค้าที่กำลังโฟกัส และหา connection ที่เกี่ยวข้อง':'ยังไม่มีข้อมูลเพียงพอสำหรับ recommendation';
       body.innerHTML='<div class="gm-member-hero"><p class="gm-eyebrow">GROWTH MEMBER</p><h2>'+e(m.nickname||m.name)+'</h2><p class="gm-meta">'+e(m.profession||'ยังไม่ระบุอาชีพ')+(m.company?' · '+e(m.company):'')+'</p></div>'+
