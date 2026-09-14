@@ -263,3 +263,17 @@ Deno.test('successful 1-2-1 profile reminder results are not marked failed in th
   assert(source.includes("if(response&&response.ok)updateLineBulkRows(chunkIds,'sent',response.results||[])"), 'Successful reminder batches must default to sent while preserving provider-specific result statuses');
   assert(!source.includes("if(response&&response.ok)updateLineBulkRows(chunkIds,'failed',response.results||[])"), 'Successful reminder batches must never be labeled failed');
 });
+
+Deno.test('Weekly MY121 roots, aliases and operator reads are tenant-scoped', async () => {
+  const handler = await read('supabase/functions/api/handlers/weekly-121.ts');
+  const migration = await read('supabase/migrations/20260914000000_phase_2d_scoped_one_to_one.sql');
+  assert(handler.includes('resolveChapterScope(db, auth)') && handler.includes('const chapterId = scope.chapterId'), 'Weekly MY121 must derive Chapter scope from authenticated access');
+  assert(handler.includes("insert({chapter_id:chapterId,meeting_date:meetingDate") && handler.includes("eq('chapter_id',chapterId).order('meeting_date'"), 'round creation and history must use the resolved Chapter');
+  assert(handler.includes("eq('matching_rounds.chapter_id',chapterId)") && handler.includes('activePairMemberIds(db,chapterId'), 'active-pair detection must not mix Chapters');
+  assert(handler.includes("eq('chapter_id',chapterId).eq('normalized_name',normalizedName)") && handler.includes("insert({chapter_id:chapterId,normalized_name:normalizedName"), 'remembered CSV aliases must be unique and queried inside one Chapter');
+  assert(handler.includes('async function loadDetail(db:any,roundId:string,chapterId:string)') && handler.includes("select('*').eq('chapter_id',chapterId).eq('id',roundId)"), 'round detail access must verify Chapter ownership before child reads');
+  assert(!handler.includes('p.chapterId') && !handler.includes('p.chapter_id'), 'Weekly MY121 must never trust browser-supplied Chapter scope');
+  assert(migration.includes('one_to_one_member_name_aliases_chapter_name_key') && migration.includes('idx_matching_rounds_chapter_status'), 'tenant-scoped uniqueness and lookup indexes must exist');
+  assert(migration.includes('trg_matching_pair_chapter_scope') && migration.includes('Invitation members must belong to the same Chapter'), 'database guards must reject cross-Chapter pairs and member invitations');
+  assert(migration.includes('INSERT INTO public.matching_rounds(chapter_id') && migration.includes('VALUES(v_round.chapter_id'), 'database-owned round creation and replacement must preserve Chapter scope');
+});

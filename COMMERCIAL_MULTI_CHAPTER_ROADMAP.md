@@ -127,6 +127,10 @@
 
 ### Phase 2 — Multi-tenant foundation
 
+- สถานะ 14 กันยายน 2569: Phase 2A–2D วาง membership, member/LT/renewal/score/Growth scope และเพิ่ม tenant root ให้ Weekly MY121/matching แล้ว งานใน repository ยังต้องผ่าน staging migration กับ synthetic second-Chapter isolation suite ก่อนถือว่า Phase 2 พร้อม production
+- Phase 2D: `matching_rounds`, forbidden pairs และ remembered CSV aliases ผูก `chapter_id`; API derive scope จาก credential และ database guard ป้องกันสมาชิกข้าม Chapter
+- Technical debt ที่ตั้งใจคงไว้: MY121 feature flags/pilot policy และ notification budget ยังเป็น installation-wide; LINE Token/Secret/Webhook ยังคงพักไว้ใน Phase 3 ตามเดิม
+
 - เพิ่ม `chapters`, `chapter_memberships` และ stable IDs
 - เพิ่ม `chapter_id` ในตารางหลักแบบ additive
 - Backfill BNI IDEAL เป็น tenant แรก แล้วตรวจ row count/checksum
