@@ -277,3 +277,11 @@ Deno.test('Weekly MY121 roots, aliases and operator reads are tenant-scoped', as
   assert(migration.includes('trg_matching_pair_chapter_scope') && migration.includes('Invitation members must belong to the same Chapter'), 'database guards must reject cross-Chapter pairs and member invitations');
   assert(migration.includes('INSERT INTO public.matching_rounds(chapter_id') && migration.includes('VALUES(v_round.chapter_id'), 'database-owned round creation and replacement must preserve Chapter scope');
 });
+
+Deno.test('Mentor MY121 applies the authenticated Chapter before team filtering', async () => {
+  const handler = await read('supabase/functions/api/handlers/mentor-121.ts');
+  assert(handler.includes("resolveChapterScope(db,auth)") && handler.includes('const chapterId=chapterScope.chapterId'), 'Mentor MY121 must derive Chapter scope from authenticated access');
+  assert(handler.includes("String(member?.chapter_id||'')===chapterId"), 'Mentor-team access must also require the member Chapter');
+  assert(handler.includes("eq('matching_rounds.chapter_id',chapterId)"), 'pair operations and timelines must root reads in the Chapter-scoped round');
+  assert(handler.includes("round:matching_rounds!inner(chapter_id)"), 'retry delivery must prove its matching round belongs to the Chapter');
+});
