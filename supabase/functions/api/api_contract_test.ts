@@ -249,6 +249,13 @@ Deno.test('Growth Mobile operations expose safe handoff status and auditable act
   assert(mobile.includes("data-opportunity-action") && mobile.includes("data-profile-request") && mobile.includes("data-talk-member"), 'Mobile must convert conversations, opportunities and profile review into tracked actions');
 });
 
+Deno.test('Growth member detail keeps Growth overview after async enrichment', async () => {
+  const source = await read('public/assets/js/desktop-operations.js');
+  assert(source.includes("if(s)s.innerHTML=S.role==='mc'?buildIMDScore(mem):buildIMDGrOverview(mem);"));
+  assert(source.includes("document.getElementById('imd-sub').textContent=(mem.mentor?teamDisplayName(mem.mentor):'ไม่มีทีม');"));
+  assert(source.includes("gsr('getMSBMemberIntelligence',{role:S.role,memberId:m.memberId}"));
+});
+
 Deno.test('workspace chooser presents Mentor and Growth with explicit Desktop and Mobile actions', async () => {
   const page = await read('public/index.html');
   const script = await read('public/assets/js/mobile-operations.js');

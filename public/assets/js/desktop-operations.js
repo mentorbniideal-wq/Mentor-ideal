@@ -6393,14 +6393,24 @@ function openIMD(name){
   if(!mem){toast('ไม่พบข้อมูลสมาชิก','err');return;}
   imdCurrentName=name;
   document.getElementById('imd-name').textContent=mem.name+(mem.nick?' ('+mem.nick+')':'');
-  document.getElementById('imd-sub').textContent=(mem.mentor||'ไม่มีทีม');
+  document.getElementById('imd-sub').textContent=(mem.mentor?teamDisplayName(mem.mentor):'ไม่มีทีม');
   // Fetch business description if not yet loaded
   if(mem.business===undefined){
     gsr('getMemberDetail',{memberName:name},function(r){
       if(r.ok){
         if(r.memberId)mem.memberId=r.memberId;
         if(r.business!=null)mem.business=r.business;
-        var s=document.getElementById('imd-s0');if(s)s.innerHTML=buildIMDScore(mem);
+        if(Array.isArray(r.scoreHistory))mem.scoreHistory=r.scoreHistory;
+        if(S.role==='mc'){
+          if(Number.isFinite(Number(r.bniScore)))mem.bniScore=Number(r.bniScore);
+          if(r.bniTl)mem.bniTl=r.bniTl;
+        }else{
+          if(Number.isFinite(Number(r.score)))mem.score=Number(r.score);
+          if(r.tl)mem.tl=r.tl;
+        }
+        var s=document.getElementById('imd-s0');
+        if(s)s.innerHTML=S.role==='mc'?buildIMDScore(mem):buildIMDGrOverview(mem);
+        if(S.role==='mc')setTimeout(function(){buildIMDCharts(mem);},50);
         loadIMDMSB(mem);
       }
     });
@@ -6943,13 +6953,12 @@ function loadIMDMSB(m){
     box.innerHTML='<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><div style="font-size:14px;font-weight:900;color:var(--ye)">🎯 MSB Goal Intelligence</div><div style="font-size:11px;color:var(--sub);margin-top:3px">ยังไม่พบ member_id สำหรับโหลด Blueprint</div></div><button class="bsm" onclick="imdMSBRetry('+JSON.stringify(m.name).replace(/"/g,'&quot;')+')" style="font-size:10px">↺</button></div>';
     return;
   }
-  var year=new Date().getFullYear();
-  gsr('getMSBMemberIntelligence',{role:S.role,memberId:m.memberId,blueprintYear:year},function(r){
+  gsr('getMSBMemberIntelligence',{role:S.role,memberId:m.memberId},function(r){
     if(!r||!r.ok){
       box.innerHTML='<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><div style="font-size:14px;font-weight:900;color:var(--re)">🎯 MSB Goal Intelligence</div><div style="font-size:11px;color:var(--sub);margin-top:3px">โหลด MSB ไม่สำเร็จ</div></div><button class="bsm" onclick="imdMSBRetry('+JSON.stringify(m.name).replace(/"/g,'&quot;')+','+JSON.stringify(m.memberId).replace(/"/g,'&quot;')+')" style="font-size:10px">↺</button></div><div style="font-size:11px;color:var(--re);margin-top:10px">'+esc(r&&r.error||'unknown')+'</div>';
       return;
     }
-    gsr('getMSBMatchingSuggestions',{role:S.role,memberId:m.memberId,blueprintYear:year},function(pm){
+    gsr('getMSBMatchingSuggestions',{role:S.role,memberId:m.memberId},function(pm){
       renderIMDMSB(box,r,(pm&&pm.ok)?(pm.suggestions||[]):[]);
     });
   });
