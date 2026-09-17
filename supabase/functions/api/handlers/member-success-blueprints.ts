@@ -6,6 +6,7 @@ import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts
 import { sha256Hex } from '../../_shared/line.ts';
 import { calculateMsbGoal } from '../../_shared/msb-goal-calculation.ts';
 import { annualGoalProgress } from '../../_shared/msb-goal-progress.ts';
+import { resolveMsbPlanningYear } from '../../_shared/msb-planning-year.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
 
@@ -715,16 +716,28 @@ async function getBlueprint(db: Db, memberId: string, year: number) {
 async function getGrowth2026Actual(db: Db, memberId: string) {
   // This is a historical Growth snapshot. It is reference-only and never
   // overwrites a member's MSB plan or current revenue fields.
-  const { data, error } = await db.from('growth_referral_members')
-    .select('target_thb, received_thb')
-    .eq('member_id', memberId);
-  if (error || !data?.length) return null;
+  const [goalResult, actualResult] = await Promise.all([
+    db.from('member_annual_growth_goals')
+      .select('goal_thb')
+      .eq('member_id', memberId)
+      .eq('goal_year', 2026)
+      .eq('goal_type', 'bni_revenue')
+      .maybeSingle(),
+    db.from('growth_referral_members')
+      .select('target_thb, received_thb')
+      .eq('member_id', memberId),
+  ]);
+  const data = actualResult.data || [];
   const totals = (data as Record<string, unknown>[]).reduce<{ target: number; actual: number }>((result, row) => ({
     target: result.target + num(row.target_thb),
     actual: result.actual + num(row.received_thb),
   }), { target: 0, actual: 0 });
+  if (!goalResult.error && goalResult.data) {
+    totals.target = num((goalResult.data as Record<string, unknown>).goal_thb);
+  }
+  if (actualResult.error || totals.target <= 0) return null;
   const progress = annualGoalProgress(totals.target, totals.actual);
-  return progress.target > 0 ? { ...progress, sourceYear: 2026, source: 'growth_revenue_snapshot' } : null;
+  return progress.target > 0 ? { ...progress, sourceYear: 2026, source: 'annual_growth_goal' } : null;
 }
 
 function normalizeBlueprint(row: Record<string, unknown> | null) {
@@ -859,6 +872,62 @@ function summarizeDashboardRows(rows: Awaited<ReturnType<typeof listDashboardRow
     topLookingForCategories: countTop('looking_for_categories'),
     topPowerTeamCategories: countTop('power_team_categories'),
   };
+}
+
+function compareBlueprintYears(
+  currentRows: Awaited<ReturnType<typeof listDashboardRows>>,
+  previousRows: Awaited<ReturnType<typeof listDashboardRows>>,
+  currentYear: number,
+  historicalGoals: Map<string, number> = new Map(),
+) {
+  const previousByMember = new Map(previousRows.map(row => [String(row.memberId), row]));
+  const rows = currentRows.map(row => {
+    const previous = previousByMember.get(String(row.memberId));
+    const currentBlueprint = row.blueprint as Record<string, unknown> | null;
+    const previousBlueprint = previous?.blueprint as Record<string, unknown> | null;
+    const currentGoal = currentBlueprint ? num(currentBlueprint.expected_sales_from_bni_year) : null;
+    const historicalGoal = historicalGoals.get(String(row.memberId));
+    const previousGoal = historicalGoal !== undefined
+      ? historicalGoal
+      : previousBlueprint ? num(previousBlueprint.expected_sales_from_bni_year) : null;
+    const comparable = currentGoal !== null && previousGoal !== null;
+    const delta = comparable ? currentGoal - previousGoal : null;
+    const deltaPercent = comparable && previousGoal > 0 ? (Number(delta) / previousGoal) * 100 : null;
+    return {
+      memberId: row.memberId, name: row.name, nickname: row.nickname, mentorTeam: row.mentorTeam,
+      previousYear: currentYear - 1, currentYear, previousGoal, currentGoal, delta, deltaPercent,
+      previousGoalSource: historicalGoal !== undefined ? 'historical_growth_goal' : previousBlueprint ? 'blueprint' : null,
+      direction: !comparable ? 'incomplete' : Number(delta) > 0 ? 'increase' : Number(delta) < 0 ? 'decrease' : 'same',
+    };
+  });
+  return {
+    previousYear: currentYear - 1, currentYear,
+    comparableCount: rows.filter(row => row.direction !== 'incomplete').length,
+    increaseCount: rows.filter(row => row.direction === 'increase').length,
+    decreaseCount: rows.filter(row => row.direction === 'decrease').length,
+    sameCount: rows.filter(row => row.direction === 'same').length,
+    incompleteCount: rows.filter(row => row.direction === 'incomplete').length,
+    rows,
+  };
+}
+
+async function loadHistoricalGrowthGoals(
+  db: Db,
+  rows: Awaited<ReturnType<typeof listDashboardRows>>,
+  goalYear: number,
+) {
+  const memberIds = rows.map(row => String(row.memberId)).filter(Boolean);
+  if (!memberIds.length) return new Map<string, number>();
+  const { data, error } = await db.from('member_annual_growth_goals')
+    .select('member_id,goal_thb')
+    .eq('goal_year', goalYear)
+    .eq('goal_type', 'bni_revenue')
+    .in('member_id', memberIds);
+  // Backward-compatible during rollout: the Dashboard still loads before the
+  // additive historical-goal migration reaches an environment.
+  if (error) return new Map<string, number>();
+  return new Map(((data || []) as Record<string, unknown>[])
+    .map(row => [String(row.member_id), num(row.goal_thb)]));
 }
 
 function monthlyDemandCalendar(rows: Awaited<ReturnType<typeof listDashboardRows>>) {
@@ -1046,7 +1115,10 @@ function dataQualityCenterFromRows(
 export async function handleMemberSuccessBlueprints(p: Record<string, unknown>): Promise<Response> {
   const db = getServiceClient();
   const action = String(p.action || '');
-  const year = Number(p.blueprintYear || p.blueprint_year || new Date().getFullYear());
+  const requestedYear = Number(p.blueprintYear || p.blueprint_year || 0);
+  const year = Number.isInteger(requestedYear) && requestedYear >= 2020 && requestedYear <= 2100
+    ? requestedYear
+    : await resolveMsbPlanningYear(db);
 
   switch (action) {
     case 'generateMemberSuccessBlueprintLink': {
@@ -1221,7 +1293,11 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       // The member Blueprint list is the primary working data. Intelligence
       // views and follow-up aggregation are additive: a failed optional query
       // must never blank the whole Growth workspace.
-      const dashboardRows = await listDashboardRows(db, auth, year);
+      const [dashboardRows, previousRows] = await Promise.all([
+        listDashboardRows(db, auth, year),
+        listDashboardRows(db, auth, year - 1),
+      ]);
+      const historicalGoals = await loadHistoricalGrowthGoals(db, dashboardRows, year - 1);
       const [planResult, followupResult] = await Promise.allSettled([
         fetchPlanRows(db, auth, year),
         buildFollowUpQueue(db, auth),
@@ -1248,6 +1324,7 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
         monthlyDemandCalendar: monthlyDemandCalendar(dashboardRows),
         followups,
         dataQuality: dataQualityCenterFromRows(dashboardRows, planRows),
+        yearComparison: compareBlueprintYears(dashboardRows, previousRows, year, historicalGoals),
         meta: {
           bundled: true,
           generatedAt: new Date().toISOString(),

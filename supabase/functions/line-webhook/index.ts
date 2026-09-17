@@ -17,6 +17,7 @@ import {
   SIM_CAPTURES,
   type LineEvent,
 } from '../_shared/line.ts';
+import { resolveMsbPlanningYear } from '../_shared/msb-planning-year.ts';
 import { commandCardFlex, memberScoreFlex, nextColorAdvice, type CardAction } from '../_shared/line-flex.ts';
 import { trackLineEvent } from '../_shared/analytics.ts';
 import { runCopilot } from '../_shared/copilot.ts';
@@ -334,7 +335,7 @@ async function createMemberSuccessBlueprintLink(
   lineUserId: string,
 ): Promise<string> {
   if (!memberId) throw new Error('member_id required for Member Success Blueprint link');
-  const year = new Date().getFullYear();
+  const year = await resolveMsbPlanningYear(db, { memberId });
   const baseUrl = (Deno.env.get('MSB_FORM_URL') || 'https://bni-mentor-system.vercel.app/member-success-blueprint').replace(/\/$/, '');
   const { data: existing, error: existingErr } = await db.from('msb_access_tokens')
     .select('token, expires_at')

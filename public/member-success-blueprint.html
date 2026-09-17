@@ -95,7 +95,7 @@
     function fmt(v){return n(v).toLocaleString('th-TH',{maximumFractionDigits:1});}
     function money(v){return '฿'+n(v).toLocaleString('th-TH',{maximumFractionDigits:0});}
     function toast(s){var t=document.getElementById('toast');t.textContent=s;t.classList.add('on');setTimeout(function(){t.classList.remove('on');},2600);}
-    function call(action,p,cb){fetch(API,{method:'POST',headers:HEADERS,body:JSON.stringify(Object.assign({action:action,token:formToken},p||{}))}).then(function(r){return r.json();}).then(cb).catch(function(e){cb({ok:false,error:e.message});});}
+    function call(action,p,cb){var controller=new AbortController(),timer=setTimeout(function(){controller.abort();},20000);fetch(API,{method:'POST',headers:HEADERS,body:JSON.stringify(Object.assign({action:action,token:formToken},p||{})),signal:controller.signal}).then(function(r){return r.json().catch(function(){return{ok:false,error:'ระบบตอบกลับไม่สมบูรณ์'};}).then(function(body){if(!r.ok&&body.ok!==false)body.ok=false;return body;});}).then(cb).catch(function(e){cb({ok:false,error:e.name==='AbortError'?'การเชื่อมต่อใช้เวลานานเกินไป กรุณาลองอีกครั้ง':e.message});}).finally(function(){clearTimeout(timer);});}
     function calc(){
       var total=n(data.total_sales_target_year), existing=n(data.existing_customer_revenue_from_bni), fresh=n(data.new_customer_revenue_from_bni), bni=existing+fresh, avg=n(data.average_customer_value_year), conv=n(data.conversion_rate_percent);
       var cust=avg>0?Math.ceil(fresh/avg):0;

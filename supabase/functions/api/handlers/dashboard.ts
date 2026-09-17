@@ -681,7 +681,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       // Member 360 is loaded only when an operator opens a member. Keep the
       // dashboard fast while returning one current, cross-module record here.
       const [goalsQ, profileQ, logsQ, reviewsQ, notesQ, legacy121Q, visitorsQ,
-        renewalQ, signalsQ, passportQ, passportSessionsQ, blueprintQ, lineQ,
+        renewalQ, signalsQ, passportQ, passportSessionsQ, blueprintQ, annualGoalsQ, lineQ,
         pairsQ, followUpsQ, attentionQ, auditQ] = await Promise.all([
         db.from('line_goals').select('goal_type,target,set_at').eq('member_id', memberId).order('set_at', { ascending: false }),
         db.from('member_one_to_one_profiles').select('*').eq('member_id', memberId).maybeSingle(),
@@ -695,6 +695,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         db.from('passport_enrollments').select('*').eq('member_id', memberId).maybeSingle(),
         db.from('passport_sessions').select('id,week_no,scheduled_date,title,lt_role,status,completed_at,notes,updated_at').eq('member_id', memberId).order('week_no', { ascending: true }),
         db.from('member_success_blueprints').select('*').eq('member_id', memberId).order('blueprint_year', { ascending: false }).limit(3),
+        db.from('member_annual_growth_goals').select('goal_year,goal_thb,goal_type,source_file').eq('member_id', memberId).order('goal_year', { ascending: false }).limit(5),
         db.from('line_members').select('registered_at').eq('member_id', memberId).maybeSingle(),
         db.from('matching_pairs').select('id,round_id,member_a_id,member_b_id,optional_member_c_id,status,created_at').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId},optional_member_c_id.eq.${memberId}`).order('created_at', { ascending: false }).limit(historyLimit),
         db.from('one_to_one_follow_up_actions').select('id,action_type,description,due_date,status,completed_at,outcome,created_at').or(`owner_member_id.eq.${memberId},related_member_id.eq.${memberId}`).order('created_at', { ascending: false }).limit(20),
@@ -735,9 +736,9 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       for (const row of (auditQ.data || []) as Record<string, unknown>[]) timeline.push({ type: 'admin_action', icon: '🛡️', title: String(row.event_type || 'Admin action'), detail: `โดย ${String(row.actor_role || 'ระบบ')}`, at: row.created_at });
       const sortedTimeline = sortMember360Timeline(timeline, 80);
       const optionalErrors = [goalsQ, profileQ, logsQ, reviewsQ, notesQ, legacy121Q,
-        visitorsQ, renewalQ, signalsQ, passportQ, passportSessionsQ, blueprintQ,
+        visitorsQ, renewalQ, signalsQ, passportQ, passportSessionsQ, blueprintQ, annualGoalsQ,
         lineQ, pairsQ, schedulesQ, followUpsQ, attentionQ, auditQ]
-        .map((q, index) => q.error ? ['goals','profile','mentor_logs','reviews','notes','one_to_one','visitors','renewal','signals','passport','passport_sessions','blueprints','line','pairs','schedules','follow_ups','attention','audit'][index] : '')
+        .map((q, index) => q.error ? ['goals','profile','mentor_logs','reviews','notes','one_to_one','visitors','renewal','signals','passport','passport_sessions','blueprints','annual_growth_goals','line','pairs','schedules','follow_ups','attention','audit'][index] : '')
         .filter(Boolean);
 
       const bniDays = Number(mv.bni_days) || 0;
@@ -872,6 +873,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
           visitors: visitorsQ.data || [], renewal: renewalQ.data || null,
           signals: signalsQ.data || [], passport: { enrollment: passportQ.data || null, sessions: passportSessionsQ.data || [] },
           blueprints: blueprintQ.data || [],
+          annualGrowthGoals: annualGoalsQ.data || [],
           timeline: auth.role === 'growth' ? sortedTimeline.filter((event) => !['mentor_log','note'].includes(String(event.type))) : sortedTimeline,
           historyLimit, refreshedAt: new Date().toISOString(), partial: optionalErrors.length > 0,
           unavailableModules: optionalErrors,

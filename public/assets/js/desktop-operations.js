@@ -8318,14 +8318,15 @@ function tlC(tl){return tl==='green'?'var(--gr)':tl==='yellow'?'var(--ye)':tl===
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 // ── Member Success Blueprint (MSB) ───────────────────────────
-var MSB={mc:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,pairs:null,followups:null,dataQuality:null,year:new Date().getFullYear()},gr:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,pairs:null,followups:null,dataQuality:null,year:new Date().getFullYear()}};
+var MSB={mc:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,pairs:null,followups:null,dataQuality:null,comparison:null,year:0},gr:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,pairs:null,followups:null,dataQuality:null,comparison:null,year:0}};
 function msbMoney(v){v=Number(v)||0;if(v>=1000000)return '฿'+(v/1000000).toFixed(v>=10000000?0:1)+'M';if(v>=1000)return '฿'+Math.round(v/1000)+'K';return '฿'+Math.round(v).toLocaleString('th-TH');}
 function msbNum(v,d){v=Number(v)||0;return v.toLocaleString('th-TH',{maximumFractionDigits:d==null?1:d});}
-function msbYearSelect(group){
+function msbYearSelect(group,selectedYear){
   var id=group==='gr'?'msb-gr-year':'msb-mc-year';
-  var el=document.getElementById(id);if(!el||el.options.length)return;
-  var y=new Date().getFullYear();
-  for(var i=-1;i<=2;i++){var o=document.createElement('option');o.value=String(y+i);o.textContent=String(y+i);if(i===0)o.selected=true;el.appendChild(o);}
+  var el=document.getElementById(id);if(!el)return;
+  var y=Number(selectedYear)||new Date().getFullYear();
+  if(!el.options.length){for(var i=-1;i<=2;i++){var o=document.createElement('option');o.value=String(y+i);o.textContent=String(y+i);el.appendChild(o);}}
+  el.value=String(y);
 }
 function msbStatusLabel(s){
   if(s==='submitted')return '<span style="color:var(--gr);font-weight:800">✅ submitted</span>';
@@ -8350,7 +8351,7 @@ function msbIntelStatusLabel(s){
 function msbCanManageLinks(){return S&&(S.role==='mc'||S.role==='growth');}
 function msbGenerateLink(memberId,group){
   group=group==='gr'?'gr':'mc';
-  var year=MSB[group]&&MSB[group].year||new Date().getFullYear();
+  var year=MSB[group]&&MSB[group].year||0;
   gsr('generateMemberSuccessBlueprintLink',{role:S.role,memberId:memberId,blueprintYear:year},function(r){
     if(!r||!r.ok){toast('สร้างลิงก์ไม่สำเร็จ: '+(r&&r.error||'unknown'));return;}
     var link=r.link||'';
@@ -8364,15 +8365,18 @@ function msbGenerateLink(memberId,group){
 }
 function msbLoad(group,force){
   group=group==='gr'?'gr':'mc';
-  msbYearSelect(group);
   var yEl=document.getElementById(group==='gr'?'msb-gr-year':'msb-mc-year');
-  var year=Number(yEl&&yEl.value)||new Date().getFullYear();
+  var year=Number(yEl&&yEl.value)||0;
   if(MSB[group].loaded&&!force&&MSB[group].year===year){msbRender(group);return;}
   var table=document.getElementById(group==='gr'?'msb-gr-table':'msb-mc-table');
   if(table)table.innerHTML='<div style="text-align:center;padding:36px;color:var(--sub)">⏳ กำลังโหลด Blueprint...</div>';
   MSB[group].year=year;
-  gsr('getMSBDashboardBundle',{role:S.role,blueprintYear:year},function(b){
+  var payload={role:S.role};if(year)payload.blueprintYear=year;
+  gsr('getMSBDashboardBundle',payload,function(b){
     if(b&&b.ok){
+      year=Number(b.blueprintYear)||year||new Date().getFullYear();
+      msbYearSelect(group,year);
+      MSB[group].year=year;
       MSB[group].rows=b.rows||[];
       MSB[group].summary=b.summary||null;
       MSB[group].overview=b.overview||null;
@@ -8382,6 +8386,7 @@ function msbLoad(group,force){
       MSB[group].monthlyDemandCalendar=b.monthlyDemandCalendar||[];
       MSB[group].followups=b.followups||null;
       MSB[group].dataQuality=b.dataQuality||null;
+      MSB[group].comparison=b.yearComparison||null;
       MSB[group].loaded=true;
       msbRender(group);
       return;
@@ -8679,12 +8684,24 @@ function msbPopulateGrowthTeamFilter(rows){
   select.dataset.teams=signature;select.innerHTML='<option value="">ทุกทีม</option>'+teams.map(function(team){return '<option value="'+esc(team)+'">'+esc(team)+'</option>';}).join('');
   if(teams.indexOf(selected)>=0)select.value=selected;
 }
+function msbComparisonRender(group){
+  if(group!=='gr')return;
+  var wrap=document.getElementById('msb-gr-comparison');if(!wrap)return;
+  var comparison=(MSB.gr&&MSB.gr.comparison)||{},rows=(comparison.rows||[]).slice();
+  function meta(v){return v==='increase'?['เพิ่มขึ้น','var(--gr)','▲']:v==='decrease'?['ลดลง','var(--re)','▼']:v==='same'?['เท่าเดิม','var(--sub)','●']:['ข้อมูลไม่ครบ','var(--ye)','—'];}
+  rows.sort(function(a,b){return Math.abs(Number(b.delta)||0)-Math.abs(Number(a.delta)||0);});
+  var body=rows.map(function(x){var m=meta(x.direction),has=x.direction!=='incomplete',delta=Number(x.delta)||0,pct=x.deltaPercent;
+    return '<tr><td><b>'+esc(x.nickname||x.name)+'</b><div style="font-size:10px;color:var(--sub)">'+esc(x.name||'')+'</div></td><td>'+esc(x.mentorTeam||'—')+'</td><td>'+(x.previousGoal==null?'—':msbMoney(x.previousGoal))+'</td><td>'+(x.currentGoal==null?'—':msbMoney(x.currentGoal))+'</td><td style="color:'+m[1]+';font-weight:900">'+(has?((delta>0?'+':'')+msbMoney(delta)):'—')+'</td><td>'+(pct==null?'—':((Number(pct)>0?'+':'')+msbNum(pct,1)+'%'))+'</td><td style="color:'+m[1]+';font-weight:900">'+m[2]+' '+m[0]+'</td></tr>';
+  }).join('');
+  wrap.innerHTML='<div style="background:var(--sf);border:1px solid var(--bd);border-radius:14px;overflow:hidden"><div style="padding:14px;border-bottom:1px solid var(--bd)"><h3 style="font-size:14px;font-weight:900;margin:0">เปรียบเทียบเป้าหมาย '+esc(comparison.previousYear||'—')+' → '+esc(comparison.currentYear||MSB.gr.year||'—')+'</h3><div style="font-size:11px;color:var(--sub);margin-top:4px">เป้ารายได้จาก BNI ตาม Blueprint ที่สมาชิกกรอก · ไม่มีการเดาตัวเลขแทนสมาชิก</div><div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px"><span class="lac-tag">เพิ่ม '+msbNum(comparison.increaseCount||0,0)+'</span><span class="lac-tag">ลด '+msbNum(comparison.decreaseCount||0,0)+'</span><span class="lac-tag">เท่าเดิม '+msbNum(comparison.sameCount||0,0)+'</span><span class="lac-tag">ข้อมูลไม่ครบ '+msbNum(comparison.incompleteCount||0,0)+'</span></div></div><div style="overflow-x:auto"><table class="tbl" style="min-width:820px"><thead><tr><th>สมาชิก</th><th>ทีม</th><th>เป้า '+esc(comparison.previousYear||'ปีก่อน')+'</th><th>เป้า '+esc(comparison.currentYear||'ปีใหม่')+'</th><th>ส่วนต่าง</th><th>%</th><th>ทิศทาง</th></tr></thead><tbody>'+(body||'<tr><td colspan="7" style="text-align:center;color:var(--sub);padding:24px">ยังไม่มีข้อมูลสำหรับเปรียบเทียบ</td></tr>')+'</tbody></table></div></div>';
+}
 function msbRender(group){
   group=group==='gr'?'gr':'mc';
   var state=MSB[group], rows=(state.rows||[]).slice(), sm=state.summary||{}, ov=state.overview||{};
   var intelById={};
   (state.intelRows||[]).forEach(function(x){if(x&&x.memberId)intelById[x.memberId]=x;});
   if(group==='gr')msbPopulateGrowthTeamFilter(rows);
+  msbComparisonRender(group);
   var qEl=document.getElementById(group==='gr'?'msb-gr-search':'msb-mc-search');
   var teamEl=document.getElementById('msb-gr-team');
   var q=(qEl&&qEl.value||'').toLowerCase().trim();
