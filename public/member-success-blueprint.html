@@ -103,7 +103,18 @@
       return {pct:total>0?bni/total*100:0,bni:bni,cust:cust,ref:ref,month:ref/12,week:ref/52};
     }
     function persist(){try{localStorage.setItem('msb_draft_'+year,JSON.stringify(data));}catch(e){}}
-    function hydrateDraft(){try{var raw=localStorage.getItem('msb_draft_'+year);if(raw)Object.assign(data,JSON.parse(raw));}catch(e){}}
+    function syncHelperStateFromData(){
+      if (n(data.average_customer_value_year) > 0 && (!helperState.avgMonthly || Math.abs(n(helperState.avgMonthly) - n(data.average_customer_value_year)/12) > 0.1)) {
+        helperState.avgMonthly = String(Math.round(n(data.average_customer_value_year)/12));
+      }
+      if (n(data.conversion_rate_percent) > 0) {
+        var ref = n(helperState.convReferrals) || 10;
+        var closed = Math.round((n(data.conversion_rate_percent) / 100) * ref);
+        if (!helperState.convReferrals || n(helperState.convReferrals) <= 0) helperState.convReferrals = String(ref);
+        if (!helperState.convClosed || Math.abs(n(helperState.convClosed) - closed) > 0.1) helperState.convClosed = String(closed);
+      }
+    }
+    function hydrateDraft(){try{var raw=localStorage.getItem('msb_draft_'+year);if(raw)Object.assign(data,JSON.parse(raw));}catch(e){}} 
     function loadServer(){
       call('getMemberSuccessBlueprintByToken',{},function(r){
         if(!r.ok){showState('<b>ลิงก์นี้ยังใช้งานไม่ได้</b><br>'+esc(r.error||'ลิงก์ไม่ถูกต้องหรือหมดอายุ')+'<br><br>กรุณาขอลิงก์ใหม่จาก MC หรือ Growth หรือพิมพ์ <b>Goal</b> ใน LINE Official Account');return;}
@@ -128,6 +139,7 @@
             personal_goal_detail:blueprint.personal_goal_detail||''
           });
         }else hydrateDraft();
+        syncHelperStateFromData();
         render();
         loadCategorySuggestions();
       });
@@ -146,14 +158,24 @@
       loadServer();
     }
     function setVal(k,v){data[k]=v;persist();render();}
-    function setInput(k,v){data[k]=v;persist();updateLive();}
+    function setInput(k,v){
+      data[k]=v;
+      if(k==='average_customer_value_year' && n(v)>0){helperState.avgMonthly=String(Math.round(n(v)/12));}
+      if(k==='conversion_rate_percent' && n(v)>0){
+        var ref = n(helperState.convReferrals) || 10;
+        helperState.convReferrals = String(ref);
+        helperState.convClosed = String(Math.round((n(v)/100)*ref));
+      }
+      persist();
+      updateLive();
+    }
     function marketingPlanRows(){var source=Array.isArray(data.monthly_marketing_plan)?data.monthly_marketing_plan:[];return Array.from({length:12},function(_,i){var row=source.find(function(x){return Number(x&&x.month)===i+1;})||{};return {month:i+1,season_event:row.season_event||'',product_service:row.product_service||'',specific_looking_for:row.specific_looking_for||''};});}
     function setMarketingPlan(month,key,value){var rows=marketingPlanRows();rows[month-1][key]=value;data.monthly_marketing_plan=rows;persist();}
     function setMonthlyTotal(v){data.total_sales_target_year=String(n(v)*12);persist();render();}
     function setBniPct(pct){var total=n(data.total_sales_target_year);if(!total){toast('กรอกยอดขายรวมทั้งปีก่อนครับ');return;}data.expected_sales_from_bni_year=String(Math.round(total*(pct/100)));persist();render();}
     function setAvgMonthlySpend(v){helperState.avgMonthly=String(v||'');data.average_customer_value_year=String(n(v)*12);persist();updateLive(true);}
     function syncConversionFromInputs(){var ref=n(helperState.convReferrals),closed=n(helperState.convClosed);if(ref>0 && closed>=0){data.conversion_rate_percent=String(Math.min(100,(closed/ref)*100).toFixed(1));}return data.conversion_rate_percent;}
-    function setConversionCalc(k,v){helperState[k]=String(v||'');syncConversionFromInputs();persist();updateLive(true);}
+    function setConversionCalc(k,v){helperState[k]=String(v||'');syncConversionFromInputs();if(!helperState.convReferrals && n(data.conversion_rate_percent)>0)helperState.convReferrals='10';persist();updateLive(true);}
     function toggleArr(k,v){var a=data[k]||[];data[k]=a.includes(v)?a.filter(function(x){return x!==v;}):a.concat([v]);persist();render();}
     function addCustomCategory(type,value){var key=type==='looking_for'?'looking_for_categories':'power_team_categories';var val=String(value||'').trim();if(!val)return;var current=data[key]||[];var exists=current.some(function(x){return String(x).trim().toLowerCase()===val.toLowerCase();});if(!exists){data[key]=current.concat([val]);persist();render();}var input=document.getElementById('custom-'+type);if(input)input.value='';}
     function setSingle(k,v){data[k]=v;persist();render();}
@@ -291,6 +313,7 @@
     function updateLive(skipCoach){
       ['pct','cust','ref','month','week','splitWarn','logicWarn'].forEach(function(id){var el=document.getElementById(id);if(!el)return;});
       var c=calc();
+      syncHelperStateFromData();
       syncConversionFromInputs();
       ['average_customer_value_year','conversion_rate_percent'].forEach(function(k){var el=document.getElementById('fld_'+k);if(el&&document.activeElement!==el)el.value=data[k]||'';});
       var pct=document.getElementById('pct');if(pct)pct.textContent=fmt(c.pct)+'%';
