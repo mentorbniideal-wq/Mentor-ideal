@@ -256,6 +256,31 @@ Deno.test('Growth member detail keeps Growth overview after async enrichment', a
   assert(source.includes("gsr('getMSBMemberIntelligence',{role:S.role,memberId:m.memberId}"));
 });
 
+Deno.test('Growth Mobile access stays role-specific from admin UI through invite copy', async () => {
+  const ui = await read('public/assets/js/desktop-mobile-access.js');
+  const settings = await read('supabase/functions/admin-api/handlers/settings.ts');
+  const claimPage = await read('public/mobile-access.html');
+  assert(ui.includes('approvedRole:ctx.access.role'), 'Admin access lookup and update must include the selected Mobile role');
+  assert(settings.includes("assignmentQuery.eq('role', requestedRole)"), 'Existing access must be filtered by the requested role');
+  assert(settings.includes("String(invite.approved_role) === 'growth' ? 'Growth Mobile' : 'Mentor Mobile'"), 'Invite copy must name the correct Mobile product');
+  assert(claimPage.includes("info.invite.approvedRole==='growth'?'Growth Mobile':'Mentor Mobile'"), 'Claim page must show Growth branding for Growth invitations');
+  assert(ui.includes('window.openGrowthMobileAccess'), 'Growth Mobile access dialog must be available');
+  const operations = await read('public/assets/js/desktop-operations.js');
+  assert(operations.includes("accessButton('lt-growth-lead')") && operations.includes("var id='lt-growth-co-'"), 'Growth Lead and both Co-Leads must each expose Mobile access management');
+  assert(operations.includes('กรุณาบันทึก Growth Team ก่อนจัดการสิทธิ์'), 'Growth Mobile access must follow the saved Growth Team assignment');
+});
+
+Deno.test('Blueprint Intelligence separates each Growth workflow into one visible workspace view', async () => {
+  const page = await read('public/dashboard.html');
+  const source = await read('public/assets/js/desktop-blueprint-workspace.js');
+  for (const view of ['table','radar','followups','quality','pairs','calendar','comparison']) {
+    assert(source.includes(`['${view}'`), `Blueprint navigation must expose ${view}`);
+    assert(page.includes(`data-msb-view="${view}"`), `Blueprint workspace must contain ${view}`);
+  }
+  assert(source.includes("window.MSB_GROWTH_VIEW='table'"), 'Chapter Blueprint Table must be the default view');
+  assert(source.includes("panel.hidden=panel.getAttribute('data-msb-view')!==view"), 'Only the selected Blueprint workflow may remain visible');
+});
+
 Deno.test('workspace chooser presents Mentor and Growth with explicit Desktop and Mobile actions', async () => {
   const page = await read('public/index.html');
   const script = await read('public/assets/js/mobile-operations.js');

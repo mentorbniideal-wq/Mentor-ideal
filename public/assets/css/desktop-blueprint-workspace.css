@@ -1,0 +1,7 @@
+.msb-workspace-nav{display:flex;gap:8px;overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:thin;padding:2px 2px 12px;margin-bottom:14px;border-bottom:1px solid var(--bd)}
+.msb-workspace-tab{min-height:42px;flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;padding:9px 12px;border:1px solid var(--bd);border-radius:10px;background:var(--sf);color:var(--sub);font:800 11px inherit;white-space:nowrap;cursor:pointer;transition:border-color .16s ease,background .16s ease,color .16s ease}
+.msb-workspace-tab:hover{border-color:var(--bd-hover);color:var(--tx)}
+.msb-workspace-tab.on{background:rgba(199,167,106,.14);border-color:rgba(199,167,106,.55);color:var(--ac);box-shadow:inset 0 0 0 1px rgba(199,167,106,.08)}
+.msb-workspace-tab:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.msb-workspace-panel[hidden]{display:none!important}
+@media(max-width:760px){.msb-workspace-nav{margin-inline:-2px;padding-bottom:10px}.msb-workspace-tab{min-height:44px;padding-inline:11px}}

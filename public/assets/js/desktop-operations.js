@@ -2896,12 +2896,14 @@ function renderLtTeam(){
   var opts='<option value="">— ยังไม่เลือก —</option>'+members.map(function(m){return'<option value="'+esc(m.id)+'">'+ltMemberOption(m)+'</option>';}).join('');
   var growthEl=document.getElementById('lt-growth-team');
   if(growthEl){
+    window._growthMemberList=members;
     var lead=(growthTeam.filter(function(x){return x.term_id===((term||{}).id)&&x.position==='lead';})[0]||{}).member_id||'';
     var cos=growthTeam.filter(function(x){return x.term_id===((term||{}).id)&&x.position==='co_lead';}).map(function(x){return x.member_id;});
     var disabled=S.isAdmin?'':'disabled';
-    growthEl.innerHTML='<div style="border:1px solid var(--bd);border-radius:13px;padding:12px;background:var(--sf2)"><div style="font-size:12px;font-weight:900">Growth Lead</div><div style="font-size:9px;color:var(--sub);margin:3px 0 8px">ผู้รับผิดชอบหลัก</div><select id="lt-growth-lead" '+disabled+' style="font-size:11px;padding:7px">'+opts+'</select></div>'
-      +[0,1].map(function(i){return'<div style="border:1px solid var(--bd);border-radius:13px;padding:12px;background:var(--sf2)"><div style="font-size:12px;font-weight:900">Growth Co-Lead '+(i+1)+'</div><div style="font-size:9px;color:var(--sub);margin:3px 0 8px">ร่วมดูแลและรับ LINE</div><select id="lt-growth-co-'+i+'" '+disabled+' style="font-size:11px;padding:7px">'+opts+'</select></div>';}).join('')
-      +(S.isAdmin?'<div style="display:flex;align-items:end"><button class="bsm" onclick="saveLtGrowthTeam()" style="width:100%;background:var(--ac-dim);color:var(--ac);border-color:var(--bd-hover);font-weight:800">บันทึก Growth Team</button></div>':'<div style="font-size:9px;color:var(--sub);padding:10px">Chapter Admin เป็นผู้แก้ไขทีม</div>');
+    function accessButton(selectId){return S.isAdmin?'<button class="bsm" onclick="openSavedGrowthMobile(\''+selectId+'\')" style="width:100%;margin-top:7px;background:rgba(34,197,94,.12);color:#86EFAC;border-color:rgba(34,197,94,.38);font-weight:800">🔐 จัดการ Growth Mobile</button>':'';}
+    growthEl.innerHTML='<div style="border:1px solid var(--bd);border-radius:13px;padding:12px;background:var(--sf2)"><div style="font-size:12px;font-weight:900">Growth Lead</div><div style="font-size:9px;color:var(--sub);margin:3px 0 8px">ผู้รับผิดชอบหลัก</div><select id="lt-growth-lead" '+disabled+' style="font-size:11px;padding:7px">'+opts+'</select>'+accessButton('lt-growth-lead')+'</div>'
+      +[0,1].map(function(i){var id='lt-growth-co-'+i;return'<div style="border:1px solid var(--bd);border-radius:13px;padding:12px;background:var(--sf2)"><div style="font-size:12px;font-weight:900">Growth Co-Lead '+(i+1)+'</div><div style="font-size:9px;color:var(--sub);margin:3px 0 8px">ร่วมดูแลและรับ LINE</div><select id="'+id+'" '+disabled+' style="font-size:11px;padding:7px">'+opts+'</select>'+accessButton(id)+'</div>';}).join('')
+      +(S.isAdmin?'<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px"><button class="bsm" onclick="saveLtGrowthTeam()" style="width:100%;background:var(--ac-dim);color:var(--ac);border-color:var(--bd-hover);font-weight:800">บันทึก Growth Team</button></div>':'<div style="font-size:9px;color:var(--sub);padding:10px">Chapter Admin เป็นผู้แก้ไขทีม</div>');
     setTimeout(function(){var l=document.getElementById('lt-growth-lead');if(l)l.value=lead;cos.forEach(function(id,i){var c=document.getElementById('lt-growth-co-'+i);if(c)c.value=id;});},0);
   }
   var indexedRoles=roles.map(function(item,i){return{item:item,index:i};});
@@ -2909,6 +2911,13 @@ function renderLtTeam(){
   var mentorEl=document.getElementById('lt-mentor-roles');if(mentorEl)mentorEl.innerHTML=indexedRoles.filter(function(x){return ltIsMentorRole(x.item.role);}).map(function(x){return ltRoleCard(x.item,x.index,byRole,members,linked,opts,mentorTeams);}).join('');
   setTimeout(function(){roles.forEach(function(item,i){var a=byRole[item.role]||{},m=document.getElementById('lt-main-'+i),f=document.getElementById('lt-fallback-'+i);if(m)m.value=a.assigned_member_id||'';if(f)f.value=a.fallback_member_id||'';if(S.isAdmin&&m&&ltMentorAccess(item.role)){var btn=document.createElement('button');btn.className='bsm';btn.style.cssText='width:100%;margin-top:6px;border-color:#d2b779;color:#d2b779;font-weight:800';btn.textContent='🔐 จัดการ Mentor Mobile';btn.onclick=function(){if(window.openMentorMobileAccess)window.openMentorMobileAccess(i);else inviteLtMentor(i);};m.parentElement.appendChild(btn);}});},0);
   var routeEl=document.getElementById('lt-team-routing');if(routeEl)routeEl.innerHTML=[['🎯 ตั้งเป้าหมาย','Growth Coordinator','goal'],['👋 มี Visitor มา','Visitor Host · Event Coordinator','visitor'],['🗓️ แจ้งลา / ส่งแทน','Membership Committee · Secretary/Treasurer','absence'],['🔄 ต่ออายุ','Membership Committee · Secretary/Treasurer','renewal'],['🎓 สนใจอบรม','Secretary/Treasurer · NEC','training'],['🔗 Connection / Referral','Growth Coordinator · Mentor Coordinator','referral'],['✏️ แก้ข้อมูลธุรกิจ','Membership Committee · Secretary/Treasurer','profile_update'],['🎤 Presentation','Vice President · NEC','presentation'],['🔒 เรื่องเป็นความลับ','President · Vice President · Membership Committee','confidential'],['🆘 ขอความช่วยเหลือ','Mentor Co. · Mentor member ของทีมนั้น','member_help']].map(function(x){var configured=roles.filter(function(r){return(r.scopes||[]).indexOf(x[2])>=0;}).some(function(r){var a=byRole[r.role];return a&&a.assigned_member_id&&linked[a.assigned_member_id];});return'<div style="border:1px solid var(--bd);border-radius:12px;padding:12px;background:var(--sf2)"><div style="font-size:12px;font-weight:900">'+x[0]+'</div><div style="font-size:10px;color:var(--sub);margin:4px 0 8px">ส่งหา '+x[1]+'</div><span style="font-size:9px;font-weight:900;color:'+(configured?'var(--gr)':'var(--ye)')+'">'+(configured?'● พร้อมรับงาน':'● รอกำหนดผู้รับ')+'</span></div>';}).join('');
+}
+
+function openSavedGrowthMobile(selectId){
+  var el=document.getElementById(selectId),memberId=String(el&&el.value||''),d=_ltTeamData||{},terms=d.terms||[],activeTerm=terms.find(function(t){return t.status==='active';}),saved=(d.growthTeam||[]).some(function(x){return String(x.term_id||'')===String((activeTerm||{}).id||'')&&String(x.member_id||'')===memberId;});
+  if(!memberId){toast('❌ กรุณาเลือกสมาชิก Growth ก่อน','err');return;}
+  if(!saved){toast('⚠️ กรุณาบันทึก Growth Team ก่อนจัดการสิทธิ์','warn');return;}
+  if(window.openGrowthMobileAccess)window.openGrowthMobileAccess(memberId);else toast('กำลังเตรียมหน้าจัดการ Growth Mobile กรุณาลองใหม่','err');
 }
 
 function saveLtGrowthTeam(){
@@ -8766,6 +8775,7 @@ function msbRender(group){
   msbFollowUpRender(group);
   msbRadarRender(group);
   msbPairsRender(group);
+  if(group==='gr')msbOpenView(MSB_GROWTH_VIEW);
   var canLink=msbCanManageLinks();
   var html='<table class="tbl" style="min-width:1680px"><thead><tr><th>สมาชิก</th><th>ทีม</th><th>MSB Goal</th><th>Actual Received</th><th>Revenue Progress</th><th>Revenue Gap</th><th>Referral Needed/Received</th><th>Referral Progress</th><th>Referral Gap</th><th>Looking For</th><th>Power Team</th><th>Intelligence Status</th><th>Suggested Support</th><th>Blueprint</th><th>Link</th>'+(canLink?'<th>Action</th>':'')+'</tr></thead><tbody>';
   if(!rows.length){

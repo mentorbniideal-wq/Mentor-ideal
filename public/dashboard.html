@@ -15,7 +15,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/desktop-operations.css?v=20260903c">
+<link rel="stylesheet" href="/assets/css/desktop-operations.css?v=20260919-blueprint-workspace.1">
+<link rel="stylesheet" href="/assets/css/desktop-blueprint-workspace.css?v=20260919.1">
 <link rel="stylesheet" href="/assets/css/desktop-member-360.css">
 <link rel="stylesheet" href="/assets/css/desktop-mobile-access.css">
 <link rel="stylesheet" href="/assets/css/chapter-operations-center.css">
@@ -933,16 +934,15 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
           <button class="bsm" onclick="msbLoad('gr',true)" style="font-size:11px">🔄 รีเฟรช</button>
         </div>
       </div>
-      <div id="msb-gr-summary" class="kgrid" style="margin-bottom:14px"></div>
-      <div id="msb-gr-intel" class="row2" style="margin-bottom:14px"></div>
-      <div id="msb-gr-data-quality" style="margin-bottom:14px"></div>
-      <div id="msb-gr-followups" style="margin-bottom:14px"></div>
-      <div id="msb-gr-radar" style="margin-bottom:14px"></div>
-      <div id="msb-gr-pairs" style="margin-bottom:14px"></div>
-      <div id="msb-gr-calendar" style="margin-bottom:14px"></div>
-      <div id="msb-gr-tops" class="row2" style="margin-bottom:14px"></div>
-      <div id="msb-gr-comparison" style="margin-bottom:14px"></div>
-      <div style="background:var(--sf);border:1px solid var(--bd);border-radius:14px;overflow:hidden">
+      <nav id="msb-growth-workspace-nav" class="msb-workspace-nav" aria-label="เลือกเครื่องมือ Blueprint Intelligence"></nav>
+      <div id="msb-gr-summary" class="kgrid msb-workspace-panel" data-msb-view="table" style="margin-bottom:14px"></div>
+      <div id="msb-gr-data-quality" class="msb-workspace-panel" data-msb-view="quality" style="margin-bottom:14px" hidden></div>
+      <div id="msb-gr-followups" class="msb-workspace-panel" data-msb-view="followups" style="margin-bottom:14px" hidden></div>
+      <div id="msb-gr-radar" class="msb-workspace-panel" data-msb-view="radar" style="margin-bottom:14px" hidden></div>
+      <div id="msb-gr-pairs" class="msb-workspace-panel" data-msb-view="pairs" style="margin-bottom:14px" hidden></div>
+      <div id="msb-gr-calendar" class="msb-workspace-panel" data-msb-view="calendar" style="margin-bottom:14px" hidden></div>
+      <div id="msb-gr-comparison" class="msb-workspace-panel" data-msb-view="comparison" style="margin-bottom:14px" hidden></div>
+      <div class="msb-workspace-panel" data-msb-view="table" style="background:var(--sf);border:1px solid var(--bd);border-radius:14px;overflow:hidden">
         <div style="padding:12px 14px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span style="font-size:13px;font-weight:800">📋 Chapter Blueprint Table</span>
           <select id="msb-gr-team" onchange="msbRender('gr')" style="margin-left:auto;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;color:var(--tx);padding:6px 10px;font-size:12px"><option value="">ทุกทีม</option></select>
@@ -2212,7 +2212,8 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
   <button class="bk-btn" style="background:transparent;color:var(--sub);border:1px solid var(--bd)" onclick="clearBulk()">✕ ยกเลิก</button>
 </div>
 
-<script src="/assets/js/desktop-operations.js?v=20260913-growth-intelligence.1" defer></script>
+<script src="/assets/js/desktop-blueprint-workspace.js?v=20260919.1" defer></script>
+<script src="/assets/js/desktop-operations.js?v=20260919-blueprint-workspace.1" defer></script>
 <script src="/assets/js/desktop-line-compose.js?v=20260909-audit.1" defer></script>
 <script src="/assets/js/desktop-navigation.js?v=20260909-audit.1" defer></script>
 <script src="/assets/js/desktop-member-360.js" defer></script>

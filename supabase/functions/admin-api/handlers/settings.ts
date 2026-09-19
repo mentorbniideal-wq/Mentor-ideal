@@ -351,15 +351,23 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
 
   if (action === 'getMentorMobileAccess') {
     const memberId = String(p.memberId || '');
+    const requestedRole = String(p.approvedRole || '').toLowerCase();
     if (!memberId) return errResponse('กรุณาเลือกสมาชิก');
+    if (requestedRole && !MOBILE_ACCESS_ROLES.includes(requestedRole as typeof MOBILE_ACCESS_ROLES[number])) return errResponse('บทบาท Mobile ไม่ถูกต้อง');
+    let assignmentQuery = db.from('role_assignments')
+      .select('email, role, display_name, team_name, member_id, access_status, access_expires_at, term_id, created_at')
+      .eq('member_id', memberId);
+    let inviteQuery = db.from('mobile_access_invitations')
+      .select('id, status, approved_role, approved_team_name, claimed_email, sent_at, claimed_at, expires_at, created_at')
+      .eq('member_id', memberId);
+    if (requestedRole) {
+      assignmentQuery = assignmentQuery.eq('role', requestedRole);
+      inviteQuery = inviteQuery.eq('approved_role', requestedRole);
+    }
     const [{ data: member }, { data: assignment }, { data: invite }] = await Promise.all([
       db.from('members').select('id, name, nickname').eq('id', memberId).maybeSingle(),
-      db.from('role_assignments')
-        .select('email, role, display_name, team_name, member_id, access_status, access_expires_at, term_id, created_at')
-        .eq('member_id', memberId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-      db.from('mobile_access_invitations')
-        .select('id, status, approved_role, approved_team_name, claimed_email, sent_at, claimed_at, expires_at, created_at')
-        .eq('member_id', memberId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      assignmentQuery.order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      inviteQuery.order('created_at', { ascending: false }).limit(1).maybeSingle(),
     ]);
     if (!member) return errResponse('ไม่พบสมาชิก', 404);
     return jsonResponse({ ok: true, member, assignment: assignment || null, latestInvite: invite || null });
@@ -367,12 +375,16 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
 
   if (action === 'updateMentorMobileEmail') {
     const memberId = String(p.memberId || '');
+    const requestedRole = String(p.approvedRole || '').toLowerCase();
     const email = String(p.email || '').trim().toLowerCase();
     if (!memberId) return errResponse('กรุณาเลือกสมาชิก');
+    if (requestedRole && !MOBILE_ACCESS_ROLES.includes(requestedRole as typeof MOBILE_ACCESS_ROLES[number])) return errResponse('บทบาท Mobile ไม่ถูกต้อง');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return errResponse('รูปแบบ Gmail ไม่ถูกต้อง');
-    const { data: current, error: currentError } = await db.from('role_assignments')
+    let currentQuery = db.from('role_assignments')
       .select('email, role, display_name, team_name, member_id, is_mc, is_mentor, is_admin, admin_sections, admin_edit_access, capabilities, access_status, access_expires_at, term_id')
-      .eq('member_id', memberId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      .eq('member_id', memberId);
+    if (requestedRole) currentQuery = currentQuery.eq('role', requestedRole);
+    const { data: current, error: currentError } = await currentQuery.order('created_at', { ascending: false }).limit(1).maybeSingle();
     if (currentError) return errResponse(currentError.message);
     if (!current) return errResponse('สมาชิกยังไม่เคยผูก Mentor Mobile กรุณาส่งคำเชิญครั้งแรกก่อน');
     if (String(current.email).toLowerCase() === email) return jsonResponse({ ok: true, email, unchanged: true });
@@ -432,11 +444,12 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     const name = String(member.nickname || member.name || 'สมาชิก');
     const appUrl = String(Deno.env.get('PUBLIC_APP_URL') || 'https://bni-mentor-system.vercel.app').replace(/\/$/, '');
     const inviteUrl = `${appUrl}/mobile-access.html?invite=${encodeURIComponent(rawToken)}`;
-    const defaultMessage = `🔐 คำเชิญเข้า Mentor Mobile\n\nสวัสดีครับคุณ${name}\nChapter Admin ได้เตรียมสิทธิ์ ${String(invite.approved_team_name || invite.approved_role)} ให้แล้ว\n\nกดลิงก์เพื่อผูก Gmail และตั้ง PIN 4 ตัวสำหรับเครื่องนี้:\n${inviteUrl}\n\nลิงก์ใช้ได้ครั้งเดียวและหมดอายุภายใน 7 วัน หากไม่ได้ร้องขอ ไม่ต้องกดลิงก์นี้ครับ`;
+    const mobileProduct = String(invite.approved_role) === 'growth' ? 'Growth Mobile' : 'Mentor Mobile';
+    const defaultMessage = `🔐 คำเชิญเข้า ${mobileProduct}\n\nสวัสดีครับคุณ${name}\nChapter Admin ได้เตรียมสิทธิ์ ${String(invite.approved_team_name || invite.approved_role)} ให้แล้ว\n\nกดลิงก์เพื่อผูก Gmail และตั้ง PIN 4 ตัวสำหรับเครื่องนี้:\n${inviteUrl}\n\nลิงก์ใช้ได้ครั้งเดียวและหมดอายุภายใน 7 วัน หากไม่ได้ร้องขอ ไม่ต้องกดลิงก์นี้ครับ`;
     if (p.dryRun !== false) return jsonResponse({ ok: true, dryRun: true, audience: name, message: defaultMessage, inviteUrl });
     if (p.confirmed !== true) return errResponse('กรุณาตรวจข้อความและยืนยันก่อนส่ง LINE');
     const message = String(p.customMessage || defaultMessage).trim().slice(0, 5000);
-    if (!message.includes(inviteUrl)) return errResponse('ข้อความต้องมีลิงก์ตั้งค่า Mentor Mobile');
+    if (!message.includes(inviteUrl)) return errResponse(`ข้อความต้องมีลิงก์ตั้งค่า ${mobileProduct}`);
     const result = await linePushMessages(String(invite.line_user_id), [{ type: 'text', text: message }], {
       db, memberId: String(invite.member_id), notificationType: 'mobile_access_invite',
       source: 'admin-api/mobile-access', idempotencyKey: `mobile-access:${inviteId}`,
