@@ -24,6 +24,8 @@ try {
   await page.setContent(html);
   await page.addScriptTag({ path: 'public/assets/js/desktop-navigation.js' });
   await page.addScriptTag({ path: 'public/assets/js/desktop-line-compose.js' });
+  await page.addScriptTag({ path: 'public/assets/js/desktop-blueprint-workspace.js' });
+  await page.addScriptTag({ path: 'public/assets/js/desktop-growth-workspace.js' });
   await page.evaluate(() => {
     document.body.classList.add('dark');
     document.querySelector('#login').style.display = 'none';
@@ -86,6 +88,12 @@ try {
     }
   }
   assert.deepEqual(overflow, [], 'Desktop sections must fit workspace (wide tables scroll inside their own wrapper)');
+  await page.evaluate(() => growthHealthOpen('health'));
+  assert.equal(await page.locator('#gr-ov [data-growth-health-view="health"]:not([hidden])').count(), 1, 'Growth Health shows the selected decision view');
+  assert.equal(await page.locator('#gr-ov [data-growth-health-view="balance"]:not([hidden])').count(), 0, 'Growth Health hides unrelated decision views');
+  await page.evaluate(() => msbOpenView('pairs'));
+  assert.equal(await page.locator('#gr-msb [data-msb-view="pairs"]:not([hidden])').count(), 1, 'Blueprint workspace shows the selected MSB tool');
+  assert.equal(await page.locator('#gr-msb [data-msb-view="comparison"]:not([hidden])').count(), 0, 'Blueprint workspace hides unrelated MSB tools');
   const nickname = '\\"\'><img src=x onerror=alert(1)>';
   await page.evaluate(nick => { window.S = { role: 'mc' }; _renderDeskLineTpls(nick); }, nickname);
   assert.equal(await page.locator('#desk-line-tpls img').count(), 0, 'Nickname is not markup');

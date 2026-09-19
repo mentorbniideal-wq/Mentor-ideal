@@ -17,6 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/desktop-operations.css?v=20260919-blueprint-workspace.1">
 <link rel="stylesheet" href="/assets/css/desktop-blueprint-workspace.css?v=20260919.1">
+<link rel="stylesheet" href="/assets/css/desktop-growth-workspace.css?v=20260919.1">
 <link rel="stylesheet" href="/assets/css/desktop-member-360.css">
 <link rel="stylesheet" href="/assets/css/desktop-mobile-access.css">
 <link rel="stylesheet" href="/assets/css/chapter-operations-center.css">
@@ -954,15 +955,23 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 
     <!-- Growth Overview -->
     <div id="gr-ov" class="sec">
+      <div id="growth-health-shell"></div>
+      <div class="growth-health-panel" data-growth-health-view="today">
       <section class="cc" style="border-color:rgba(167,139,250,.36);margin-bottom:16px">
         <div class="sh"><div><h2>✦ Growth Priorities This Week</h2><div style="font-size:11px;color:var(--sub);margin-top:3px">โอกาสที่อธิบายได้ พร้อมลงมือทำจาก workflow เดิม</div></div><button class="bsm" onclick="loadGrowthIntelligence(true)">↻ รีเฟรช</button></div>
         <div id="growth-priorities" style="margin-top:10px"></div>
       </section>
+      </div>
+      <div class="growth-health-panel" data-growth-health-view="opportunities" hidden>
       <section class="row2" style="margin-bottom:16px">
         <div class="cc"><div class="sh"><h2>◈ Chapter Opportunities</h2><span style="font-size:10px;color:var(--sub)">Category ที่ควรพิจารณา</span></div><div id="growth-opportunities" style="margin-top:10px"></div></div>
         <div class="cc"><div class="sh"><h2>↔ Connection Opportunities</h2><span style="font-size:10px;color:var(--sub)">ไม่ใช่การคาดการณ์ Referral</span></div><div id="growth-connections" style="margin-top:10px"></div></div>
       </section>
+      </div>
+      <div class="growth-health-panel" data-growth-health-view="today">
       <div id="growth-today" style="margin-bottom:16px"></div>
+      </div>
+      <div class="growth-health-panel" data-growth-health-view="health" hidden>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
         <h2 style="font-size:14px;font-weight:700">🎯 Chapter Goals</h2>
         <button class="bsm bac" onclick="toggleGoalEdit()" style="font-size:11px">✏️ ตั้งเป้า</button>
@@ -974,6 +983,8 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         <div class="hs-info"><div class="hs-grade" id="hs-grade">กำลังคำนวณ...</div><div style="font-size:12px;color:var(--sub)">Chapter Health Score (0–100)</div><div class="hs-bars" id="hs-bars"></div></div>
       </div>
       <div class="kgrid" id="gr-kpi"></div>
+      </div>
+      <div class="growth-health-panel" data-growth-health-view="balance" hidden>
       <div class="row2">
         <div class="cc">
           <div class="cct">Referral Balance — Justice Index</div>
@@ -992,6 +1003,8 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         <div class="sh"><h2>🟡 รับเยอะ ให้น้อย (ต้องกระตุ้น)</h2><span class="ctag" id="gr-lhr-n">0</span></div>
         <div class="ag" id="gr-lhr"></div>
       </div>
+      </div>
+      <div class="growth-health-panel" data-growth-health-view="trend" hidden>
       <div class="mb" style="margin-top:22px">
         <div class="sh"><h2>📊 Chapter BNI Score Trend</h2></div>
         <div class="cc"><div class="trend-ch-wrap"><canvas id="trendChart"></canvas></div></div>
@@ -1003,6 +1016,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         <button class="bsm" id="snap-copy-btn" onclick="copySnapshot()" style="font-size:11px;display:none">📋 Copy</button>
       </div>
       <div class="snap-box" id="snap-box"><div class="snap-txt" id="snap-txt"></div></div>
+      </div>
     </div>
 
     <!-- Growth Referral Balance -->
@@ -2213,6 +2227,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 </div>
 
 <script src="/assets/js/desktop-blueprint-workspace.js?v=20260919.1" defer></script>
+<script src="/assets/js/desktop-growth-workspace.js?v=20260919.1" defer></script>
 <script src="/assets/js/desktop-operations.js?v=20260919-blueprint-workspace.1" defer></script>
 <script src="/assets/js/desktop-line-compose.js?v=20260909-audit.1" defer></script>
 <script src="/assets/js/desktop-navigation.js?v=20260909-audit.1" defer></script>

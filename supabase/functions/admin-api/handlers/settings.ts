@@ -3,6 +3,7 @@ import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { provisionLineExperience } from '../../_shared/line-provision.ts';
 import { linePushMessages } from '../../_shared/line.ts';
+import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
 
 const ADMIN_SECTIONS = ['dashboard','members','issues','checkin','revenue','broadcast'] as const;
 type LineMenuRole = 'member' | 'mentor' | 'mc' | 'growth';
@@ -155,7 +156,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     const tokenHash = await sha256(rawToken);
     const { data: invite, error } = await db
       .from('mobile_access_invitations')
-      .select('id, member_id, approved_role, approved_team_name, status, expires_at, members(name, nickname)')
+      .select('id, member_id, approved_role, approved_team_name, status, expires_at, members(name, nickname, chapter_id)')
       .eq('token_hash', tokenHash).maybeSingle();
     if (error || !invite) return errResponse('ไม่พบลิงก์เชิญ', 404);
     const row = invite as Record<string, unknown>;
@@ -164,19 +165,25 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     const role = String(row.approved_role || '');
     if (!MOBILE_ACCESS_ROLES.includes(role as typeof MOBILE_ACCESS_ROLES[number])) return errResponse('บทบาทในลิงก์ไม่ถูกต้อง');
     const member = (row.members || {}) as Record<string, unknown>;
+    const chapterId = String(member.chapter_id || '');
+    if (!chapterId) return errResponse('สมาชิกยังไม่ได้ผูก Chapter กรุณาให้ Chapter Admin ตรวจสอบก่อน');
     const displayName = String(member.nickname || member.name || googleUser.name).slice(0, 120);
     const isMentor = ['toomtam','aof','draft','phai','amp','mentor_support'].includes(role);
     const { data: activeTerm } = await db.from('lt_terms').select('id,ends_on').eq('status', 'active').maybeSingle();
     const termExpiry = activeTerm?.ends_on ? `${String(activeTerm.ends_on)}T23:59:59+07:00` : null;
 
-    const { data: existingAssignment } = await db.from('role_assignments').select('email, role, member_id')
+    const { data: existingAssignment } = await db.from('role_assignments').select('email, role, member_id, chapter_id')
       .eq('email', googleUser.email).maybeSingle();
     if (existingAssignment && String(existingAssignment.member_id || '') !== String(row.member_id)) {
       return errResponse('Gmail นี้ผูกกับสมาชิกคนอื่นอยู่ กรุณาให้ Chapter Admin ตรวจสอบก่อน');
     }
+    if (existingAssignment?.chapter_id && String(existingAssignment.chapter_id) !== chapterId) {
+      return errResponse('Gmail นี้ผูกกับ Chapter อื่นอยู่ กรุณาให้ Chapter Admin ตรวจสอบก่อน');
+    }
     const createdNewAssignment = !existingAssignment;
     const { error: assignError } = await db.from('role_assignments').upsert({
       email: googleUser.email,
+      chapter_id: chapterId,
       member_id: String(row.member_id),
       role,
       display_name: displayName,
@@ -321,22 +328,31 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
   }
 
   if (action === 'getRoleAssignments') {
+    const scope = await resolveChapterScope(db, auth);
+    if (!scope.ok) return errResponse(scope.error, 403);
     const { data, error } = await db
       .from('role_assignments')
       .select('email, role, display_name, team_name, member_id, is_mc, is_mentor, is_admin, admin_sections, admin_edit_access, capabilities, access_status, access_expires_at, term_id, created_at, updated_at')
+      .eq('chapter_id', scope.chapterId)
       .order('role');
     if (error) return errResponse(error.message);
     return jsonResponse({ ok: true, assignments: data || [] });
   }
 
   if (action === 'getMobileAccessInvites') {
+    const scope = await resolveChapterScope(db, auth);
+    if (!scope.ok) return errResponse(scope.error, 403);
+    const { data: chapterMembers, error: chapterMemberError } = await db.from('members').select('id').eq('chapter_id', scope.chapterId);
+    if (chapterMemberError) return errResponse(chapterMemberError.message);
+    const memberIds = (chapterMembers || []).map((row: Record<string, unknown>) => String(row.id));
+    if (!memberIds.length) return jsonResponse({ ok: true, invites: [], members: [] });
     await db.from('mobile_access_invitations').update({ status: 'expired', updated_at: new Date().toISOString() })
-      .eq('status', 'pending').lte('expires_at', new Date().toISOString());
+      .in('member_id', memberIds).eq('status', 'pending').lte('expires_at', new Date().toISOString());
     const [{ data: invites, error }, { data: linked }] = await Promise.all([
       db.from('mobile_access_invitations')
         .select('id, member_id, approved_role, approved_team_name, status, claimed_email, expires_at, created_at, sent_at, claimed_at, members(name, nickname)')
-        .order('created_at', { ascending: false }).limit(100),
-      db.from('line_members').select('member_id, line_user_id, members(name, nickname)').limit(300),
+        .in('member_id', memberIds).order('created_at', { ascending: false }).limit(100),
+      db.from('line_members').select('member_id, line_user_id, members(name, nickname)').in('member_id', memberIds).limit(300),
     ]);
     if (error) return errResponse(error.message);
     const members = ((linked || []) as Record<string, unknown>[]).map(item => {
@@ -350,6 +366,8 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
   }
 
   if (action === 'getMentorMobileAccess') {
+    const scope = await resolveChapterScope(db, auth);
+    if (!scope.ok) return errResponse(scope.error, 403);
     const memberId = String(p.memberId || '');
     const requestedRole = String(p.approvedRole || '').toLowerCase();
     if (!memberId) return errResponse('กรุณาเลือกสมาชิก');
@@ -365,7 +383,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
       inviteQuery = inviteQuery.eq('approved_role', requestedRole);
     }
     const [{ data: member }, { data: assignment }, { data: invite }] = await Promise.all([
-      db.from('members').select('id, name, nickname').eq('id', memberId).maybeSingle(),
+      db.from('members').select('id, name, nickname').eq('id', memberId).eq('chapter_id', scope.chapterId).maybeSingle(),
       assignmentQuery.order('created_at', { ascending: false }).limit(1).maybeSingle(),
       inviteQuery.order('created_at', { ascending: false }).limit(1).maybeSingle(),
     ]);
@@ -374,6 +392,8 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
   }
 
   if (action === 'updateMentorMobileEmail') {
+    const scope = await resolveChapterScope(db, auth);
+    if (!scope.ok) return errResponse(scope.error, 403);
     const memberId = String(p.memberId || '');
     const requestedRole = String(p.approvedRole || '').toLowerCase();
     const email = String(p.email || '').trim().toLowerCase();
@@ -381,8 +401,8 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     if (requestedRole && !MOBILE_ACCESS_ROLES.includes(requestedRole as typeof MOBILE_ACCESS_ROLES[number])) return errResponse('บทบาท Mobile ไม่ถูกต้อง');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return errResponse('รูปแบบ Gmail ไม่ถูกต้อง');
     let currentQuery = db.from('role_assignments')
-      .select('email, role, display_name, team_name, member_id, is_mc, is_mentor, is_admin, admin_sections, admin_edit_access, capabilities, access_status, access_expires_at, term_id')
-      .eq('member_id', memberId);
+      .select('email, role, display_name, team_name, member_id, chapter_id, is_mc, is_mentor, is_admin, admin_sections, admin_edit_access, capabilities, access_status, access_expires_at, term_id')
+      .eq('member_id', memberId).eq('chapter_id', scope.chapterId);
     if (requestedRole) currentQuery = currentQuery.eq('role', requestedRole);
     const { data: current, error: currentError } = await currentQuery.order('created_at', { ascending: false }).limit(1).maybeSingle();
     if (currentError) return errResponse(currentError.message);
@@ -405,12 +425,16 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
   }
 
   if (action === 'createMobileAccessInvite') {
+    const scope = await resolveChapterScope(db, auth);
+    if (!scope.ok) return errResponse(scope.error, 403);
     const memberId = String(p.memberId || '');
     const role = String(p.approvedRole || '').toLowerCase();
     const teamName = String(p.teamName || '').trim().slice(0, 80) || null;
     if (!memberId || !MOBILE_ACCESS_ROLES.includes(role as typeof MOBILE_ACCESS_ROLES[number])) {
       return errResponse('กรุณาเลือกสมาชิกและบทบาทที่ถูกต้อง');
     }
+    const { data: scopedMember } = await db.from('members').select('id').eq('id', memberId).eq('chapter_id', scope.chapterId).maybeSingle();
+    if (!scopedMember) return errResponse('ไม่พบสมาชิกใน Chapter นี้', 404);
     const { data: linked } = await db.from('line_members').select('line_user_id, members(name, nickname)')
       .eq('member_id', memberId).maybeSingle();
     if (!linked?.line_user_id) return errResponse('สมาชิกคนนี้ยังไม่ได้ผูก LINE จึงยังส่งลิงก์ไม่ได้');
@@ -431,16 +455,20 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
   }
 
   if (action === 'sendMobileAccessInvite') {
+    const scope = await resolveChapterScope(db, auth);
+    if (!scope.ok) return errResponse(scope.error, 403);
     const inviteId = String(p.inviteId || '');
     const rawToken = String(p.inviteToken || '');
     const { data: invite } = await db.from('mobile_access_invitations')
-      .select('id, member_id, line_user_id, approved_role, approved_team_name, status, expires_at, token_hash, members(name, nickname)')
+      .select('id, member_id, line_user_id, approved_role, approved_team_name, status, expires_at, token_hash, members(name, nickname, chapter_id)')
       .eq('id', inviteId).maybeSingle();
     if (!invite || String(invite.status) !== 'pending' || String(invite.token_hash) !== await sha256(rawToken)) {
       return errResponse('ลิงก์เชิญไม่ถูกต้องหรือใช้งานไม่ได้แล้ว');
     }
+    const inviteMember = (invite.members || {}) as unknown as Record<string, unknown>;
+    if (String(inviteMember.chapter_id || '') !== scope.chapterId) return errResponse('คำเชิญนี้ไม่อยู่ใน Chapter ที่คุณดูแล', 403);
     if (new Date(String(invite.expires_at)).getTime() <= Date.now()) return errResponse('ลิงก์หมดอายุแล้ว');
-    const member = (invite.members || {}) as unknown as Record<string, unknown>;
+    const member = inviteMember;
     const name = String(member.nickname || member.name || 'สมาชิก');
     const appUrl = String(Deno.env.get('PUBLIC_APP_URL') || 'https://bni-mentor-system.vercel.app').replace(/\/$/, '');
     const inviteUrl = `${appUrl}/mobile-access.html?invite=${encodeURIComponent(rawToken)}`;
@@ -460,7 +488,12 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
   }
 
   if (action === 'revokeMobileAccessInvite') {
+    const scope = await resolveChapterScope(db, auth);
+    if (!scope.ok) return errResponse(scope.error, 403);
     const inviteId = String(p.inviteId || '');
+    const { data: invite } = await db.from('mobile_access_invitations').select('id,members(chapter_id)').eq('id', inviteId).maybeSingle();
+    const inviteMember = (invite?.members || {}) as unknown as Record<string, unknown>;
+    if (!invite || String(inviteMember.chapter_id || '') !== scope.chapterId) return errResponse('ไม่พบคำเชิญใน Chapter ที่คุณดูแล', 404);
     const { error } = await db.from('mobile_access_invitations').update({ status: 'revoked', updated_at: new Date().toISOString() })
       .eq('id', inviteId).eq('status', 'pending');
     if (error) return errResponse(error.message);
@@ -468,6 +501,8 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
   }
 
   if (action === 'addRoleAssignment') {
+    const scope = await resolveChapterScope(db, auth);
+    if (!scope.ok) return errResponse(scope.error, 403);
     const email       = String(p.email       || '').toLowerCase().trim();
     const role        = String(p.role        || '').toLowerCase().trim();
     const displayName = String(p.displayName || p.display_name || role).trim();
@@ -487,7 +522,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     if (!validRoles.includes(role)) return errResponse(`Invalid role. Must be one of: ${validRoles.join(', ')}`);
 
     const assignment: Record<string, unknown> = {
-      email, role, display_name: displayName, team_name: teamName,
+      email, chapter_id: scope.chapterId, role, display_name: displayName, team_name: teamName,
       is_mc: isMC || isAdmin, is_mentor: isMentor, is_admin: isAdmin,
       access_status: accessStatus, access_expires_at: accessExpiresAt,
     };
@@ -510,9 +545,11 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
   }
 
   if (action === 'removeRoleAssignment') {
+    const scope = await resolveChapterScope(db, auth);
+    if (!scope.ok) return errResponse(scope.error, 403);
     const email = String(p.email || '').toLowerCase().trim();
     if (!email) return errResponse('email required');
-    const { error } = await db.from('role_assignments').delete().eq('email', email);
+    const { error } = await db.from('role_assignments').delete().eq('email', email).eq('chapter_id', scope.chapterId);
     if (error) return errResponse(error.message);
     return jsonResponse({ ok: true });
   }
@@ -527,6 +564,8 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
   }
 
   if (action === 'approveAccessRequest') {
+    const scope = await resolveChapterScope(db, auth);
+    if (!scope.ok) return errResponse(scope.error, 403);
     const id       = String(p.id || '');
     const role     = String(p.role || '').toLowerCase().trim();
     const isMentor = Boolean(p.isMentor ?? false);
@@ -545,6 +584,7 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
 
     const { error: raErr } = await db.from('role_assignments').upsert({
       email:        String(r.email),
+      chapter_id:   scope.chapterId,
       role,
       display_name: String(r.name || r.email),
       team_name:    teamName,

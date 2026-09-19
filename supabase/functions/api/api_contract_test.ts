@@ -281,6 +281,32 @@ Deno.test('Blueprint Intelligence separates each Growth workflow into one visibl
   assert(source.includes("panel.hidden=panel.getAttribute('data-msb-view')!==view"), 'Only the selected Blueprint workflow may remain visible');
 });
 
+Deno.test('Chapter Growth Health separates decisions and links MSB insights to action views', async () => {
+  const page = await read('public/dashboard.html');
+  const workspace = await read('public/assets/js/desktop-growth-workspace.js');
+  for (const view of ['today','health','opportunities','balance','trend']) {
+    assert(workspace.includes(`['${view}'`), `Growth Health navigation must expose ${view}`);
+    assert(page.includes(`data-growth-health-view="${view}"`), `Growth Health must contain ${view}`);
+  }
+  for (const view of ['radar','quality','pairs','comparison']) {
+    assert(workspace.includes(`openGrowthBlueprint(\\'${view}\\')`), `Growth Health must link MSB ${view} to an operational view`);
+  }
+  assert(workspace.includes("window.GROWTH_HEALTH_VIEW='today'"), 'Growth Health must begin with actionable work today');
+});
+
+Deno.test('Growth Mobile onboarding is Chapter-scoped and exposes readiness for all three team members', async () => {
+  const settings = await read('supabase/functions/admin-api/handlers/settings.ts');
+  const members = await read('supabase/functions/api/handlers/members.ts');
+  const desktop = await read('public/assets/js/desktop-operations.js');
+  const repair = await read('supabase/migrations/20260919000001_repair_role_assignment_chapter_scope.sql');
+  assert(settings.includes('chapter_id: chapterId'), 'Claimed Mobile access must persist the member Chapter');
+  assert(settings.includes("eq('chapter_id', scope.chapterId)"), 'Admin Mobile access operations must enforce the server-derived Chapter');
+  assert(members.includes('growthMobile: {') && members.includes('status: active ? "active" : pending ? "pending" : "not_configured"'), 'LT Team must receive explicit Growth Mobile readiness states');
+  assert(desktop.includes('function refreshGrowthAccessStates()') && desktop.includes('Growth Mobile Onboarding'), 'Desktop must show onboarding readiness instead of making the Admin guess');
+  assert(settings.includes("delete().eq('email', email).eq('chapter_id', scope.chapterId)"), 'Access removal must stay inside the authenticated Chapter');
+  assert(repair.includes('assignment.member_id = member.id') && repair.includes('assignment.chapter_id IS NULL'), 'Existing Mobile accounts must be repaired from their linked member without guessing scope');
+});
+
 Deno.test('workspace chooser presents Mentor and Growth with explicit Desktop and Mobile actions', async () => {
   const page = await read('public/index.html');
   const script = await read('public/assets/js/mobile-operations.js');

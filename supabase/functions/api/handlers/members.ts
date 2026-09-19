@@ -1747,19 +1747,53 @@ export async function handleMembers(
       const memberIds = ((members || []) as Record<string, unknown>[]).map(
         (m) => String(m.id),
       );
-      const { data: links } = memberIds.length
-        ? await db.from("line_members").select("member_id,line_user_id").in(
-          "member_id",
-          memberIds,
-        )
-        : { data: [] };
+      const [linksResult, growthAccessResult, growthInviteResult] = memberIds.length
+        ? await Promise.all([
+          db.from("line_members").select("member_id,line_user_id").in("member_id", memberIds),
+          db.from("role_assignments").select("member_id,email,access_status,access_expires_at,updated_at")
+            .eq("chapter_id", scope.chapterId).eq("role", "growth").in("member_id", memberIds),
+          db.from("mobile_access_invitations").select("member_id,status,expires_at,created_at")
+            .eq("approved_role", "growth").in("member_id", memberIds).order("created_at", { ascending: false }),
+        ])
+        : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
+      const accessLookupError = linksResult.error || growthAccessResult.error || growthInviteResult.error;
+      if (accessLookupError) return errResponse(accessLookupError.message);
+      const links = linksResult.data || [];
+      const growthAccess = growthAccessResult.data || [];
+      const growthInvites = growthInviteResult.data || [];
       const linked = new Set(
         (links || []).map((row: Record<string, unknown>) =>
           String(row.member_id)
         ),
       );
+      const accessByMember = new Map<string, Record<string, unknown>>();
+      for (const row of (growthAccess || []) as Record<string, unknown>[]) {
+        const memberId = String(row.member_id || "");
+        if (memberId && !accessByMember.has(memberId)) accessByMember.set(memberId, row);
+      }
+      const inviteByMember = new Map<string, Record<string, unknown>>();
+      for (const row of (growthInvites || []) as Record<string, unknown>[]) {
+        const memberId = String(row.member_id || "");
+        if (memberId && !inviteByMember.has(memberId)) inviteByMember.set(memberId, row);
+      }
       const memberRows = ((members || []) as Record<string, unknown>[]).map(
-        (m) => ({ ...m, lineLinked: linked.has(String(m.id)) }),
+        (m) => {
+          const memberId = String(m.id);
+          const access = accessByMember.get(memberId);
+          const invite = inviteByMember.get(memberId);
+          const active = access && String(access.access_status || "active") === "active" &&
+            (!access.access_expires_at || new Date(String(access.access_expires_at)).getTime() > Date.now());
+          const pending = !active && invite && String(invite.status) === "pending" &&
+            new Date(String(invite.expires_at)).getTime() > Date.now();
+          return {
+            ...m,
+            lineLinked: linked.has(memberId),
+            growthMobile: {
+              status: active ? "active" : pending ? "pending" : "not_configured",
+              email: auth.isAdmin && active ? String(access?.email || "") : null,
+            },
+          };
+        },
       );
       return jsonResponse({
         ok: true,
