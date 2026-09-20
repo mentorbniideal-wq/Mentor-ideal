@@ -3,6 +3,7 @@
 // Replaces all ScriptApp.newTrigger() in WEBAPP.js + L.js
 //
 // Triggered by pg_cron (see supabase/seed/03_cron_jobs.sql).
+import { serverEnvironment } from '../_shared/environment.ts';
 // Each job calls this function with { job: string } in the body.
 //
 // pg_cron schedule reference (all times UTC, TH = UTC+7):
@@ -599,7 +600,7 @@ async function purgeExpiredDismissals(db: DB): Promise<void> {
 
 // ── Daily 07:00 TH: remind LT of passport sessions in 2 days ─
 async function passportLtReminder(db: DB, decision?: Record<string, any>): Promise<void> {
-  const token = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || '';
+  const token = serverEnvironment().lineDeliveryEnabled ? (Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || '') : '';
   if (!token) return;
 
   // Target date = today (Bangkok) + 2 days

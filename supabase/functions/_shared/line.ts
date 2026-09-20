@@ -1,5 +1,6 @@
 // Unified LINE Messaging API client.
 // Supports reply, push, multicast, delivery logging, and idempotent sends.
+import { requireLineDeliveryEnabled } from './environment.ts';
 
 const LINE_API = 'https://api.line.me/v2/bot/message';
 
@@ -37,6 +38,7 @@ export interface LineSendResult {
 }
 
 function getToken(): string {
+  requireLineDeliveryEnabled();
   const token = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN');
   if (!token) throw new Error('LINE_CHANNEL_ACCESS_TOKEN not set in environment');
   return token;

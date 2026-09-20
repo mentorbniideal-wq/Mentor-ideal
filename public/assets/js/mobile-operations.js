@@ -55,9 +55,9 @@ document.addEventListener('DOMContentLoaded',function(){
   }).observe(document.body,{childList:true,subtree:true});
 });
 
-var SUPABASE_API='https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
-var SUPABASE_ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
-var SUPABASE_URL_AUTH='https://itwyjhlfemxsfbimshby.supabase.co';
+if(window.__MY_IDEAL_RUNTIME_CONFIG_ERROR__)throw new Error(window.__MY_IDEAL_RUNTIME_CONFIG_ERROR__);var SUPABASE_API=window.MY_IDEAL_RUNTIME.apiUrl;
+var SUPABASE_ANON=window.MY_IDEAL_RUNTIME.supabaseAnonKey;
+var SUPABASE_URL_AUTH=window.MY_IDEAL_RUNTIME.supabaseUrl;
 var API_HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_ANON};
 var _sbAuth=null;
 var _supabaseSdkPromise=null;

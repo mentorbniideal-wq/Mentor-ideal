@@ -1,12 +1,13 @@
 // Admin panel auth — PIN-based (works in LINE browser and all standard browsers)
 (function () {
-  const SUPABASE_ANON = 'sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
-  const ADMIN_API     = 'https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/admin-api';
+  if (window.__MY_IDEAL_RUNTIME_CONFIG_ERROR__) throw new Error(window.__MY_IDEAL_RUNTIME_CONFIG_ERROR__);
+  const SUPABASE_ANON = window.MY_IDEAL_RUNTIME.supabaseAnonKey;
+  const ADMIN_API     = window.MY_IDEAL_RUNTIME.adminApiUrl;
   const API_HEADERS   = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_ANON };
   const SESSION_KEY   = 'bni_admin_pin_session';
 
   window.ADMIN_API = ADMIN_API;
-  var TEAM_API = 'https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
+  var TEAM_API = window.MY_IDEAL_RUNTIME.apiUrl;
   var _teamLabels = {};
   function loadAdminTeamLabels() {
     return fetch(TEAM_API, { method:'POST', headers:API_HEADERS, body:JSON.stringify({action:'getPublicTeamCatalog'}) })
@@ -24,7 +25,7 @@
   function oauthClient() {
     if (!_oauthClient && window.supabase && window.supabase.createClient) {
       _oauthClient = window.supabase.createClient(
-        'https://itwyjhlfemxsfbimshby.supabase.co', SUPABASE_ANON,
+        window.MY_IDEAL_RUNTIME.supabaseUrl, SUPABASE_ANON,
         { auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true } }
       );
     }

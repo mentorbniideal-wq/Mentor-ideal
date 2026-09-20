@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="th">
 <head>
+<script src="/assets/js/runtime-config.js"></script><script src="/assets/js/runtime-client.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b0e0d">
@@ -29,7 +30,7 @@
   <div id="msg" class="msg"></div>
 </main>
 <script>
-const SB_URL='https://itwyjhlfemxsfbimshby.supabase.co',SB_ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j',API=SB_URL+'/functions/v1/admin-api';
+if(window.__MY_IDEAL_RUNTIME_CONFIG_ERROR__)throw new Error(window.__MY_IDEAL_RUNTIME_CONFIG_ERROR__);const SB_URL=window.MY_IDEAL_RUNTIME.supabaseUrl,SB_ANON=window.MY_IDEAL_RUNTIME.supabaseAnonKey,API=window.MY_IDEAL_RUNTIME.adminApiUrl;
 const sb=window.supabase.createClient(SB_URL,SB_ANON),inviteToken=new URLSearchParams(location.search).get('invite')||'';let session=null,mobileProduct='Mentor Mobile';
 const post=body=>fetch(API,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+SB_ANON},body:JSON.stringify(body)}).then(r=>r.json());
 const roleLabel=r=>({mc:'Mentor Co.',toomtam:'Mentor · Mentor 1',aof:'Mentor · Mentor 2',draft:'Mentor · Mentor 3',phai:'Mentor · Mentor 4',amp:'Mentor · Mentor 5',mentor_support:'Mentor Support',growth:'Growth Team'}[r]||r);

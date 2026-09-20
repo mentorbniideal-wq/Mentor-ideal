@@ -15,6 +15,7 @@ import { buildGoalCoach } from '../_shared/goal-coach.ts';
 import { upsertMemberSignal } from '../_shared/member-signals.ts';
 import { helpRequestRoute } from '../_shared/help-request.ts';
 import { directoryMatchReasons, directoryProfileProjection, directoryResult, directorySearchScore, normalizeDirectoryQuery } from '../_shared/chapter-directory.ts';
+import { serverEnvironment } from '../_shared/environment.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
 
@@ -616,7 +617,7 @@ Deno.serve(async (req: Request) => {
     const tokenRow = existingBlueprintToken as Record<string, unknown> | null;
     const expiry = tokenRow?.expires_at ? new Date(String(tokenRow.expires_at)).getTime() : 0;
     const blueprintToken = expiry >= Date.now() ? String(tokenRow?.token || '') : '';
-    const blueprintPulse = { status: bp ? String(bp.status || 'draft') : 'missing', quality121TargetPerWeek: Number(bp?.quality_121_target_per_week || 0), specificLookingFor: String(currentPlan?.specific_looking_for || ''), productService: String(currentPlan?.product_service || ''), updatedAt: bp?.updated_at || null, openUrl: blueprintToken ? `https://bni-mentor-system.vercel.app/member-success-blueprint?t=${encodeURIComponent(blueprintToken)}` : '' };
+    const blueprintPulse = { status: bp ? String(bp.status || 'draft') : 'missing', quality121TargetPerWeek: Number(bp?.quality_121_target_per_week || 0), specificLookingFor: String(currentPlan?.specific_looking_for || ''), productService: String(currentPlan?.product_service || ''), updatedAt: bp?.updated_at || null, openUrl: blueprintToken ? `${serverEnvironment().msbFormUrl}?t=${encodeURIComponent(blueprintToken)}` : '' };
     return response({
       ok: true,
       profileCompleteness: member121ProfileCompleteness(profile as Record<string,unknown>|null),
@@ -643,7 +644,7 @@ Deno.serve(async (req: Request) => {
       const { error } = await db.from('msb_access_tokens').upsert({ member_id: memberId, blueprint_year: blueprintYear, token, expires_at: expiresAt, created_by: 'liff:self', created_at: new Date().toISOString() }, { onConflict: 'member_id,blueprint_year' });
       if (error) return response({ ok: false, error: 'สร้างลิงก์ Blueprint ไม่สำเร็จ' }, 500);
     }
-    return response({ ok: true, openUrl: `https://bni-mentor-system.vercel.app/member-success-blueprint?t=${encodeURIComponent(token)}` });
+    return response({ ok: true, openUrl: `${serverEnvironment().msbFormUrl}?t=${encodeURIComponent(token)}` });
   }
 
   if (action === 'absence') {

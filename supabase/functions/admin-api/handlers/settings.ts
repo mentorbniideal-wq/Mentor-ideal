@@ -4,6 +4,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { provisionLineExperience } from '../../_shared/line-provision.ts';
 import { linePushMessages } from '../../_shared/line.ts';
 import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
+import { serverEnvironment } from '../../_shared/environment.ts';
 
 const ADMIN_SECTIONS = ['dashboard','members','issues','checkin','revenue','broadcast'] as const;
 type LineMenuRole = 'member' | 'mentor' | 'mc' | 'growth';

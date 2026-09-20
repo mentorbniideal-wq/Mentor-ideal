@@ -18,9 +18,10 @@ import {
 import { provisionLineExperience } from '../../_shared/line-provision.ts';
 import { trackLineEvent } from '../../_shared/analytics.ts';
 import { lineAutomationDefaultPreview } from '../../_shared/line-automation-preview.ts';
+import { serverEnvironment } from '../../_shared/environment.ts';
 
 // ── Unified LINE Push helper — no-op when token is absent (dev mode) ──
-const LINE_TOKEN = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || '';
+const LINE_TOKEN = serverEnvironment().lineDeliveryEnabled ? (Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || '') : '';
 
 async function sendLineMsg(
   userId: string,

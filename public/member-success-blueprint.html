@@ -58,6 +58,7 @@
     .toast{position:fixed;left:14px;right:14px;bottom:16px;background:#121c17;color:#fff;border:1px solid rgba(199,167,106,.35);border-radius:18px;padding:13px 14px;font-size:13px;box-shadow:0 18px 45px rgba(0,0,0,.3);display:none;z-index:10}.toast.on{display:block}
     @media(max-width:480px){.wrap{padding:12px 10px 24px}.hero{border-radius:24px;padding:22px 18px}h1{font-size:27px}.grid2,.metrics{grid-template-columns:1fr}.content{padding:16px 14px 18px}.actions{position:sticky;bottom:0;background:linear-gradient(transparent,var(--panel) 30%);padding-top:18px}}
   </style>
+  <script src="/assets/js/runtime-config.js"></script><script src="/assets/js/runtime-client.js"></script>
 </head>
 <body>
   <div class="wrap">
@@ -81,8 +82,9 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    var API='https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
-    var ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
+    if (window.__MY_IDEAL_RUNTIME_CONFIG_ERROR__) throw new Error(window.__MY_IDEAL_RUNTIME_CONFIG_ERROR__);
+    var API=window.MY_IDEAL_RUNTIME.apiUrl;
+    var ANON=window.MY_IDEAL_RUNTIME.supabaseAnonKey;
     var HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+ANON};
     var step=0,formToken='',member=null,blueprint=null,previousBlueprint=null,historicalActual=null,year=2027;
     var data={blueprintYear:year,total_sales_target_year:'',expected_sales_from_bni_year:'',existing_customer_revenue_from_bni:'',new_customer_revenue_from_bni:'',average_customer_value_year:'',conversion_rate_percent:'',quality_121_target_per_week:'',monthly_marketing_plan:[],looking_for_categories:[],looking_for_detail:'',power_team_categories:[],power_team_detail:'',personal_goal_category:'',personal_goal_detail:''};

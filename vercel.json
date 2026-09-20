@@ -1,5 +1,6 @@
 {
   "outputDirectory": "public",
+  "buildCommand": "node scripts/generate-runtime-config.mjs && node scripts/validate-runtime-config-artifact.mjs",
   "routes": [
     { "src": "/assets/(.*)", "headers": { "Cache-Control": "public, max-age=300, must-revalidate", "X-Content-Type-Options": "nosniff" }, "continue": true },
     { "src": "/(.*)", "headers": { "Referrer-Policy": "strict-origin-when-cross-origin", "X-Content-Type-Options": "nosniff" }, "continue": true },

@@ -1,6 +1,6 @@
 (function(){
-  var SB_URL='https://itwyjhlfemxsfbimshby.supabase.co';
-  var SB_ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
+  if(window.__MY_IDEAL_RUNTIME_CONFIG_ERROR__)return;var SB_URL=window.MY_IDEAL_RUNTIME.supabaseUrl;
+  var SB_ANON=window.MY_IDEAL_RUNTIME.supabaseAnonKey;
   var _sbClient=null;
   var _realtimeChannel=null;
   var _debounceTimer=null;

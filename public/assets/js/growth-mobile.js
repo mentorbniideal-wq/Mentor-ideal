@@ -1,9 +1,9 @@
 (function(){
 'use strict';
-var API='https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
-var ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
+if(window.__MY_IDEAL_RUNTIME_CONFIG_ERROR__)throw new Error(window.__MY_IDEAL_RUNTIME_CONFIG_ERROR__);var API=window.MY_IDEAL_RUNTIME.apiUrl;
+var ANON=window.MY_IDEAL_RUNTIME.supabaseAnonKey;
 var HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+ANON};
-var AUTH_URL='https://itwyjhlfemxsfbimshby.supabase.co';
+var AUTH_URL=window.MY_IDEAL_RUNTIME.supabaseUrl;
 var SESSION='bni_growth_mobile_session';
 var state={pin:'',token:'',capabilities:[],isReadOnly:false,members:[],tasks:[],assignees:[],summary:{},risks:[],plans:{},signals:[],matches:[],priorities:[],handoffs:[],zone:'all',task:'open'};
 window.growthMobileState=state;

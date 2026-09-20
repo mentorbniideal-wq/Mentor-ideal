@@ -64,9 +64,9 @@ function normalizeGrowthMember(m){
   });
 }
 
-var SUPABASE_API='https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
-var SUPABASE_ANON='sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
-var SUPABASE_URL_AUTH='https://itwyjhlfemxsfbimshby.supabase.co';
+if(window.__MY_IDEAL_RUNTIME_CONFIG_ERROR__)throw new Error(window.__MY_IDEAL_RUNTIME_CONFIG_ERROR__);var SUPABASE_API=window.MY_IDEAL_RUNTIME.apiUrl;
+var SUPABASE_ANON=window.MY_IDEAL_RUNTIME.supabaseAnonKey;
+var SUPABASE_URL_AUTH=window.MY_IDEAL_RUNTIME.supabaseUrl;
 var API_HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_ANON};
 var APP_STATIC_VERSION='2026.09.05-icon-rail.1';
 try{
@@ -3227,7 +3227,7 @@ function renderGWBadge(){
 }
 
 // ── Access Management ────────────────────────────────────────────
-var ADMIN_API='https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/admin-api';
+var ADMIN_API=window.MY_IDEAL_RUNTIME.adminApiUrl;
 function adminCall(payload,cb){
   var tok=S&&S.token||'';
   if(!tok){cb({ok:false,error:'No token'});return;}

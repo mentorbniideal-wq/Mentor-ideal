@@ -18,6 +18,7 @@ import {
   type LineEvent,
 } from '../_shared/line.ts';
 import { resolveMsbPlanningYear } from '../_shared/msb-planning-year.ts';
+import { serverEnvironment } from '../_shared/environment.ts';
 import { commandCardFlex, memberScoreFlex, nextColorAdvice, type CardAction } from '../_shared/line-flex.ts';
 import { trackLineEvent } from '../_shared/analytics.ts';
 import { runCopilot } from '../_shared/copilot.ts';
@@ -336,7 +337,7 @@ async function createMemberSuccessBlueprintLink(
 ): Promise<string> {
   if (!memberId) throw new Error('member_id required for Member Success Blueprint link');
   const year = await resolveMsbPlanningYear(db, { memberId });
-  const baseUrl = (Deno.env.get('MSB_FORM_URL') || 'https://bni-mentor-system.vercel.app/member-success-blueprint').replace(/\/$/, '');
+  const baseUrl = serverEnvironment().msbFormUrl;
   const { data: existing, error: existingErr } = await db.from('msb_access_tokens')
     .select('token, expires_at')
     .eq('member_id', memberId)
@@ -399,7 +400,7 @@ function quickRepliesFor(
       qr('🎯 ทำอะไร', 'ทำอะไร'),
     ];
   const secondary = [
-    qrUri('🤝 MY121', `${(Deno.env.get('LINE_LIFF_URL') || 'https://liff.line.me/2010463406-BiCHsS2X').replace(/\/$/,'')}?action=121`),
+    qrUri('🤝 MY121', `${serverEnvironment().liffUrl}?action=121`),
     qr('👥 ทีม', 'ทีม'),
     qr('🤝 แนะนำ', 'แนะนำ'),
     qr('🎯 เป้า', 'เป้า'),
@@ -805,7 +806,7 @@ async function consumeSecureLink(
   const nick = String(row.nickname || row.member_name || '').trim();
 
   // Assign member rich menu immediately so the user sees the right menu without waiting for cron
-  const LINE_TOKEN = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || '';
+  const LINE_TOKEN = serverEnvironment().lineDeliveryEnabled ? (Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || '') : '';
   if (LINE_TOKEN) {
     const { data: menuSetting } = await db.from('settings')
       .select('value').eq('key', 'LINE_RICH_MENU_MEMBER').maybeSingle();

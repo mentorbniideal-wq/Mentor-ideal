@@ -8,12 +8,13 @@ import { sha256Hex } from '../../_shared/line.ts';
 import { calculateMsbGoal } from '../../_shared/msb-goal-calculation.ts';
 import { annualGoalProgress } from '../../_shared/msb-goal-progress.ts';
 import { resolveMsbPlanningYear } from '../../_shared/msb-planning-year.ts';
+import { serverEnvironment } from '../../_shared/environment.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
 
 const DASHBOARD_ROLES = ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth'];
 const LINK_MANAGER_ROLES = ['mc', 'growth'];
-const MSB_FORM_URL = (Deno.env.get('MSB_FORM_URL') || 'https://bni-mentor-system.vercel.app/member-success-blueprint').replace(/\/$/, '');
+const msbFormUrl = () => serverEnvironment().msbFormUrl;
 
 function num(value: unknown): number {
   if (value === null || value === undefined || value === '') return 0;
@@ -651,7 +652,7 @@ function defaultExpiresAt(year: number): string {
 }
 
 function msbLink(token: string): string {
-  return `${MSB_FORM_URL}?t=${encodeURIComponent(token)}`;
+  return `${msbFormUrl()}?t=${encodeURIComponent(token)}`;
 }
 
 async function resolveLineMember(db: Db, accessToken: string): Promise<{

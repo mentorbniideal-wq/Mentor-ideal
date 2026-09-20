@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
+<script src="/assets/js/runtime-config.js"></script><script src="/assets/js/runtime-client.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ขอ Access — BNI Admin</title>
@@ -120,9 +121,7 @@
 </div>
 
 <script>
-const SUPABASE_URL  = 'https://itwyjhlfemxsfbimshby.supabase.co';
-const SUPABASE_ANON = 'sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
-const ADMIN_API     = SUPABASE_URL + '/functions/v1/admin-api';
+if(window.__MY_IDEAL_RUNTIME_CONFIG_ERROR__)throw new Error(window.__MY_IDEAL_RUNTIME_CONFIG_ERROR__);const SUPABASE_URL=window.MY_IDEAL_RUNTIME.supabaseUrl,SUPABASE_ANON=window.MY_IDEAL_RUNTIME.supabaseAnonKey,ADMIN_API=window.MY_IDEAL_RUNTIME.adminApiUrl;
 
 let _sb, _session;
 

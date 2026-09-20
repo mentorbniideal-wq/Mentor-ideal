@@ -1,7 +1,7 @@
 (function(){
   'use strict';
-  var api=window.SUPABASE_API||'https://itwyjhlfemxsfbimshby.supabase.co/functions/v1/api';
-  var anon=window.SUPABASE_ANON||'sb_publishable_vTX2pRpd9axDyAuMHTVhDQ_zfS1VE-j';
+  if(window.__MY_IDEAL_RUNTIME_CONFIG_ERROR__)return;var api=window.SUPABASE_API||window.MY_IDEAL_RUNTIME.apiUrl;
+  var anon=window.SUPABASE_ANON||window.MY_IDEAL_RUNTIME.supabaseAnonKey;
   var labels={};
   var roleCodes={toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP'};
   function display(code,fallback){return String(labels[code]||fallback||code||'—');}
