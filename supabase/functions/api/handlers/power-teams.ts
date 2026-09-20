@@ -68,7 +68,11 @@ async function powerTeamCandidates(
     const categories = respectReferralConsent && consent?.share_referral_focus === false
       ? rawCategories.filter(category => explicitCategories.get(String(member.id))?.has(cleanText(category, 120).toLowerCase()))
       : rawCategories;
-    const detail = cleanText(plan?.power_team_detail, 500);
+    // Blueprint detail is free text. An explicit category grant does not prove
+    // that every phrase in the detail is shareable, so hide it when the member
+    // has disabled full referral sharing.
+    const detail = !respectReferralConsent || consent?.share_referral_focus !== false
+      ? cleanText(plan?.power_team_detail, 500) : '';
     for (const rawCategory of categories) {
       const category = cleanText(rawCategory, 120);
       if (!category) continue;
@@ -288,7 +292,18 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
         ]);
         if (saved.error) throw new Error(saved.error.message);
         const coordinator = auth.isMC || auth.isAdmin || hasCapability(auth, CAPABILITY.GROWTH_COORDINATE);
-        const proposals = coordinator ? (saved.data || []) : (saved.data || []).filter((row: Record<string, unknown>) => String(row.assigned_owner_email || '').toLowerCase() === String(auth.email || '').toLowerCase());
+        const rawProposals = coordinator ? (saved.data || []) : (saved.data || []).filter((row: Record<string, unknown>) => String(row.assigned_owner_email || '').toLowerCase() === String(auth.email || '').toLowerCase());
+        const proposalMemberIds = [...new Set(rawProposals.flatMap((row: Record<string, unknown>) => (Array.isArray(row.power_team_proposal_members) ? row.power_team_proposal_members : []).map((member: Record<string, unknown>) => String(member.member_id || '')).filter(Boolean)))];
+        const { data: profileRows, error: profileError } = proposalMemberIds.length ? await db.from('member_one_to_one_profiles').select('member_id,share_referral_focus').in('member_id', proposalMemberIds) : { data: [], error: null };
+        if (profileError) throw new Error(profileError.message);
+        const referralByMember = new Map(((profileRows || []) as Record<string, unknown>[]).map(row => [String(row.member_id), row.share_referral_focus === true]));
+        const proposals = rawProposals.map((row: Record<string, unknown>) => {
+          const memberIds = (Array.isArray(row.power_team_proposal_members) ? row.power_team_proposal_members : []).map((member: Record<string, unknown>) => String(member.member_id || '')).filter(Boolean);
+          // For a legacy/unassociated or mixed-consent proposal, conceal the
+          // complete historical category/referral fields as one unit.
+          const revealHistorical = memberIds.length > 0 && memberIds.every(memberId => referralByMember.get(memberId) === true);
+          return revealHistorical ? row : { ...row, source_category: null, target_customer_group: '', rationale: '' };
+        });
         return jsonResponse({ ok: true, candidates: coordinator ? candidates : [], proposals });
       } catch (error) { return errResponse(error instanceof Error ? error.message : String(error)); }
     }

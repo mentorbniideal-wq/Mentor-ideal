@@ -615,9 +615,12 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       for (const row of (explicitCategoryRows || []) as Record<string, unknown>[]) { const key=String(row.category_type); const values=explicitCategories.get(key)||new Set<string>(); values.add(String(row.category).toLowerCase()); explicitCategories.set(key, values); }
       const visibleCategories = (raw: unknown, type: string) => Array.isArray(raw) ? raw.map(String).filter(category => profile.share_referral_focus !== false || !isGrowthLens || explicitCategories.get(type)?.has(category.toLowerCase())) : [];
       const sharedSignals = ((signalsQ.data || []) as Record<string, unknown>[]).filter(row => canViewMemberSignal(auth, { ...row, members: { mentor_team: (member as Record<string,unknown>).mentor_team } }));
-      const safeSignal = (row: Record<string, unknown>) => ({ id:String(row.id), type:String(row.signal_type), title:String(row.title||''), detail:String(row.detail||'').slice(0,500), status:String(row.status), priority:String(row.priority), targetRoles:Array.isArray(row.target_roles)?row.target_roles.map(String):[], owner:row.assigned_role||null, createdAt:row.created_at||null });
+      // Signal detail is historical free text with no category provenance.
+      // Current explicit category consent cannot safely authorize this prose.
+      const revealSignalText = !isGrowthLens || (Boolean(profileQ.data) && profile.share_referral_focus === true);
+      const safeSignal = (row: Record<string, unknown>) => ({ id:String(row.id), type:String(row.signal_type), title:String(row.title||''), detail:revealSignalText?String(row.detail||'').slice(0,500):'', status:String(row.status), priority:String(row.priority), targetRoles:Array.isArray(row.target_roles)?row.target_roles.map(String):[], owner:row.assigned_role||null, createdAt:row.created_at||null });
       const history = [
-        ...sharedSignals.map(row => ({ kind:'support_signal', title:String(row.title||'Support request'), status:String(row.status), at:row.updated_at||row.created_at, detail:String(row.detail||'').slice(0,300) })),
+        ...sharedSignals.map(row => ({ kind:'support_signal', title:String(row.title||'Support request'), status:String(row.status), at:row.updated_at||row.created_at, detail:revealSignalText?String(row.detail||'').slice(0,300):'' })),
         ...((taskQ.data || []) as Record<string,unknown>[]).map(row => ({ kind:'growth_action', title:String(row.task_type||'Growth action'), status:String(row.status), at:row.created_at, detail:'' })),
         ...((pairsQ.data || []) as Record<string,unknown>[]).map(row => ({ kind:'my121', title:'MY121', status:String(row.status||''), at:row.created_at, detail:'' })),
         ...((journeyQ.data || []) as Record<string,unknown>[]).map(row => ({ kind:'journey', title:String(row.role_title||row.event_type||''), status:'recorded', at:row.occurred_on||row.created_at, detail:'' })),
@@ -678,7 +681,9 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
           stale,
           consent: { business: consentBusiness, referralFocus: consentReferral },
         },
-        followUps: (tasksQ.data || []).map((task: Record<string, unknown>) => ({ id: String(task.id), text: String(task.task_text || ''), type: String(task.task_type || ''), status: String(task.status || ''), dueDate: task.due_date || null, owner: task.assigned_owner_name || null })),
+        // Same rule as getGrowthTasks: retain workflow metadata, hide
+        // historical prose once full referral sharing is not currently active.
+        followUps: (tasksQ.data || []).map((task: Record<string, unknown>) => ({ id: String(task.id), text: Boolean(profileQ.data) && profile.share_referral_focus === true ? String(task.task_text || '') : '', type: String(task.task_type || ''), status: String(task.status || ''), dueDate: task.due_date || null, owner: task.assigned_owner_name || null })),
         partial: errors.length > 0,
         unavailable: errors,
         privacy: 'Growth context excludes Mentor logs, reviews, notes, contact details, GAINS, and private coaching data.',

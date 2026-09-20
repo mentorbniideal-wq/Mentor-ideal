@@ -30,6 +30,32 @@ Deno.test('category consent defaults to no category when referral sharing is dis
   assertEquals(categories, []);
 });
 
+Deno.test('historical Growth projection is fail-closed after referral consent revoke', () => {
+  const project = (record: { memberIds: string[]; text: string }, referral: Map<string, boolean>) =>
+    record.memberIds.length > 0 && record.memberIds.every(id => referral.get(id) === true) ? record.text : '';
+  const before = new Map([['member-a', true]]);
+  const after = new Map([['member-a', false]]);
+  assertEquals(project({ memberIds: ['member-a'], text: 'Architect referral target' }, before), 'Architect referral target');
+  assertEquals(project({ memberIds: ['member-a'], text: 'Architect referral target' }, after), '');
+  assertEquals(project({ memberIds: ['member-a', 'member-b'], text: 'Shared referral rationale' }, new Map([['member-a', true], ['member-b', false]])), '');
+  assertEquals(project({ memberIds: [], text: 'Legacy unassociated text' }, before), '');
+});
+
+Deno.test('historical free text is removed from every current Growth DTO path', async () => {
+  const growth = await source('supabase/functions/api/handlers/growth.ts');
+  const members = await source('supabase/functions/api/handlers/members.ts');
+  const dashboard = await source('supabase/functions/api/handlers/dashboard.ts');
+  const powerTeams = await source('supabase/functions/api/handlers/power-teams.ts');
+  assert(growth.includes('Historical task prose has no category-level provenance'));
+  assert(growth.includes('allowText ? t.task_text'));
+  assert(growth.includes('allowText ? t.response'));
+  assert(members.includes('signalReferralByMember') && members.includes("detail: ''"));
+  assert(members.includes('referralByMember') && members.includes('reason:revealDetail'));
+  assert(dashboard.includes('Signal detail is historical free text') && dashboard.includes('Boolean(profileQ.data) && profile.share_referral_focus === true'));
+  assert(powerTeams.includes('complete historical category/referral fields as one unit'));
+  assert(powerTeams.includes("source_category: null, target_customer_group: '', rationale: ''"));
+});
+
 Deno.test('mobile Core Issue reply uses the rendered reply button identifier', async () => {
   const mobile = await source('public/assets/js/mobile-operations.js');
   const start = mobile.indexOf('function submitReply(idx)');

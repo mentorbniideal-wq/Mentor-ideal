@@ -853,9 +853,17 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       ]);
       const failed = [plansQ, profilesQ, categoryQ, tasksQ, proposalsQ, pairsAQ, pairsBQ].find(q => q.error);
       if (failed?.error) return errResponse(failed.error.message);
+      // A missing profile is not proof of permission for historical free text.
+      // Keep category projection separate: explicit category grants still work.
       const referral = new Map(((profilesQ.data || []) as Record<string,unknown>[]).map(row=>[String(row.member_id),row.share_referral_focus !== false])); const allowed = new Map<string,Set<string>>(); for(const row of (categoryQ.data||[]) as Record<string,unknown>[]){const key=`${row.member_id}:${row.category_type}`, set=allowed.get(key)||new Set<string>();set.add(String(row.category).toLowerCase());allowed.set(key,set);}
       const plans = (plansQ.data || []).map((row: Record<string, unknown>) => { const id=String(row.member_id), visible=(raw:unknown,type:string)=>Array.isArray(raw)?raw.map(String).filter(category=>referral.get(id)!==false||allowed.get(`${id}:${type}`)?.has(category.toLowerCase())):[]; return { memberId:id, lookingFor:visible(row.looking_for_categories,'looking_for'), powerTeam:visible(row.power_team_categories,'power_team'), updatedAt: row.updated_at ? String(row.updated_at) : null }; });
-      const proposals = (proposalsQ.data || []).map((row: Record<string, unknown>) => ({ id: String(row.id), status: String(row.status), sourceCategory: row.source_category ? String(row.source_category) : null, memberIds: (Array.isArray(row.power_team_proposal_members) ? row.power_team_proposal_members : []).map((x: Record<string, unknown>) => String(x.member_id)).filter(Boolean) }));
+      const proposals = (proposalsQ.data || []).map((row: Record<string, unknown>) => {
+        const memberIds = (Array.isArray(row.power_team_proposal_members) ? row.power_team_proposal_members : []).map((x: Record<string, unknown>) => String(x.member_id)).filter(Boolean);
+        // source_category is historical category data.  A legacy/unassociated
+        // proposal, or any member with referral sharing off, is fail-closed.
+        const revealSourceCategory = memberIds.length > 0 && memberIds.every(memberId => referral.get(memberId) === true);
+        return { id: String(row.id), status: String(row.status), sourceCategory: revealSourceCategory && row.source_category ? String(row.source_category) : null, memberIds };
+      });
       const pairMap = new Map<string, Record<string, unknown>>();
       for (const pair of [...(pairsAQ.data || []), ...(pairsBQ.data || [])] as Record<string, unknown>[]) pairMap.set(`${pair.member_a_id}:${pair.member_b_id}`, pair);
       const pairs = [...pairMap.values()].filter(pair => ids.includes(String(pair.member_a_id)) && ids.includes(String(pair.member_b_id))).map(pair => {
@@ -863,7 +871,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         const status = String(pair.status || '');
         return { a: String(pair.member_a_id), b: String(pair.member_b_id), completedAt: ['verified', 'late_verified', 'completed'].includes(status) ? String(round?.meeting_date || '') : null, active: ['matched','contacted','scheduled','confirmed_schedule','awaiting_verification','partially_verified','overdue'].includes(status) };
       });
-      const result = buildGrowthIntelligence({ members: (members || []).map((m: Record<string, unknown>) => ({ id: String(m.id), name: String(m.name), nickname: m.nickname ? String(m.nickname) : null, profession: m.profession ? String(m.profession) : null, isArchived: Boolean(m.is_archived) })), plans, tasks: (tasksQ.data || []).map((t: Record<string, unknown>) => ({ id: String(t.id), status: String(t.status), taskText: t.task_text ? String(t.task_text) : null, memberId: t.member_id ? String(t.member_id) : null, createdAt: t.created_at ? String(t.created_at) : null })), proposals, pairs });
+      const result = buildGrowthIntelligence({ members: (members || []).map((m: Record<string, unknown>) => ({ id: String(m.id), name: String(m.name), nickname: m.nickname ? String(m.nickname) : null, profession: m.profession ? String(m.profession) : null, isArchived: Boolean(m.is_archived) })), plans, tasks: (tasksQ.data || []).map((t: Record<string, unknown>) => { const memberId=t.member_id ? String(t.member_id) : null; return { id: String(t.id), status: String(t.status), taskText: memberId && referral.get(memberId) === true && t.task_text ? String(t.task_text) : null, memberId, createdAt: t.created_at ? String(t.created_at) : null }; }), proposals, pairs });
       const memberMap = new Map((members || []).map((m: Record<string, unknown>) => [String(m.id), { id: String(m.id), name: String(m.name), nickname: m.nickname ? String(m.nickname) : null, profession: m.profession ? String(m.profession) : null }]));
       const hydrate = (item: Record<string, unknown>) => ({ ...item, affectedMembers: (Array.isArray(item.memberIds) ? item.memberIds : []).map(id => memberMap.get(String(id))).filter(Boolean), source: 'MSB Blueprint + MY121 + Growth actions', freshness: result.dataConfidence === 'INSUFFICIENT' ? 'ข้อมูล MSB ยังไม่ครบ' : 'ข้อมูลจาก Blueprint ที่ submit แล้ว' });
       return jsonResponse({ ok: true, priorities: result.priorities.map(hydrate), opportunities: result.opportunities.map(hydrate), connections: result.connections.map(hydrate), dataConfidence: result.dataConfidence, freshness: plans.length ? plans.map(x => x.updatedAt).filter(Boolean).sort().at(-1) : null });
@@ -1540,22 +1548,32 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const { data, error } = await query.order('created_at', { ascending: false }).limit(50);
       if (error) return errResponse(error.message);
 
-      const tasks = (data || []).map((t: Record<string, unknown>) => ({
+      const taskMemberIds = [...new Set((data || []).map((t: Record<string, unknown>) => String(t.member_id || '')).filter(Boolean))];
+      const { data: taskProfiles, error: taskProfilesError } = taskMemberIds.length
+        ? await db.from('member_one_to_one_profiles').select('member_id,share_referral_focus').in('member_id', taskMemberIds)
+        : { data: [], error: null };
+      if (taskProfilesError) return errResponse(taskProfilesError.message);
+      const taskReferral = new Map(((taskProfiles || []) as Record<string, unknown>[]).map(row => [String(row.member_id), row.share_referral_focus !== false]));
+      const tasks = (data || []).map((t: Record<string, unknown>) => {
+        // Historical task prose has no category-level provenance.  Do not
+        // return it to Growth unless current full referral sharing is active.
+        const allowText = Boolean(t.member_id) && taskReferral.get(String(t.member_id)) === true;
+        return ({
         id:          t.id,
         memberName:  t.member_name  || '',
         team:        t.assigned_to  || '',
         taskType:    t.task_type    || 'ทั่วไป',
-        note:        t.task_text    || '',
+        note:        allowText ? t.task_text || '' : '',
         priority:    t.priority     || '📋',
         status:      String(t.status || (t.responded_at ? 'completed' : 'new')),
         dueDate:     t.due_date || null,
         assignedOwnerEmail: t.assigned_owner_email || '',
         assignedOwnerName: t.assigned_owner_name || '',
         memberId: t.member_id || null,
-        response:    t.response     || '',
+        response:    allowText ? t.response || '' : '',
         respondedAt: t.responded_at ? String(t.responded_at).split('T')[0] : '',
         createdAt:   t.created_at   ? String(t.created_at).split('T')[0] : '',
-      }));
+      }); });
       const { data: assignees } = (role === 'mc' || role === 'growth' || auth.isAdmin)
         ? await db.from('role_assignments').select('email,display_name,role,team_name').eq('access_status','active').or('is_mc.eq.true,is_mentor.eq.true,role.eq.growth').order('display_name')
         : { data: [] };

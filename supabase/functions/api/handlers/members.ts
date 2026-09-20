@@ -2681,6 +2681,12 @@ export async function handleMembers(
       if (scopedMembersError) return errResponse(scopedMembersError.message);
       const scopedIds = (scopedMembers || []).map((row: Record<string,unknown>) => String(row.id));
       if (!scopedIds.length) return jsonResponse({ ok:true, signals:[], counts:{}, activeLtRoles:[], assignees:[] });
+      const role = String(auth.role || '').toLowerCase();
+      const { data: signalProfileRows, error: signalProfilesError } = role === 'growth'
+        ? await db.from('member_one_to_one_profiles').select('member_id,share_referral_focus').in('member_id', scopedIds)
+        : { data: [], error: null };
+      if (signalProfilesError) return errResponse(signalProfilesError.message);
+      const signalReferralByMember = new Map(((signalProfileRows || []) as Record<string, unknown>[]).map(row => [String(row.member_id), row.share_referral_focus === true]));
       let query = db.from("member_signals")
         .select(
           "*,members!member_signals_member_id_fkey(name,nickname,mentor_team)",
@@ -2703,7 +2709,10 @@ export async function handleMembers(
         ).filter(Boolean);
       }
       const rows = ((data || []) as Record<string, unknown>[])
-        .filter((row) => canViewMemberSignal(auth, row, activeLtRoles));
+        .filter((row) => canViewMemberSignal(auth, row, activeLtRoles))
+        .map((row) => role === 'growth' && signalReferralByMember.get(String(row.member_id)) !== true
+          ? { ...row, detail: '' }
+          : row);
       const counts = rows.reduce((acc: Record<string, number>, row) => {
         const key = String(row.signal_type || "other");
         acc[key] = (acc[key] || 0) + 1;
@@ -2739,6 +2748,10 @@ export async function handleMembers(
       const memberRows = (scopedMembers || []) as Record<string, unknown>[];
       const memberIds = memberRows.map(row => String(row.id));
       if (!memberIds.length) return jsonResponse({ ok:true, handoffs:[] });
+      const { data: profileRows, error: profilesError } = await db.from('member_one_to_one_profiles')
+        .select('member_id,share_referral_focus').in('member_id', memberIds);
+      if (profilesError) return errResponse(profilesError.message);
+      const referralByMember = new Map(((profileRows || []) as Record<string, unknown>[]).map(row => [String(row.member_id), row.share_referral_focus === true]));
       const { data, error } = await db.from('member_signals')
         .select('id,member_id,title,detail,status,priority,created_at,updated_at,payload,target_roles')
         .in('member_id', memberIds).eq('subject_type', 'support_handoff')
@@ -2752,7 +2765,8 @@ export async function handleMembers(
       }).map(row => {
         const payload = (row.payload || {}) as Record<string, unknown>;
         const member = membersById.get(String(row.member_id)) || {};
-        return { id:String(row.id), memberId:String(row.member_id), memberName:String(member.nickname || member.name || 'สมาชิก'), reason:String(row.detail || '').slice(0,500), status:String(row.status || 'new'), priority:String(row.priority || 'normal'), targetRole:String(payload.target_role || 'mentor'), createdAt:row.created_at || null, updatedAt:row.updated_at || null };
+        const revealDetail = referralByMember.get(String(row.member_id)) === true;
+        return { id:String(row.id), memberId:String(row.member_id), memberName:String(member.nickname || member.name || 'สมาชิก'), reason:revealDetail?String(row.detail || '').slice(0,500):'', status:String(row.status || 'new'), priority:String(row.priority || 'normal'), targetRole:String(payload.target_role || 'mentor'), createdAt:row.created_at || null, updatedAt:row.updated_at || null };
       });
       return jsonResponse({ ok:true, handoffs });
     }
