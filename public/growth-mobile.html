@@ -73,6 +73,11 @@
           <p id="gm-member-count" class="gm-count"></p><div id="gm-members" class="gm-list"></div>
         </section>
 
+        <section id="gm-view-weekly" class="gm-view">
+          <div class="gm-page-head"><p>WEEKLY ACTION BOARD</p><h2>งานที่ต้องขยับสัปดาห์นี้</h2><div class="gm-meta">งานแต่ละรายการอยู่เพียงกลุ่มเดียว เพื่อให้ทีมเห็นลำดับการทำงานชัดเจน</div></div>
+          <div id="gm-weekly-board" class="gm-list"><div class="gm-empty">กำลังจัดลำดับงาน…</div></div>
+        </section>
+
         <section id="gm-view-tasks" class="gm-view">
           <div class="gm-page-head"><p>ACTION CENTER</p><h2>Growth Tasks</h2></div>
           <div class="gm-filter-row" id="gm-task-filters"><button class="is-active" data-task="open">งานเปิด</button><button data-task="overdue">เกินกำหนด</button><button data-task="done">เสร็จแล้ว</button><button data-task="all">ทั้งหมด</button></div>
@@ -97,8 +102,9 @@
         </section>
       </div>
 
-      <nav class="gm-nav" aria-label="เมนู Growth" style="grid-template-columns:repeat(5,1fr)">
+      <nav class="gm-nav" aria-label="เมนู Growth" style="grid-template-columns:repeat(6,1fr)">
         <button class="is-active" data-view="today"><span>⌂</span>Inbox</button>
+        <button data-view="weekly"><span>▦</span>สัปดาห์นี้</button>
         <button data-view="members"><span>◎</span>สมาชิก</button>
         <button data-view="tasks"><span>✓</span>งาน</button>
         <button data-view="support"><span>?</span>คำถาม</button>
@@ -108,7 +114,8 @@
   </main>
 
   <div id="gm-sheet" class="gm-sheet-backdrop" hidden><article class="gm-sheet"><button id="gm-sheet-close" class="gm-sheet-close" aria-label="ปิด">×</button><div id="gm-sheet-body"></div></article></div>
-  <script src="/assets/js/growth-mobile.js?v=20260913-growth-os.1" defer></script>
+  <script src="/assets/js/growth-weekly-board.js?v=20260920-weekly-board.1" defer></script>
+  <script src="/assets/js/growth-mobile.js?v=20260920-weekly-board.1" defer></script>
   <script src="/assets/js/growth-mobile-ops.js?v=20260913-growth-os.1" defer></script>
 </body>
 </html>

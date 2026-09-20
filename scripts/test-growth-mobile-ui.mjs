@@ -14,6 +14,14 @@ for (const id of ['gm-home-search', 'gm-next-actions', 'gm-workload', 'gm-owner-
   assert.ok(html.includes(`id="${id}"`), `missing Growth Mobile target ${id}`);
 }
 
+assert.ok(html.includes('id="gm-view-weekly"') && html.includes('id="gm-weekly-board"'), 'Weekly Action Board needs a dedicated Mobile view');
+assert.ok(html.includes('data-view="weekly"'), 'Weekly Action Board needs a Mobile navigation entry point');
+assert.ok(html.includes('/assets/js/growth-weekly-board.js'), 'Weekly Action Board classifier must load before the Mobile workflow');
+assert.ok(base.includes("section('ยังไม่มอบหมาย'") && base.includes("section('เกินกำหนด'") && base.includes("section('รอสมาชิก'"), 'Mobile Board must group each open task by the defined precedence');
+const weeklyBoardSource = base.slice(base.indexOf('function renderWeeklyBoard'), base.indexOf('window.growthMobileIsDone'));
+assert.ok(weeklyBoardSource.includes('data-go="tasks"') && weeklyBoardSource.includes('data-go="support"'), 'Board actions must reuse existing Task and Handoff workflows');
+assert.ok(!weeklyBoardSource.includes("api('acceptGrowthHandoff'"), 'Board must not duplicate handoff mutations');
+
 assert.ok(html.includes('enterkeyhint="search"'), 'member search needs a mobile search action');
 assert.ok(html.includes('/assets/js/growth-mobile-ops.js'), 'operational layer must be loaded');
 assert.ok(!base.includes("api('getMemberDetail'"), 'Growth Mobile must not call the Mentor-private Member 360 contract');
