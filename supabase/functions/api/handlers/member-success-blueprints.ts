@@ -1531,20 +1531,40 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       const { data, error } = await memberQuery;
       if (error) return errResponse(error.message, 400);
       const candidateIds = ((data || []) as Record<string, unknown>[]).map(m => String(m.id));
-      const { data: profiles, error: profileError } = candidateIds.length
-        ? await db.from('member_one_to_one_profiles').select('member_id,share_business,share_referral_focus').in('member_id', candidateIds)
-        : { data: [], error: null };
-      if (profileError) return errResponse(profileError.message, 400);
+      const [{ data: profiles, error: profileError }, { data: candidatePlans, error: planError }, { data: categoryConsents, error: consentError }] = candidateIds.length
+        ? await Promise.all([
+          db.from('member_one_to_one_profiles').select('member_id,share_business,share_referral_focus').in('member_id', candidateIds),
+          db.from('member_success_blueprints').select('member_id,looking_for_categories,power_team_categories').eq('blueprint_year', year).in('member_id', candidateIds),
+          db.from('member_growth_category_consents').select('member_id,category_type,category').in('member_id', candidateIds).is('revoked_at', null),
+        ])
+        : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
+      if (profileError || planError || consentError) return errResponse(profileError?.message || planError?.message || consentError?.message || 'โหลด consent ไม่สำเร็จ', 400);
       const consent = new Map(((profiles || []) as Record<string, unknown>[]).map(row => [String(row.member_id), row]));
+      const plansByMember = new Map(((candidatePlans || []) as Record<string, unknown>[]).map(row => [String(row.member_id), row]));
+      const allowedCategories = new Map<string, Set<string>>();
+      for (const row of (categoryConsents || []) as Record<string, unknown>[]) {
+        const key = `${String(row.member_id)}:${String(row.category_type)}`;
+        const values = allowedCategories.get(key) || new Set<string>();
+        values.add(txt(row.category).toLowerCase()); allowedCategories.set(key, values);
+      }
       const suggestions = ((data || []) as Record<string, unknown>[])
         .map(m => {
           const flags = consent.get(String(m.id)) || {};
           const shareBusiness = flags.share_business !== false;
           const shareReferral = flags.share_referral_focus !== false;
-          if (!shareReferral) return null;
+          const plan = plansByMember.get(String(m.id)) || {};
+          const explicitlyAllowed = !shareReferral
+            ? ['looking_for', 'power_team'].flatMap(type => {
+              const values = allowedCategories.get(`${String(m.id)}:${type}`) || new Set<string>();
+              const source = type === 'looking_for' ? plan.looking_for_categories : plan.power_team_categories;
+              return Array.isArray(source) ? source.map(txt).filter(category => values.has(category.toLowerCase())) : [];
+            }).map(category => category.toLowerCase())
+            : [];
           const profession = txt(m.profession).toLowerCase();
           const company = shareBusiness ? txt(m.company_name).toLowerCase() : '';
-          const matched = desired.filter(cat => cat && (profession.includes(cat) || company.includes(cat) || cat.includes(profession)));
+          const matched = shareReferral
+            ? desired.filter(cat => cat && (profession.includes(cat) || company.includes(cat) || cat.includes(profession)))
+            : desired.filter(cat => explicitlyAllowed.includes(cat));
           return {
             memberId: m.id,
             name: m.name,

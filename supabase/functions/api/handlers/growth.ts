@@ -1607,7 +1607,15 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const role = String(auth.role || '').toLowerCase();
       const ownerEmail=String((task as Record<string,unknown>).assigned_owner_email||'').toLowerCase();
       const ownsTask = ownerEmail && ownerEmail === String(auth.email || '').toLowerCase();
-      if (!auth.isMC && !auth.isAdmin && !hasGrowthCapability(auth, CAPABILITY.GROWTH_COORDINATE) && !ownsTask && assignedTo !== role) {
+      const coordinator = hasGrowthCapability(auth, CAPABILITY.GROWTH_COORDINATE);
+      if (role === 'growth') {
+        // Legacy assigned_to='growth' is a routing label, never ownership.
+        // A Growth member needs both the assigned-work capability and a
+        // matching OAuth owner email; unowned legacy tasks await assignment.
+        if (!coordinator && !(ownsTask && hasGrowthCapability(auth, CAPABILITY.GROWTH_TASK_MANAGE_ASSIGNED))) {
+          return errResponse('Growth Task ต้องมอบหมายให้บัญชีของคุณก่อนจึงจะแก้ไขได้', 403);
+        }
+      } else if (!auth.isMC && !auth.isAdmin && !coordinator && assignedTo !== role) {
         return errResponse('ไม่มีสิทธิ์ตอบ Growth Task ของทีมอื่น', 403);
       }
       const now=new Date().toISOString(),changes:Record<string,unknown>={status:nextStatus,response:response||null};
@@ -1635,7 +1643,10 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const t = task as Record<string, unknown> | null;
       if (!t) return errResponse('ไม่พบ Growth Task ใน Chapter นี้', 404);
       const ownsTask = String(t.assigned_owner_email || '').toLowerCase() === String(auth.email || '').toLowerCase();
-      if (!auth.isMC && !auth.isAdmin && !hasGrowthCapability(auth, CAPABILITY.GROWTH_COORDINATE) && !ownsTask) return errResponse('ไม่มีสิทธิ์บันทึกผลของงานนี้', 403);
+      const role = String(auth.role || '').toLowerCase();
+      const coordinator = hasGrowthCapability(auth, CAPABILITY.GROWTH_COORDINATE);
+      if (role === 'growth' && !coordinator && !(ownsTask && hasGrowthCapability(auth, CAPABILITY.GROWTH_TASK_MANAGE_ASSIGNED))) return errResponse('Growth Task ต้องมอบหมายให้บัญชีของคุณก่อนจึงจะบันทึกผลได้', 403);
+      if (role !== 'growth' && !auth.isMC && !auth.isAdmin && !coordinator && !ownsTask) return errResponse('ไม่มีสิทธิ์บันทึกผลของงานนี้', 403);
       if (stage === 'my121_verified') {
         if (!pairId) return errResponse('matchingPairId required for verified MY121', 400);
         const { data: pair } = await db.from('matching_pairs').select('id,status,member_a_id,member_b_id,chapter_id').eq('id', pairId).eq('chapter_id', scope.chapterId).maybeSingle();

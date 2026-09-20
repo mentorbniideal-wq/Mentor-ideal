@@ -2740,6 +2740,7 @@ export async function handleMembers(
     case "getGrowthSupportHandoffs": {
       const auth = await requireAuth(db, p, ["growth", "mc"]);
       if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.isMC && !auth.isAdmin && !hasCapability(auth, CAPABILITY.GROWTH_COORDINATE)) return errResponse('เฉพาะ Growth Coordinator เท่านั้นที่ดูคิวรับ Handoff ได้', 403);
       const scope = await resolveChapterScope(db, auth);
       if (!scope.ok) return errResponse(scope.error, 403);
       const { data: scopedMembers, error: membersError } = await db.from('members')
@@ -2757,16 +2758,24 @@ export async function handleMembers(
         .in('member_id', memberIds).eq('subject_type', 'support_handoff')
         .order('created_at', { ascending:false }).limit(100);
       if (error) return errResponse(error.message);
-      const membersById = new Map(memberRows.map(row => [String(row.id), row]));
-      const handoffs = ((data || []) as Record<string, unknown>[]).filter(row => {
-        if (auth.isMC) return true;
+      const candidateSignals = ((data || []) as Record<string, unknown>[]).filter(row => {
         const payload = (row.payload || {}) as Record<string, unknown>;
-        return String(payload.source_role || '').toLowerCase() === 'growth' && payload.safe_context === true;
-      }).map(row => {
+        return String(payload.source_role || '').toLowerCase() !== 'growth' &&
+          String(payload.target_role || '').toLowerCase() === 'growth' && payload.safe_context === true;
+      });
+      const signalIds = candidateSignals.map(row => String(row.id));
+      const { data: linkedTasks, error: tasksError } = signalIds.length
+        ? await db.from('growth_tasks').select('id,source_signal_id,status,due_date,assigned_owner_email,assigned_owner_name').eq('chapter_id', scope.chapterId).in('source_signal_id', signalIds)
+        : { data: [], error: null };
+      if (tasksError) return errResponse(tasksError.message);
+      const taskBySignal = new Map(((linkedTasks || []) as Record<string, unknown>[]).map(row => [String(row.source_signal_id), row]));
+      const membersById = new Map(memberRows.map(row => [String(row.id), row]));
+      const handoffs = candidateSignals.map(row => {
         const payload = (row.payload || {}) as Record<string, unknown>;
         const member = membersById.get(String(row.member_id)) || {};
         const revealDetail = referralByMember.get(String(row.member_id)) === true;
-        return { id:String(row.id), memberId:String(row.member_id), memberName:String(member.nickname || member.name || 'สมาชิก'), reason:revealDetail?String(row.detail || '').slice(0,500):'', status:String(row.status || 'new'), priority:String(row.priority || 'normal'), targetRole:String(payload.target_role || 'mentor'), createdAt:row.created_at || null, updatedAt:row.updated_at || null };
+        const task = taskBySignal.get(String(row.id)) as Record<string, unknown> | undefined;
+        return { id:String(row.id), memberId:String(row.member_id), memberName:String(member.nickname || member.name || 'สมาชิก'), reason:revealDetail?String(row.detail || '').slice(0,500):'', detailRestricted:!revealDetail, status:String(row.status || 'new'), priority:String(row.priority || 'normal'), targetRole:'growth', createdAt:row.created_at || null, updatedAt:row.updated_at || null, taskId:task?.id ? String(task.id) : null, taskStatus:task?.status ? String(task.status) : null, dueDate:task?.due_date || null, assignedOwnerEmail:task?.assigned_owner_email || '', assignedOwnerName:task?.assigned_owner_name || '' };
       });
       return jsonResponse({ ok:true, handoffs });
     }
@@ -2929,6 +2938,13 @@ export async function handleMembers(
           activeLtRoles,
         )
       ) return errResponse("ไม่มีสิทธิ์จัดการงานนี้", 403);
+      const currentPayload = ((current as Record<string, unknown>).payload || {}) as Record<string, unknown>;
+      if (String(auth.role || '').toLowerCase() === 'growth' &&
+        String((current as Record<string, unknown>).subject_type || '') === 'support_handoff' &&
+        String(currentPayload.target_role || '').toLowerCase() === 'growth' &&
+        !hasCapability(auth, CAPABILITY.GROWTH_COORDINATE)) {
+        return errResponse('เฉพาะ Growth Coordinator เท่านั้นที่รับหรือมอบหมาย Mentor Handoff', 403);
+      }
       const now = new Date().toISOString(),
         actor = String(auth.displayName || auth.role || "Chapter Admin");
       const changes: Record<string, unknown> = { status, updated_at: now };

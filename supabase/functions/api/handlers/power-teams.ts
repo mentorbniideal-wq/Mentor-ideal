@@ -348,7 +348,7 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
       const current = proposal as Record<string, unknown> | null; if (!current) return errResponse('ไม่พบ Proposal ใน Chapter นี้', 404);
       const coordinator = auth.isMC || auth.isAdmin || hasCapability(auth, CAPABILITY.GROWTH_COORDINATE);
       const owns = String(current.assigned_owner_email || '').toLowerCase() === String(auth.email || '').toLowerCase();
-      if (!coordinator && !owns) return errResponse('ไม่มีสิทธิ์แก้ Proposal ของผู้อื่น', 403);
+      if (!coordinator && !(owns && hasCapability(auth, CAPABILITY.GROWTH_TASK_MANAGE_ASSIGNED))) return errResponse('Proposal ต้องมอบหมายให้บัญชีของคุณก่อนจึงจะแก้ไขได้', 403);
       if (!coordinator && !['exploring','closed'].includes(status)) return errResponse('Growth owner เปลี่ยนได้เฉพาะ exploring หรือเสนอปิดงาน', 403);
       const patch: Record<string, unknown> = { status, updated_at:new Date().toISOString() };
       if (status === 'closed') patch.rationale = cleanText(p.closeReason, 1500) || String(current.rationale || '');

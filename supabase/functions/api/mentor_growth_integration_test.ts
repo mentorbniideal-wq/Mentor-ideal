@@ -7,6 +7,8 @@ Deno.test('Growth mutations use explicit capability gates', async () => {
   for (const capability of ['GROWTH_COORDINATE', 'GROWTH_MEMBER_MANAGE', 'GROWTH_MONTHLY_SYNC_EXECUTE']) assert(growth.includes(capability));
   assert(growth.includes("assigned_owner_email', String(auth.email || '').toLowerCase()"));
   assert(growth.includes('const ownsTask = ownerEmail'));
+  assert(growth.includes("role === 'growth'") && growth.includes('GROWTH_TASK_MANAGE_ASSIGNED'));
+  assert(growth.includes("Legacy assigned_to='growth' is a routing label"));
 });
 
 Deno.test('Mentor handoff creates one Chapter-scoped executable task', async () => {
@@ -15,6 +17,40 @@ Deno.test('Mentor handoff creates one Chapter-scoped executable task', async () 
   assert(members.includes("String(member.chapter_id) !== scope.chapterId"));
   assert(members.includes('source_signal_id:signalId'));
   assert(members.includes('idempotency_key:`handoff:${signalId}`'));
+  assert(members.includes("payload.target_role || '').toLowerCase() === 'growth'"));
+  assert(members.includes('taskBySignal'));
+  assert(members.includes('เฉพาะ Growth Coordinator เท่านั้นที่รับหรือมอบหมาย Mentor Handoff'));
+  assert(members.includes("String(currentPayload.target_role || '').toLowerCase() === 'growth'"));
+});
+
+Deno.test('Growth task ownership never falls back to the legacy Growth routing label', () => {
+  const canWrite = (input: { role: string; owner: string; email: string; capabilities: string[]; assignedTo: string }) =>
+    input.role === 'growth'
+      ? input.owner === input.email && input.capabilities.includes('growth.task.manage_assigned')
+      : input.assignedTo === input.role;
+  assertEquals(canWrite({ role: 'growth', owner: '', email: 'a@example.test', capabilities: ['growth.task.manage_assigned'], assignedTo: 'growth' }), false);
+  assertEquals(canWrite({ role: 'growth', owner: 'a@example.test', email: 'a@example.test', capabilities: [], assignedTo: 'growth' }), false);
+  assertEquals(canWrite({ role: 'growth', owner: 'a@example.test', email: 'a@example.test', capabilities: ['growth.task.manage_assigned'], assignedTo: 'growth' }), true);
+  assertEquals(canWrite({ role: 'toomtam', owner: '', email: 'mentor@example.test', capabilities: [], assignedTo: 'toomtam' }), true);
+});
+
+Deno.test('Growth Mobile derives controls from server-returned capabilities', async () => {
+  const mobile = await source('public/assets/js/growth-mobile.js');
+  const ops = await source('public/assets/js/growth-mobile-ops.js');
+  const mobile2 = await source('public/assets/js/growth-mobile2.js');
+  assert(mobile.includes('function applyAccess(r)') && mobile.includes("function canCoordinate(){return hasCap('growth.coordinate');}"));
+  assert(mobile.includes('canManageAssigned()?') && mobile.includes('data-accept-handoff'));
+  assert(ops.includes('window.growthMobileCanCoordinate') && ops.includes('button.remove()'));
+  assert(mobile2.includes('เฉพาะ Growth Coordinator เท่านั้นที่สร้างและมอบหมาย Task'));
+});
+
+Deno.test('matching uses active explicit categories after referral sharing is disabled', async () => {
+  const blueprint = await source('supabase/functions/api/handlers/member-success-blueprints.ts');
+  const start = blueprint.indexOf("case 'getMSBMatchingSuggestions':");
+  const block = blueprint.slice(start);
+  assert(block.includes("member_growth_category_consents"));
+  assert(block.includes('explicitlyAllowed'));
+  assert(block.includes('desired.filter(cat => explicitlyAllowed.includes(cat))'));
 });
 
 Deno.test('MY121 stage cannot be inferred from a scheduled meeting', async () => {
