@@ -1,5 +1,6 @@
 .env
 .env.*
+!.env.staging.example
 .vercel
 public/assets/js/runtime-config.js
 migration-exports/
