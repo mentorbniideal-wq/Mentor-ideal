@@ -28,7 +28,13 @@
     uniqueTasks(tasks).forEach(function(task){
       if(isClosed(task))return;
       var due=String(task.dueDate||'');
-      if(coordinator&&!hasOwner(task)){groups.unassigned.push(task);return;}
+      if(!hasOwner(task)){
+        // The API already limits regular Growth to its own OAuth-assigned
+        // tasks. Keep the projection fail-closed if an unexpected record
+        // reaches this browser state.
+        if(coordinator)groups.unassigned.push(task);
+        return;
+      }
       if(due&&due<today){groups.overdue.push(task);return;}
       if(String(task.status||'')==='waiting_member'){groups.waiting.push(task);return;}
       if(due&&due>=today&&due<=weekEnd){groups.due.push(task);return;}

@@ -22,7 +22,8 @@ const coordinator=board.classify(tasks,{coordinator:true,now:mondayBangkok});
 assert.deepEqual(JSON.parse(JSON.stringify(Object.fromEntries(Object.entries(coordinator.groups).map(([key,value])=>[key,value.map(task=>task.id)])))),{unassigned:['unassigned'],overdue:['overdue'],waiting:['waiting'],due:['due'],remaining:['later','missing']});
 const member=board.classify(tasks,{coordinator:false,now:mondayBangkok});
 assert.deepEqual(JSON.parse(JSON.stringify(member.groups.unassigned.map(task=>task.id))),[]);
-assert.deepEqual(JSON.parse(JSON.stringify(member.groups.remaining.map(task=>task.id))),['unassigned','later','missing']);
+assert.deepEqual(JSON.parse(JSON.stringify(member.groups.remaining.map(task=>task.id))),['later','missing']);
+assert.ok(!Object.values(member.groups).flat().some(task=>task.id==='unassigned'), 'regular Growth must fail closed for unassigned tasks');
 assert.equal(board.safeDetail('private text',true),'รายละเอียดถูกจำกัดตามสิทธิ์และการยินยอม');
 assert.equal(board.safeDetail('',false),'ไม่มีรายละเอียดที่แชร์ได้');
 assert.deepEqual(JSON.parse(JSON.stringify(board.taskBadges(tasks[1],coordinator))),['เกินกำหนด','รอสมาชิก']);
@@ -33,4 +34,5 @@ assert.ok(desktop.includes("['weekly','▦','Weekly Action Board']"), 'Desktop n
 assert.ok(desktop.includes("window.gsr('getGrowthTasks'"), 'Desktop Board must reuse the safe Growth Task read contract');
 assert.ok(desktop.includes("window.gsr('getGrowthSupportHandoffs'"), 'Desktop Coordinator Board must reuse the safe handoff read contract');
 assert.ok(desktop.includes("window.S&&window.S.capabilities"), 'Desktop Coordinator visibility must derive from server-returned capabilities');
+assert.ok(desktop.includes('window.G.tasksLoaded===true') && desktop.includes('withHandoffs(window.G.tasks)'), 'Desktop Board must reuse already-loaded task state before fallback fetch');
 console.log('growth weekly board tests passed');

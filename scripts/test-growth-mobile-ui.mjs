@@ -21,6 +21,8 @@ assert.ok(base.includes("section('ยังไม่มอบหมาย'") && 
 const weeklyBoardSource = base.slice(base.indexOf('function renderWeeklyBoard'), base.indexOf('window.growthMobileIsDone'));
 assert.ok(weeklyBoardSource.includes('data-go="tasks"') && weeklyBoardSource.includes('data-go="support"'), 'Board actions must reuse existing Task and Handoff workflows');
 assert.ok(!weeklyBoardSource.includes("api('acceptGrowthHandoff'"), 'Board must not duplicate handoff mutations');
+assert.ok(base.includes('window.growthMobileRenderedTaskState=state.tasks'), 'Task renderer must record the state already rendered to the Board');
+assert.ok(ops.includes('window.growthMobileRenderedTaskState!==state.tasks&&window.growthMobileRenderTasks'), 'existing operations must refresh Task and Board views after replacing task state without another API call');
 
 assert.ok(html.includes('enterkeyhint="search"'), 'member search needs a mobile search action');
 assert.ok(html.includes('/assets/js/growth-mobile-ops.js'), 'operational layer must be loaded');

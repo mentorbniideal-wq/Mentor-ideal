@@ -529,7 +529,7 @@ function loadGrowth(){
     }finally{chk();}
   });
   gsr('getGrowthTasks',{statusFilter:'all'},function(r){
-    try{if(r.ok){G.tasks=r.tasks||[];G.assignees=r.assignees||[];buildGrowthTaskOptions();renderTasks();renderGrowthToday();}}
+    try{if(r.ok){G.tasks=r.tasks||[];G.tasksLoaded=true;G.assignees=r.assignees||[];buildGrowthTaskOptions();renderTasks();renderGrowthToday();}}
     catch(e){console.error('[dashboard] growth tasks render failed',e);}
     finally{chk();}
   });
