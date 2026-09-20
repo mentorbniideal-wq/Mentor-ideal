@@ -111,3 +111,57 @@ Deno.test("Growth Desktop never requests broad Member Detail", async () => {
   const modal = await read("public/assets/js/desktop-member-360.js");
   assert(modal.includes("String(window.S.role||'').toLowerCase()==='growth'"));
 });
+
+Deno.test("aggregate dashboard reads derive Chapter scope before querying member data", async () => {
+  const source = await read("supabase/functions/api/handlers/dashboard.ts");
+  assert(source.includes("async function scopedActiveMemberIds"));
+  assert(source.includes(".eq('chapter_id', chapterId)"));
+  assert(source.includes(".in('id', scopedMemberIds)"));
+
+  const scopedActions: Array<[string, string]> = [
+    ["getDashboard", "getSharedMemberSupportContext"],
+    ["getChapterPulse", "getLeaderboard"],
+    ["getLeaderboard", "getScorecard"],
+    ["getChapterTrend", "getTrafficLightMonthlySummary"],
+    ["getTrafficLightMonthlySummary", ""],
+  ];
+  for (const [action, next] of scopedActions) {
+    const block = actionBlock(source, action, next);
+    assert(block.includes("resolveChapterScope(db, auth)"), `${action} must resolve scope on the server`);
+    assert(!block.includes("p.chapterId") && !block.includes("p.chapter_id"), `${action} must not trust browser Chapter input`);
+  }
+
+  const pulse = actionBlock(source, "getChapterPulse", "getLeaderboard");
+  assert(pulse.includes(".in('member_id', scopedMemberIds)"), "score history must be restricted before movement aggregation");
+  const trend = actionBlock(source, "getChapterTrend", "getTrafficLightMonthlySummary");
+  assert(trend.includes(".eq('chapter_id', scope.chapterId)"), "Chapter trend must scope monthly scores at query time");
+  const traffic = actionBlock(source, "getTrafficLightMonthlySummary", "");
+  assert(traffic.includes(".eq('chapter_id', scope.chapterId)"), "traffic summary must scope scores at query time");
+});
+
+Deno.test("Growth cannot call Mentor accountability aggregate endpoints", async () => {
+  const dashboard = await read("supabase/functions/api/handlers/dashboard.ts");
+  const growth = await read("supabase/functions/api/handlers/growth.ts");
+  for (const source of [dashboard, growth]) {
+    for (const [action, next] of [["getMentorActivity", "getMentorPerformance"], ["getMentorPerformance", "getChapterPulse"]]) {
+      const block = actionBlock(source, action, next);
+      assert(block.includes("requireAuth(db, p, ['mc'])"), `${action} must be Mentor Co. only`);
+      assert(block.includes("resolveChapterScope(db, auth)"), `${action} must resolve a server Chapter scope`);
+    }
+  }
+});
+
+Deno.test("Growth cannot call the broad operational dashboard", async () => {
+  const dashboard = await read("supabase/functions/api/handlers/dashboard.ts");
+  const block = actionBlock(dashboard, "getDashboard", "getSharedMemberSupportContext");
+  assert(block.includes("['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'mentor_support']"));
+  assert(block.includes("resolveChapterScope(db, auth)"));
+});
+
+Deno.test("scorecard remains Mentor Co. only because it returns team member breakdowns", async () => {
+  const dashboard = await read("supabase/functions/api/handlers/dashboard.ts");
+  const block = actionBlock(dashboard, "getScorecard", "getMCCoaching");
+  assert(block.includes("requireAuth(db, p, ['mc'])"));
+  assert(block.includes("resolveChapterScope(db, auth)"));
+  assert(block.includes(".in('id', scopedMemberIds)"));
+});

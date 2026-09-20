@@ -1318,19 +1318,25 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
 
     // ── Mentor Activity + Performance (Growth can view) ───────
     case 'getMentorActivity': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
-      const teams = await getMentorActivityData(db);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const teams = await getMentorActivityData(db, scope.chapterId);
       return jsonResponse({ ok: true, teams });
     }
 
     case 'getMentorPerformance': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
-      const teams = await getMentorActivityData(db);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const { data: scopedMembers } = await db.from('members').select('id').eq('chapter_id', scope.chapterId).eq('is_archived', false);
+      const scopedMemberIds = (scopedMembers || []).map((member: Record<string, unknown>) => String(member.id));
+      const teams = await getMentorActivityData(db, scope.chapterId);
       for (const t of teams) {
         const { data: issues } = await db.from('core_issues').select('opened_at')
-          .eq('mentor_team', (t as Record<string, unknown>).team as string).eq('status', 'open');
+          .in('member_id', scopedMemberIds).eq('mentor_team', (t as Record<string, unknown>).team as string).eq('status', 'open');
         let oldest = 0;
         for (const ci of (issues || []) as Record<string, unknown>[]) {
           const age = Math.floor((Date.now() - new Date(String(ci.opened_at)).getTime()) / 86400000);

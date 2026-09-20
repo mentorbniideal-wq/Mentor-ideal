@@ -121,12 +121,38 @@ const TEAM_ROLE: Record<string, string> = {
 };
 const MONTH_LABELS: Record<number, string> = {1:'JAN',2:'FEB',3:'MAR',4:'APR',5:'MAY',6:'JUN',7:'JUL',8:'AUG',9:'SEP',10:'OCT',11:'NOV',12:'DEC'};
 
-export async function getMentorActivityData(db: ReturnType<typeof getServiceClient>) {
+// Aggregate reads must start from server-authorized members.  Several legacy
+// reporting views predate chapter_id, so filtering their result after it is
+// built would be too late (and could mix tenant data).  We therefore resolve
+// the Chapter member set first and use it in every downstream query.
+async function scopedActiveMemberIds(
+  db: ReturnType<typeof getServiceClient>,
+  chapterId: string,
+): Promise<string[]> {
+  const { data, error } = await db.from('members')
+    .select('id')
+    .eq('chapter_id', chapterId)
+    .eq('is_archived', false);
+  if (error || !data) return [];
+  return (data as Record<string, unknown>[]).map((row) => String(row.id)).filter(Boolean);
+}
+
+export async function getMentorActivityData(
+  db: ReturnType<typeof getServiceClient>,
+  chapterId: string,
+) {
+  const scopedMemberIds = await scopedActiveMemberIds(db, chapterId);
   const result = [];
+  // Empty/missing scope fails closed; do not query a legacy view without an ID
+  // predicate merely because the current Chapter has no active members.
+  if (scopedMemberIds.length === 0) {
+    return TEAMS.map((team) => ({ team, memberCount: 0, scoreUp: 0, scoreDown: 0, scoreSame: 0, noScoreYet: 0, reportCount: 0, openCount: 0, notReported: [], daysSince: null, statusFlag: 'none' }));
+  }
   for (const teamName of TEAMS) {
     const { data: members } = await db
       .from('v_member_dashboard')
       .select('id, name, open_core_issue, core_issue_opened_at, display_score')
+      .in('id', scopedMemberIds)
       .eq('mentor_team', teamName)
       .eq('is_archived', false);
 
@@ -197,11 +223,18 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     case 'getDashboard':
     case 'getMCData':
     case 'getDesktopDashboard': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'mentor_support', 'growth']);
+      // The full operational dashboard includes Mentor contact/renewal state.
+      // Growth uses dedicated, consent-minimised Growth endpoints instead.
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'mentor_support']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const scopedMemberIds = await scopedActiveMemberIds(db, scope.chapterId);
+      if (scopedMemberIds.length === 0) return jsonResponse({ ok: true, members: [], teams: [], renewal: [] });
       let dashboardQuery = db
         .from('v_member_dashboard')
         .select('id, name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb, tyfcb_thb, absent, attend, rg, rr, visitors, one_to_one, ceu, palms_detail, expiry_date, days_to_expiry, bni_days, membership_start_date, joined_date')
+        .in('id', scopedMemberIds)
         .eq('is_archived', false)
         .order('display_score', { ascending: false, nullsFirst: false });
       if (!auth.isMC && auth.role !== 'growth' && auth.teamName) {
@@ -424,7 +457,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       });
 
       // ── Teams aggregation (needed for bar chart + Mentor Teams tab) ──
-      const activityDataAll = await getMentorActivityData(db);
+      const activityDataAll = await getMentorActivityData(db, scope.chapterId);
       const activityData = auth.isMC || auth.role === 'growth'
         ? activityDataAll
         : activityDataAll.filter((item) => item.team === auth.teamName);
@@ -976,33 +1009,26 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     }
 
     case 'getMentorActivity': {
-      const auth = await requireAuth(db, p, ['mc', 'growth']);
+      // Mentor accountability is owned by Mentor Co.; Growth uses member
+      // support and Chapter Health endpoints instead.
+      const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
-      const teams = await getMentorActivityData(db);
-      const { data: teamRows } = await db.from('mentor_teams').select('name,leader_name,display_name');
-      const labels = new Map(((teamRows || []) as Record<string, unknown>[]).map((row) => [
-        String(row.name || ''),
-        String(row.display_name || `ทีม ${String(row.leader_name || row.name || '')}`),
-      ]));
-      for (const team of teams as Record<string, unknown>[]) {
-        team.displayName = labels.get(String(team.team || '')) || String(team.team || '');
-      }
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const teams = await getMentorActivityData(db, scope.chapterId);
       return jsonResponse({ ok: true, teams });
     }
 
     case 'getMentorPerformance': {
-      const auth = await requireAuth(db, p, ['mc', 'growth']);
+      const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
-      const teams = await getMentorActivityData(db);
-      const { data: teamRows } = await db.from('mentor_teams').select('name,leader_name,display_name');
-      const labels = new Map(((teamRows || []) as Record<string, unknown>[]).map((row) => [
-        String(row.name || ''),
-        String(row.display_name || `ทีม ${String(row.leader_name || row.name || '')}`),
-      ]));
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const scopedMemberIds = await scopedActiveMemberIds(db, scope.chapterId);
+      const teams = await getMentorActivityData(db, scope.chapterId);
       for (const t of teams) {
-        (t as Record<string, unknown>).displayName = labels.get(String((t as Record<string, unknown>).team || '')) || String((t as Record<string, unknown>).team || '');
         const { data: issues } = await db.from('core_issues').select('opened_at')
-          .eq('mentor_team', (t as Record<string, unknown>).team as string).eq('status', 'open');
+          .in('member_id', scopedMemberIds).eq('mentor_team', (t as Record<string, unknown>).team as string).eq('status', 'open');
         let oldest = 0;
         for (const ci of (issues || []) as Record<string, unknown>[]) {
           const age = Math.floor((Date.now() - new Date(String(ci.opened_at)).getTime()) / 86400000);
@@ -1016,9 +1042,14 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     case 'getChapterPulse': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const scopedMemberIds = await scopedActiveMemberIds(db, scope.chapterId);
+      if (scopedMemberIds.length === 0) return jsonResponse({ ok: true, memberCount: 0, avgScore: 0, tlCount: { green: 0, yellow: 0, red: 0, black: 0, none: 0 }, totalGiven: 0, totalRecv: 0, risers: [], fallers: [] });
       const { data: rows, error } = await db
         .from('v_member_dashboard')
         .select('id, name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb')
+        .in('id', scopedMemberIds)
         .eq('is_archived', false);
       if (error) return errResponse(error.message);
 
@@ -1035,7 +1066,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       }
 
       // Key by member_id (not nickname) — handles null nicknames and duplicate display names
-      const { data: hist } = await db.from('v_score_history').select('member_id, score, sort_key').order('sort_key', { ascending: false });
+      const { data: hist } = await db.from('v_score_history').select('member_id, score, sort_key').in('member_id', scopedMemberIds).order('sort_key', { ascending: false });
       const trendMap: Record<string, { curr: number; prev: number }> = {};
       const seen: Record<string, number> = {};
       for (const s of (hist || []) as Record<string, unknown>[]) {
@@ -1064,9 +1095,14 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     case 'getLeaderboard': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const scopedMemberIds = await scopedActiveMemberIds(db, scope.chapterId);
+      if (scopedMemberIds.length === 0) return jsonResponse({ ok: true, members: [] });
       const { data: rows, error } = await db
         .from('v_member_dashboard')
         .select('name, nickname, mentor_team, display_score, traffic_light, given_thb, received_thb')
+        .in('id', scopedMemberIds)
         .eq('is_archived', false).order('display_score', { ascending: false, nullsFirst: false });
       if (error) return errResponse(error.message);
       const members = (rows || []).map((m: Record<string, unknown>) => ({
@@ -1078,22 +1114,18 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     }
 
     case 'getScorecard': {
-      const auth = await requireAuth(db, p, ['mc', 'growth']);
+      // This includes per-team member breakdowns and is Mentor Co. only.
+      const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
-      const { data: teamCatalogRows, error: teamCatalogError } = await db
-        .from('mentor_teams')
-        .select('name,leader_name,display_name')
-        .order('id');
-      if (teamCatalogError) return errResponse(teamCatalogError.message);
-      const teamLabels: Record<string, string> = {};
-      for (const row of (teamCatalogRows || []) as Record<string, unknown>[]) {
-        const code = String(row.name || '');
-        if (code) teamLabels[code] = String(row.display_name || `ทีม ${String(row.leader_name || code)}`);
-      }
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const scopedMemberIds = await scopedActiveMemberIds(db, scope.chapterId);
+      const teamLabels: Record<string, string> = Object.fromEntries(TEAMS.map((team) => [team, team]));
       // ── 1. Fetch all active members with current scores ──────
       const { data: memRows, error: memErr } = await db
         .from('v_member_dashboard')
         .select('id, name, nickname, mentor_team, display_score, traffic_light, absent, given_thb, received_thb')
+        .in('id', scopedMemberIds)
         .eq('is_archived', false)
         .order('display_score', { ascending: false, nullsFirst: false });
       if (memErr) return errResponse(memErr.message);
@@ -1408,10 +1440,13 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     case 'getChapterTrend': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
       const { data: scores, error: sErr } = await db
         .from('monthly_scores')
         .select('score, year, month')
+        .eq('chapter_id', scope.chapterId)
         .order('year', { ascending: true })
         .order('month', { ascending: true });
       if (sErr) return errResponse(sErr.message);
@@ -1438,10 +1473,15 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     case 'getTrafficLightMonthlySummary': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const scopedMemberIds = await scopedActiveMemberIds(db, scope.chapterId);
+      if (scopedMemberIds.length === 0) return jsonResponse({ ok: true, current: null, previous: null, deltas: { green: 0, yellow: 0, red: 0, black: 0 }, movement: { up: [], down: [], same: [], new: [], missing: [] } });
 
       const { data: memRows, error: memErr } = await db
         .from('v_member_dashboard')
         .select('id, name, nickname, mentor_team, is_archived')
+        .in('id', scopedMemberIds)
         .eq('is_archived', false)
         .order('mentor_team', { ascending: true })
         .order('name', { ascending: true });
@@ -1462,6 +1502,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       const { data: scoreRows, error: scoreErr } = await db
         .from('monthly_scores')
         .select('member_id, year, month, score')
+        .eq('chapter_id', scope.chapterId)
         .in('member_id', memberIds)
         .order('year', { ascending: false })
         .order('month', { ascending: false });
