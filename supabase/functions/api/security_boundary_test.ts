@@ -1,0 +1,113 @@
+import { assert, assertEquals } from "jsr:@std/assert";
+
+async function read(path: string): Promise<string> {
+  return await Deno.readTextFile(new URL(`../../../${path}`, import.meta.url));
+}
+
+function actionBlock(
+  source: string,
+  action: string,
+  nextAction: string,
+): string {
+  const start = source.indexOf(`case '${action}'`);
+  const end = source.indexOf(`case '${nextAction}'`, start + 1);
+  assert(start >= 0, `${action} case missing`);
+  return source.slice(start, end >= 0 ? end : source.length);
+}
+
+Deno.test("Growth cannot call broad Mentor Member Detail", async () => {
+  const source = await read("supabase/functions/api/handlers/dashboard.ts");
+  const block = actionBlock(source, "getMemberDetail", "getMyTeam");
+  assert(block.includes("['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']"));
+  assert(!block.match(/requireAuth\([^\n]+growth/));
+});
+
+Deno.test("Growth contexts are Chapter-scoped and consent-minimised", async () => {
+  const source = await read("supabase/functions/api/handlers/dashboard.ts");
+  for (
+    const [action, next] of [
+      ["getSharedMemberSupportContext", "getGrowthMemberContext"],
+      ["getGrowthMemberContext", "getMemberDetail"],
+    ]
+  ) {
+    const block = actionBlock(source, action, next);
+    assert(block.includes("resolveChapterScope(db, auth)"));
+    assert(block.includes(".eq('chapter_id', scope.chapterId)"));
+    assert(!block.includes("member_one_to_one_profiles').select('*')"));
+    assert(!block.includes("mentor_logs').select"));
+    assert(!block.includes("ninety_day_reviews').select"));
+  }
+  const growth = actionBlock(
+    source,
+    "getGrowthMemberContext",
+    "getMemberDetail",
+  );
+  assert(growth.includes("profile.share_business"));
+  assert(growth.includes("profile.share_referral_focus"));
+});
+
+Deno.test("Blueprint intelligence and matching derive Chapter scope", async () => {
+  const source = await read(
+    "supabase/functions/api/handlers/member-success-blueprints.ts",
+  );
+  assert(source.includes("import { resolveChapterScope }"));
+  assert(source.includes(".eq('chapter_id', chapterId)"));
+  const matching = actionBlock(source, "getMSBMatchingSuggestions", "");
+  assert(matching.includes("resolveChapterScope(db, auth)"));
+  assert(matching.includes(".eq('chapter_id', scope.chapterId)"));
+});
+
+Deno.test("Member Team and mentoring mode writes cannot cross Chapter", async () => {
+  const dashboard = await read("supabase/functions/api/handlers/dashboard.ts");
+  const team = actionBlock(dashboard, "getMyTeam", "getMentorActivity");
+  assert(team.includes("resolveChapterScope(db, auth)"));
+  assert(team.includes(".eq('chapter_id', scope.chapterId)"));
+  assert(team.includes(".in('id', scopedMemberIds)"));
+
+  const members = await read("supabase/functions/api/handlers/members.ts");
+  const mode = members.slice(
+    members.indexOf('case "setMentoringMode"'),
+    members.indexOf('case "saveStatus"'),
+  );
+  assert(mode.includes("resolveChapterScope(db, auth)"));
+  assert(mode.includes("findMemberByLegacyPayload(db, p, scope.chapterId)"));
+});
+
+Deno.test("Mentor-only role cannot execute Growth Coordinator mutations", async () => {
+  const source = await read("supabase/functions/api/handlers/growth.ts");
+  const actions = [
+    "saveGrowthGoalReview",
+    "saveMSBCategoryAlias",
+    "createGrowthTask",
+    "previewMonthlySync",
+    "monthlySync",
+    "updateGrowthMember",
+    "addGrowthMember",
+    "moveGrowthMember",
+  ];
+  for (let i = 0; i < actions.length; i++) {
+    const start = source.indexOf(`case '${actions[i]}'`);
+    const next = source.indexOf("\n    case ", start + 1);
+    const block = source.slice(start, next >= 0 ? next : source.length);
+    assert(
+      block.includes("requireAuth(db, p, ['mc', 'growth'])"),
+      `${actions[i]} must be Growth Coordinator only`,
+    );
+    assert(
+      !block.includes("'toomtam'"),
+      `${actions[i]} must reject Mentor Coordinator`,
+    );
+  }
+  assertEquals(actions.length, 8);
+});
+
+Deno.test("Growth Desktop never requests broad Member Detail", async () => {
+  const desktop = await read("public/assets/js/desktop-operations.js");
+  assert(
+    desktop.includes(
+      "S.role==='growth'?'getGrowthMemberContext':'getMemberDetail'",
+    ),
+  );
+  const modal = await read("public/assets/js/desktop-member-360.js");
+  assert(modal.includes("String(window.S.role||'').toLowerCase()==='growth'"));
+});

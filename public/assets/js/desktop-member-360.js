@@ -38,6 +38,10 @@
     document.querySelectorAll('[data-m360-tab]').forEach(function(btn){btn.addEventListener('click',function(){var n=btn.getAttribute('data-m360-tab');document.querySelectorAll('[data-m360-tab]').forEach(function(b){b.setAttribute('aria-selected',String(b===btn));});document.querySelectorAll('[data-m360-pane]').forEach(function(pane){pane.classList.toggle('on',pane.getAttribute('data-m360-pane')===n);});});});
   }
   function open(name,force){
+    if(window.S&&String(window.S.role||'').toLowerCase()==='growth'){
+      openIMD(name);
+      return;
+    }
     currentName=name;lastFocus=document.activeElement;var no=++requestNo,modal=document.getElementById('modal'),body=document.getElementById('m360-body');
     document.getElementById('m360-name').textContent=name;document.getElementById('m360-sub').textContent='Member 360 · ข้อมูลรวมรายบุคคล';
     body.innerHTML='<div class="m360-loading"><div class="m360-spinner"></div><div>กำลังรวบรวมข้อมูลล่าสุดของสมาชิก…</div></div>';modal.style.display='flex';

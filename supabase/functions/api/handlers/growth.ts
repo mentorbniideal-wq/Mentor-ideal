@@ -1342,7 +1342,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     }
 
     case 'saveGrowthGoalReview': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'growth']);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
       const memberId = cleanText(p.memberId || p.member_id);
       const blueprintYear = Number(p.blueprintYear || p.blueprint_year || new Date().getFullYear());
@@ -1406,7 +1406,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     }
 
     case 'saveMSBCategoryAlias': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'growth']);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
       const categoryType = cleanText(p.categoryType || p.category_type);
       const canonical = cleanText(p.canonicalCategory || p.canonical_category);
@@ -1437,7 +1437,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
 
     // ── Growth Tasks ──────────────────────────────────────────
     case 'createGrowthTask': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'growth']);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
       const scope = await resolveChapterScope(db, auth);
       if (!scope.ok) return errResponse(scope.error, 403);
@@ -1588,7 +1588,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
 
     // ── Preview Monthly Sync: no operational writes ──────────────
     case 'previewMonthlySync': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'growth']);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
       const inputs = {
         tlCsv: typeof p.tlCsv === 'string' ? p.tlCsv : null,
@@ -1681,7 +1681,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
 
     // ── Monthly sync from confirmed CSV preview ──────────────────
     case 'monthlySync': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'growth']);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const tlCsv = typeof p.tlCsv === 'string' ? p.tlCsv : null;
@@ -1956,7 +1956,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     }
 
     case 'getMonthlySyncHistory': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'growth']);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
       try {
         const chapterId = await activeChapterId(db);
@@ -1993,7 +1993,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     }
 
     case 'updateGrowthMember': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'growth']);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const memberId = String(p.sheetRow || '');
@@ -2019,7 +2019,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     }
 
     case 'addGrowthMember': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'growth']);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const name      = String(p.name      || '').trim();
@@ -2056,7 +2056,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     }
 
     case 'moveGrowthMember': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'growth']);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
 
       const memberId  = String(p.sheetRow    || '');

@@ -640,7 +640,9 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     }
 
     case 'getMemberDetail': {
-      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
+      // Growth must use getGrowthMemberContext/getSharedMemberSupportContext.
+      // This endpoint contains Mentor-private coaching and history modules.
+      const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
       const scope = await resolveChapterScope(db, auth);
       if (!scope.ok) return errResponse(scope.error, 403);
@@ -884,6 +886,8 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
     case 'getMyTeam': {
       const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'mentor_support', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const requestedRole = String(p.role || '').toLowerCase();
       const role = auth.isMC && requestedRole
         ? requestedRole
@@ -894,10 +898,15 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         : String(auth.teamName || '');
       if (!teamName) return errResponse('ไม่พบทีม');
 
+      const { data: scopedMembers, error: scopedMembersError } = await db.from('members')
+        .select('id').eq('chapter_id', scope.chapterId).eq('is_archived', false);
+      if (scopedMembersError) return errResponse(scopedMembersError.message);
+      const scopedMemberIds = (scopedMembers || []).map((row: Record<string, unknown>) => String(row.id));
+      if (!scopedMemberIds.length) return jsonResponse({ ok: true, teamName, teamDisplayName: teamName, members: [] });
       let memberQuery = db
         .from('v_member_dashboard')
         .select('id, name, nickname, mentor_team, display_score, traffic_light, absent, tyfcb_thb, open_core_issue, given_thb, received_thb, palms_detail, days_to_expiry')
-        .eq('is_archived', false);
+        .eq('is_archived', false).in('id', scopedMemberIds);
       if (!isSupport) memberQuery = memberQuery.eq('mentor_team', teamName);
       const { data: members, error } = await memberQuery.order('display_score', { ascending: false, nullsFirst: false });
       if (error) return errResponse(error.message);

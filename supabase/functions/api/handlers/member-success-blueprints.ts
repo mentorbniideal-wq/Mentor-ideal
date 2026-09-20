@@ -2,6 +2,7 @@
 // Isolated annual business planning module. Does not duplicate member-owned
 // profile/team/performance data; dashboard rows join from existing members.
 import { requireAuth } from '../../_shared/auth.ts';
+import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { sha256Hex } from '../../_shared/line.ts';
 import { calculateMsbGoal } from '../../_shared/msb-goal-calculation.ts';
@@ -199,12 +200,19 @@ async function fetchPlanRows(
   db: Db,
   auth: Awaited<ReturnType<typeof requireAuth>>,
   year: number,
+  chapterId: string,
   memberId?: string,
 ) {
+  const { data: scopedMembers, error: scopedError } = await db.from('members')
+    .select('id').eq('chapter_id', chapterId).eq('is_archived', false);
+  if (scopedError) throw new Error(scopedError.message);
+  const scopedIds = (scopedMembers || []).map((row: Record<string, unknown>) => String(row.id));
+  if (!scopedIds.length) return [];
   let q = db
     .from('v_msb_plan_vs_actual')
     .select('*')
     .eq('blueprint_year', year)
+    .in('member_id', scopedIds)
     .order('mentor_team')
     .order('name');
   if (memberId) q = q.eq('member_id', memberId);
@@ -484,12 +492,16 @@ function buildPairMatching(rows: ReturnType<typeof mapPlanRow>[]) {
   };
 }
 
-async function buildFollowUpQueue(db: Db, auth: Awaited<ReturnType<typeof requireAuth>>) {
+async function buildFollowUpQueue(db: Db, auth: Awaited<ReturnType<typeof requireAuth>>, chapterId: string) {
   const canSeeAll = roleCanSeeAll(auth);
   const role = txt(auth.role).toLowerCase();
   const teamName = txt(auth.teamName);
   const now = Date.now();
   const dayMs = 86400000;
+  const { data: scopedMemberRows, error: scopedMemberError } = await db.from('members')
+    .select('id').eq('chapter_id', chapterId).eq('is_archived', false);
+  if (scopedMemberError) throw new Error(scopedMemberError.message);
+  const scopedMemberIds = (scopedMemberRows || []).map((row: Record<string, unknown>) => txt(row.id)).filter(Boolean);
 
   let issueQuery = db.from('core_issues')
     .select('id, member_id, mentor_team, issue_text, action_plan, action_taken, follow_up_at, opened_at, updated_at')
@@ -497,12 +509,14 @@ async function buildFollowUpQueue(db: Db, auth: Awaited<ReturnType<typeof requir
     .order('follow_up_at', { ascending: true, nullsFirst: false })
     .order('opened_at', { ascending: true });
   if (!canSeeAll && teamName) issueQuery = issueQuery.eq('mentor_team', teamName);
-  const { data: issueRows, error: issueErr } = await issueQuery;
+  const { data: issueRows, error: issueErr } = scopedMemberIds.length
+    ? await issueQuery.in('member_id', scopedMemberIds)
+    : { data: [], error: null };
   if (issueErr) throw new Error(issueErr.message);
 
   const memberIds = Array.from(new Set(((issueRows || []) as Record<string, unknown>[]).map(r => txt(r.member_id)).filter(Boolean)));
   const { data: memberRows } = memberIds.length
-    ? await db.from('members').select('id, name, nickname, mentor_team').in('id', memberIds)
+    ? await db.from('members').select('id, name, nickname, mentor_team').eq('chapter_id', chapterId).in('id', memberIds)
     : { data: [] };
   const memberById: Record<string, Record<string, unknown>> = {};
   for (const m of (memberRows || []) as Record<string, unknown>[]) memberById[txt(m.id)] = m;
@@ -510,6 +524,7 @@ async function buildFollowUpQueue(db: Db, auth: Awaited<ReturnType<typeof requir
   let taskQuery = db.from('growth_tasks')
     .select('id, assigned_to, task_text, task_type, priority, member_name, created_at, responded_at')
     .is('responded_at', null)
+    .eq('chapter_id', chapterId)
     .order('created_at', { ascending: true });
   if (!canSeeAll && role) taskQuery = taskQuery.eq('assigned_to', role);
   const { data: taskRows, error: taskErr } = await taskQuery;
@@ -787,10 +802,11 @@ async function saveBlueprintForMember(db: Db, memberId: string, year: number, p:
   return { blueprint: normalizeBlueprint(data as Record<string, unknown>) };
 }
 
-async function listDashboardRows(db: Db, auth: Awaited<ReturnType<typeof requireAuth>>, year: number) {
+async function listDashboardRows(db: Db, auth: Awaited<ReturnType<typeof requireAuth>>, year: number, chapterId: string) {
   let q = db
     .from('members')
     .select('id, name, nickname, mentor_team, bni_goal, is_archived')
+    .eq('chapter_id', chapterId)
     .eq('is_archived', false)
     .order('mentor_team')
     .order('name');
@@ -1124,12 +1140,15 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
     case 'generateMemberSuccessBlueprintLink': {
       const auth = await requireAuth(db, p, LINK_MANAGER_ROLES);
       if (!auth.ok) return errResponse(auth.error!, 403);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const memberId = txt(p.memberId || p.member_id);
       if (!memberId) return errResponse('memberId required', 400);
 
       const { data: member, error: memErr } = await db.from('members')
         .select('id, name, nickname, mentor_team')
         .eq('id', memberId)
+        .eq('chapter_id', scope.chapterId)
         .maybeSingle();
       if (memErr) return errResponse(memErr.message, 400);
       if (!member) return errResponse('ไม่พบสมาชิกนี้', 404);
@@ -1272,14 +1291,18 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
     case 'getMemberSuccessBlueprintsForDashboard': {
       const auth = await requireAuth(db, p, DASHBOARD_ROLES);
       if (!auth.ok) return errResponse(auth.error!);
-      const rows = await listDashboardRows(db, auth, year);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const rows = await listDashboardRows(db, auth, year, scope.chapterId);
       return jsonResponse({ ok: true, rows, blueprintYear: year });
     }
 
     case 'getMemberSuccessBlueprintSummary': {
       const auth = await requireAuth(db, p, DASHBOARD_ROLES);
       if (!auth.ok) return errResponse(auth.error!);
-      const rows = await listDashboardRows(db, auth, year);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const rows = await listDashboardRows(db, auth, year, scope.chapterId);
       return jsonResponse({
         ok: true,
         blueprintYear: year,
@@ -1290,17 +1313,19 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
     case 'getMSBDashboardBundle': {
       const auth = await requireAuth(db, p, DASHBOARD_ROLES);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       // The member Blueprint list is the primary working data. Intelligence
       // views and follow-up aggregation are additive: a failed optional query
       // must never blank the whole Growth workspace.
       const [dashboardRows, previousRows] = await Promise.all([
-        listDashboardRows(db, auth, year),
-        listDashboardRows(db, auth, year - 1),
+        listDashboardRows(db, auth, year, scope.chapterId),
+        listDashboardRows(db, auth, year - 1, scope.chapterId),
       ]);
       const historicalGoals = await loadHistoricalGrowthGoals(db, dashboardRows, year - 1);
       const [planResult, followupResult] = await Promise.allSettled([
-        fetchPlanRows(db, auth, year),
-        buildFollowUpQueue(db, auth),
+        fetchPlanRows(db, auth, year, scope.chapterId),
+        buildFollowUpQueue(db, auth, scope.chapterId),
       ]);
       const planRows = planResult.status === 'fulfilled' ? planResult.value : [];
       const followups = followupResult.status === 'fulfilled'
@@ -1337,7 +1362,9 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
     case 'getMSBIntelligenceOverview': {
       const auth = await requireAuth(db, p, DASHBOARD_ROLES);
       if (!auth.ok) return errResponse(auth.error!);
-      const rows = await fetchPlanRows(db, auth, year);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const rows = await fetchPlanRows(db, auth, year, scope.chapterId);
       return jsonResponse({
         ok: true,
         blueprintYear: year,
@@ -1348,37 +1375,47 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
     case 'getMSBPlanVsActual': {
       const auth = await requireAuth(db, p, DASHBOARD_ROLES);
       if (!auth.ok) return errResponse(auth.error!);
-      const rows = await fetchPlanRows(db, auth, year);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const rows = await fetchPlanRows(db, auth, year, scope.chapterId);
       return jsonResponse({ ok: true, blueprintYear: year, rows });
     }
 
     case 'getMSBSupportRadar': {
       const auth = await requireAuth(db, p, DASHBOARD_ROLES);
       if (!auth.ok) return errResponse(auth.error!);
-      const rows = await fetchPlanRows(db, auth, year);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const rows = await fetchPlanRows(db, auth, year, scope.chapterId);
       return jsonResponse({ ok: true, blueprintYear: year, radar: supportRadar(rows) });
     }
 
     case 'getMSBPairMatchingSuggestions': {
       const auth = await requireAuth(db, p, DASHBOARD_ROLES);
       if (!auth.ok) return errResponse(auth.error!);
-      const rows = await fetchPlanRows(db, auth, year);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const rows = await fetchPlanRows(db, auth, year, scope.chapterId);
       return jsonResponse({ ok: true, blueprintYear: year, matching: buildPairMatching(rows) });
     }
 
     case 'getMSBFollowUpQueue': {
       const auth = await requireAuth(db, p, DASHBOARD_ROLES);
       if (!auth.ok) return errResponse(auth.error!);
-      const queue = await buildFollowUpQueue(db, auth);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const queue = await buildFollowUpQueue(db, auth, scope.chapterId);
       return jsonResponse({ ok: true, queue });
     }
 
     case 'getMSBMemberIntelligence': {
       const auth = await requireAuth(db, p, DASHBOARD_ROLES);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const memberId = txt(p.memberId || p.member_id);
       if (!memberId) return errResponse('memberId required', 400);
-      const rows = await fetchPlanRows(db, auth, year, memberId);
+      const rows = await fetchPlanRows(db, auth, year, scope.chapterId, memberId);
       const row = rows[0];
       if (!row) return errResponse('ไม่พบข้อมูลสมาชิกนี้ หรือไม่มีสิทธิ์ดูข้อมูล', 404);
       return jsonResponse({
@@ -1436,9 +1473,11 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
     case 'getMSBMatchingSuggestions': {
       const auth = await requireAuth(db, p, DASHBOARD_ROLES);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const memberId = txt(p.memberId || p.member_id);
       if (!memberId) return errResponse('memberId required', 400);
-      const rows = await fetchPlanRows(db, auth, year, memberId);
+      const rows = await fetchPlanRows(db, auth, year, scope.chapterId, memberId);
       const row = rows[0];
       if (!row) return errResponse('ไม่พบข้อมูลสมาชิกนี้ หรือไม่มีสิทธิ์ดูข้อมูล', 404);
       const desired = [...row.powerTeamCategories, ...row.lookingForCategories].map(s => s.toLowerCase());
@@ -1446,6 +1485,7 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       let memberQuery = db.from('members')
         .select('id, name, nickname, mentor_team, profession, company_name, is_archived')
         .eq('is_archived', false)
+        .eq('chapter_id', scope.chapterId)
         .neq('id', memberId)
         .order('mentor_team')
         .order('name');

@@ -3952,13 +3952,15 @@ export async function handleMembers(
     case "setMentoringMode": {
       const auth = await requireAuth(db, p, ["mc", "growth"]);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
       const mode = textValue(p.mode).toLowerCase();
       if (!["active", "growth_watch"].includes(mode)) {
         return errResponse("mode must be active or growth_watch");
       }
 
-      const lookup = await findMemberByLegacyPayload(db, p);
+      const lookup = await findMemberByLegacyPayload(db, p, scope.chapterId);
       if (lookup.error || !lookup.member) {
         return errResponse(lookup.error || "member not found");
       }

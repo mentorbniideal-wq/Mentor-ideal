@@ -6411,10 +6411,13 @@ function openIMD(name){
   document.getElementById('imd-sub').textContent=(mem.mentor?teamDisplayName(mem.mentor):'ไม่มีทีม');
   // Fetch business description if not yet loaded
   if(mem.business===undefined){
-    gsr('getMemberDetail',{memberName:name},function(r){
+    var detailAction=S.role==='growth'?'getGrowthMemberContext':'getMemberDetail';
+    var detailPayload=S.role==='growth'?{memberId:mem.id||mem.memberId}:{memberName:name};
+    gsr(detailAction,detailPayload,function(r){
       if(r.ok){
         if(r.memberId)mem.memberId=r.memberId;
-        if(r.business!=null)mem.business=r.business;
+        if(r.member&&r.member.id)mem.memberId=r.member.id;
+        if(r.business!=null)mem.business=typeof r.business==='object'?(r.business.businessSummary||''):r.business;
         if(Array.isArray(r.scoreHistory))mem.scoreHistory=r.scoreHistory;
         if(S.role==='mc'){
           if(Number.isFinite(Number(r.bniScore)))mem.bniScore=Number(r.bniScore);
@@ -6952,10 +6955,12 @@ function imdMSBRetry(name,memberId){
   var mem=(D.mem||[]).find(function(x){return x.name===name;})||(G.mem||[]).find(function(x){return x.name===name;})||{name:name};
   if(memberId)mem.memberId=memberId;
   if(mem.memberId){loadIMDMSB(mem);return;}
-  gsr('getMemberDetail',{memberName:name},function(r){
+  var detailAction=S.role==='growth'?'getGrowthMemberContext':'getMemberDetail';
+  var detailPayload=S.role==='growth'?{memberId:mem.id||mem.memberId}:{memberName:name};
+  gsr(detailAction,detailPayload,function(r){
     if(r&&r.ok){
-      mem.memberId=r.memberId;
-      if(r.business!=null)mem.business=r.business;
+      mem.memberId=r.memberId||(r.member&&r.member.id)||mem.memberId;
+      if(r.business!=null)mem.business=typeof r.business==='object'?(r.business.businessSummary||''):r.business;
     }
     loadIMDMSB(mem);
   });
