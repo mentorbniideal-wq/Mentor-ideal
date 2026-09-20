@@ -224,10 +224,18 @@ async function fetchPlanRows(
   // Mentor/MC workflows keep their existing authorised view.
   if (String(auth.role || '').toLowerCase() !== 'growth' || !mapped.length) return mapped;
   const ids = mapped.map(row => row.memberId);
-  const { data: profiles, error: profileError } = await db.from('member_one_to_one_profiles')
-    .select('member_id,share_business,share_referral_focus').in('member_id', ids);
+  const [{ data: profiles, error: profileError }, { data: categoryConsents, error: consentError }] = await Promise.all([
+    db.from('member_one_to_one_profiles').select('member_id,share_business,share_referral_focus').in('member_id', ids),
+    db.from('member_growth_category_consents').select('member_id,category_type,category').in('member_id', ids).is('revoked_at', null),
+  ]);
   if (profileError) throw new Error(profileError.message);
+  if (consentError) throw new Error(consentError.message);
   const consent = new Map(((profiles || []) as Record<string, unknown>[]).map(row => [String(row.member_id), row]));
+  const allowedCategories = new Map<string, Set<string>>();
+  for (const item of (categoryConsents || []) as Record<string, unknown>[]) {
+    const key = `${String(item.member_id)}:${String(item.category_type)}`;
+    const values = allowedCategories.get(key) || new Set<string>(); values.add(String(item.category).toLowerCase()); allowedCategories.set(key, values);
+  }
   return mapped.map(row => {
     const flags = consent.get(String(row.memberId)) || {};
     const shareBusiness = flags.share_business !== false;
@@ -235,9 +243,9 @@ async function fetchPlanRows(
     return {
       ...row,
       companyName: shareBusiness ? row.companyName : '',
-      lookingForCategories: shareReferral ? row.lookingForCategories : [],
+      lookingForCategories: shareReferral ? row.lookingForCategories : row.lookingForCategories.filter(category => allowedCategories.get(`${String(row.memberId)}:looking_for`)?.has(String(category).toLowerCase())),
       lookingForDetail: shareReferral ? row.lookingForDetail : '',
-      powerTeamCategories: shareReferral ? row.powerTeamCategories : [],
+      powerTeamCategories: shareReferral ? row.powerTeamCategories : row.powerTeamCategories.filter(category => allowedCategories.get(`${String(row.memberId)}:power_team`)?.has(String(category).toLowerCase())),
       powerTeamDetail: shareReferral ? row.powerTeamDetail : '',
     };
   });
@@ -820,6 +828,13 @@ async function saveBlueprintForMember(db: Db, memberId: string, year: number, p:
     .update({ bni_goal: payload.expected_sales_from_bni_year })
     .eq('id', memberId);
   if (goalErr) return { error: `บันทึก Blueprint แล้ว แต่ sync MSB Goal ไม่สำเร็จ: ${goalErr.message}`, status: 400 };
+  const requestedConsents = Array.isArray(p.growth_category_consents) ? p.growth_category_consents as Record<string, unknown>[] : [];
+  for (const row of requestedConsents.slice(0, 80)) {
+    const type = txt(row.category_type); const category = txt(row.category).slice(0, 120); const granted = row.granted === true;
+    if (!['looking_for','power_team'].includes(type) || !category) continue;
+    if (granted) await db.from('member_growth_category_consents').upsert({ member_id:memberId, category_type:type, category, consented_at:new Date().toISOString(), revoked_at:null, actor_member_id:memberId }, { onConflict:'member_id,category_type,category' });
+    else await db.from('member_growth_category_consents').update({ revoked_at:new Date().toISOString(), actor_member_id:memberId }).eq('member_id', memberId).eq('category_type', type).eq('category', category);
+  }
   return { blueprint: normalizeBlueprint(data as Record<string, unknown>) };
 }
 
@@ -1292,11 +1307,13 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       if (identity.error || !identity.memberId) return errResponse(identity.error || 'Unauthorized', 401);
       const tokenYear = identity.blueprintYear || year;
       const blueprint = await getBlueprint(db, identity.memberId, tokenYear);
+      const { data: growthCategoryConsents } = await db.from('member_growth_category_consents').select('category_type,category,consented_at').eq('member_id', identity.memberId).is('revoked_at', null);
       return jsonResponse({
         ok: true,
         member: identity.member,
         blueprint: normalizeBlueprint(blueprint),
         blueprintYear: tokenYear,
+        growthCategoryConsents: growthCategoryConsents || [],
       });
     }
 

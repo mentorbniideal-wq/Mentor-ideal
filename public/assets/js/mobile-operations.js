@@ -3592,7 +3592,7 @@ function submitReply(idx){
   var d=RPT_IDX[idx];
   if(!d){toast('❌ ไม่พบข้อมูล');return;}
   var txt=document.getElementById('reply-'+idx);
-  var btn=document.getElementById('rbtn-'+idx);
+  var btn=document.getElementById('rbtn-reply-'+idx);
   if(!txt||!txt.value.trim()){toast('❌ กรุณาพิมพ์ข้อความก่อนครับ');return;}
   btn.disabled=true; btn.textContent='⏳ กำลังส่ง...';
   call('saveReply',{teamName:d.team,row:d.row,memberName:d.memberName,reply:txt.value.trim()},function(err,r){

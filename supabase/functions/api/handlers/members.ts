@@ -16,6 +16,7 @@ import {
   canViewMemberSignal,
 } from "../../_shared/member-signal-access.ts";
 import { linePush, sha256Hex } from "../../_shared/line.ts";
+import { CAPABILITY, hasCapability } from "../../_shared/capabilities.ts";
 import {
   evaluateNotificationGuard,
   logSuppressedNotification,
@@ -2788,6 +2789,34 @@ export async function handleMembers(
       const { data: created, error } = await db.from('member_signals').insert({ member_id:memberId, signal_type:signalType, subject_type:'support_handoff', subject_id:intent, title:`Handoff to ${targetRole}`, detail:safeReason, payload:{ support_intent:intent, source_role:sourceRole, target_role:target, safe_context:true, created_from:'member_support_os' }, target_roles:[targetRole], status:'new', priority:textValue(p.priority)==='urgent'?'urgent':textValue(p.priority)==='high'?'high':'normal', idempotency_key:key, created_at:now, updated_at:now }).select('id,status,target_roles,created_at').single();
       if (error) return errResponse(error.message);
       return jsonResponse({ ok:true, duplicate:false, handoff:created });
+    }
+
+    case "acceptGrowthHandoff": {
+      const auth = await requireAuth(db, p, ["growth", "mc"]);
+      if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.isMC && !auth.isAdmin && !hasCapability(auth, CAPABILITY.GROWTH_COORDINATE)) return errResponse("เฉพาะ Growth Coordinator เท่านั้นที่รับและมอบหมาย Handoff", 403);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const signalId = textValue(p.signalId);
+      const ownerEmail = textValue(p.ownerEmail).toLowerCase();
+      const taskText = textValue(p.taskText).replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 1000);
+      const dueDate = textValue(p.dueDate);
+      if (!signalId || !ownerEmail || !taskText) return errResponse("signalId, ownerEmail และ taskText required", 400);
+      const { data: signal } = await db.from("member_signals").select("id,member_id,status,payload,members!member_signals_member_id_fkey(name,chapter_id)").eq("id", signalId).maybeSingle();
+      const s = signal as Record<string, unknown> | null, member = s?.members as Record<string, unknown> | undefined;
+      if (!s || !member || String(member.chapter_id) !== scope.chapterId) return errResponse("ไม่พบ Handoff ใน Chapter นี้", 404);
+      const payload = (s.payload || {}) as Record<string, unknown>;
+      if (String(s.status) === "resolved" || String(payload.target_role) !== "growth" || payload.safe_context !== true) return errResponse("Handoff นี้ไม่พร้อมให้ Growth รับเรื่อง", 409);
+      const { data: owner } = await db.from("role_assignments").select("email,display_name,role,member_id,access_status").eq("chapter_id", scope.chapterId).ilike("email", ownerEmail).eq("access_status", "active").maybeSingle();
+      if (!owner || String((owner as Record<string, unknown>).role) !== "growth") return errResponse("ผู้รับผิดชอบต้องเป็นบัญชี Growth ที่ active ใน Chapter นี้", 400);
+      const { data: existing } = await db.from("growth_tasks").select("id,status").eq("chapter_id", scope.chapterId).eq("source_signal_id", signalId).not("status", "in", "(completed,cancelled)").maybeSingle();
+      if (existing) return jsonResponse({ ok:true, duplicate:true, task:existing });
+      const now = new Date().toISOString();
+      const ownerRow = owner as Record<string, unknown>;
+      const { data: task, error: taskError } = await db.from("growth_tasks").insert({ chapter_id:scope.chapterId, source_signal_id:signalId, created_by:String(auth.email || auth.role || "growth"), assigned_to:"growth", assigned_owner_email:ownerEmail, assigned_owner_name:String(ownerRow.display_name || ownerEmail), member_id:String(s.member_id), member_name:String(member.name || ""), task_type:"Mentor handoff", task_text:taskText, status:"new", due_date:dueDate || null, idempotency_key:`handoff:${signalId}` }).select("id,status,due_date,assigned_owner_name").single();
+      if (taskError) return errResponse(taskError.message);
+      await db.from("member_signals").update({ status:"acknowledged", assigned_role:"growth", assigned_member_id:ownerRow.member_id || null, acknowledged_by:String(auth.email || auth.role || "Growth Coordinator"), acknowledged_at:now, updated_at:now }).eq("id", signalId);
+      return jsonResponse({ ok:true, duplicate:false, task });
     }
 
     case "getMemberSignalHistory": {

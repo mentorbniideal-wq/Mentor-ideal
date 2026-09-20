@@ -5,6 +5,7 @@
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
+import { CAPABILITY, hasCapability } from '../../_shared/capabilities.ts';
 
 const TEAM_MAP: Record<string, string> = {
   toomtam: 'TOOMTAM', aof: 'Aof', draft: 'Draft', phai: 'PHAI', amp: 'AMP',
@@ -40,12 +41,20 @@ async function powerTeamCandidates(
   const ids = [...newestByMember.keys()];
   if (!ids.length) return [];
   const consentByMember = new Map<string, Record<string, unknown>>();
+  const explicitCategories = new Map<string, Set<string>>();
   if (respectReferralConsent) {
-    const { data: profiles, error: profileError } = await db.from('member_one_to_one_profiles')
-      .select('member_id,share_business,share_referral_focus').in('member_id', ids);
+    const [{ data: profiles, error: profileError }, { data: categoryRows, error: categoryError }] = await Promise.all([
+      db.from('member_one_to_one_profiles').select('member_id,share_business,share_referral_focus').in('member_id', ids),
+      db.from('member_growth_category_consents').select('member_id,category').in('member_id', ids).eq('category_type', 'power_team').is('revoked_at', null),
+    ]);
     if (profileError) throw new Error(profileError.message);
+    if (categoryError) throw new Error(categoryError.message);
     for (const profile of (profiles || []) as Record<string, unknown>[]) {
       consentByMember.set(String(profile.member_id), profile);
+    }
+    for (const row of (categoryRows || []) as Record<string, unknown>[]) {
+      const memberId = String(row.member_id); const values = explicitCategories.get(memberId) || new Set<string>();
+      values.add(cleanText(row.category, 120).toLowerCase()); explicitCategories.set(memberId, values);
     }
   }
   const { data: members, error: memberError } = await db.from('members')
@@ -55,8 +64,10 @@ async function powerTeamCandidates(
   for (const member of (members || []) as Record<string, unknown>[]) {
     const plan = newestByMember.get(String(member.id));
     const consent = consentByMember.get(String(member.id));
-    if (respectReferralConsent && consent?.share_referral_focus === false) continue;
-    const categories = Array.isArray(plan?.power_team_categories) ? plan.power_team_categories : [];
+    const rawCategories = Array.isArray(plan?.power_team_categories) ? plan.power_team_categories : [];
+    const categories = respectReferralConsent && consent?.share_referral_focus === false
+      ? rawCategories.filter(category => explicitCategories.get(String(member.id))?.has(cleanText(category, 120).toLowerCase()))
+      : rawCategories;
     const detail = cleanText(plan?.power_team_detail, 500);
     for (const rawCategory of categories) {
       const category = cleanText(rawCategory, 120);
@@ -272,17 +283,20 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
         const chapterId = scope.chapterId;
         const [candidates, saved] = await Promise.all([
           powerTeamCandidates(db, chapterId, String(auth.role || '').toLowerCase() === 'growth'),
-          db.from('power_team_proposals').select('id,title,target_customer_group,rationale,source_category,status,created_by,created_at,updated_at,power_team_proposal_members(member_id,members(id,name,nickname,profession,company_name,mentor_team))')
+          db.from('power_team_proposals').select('id,title,target_customer_group,rationale,source_category,status,created_by,assigned_owner_email,assigned_owner_name,assigned_at,created_at,updated_at,power_team_proposal_members(member_id,members(id,name,nickname,profession,company_name,mentor_team))')
             .eq('chapter_id', chapterId).neq('status', 'archived').order('updated_at', { ascending: false }),
         ]);
         if (saved.error) throw new Error(saved.error.message);
-        return jsonResponse({ ok: true, candidates, proposals: saved.data || [] });
+        const coordinator = auth.isMC || auth.isAdmin || hasCapability(auth, CAPABILITY.GROWTH_COORDINATE);
+        const proposals = coordinator ? (saved.data || []) : (saved.data || []).filter((row: Record<string, unknown>) => String(row.assigned_owner_email || '').toLowerCase() === String(auth.email || '').toLowerCase());
+        return jsonResponse({ ok: true, candidates: coordinator ? candidates : [], proposals });
       } catch (error) { return errResponse(error instanceof Error ? error.message : String(error)); }
     }
 
     case 'savePowerTeamProposal': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.isMC && !auth.isAdmin && !hasCapability(auth, CAPABILITY.GROWTH_COORDINATE)) return errResponse('เฉพาะ Growth Coordinator เท่านั้นที่สร้างหรือมอบหมาย Proposal', 403);
       const title = cleanText(p.title, 120), targetCustomerGroup = cleanText(p.targetCustomerGroup, 500);
       const rationale = cleanText(p.rationale, 1500), sourceCategory = cleanText(p.sourceCategory, 120) || null;
       const memberIds = [...new Set(Array.isArray(p.memberIds) ? p.memberIds.map(value => String(value)).filter(Boolean) : [])];
@@ -307,6 +321,36 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
         await db.from('chapter_audit_events').insert({ event_type: 'power_team_proposal_created', actor_role: auth.role || 'growth', actor_ref: String(auth.email || auth.displayName || ''), metadata: { proposal_id: proposalId, chapter_id: chapterId, member_count: memberIds.length, source_category: sourceCategory } });
         return jsonResponse({ ok: true, proposalId });
       } catch (error) { return errResponse(error instanceof Error ? error.message : String(error)); }
+    }
+
+    case 'updatePowerTeamProposal': {
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth); if (!scope.ok) return errResponse(scope.error, 403);
+      const proposalId = cleanText(p.proposalId, 80), status = cleanText(p.status, 30);
+      if (!proposalId || !['draft','assigned','exploring','active','closed','archived'].includes(status)) return errResponse('proposalId หรือ status ไม่ถูกต้อง', 400);
+      const { data: proposal } = await db.from('power_team_proposals').select('id,assigned_owner_email,status').eq('id', proposalId).eq('chapter_id', scope.chapterId).maybeSingle();
+      const current = proposal as Record<string, unknown> | null; if (!current) return errResponse('ไม่พบ Proposal ใน Chapter นี้', 404);
+      const coordinator = auth.isMC || auth.isAdmin || hasCapability(auth, CAPABILITY.GROWTH_COORDINATE);
+      const owns = String(current.assigned_owner_email || '').toLowerCase() === String(auth.email || '').toLowerCase();
+      if (!coordinator && !owns) return errResponse('ไม่มีสิทธิ์แก้ Proposal ของผู้อื่น', 403);
+      if (!coordinator && !['exploring','closed'].includes(status)) return errResponse('Growth owner เปลี่ยนได้เฉพาะ exploring หรือเสนอปิดงาน', 403);
+      const patch: Record<string, unknown> = { status, updated_at:new Date().toISOString() };
+      if (status === 'closed') patch.rationale = cleanText(p.closeReason, 1500) || String(current.rationale || '');
+      const { error } = await db.from('power_team_proposals').update(patch).eq('id', proposalId).eq('chapter_id', scope.chapterId); if (error) return errResponse(error.message);
+      return jsonResponse({ ok:true });
+    }
+
+    case 'assignPowerTeamProposal': {
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.isMC && !auth.isAdmin && !hasCapability(auth, CAPABILITY.GROWTH_COORDINATE)) return errResponse('เฉพาะ Growth Coordinator เท่านั้นที่มอบหมาย Proposal', 403);
+      const scope = await resolveChapterScope(db, auth); if (!scope.ok) return errResponse(scope.error, 403);
+      const proposalId = cleanText(p.proposalId, 80), ownerEmail = cleanText(p.ownerEmail, 255).toLowerCase(); if (!proposalId || !ownerEmail) return errResponse('proposalId และ ownerEmail required', 400);
+      const { data: owner } = await db.from('role_assignments').select('email,display_name,role').eq('chapter_id', scope.chapterId).ilike('email', ownerEmail).eq('access_status','active').maybeSingle();
+      if (!owner || String((owner as Record<string, unknown>).role) !== 'growth') return errResponse('ผู้รับผิดชอบต้องเป็น Growth ที่ active ใน Chapter นี้', 400);
+      const { error } = await db.from('power_team_proposals').update({ assigned_owner_email:ownerEmail, assigned_owner_name:String((owner as Record<string,unknown>).display_name || ownerEmail), assigned_at:new Date().toISOString(), status:'assigned', updated_at:new Date().toISOString() }).eq('id', proposalId).eq('chapter_id', scope.chapterId); if (error) return errResponse(error.message);
+      return jsonResponse({ ok:true });
     }
 
     // ── Get Power Teams ──────────────────────────────────────────

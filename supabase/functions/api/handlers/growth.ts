@@ -6,6 +6,11 @@ import { findEvolutionAverageColumn } from '../../_shared/traffic-evolution.ts';
 import { calcPalmsScore } from '../../_shared/palms.ts';
 import { getMentorActivityData } from './dashboard.ts';
 import { buildGrowthIntelligence } from '../../_shared/growth-intelligence.ts';
+import { CAPABILITY, hasCapability } from '../../_shared/capabilities.ts';
+
+function hasGrowthCapability(auth: Awaited<ReturnType<typeof requireAuth>>, capability: string) {
+  return Boolean(auth.isAdmin || hasCapability(auth, capability));
+}
 
 const TEAM_ROLE: Record<string, string> = {
   toomtam: 'TOOMTAM', aof: 'Aof', draft: 'Draft', phai: 'PHAI', amp: 'AMP',
@@ -1445,6 +1450,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'createGrowthTask': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.isMC && !hasGrowthCapability(auth, CAPABILITY.GROWTH_COORDINATE)) return errResponse('เฉพาะ Growth Coordinator เท่านั้นที่สร้างหรือมอบหมายงาน', 403);
       const scope = await resolveChapterScope(db, auth);
       if (!scope.ok) return errResponse(scope.error, 403);
       // Accept both old (assignedTo/taskText) and new (teamName/memberName/taskType/note) params
@@ -1521,8 +1527,9 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const statusFilter = String(p.statusFilter || 'all');
 
       let query = db.from('growth_tasks').select('id, created_by, assigned_to, task_text, response, responded_at, created_at, priority, task_type, member_name, member_id, status, due_date, assigned_owner_email, assigned_owner_name, started_at, completed_at, updated_at').eq('chapter_id', scope.chapterId);
-      // Mentors only see tasks assigned to them; MC/growth see all
-      if (role !== 'mc' && role !== 'growth') query = query.eq('assigned_to', role);
+      // A Growth member sees only work explicitly assigned to their OAuth identity.
+      if (role === 'growth' && !hasGrowthCapability(auth, CAPABILITY.GROWTH_COORDINATE)) query = query.eq('assigned_owner_email', String(auth.email || '').toLowerCase());
+      else if (role !== 'mc' && role !== 'growth') query = query.eq('assigned_to', role);
       // Status filter
       if (statusFilter === 'open') query = query.in('status',['new','accepted','in_progress','waiting_member']);
       if (statusFilter === 'done') query = query.in('status',['completed','cancelled']);
@@ -1578,7 +1585,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const assignedTo = String((task as Record<string, unknown>).assigned_to || '').toLowerCase();
       const role = String(auth.role || '').toLowerCase();
       const ownerEmail=String((task as Record<string,unknown>).assigned_owner_email||'').toLowerCase();
-      if (!auth.isMC && role !== 'growth' && assignedTo !== role && ownerEmail !== String(auth.email||'').toLowerCase()) {
+      const ownsTask = ownerEmail && ownerEmail === String(auth.email || '').toLowerCase();
+      if (!auth.isMC && !auth.isAdmin && !hasGrowthCapability(auth, CAPABILITY.GROWTH_COORDINATE) && !ownsTask && assignedTo !== role) {
         return errResponse('ไม่มีสิทธิ์ตอบ Growth Task ของทีมอื่น', 403);
       }
       const now=new Date().toISOString(),changes:Record<string,unknown>={status:nextStatus,response:response||null};
@@ -1590,6 +1598,34 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         .eq('id', taskId).eq('chapter_id', scope.chapterId);
       if (error) return errResponse(error.message);
       return jsonResponse({ ok: true });
+    }
+
+    case 'recordGrowthTaskStage': {
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const taskId = String(p.taskId || '');
+      const stage = String(p.stage || '');
+      const pairId = String(p.matchingPairId || '');
+      const safeSummary = String(p.safeSummary || '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 1000);
+      if (!taskId || !['connection_introduced','my121_verified','referral_reported','business_outcome_reported'].includes(stage)) return errResponse('taskId หรือ stage ไม่ถูกต้อง', 400);
+      const { data: task } = await db.from('growth_tasks').select('id,member_id,assigned_owner_email').eq('id', taskId).eq('chapter_id', scope.chapterId).maybeSingle();
+      const t = task as Record<string, unknown> | null;
+      if (!t) return errResponse('ไม่พบ Growth Task ใน Chapter นี้', 404);
+      const ownsTask = String(t.assigned_owner_email || '').toLowerCase() === String(auth.email || '').toLowerCase();
+      if (!auth.isMC && !auth.isAdmin && !hasGrowthCapability(auth, CAPABILITY.GROWTH_COORDINATE) && !ownsTask) return errResponse('ไม่มีสิทธิ์บันทึกผลของงานนี้', 403);
+      if (stage === 'my121_verified') {
+        if (!pairId) return errResponse('matchingPairId required for verified MY121', 400);
+        const { data: pair } = await db.from('matching_pairs').select('id,status,member_a_id,member_b_id,chapter_id').eq('id', pairId).eq('chapter_id', scope.chapterId).maybeSingle();
+        const pairRow = pair as Record<string, unknown> | null;
+        if (!pairRow || !['verified','late_verified','completed'].includes(String(pairRow.status))) return errResponse('MY121 ยังไม่ได้รับการยืนยัน', 409);
+        if (String(pairRow.member_a_id) !== String(t.member_id) && String(pairRow.member_b_id) !== String(t.member_id)) return errResponse('คู่ MY121 ไม่เกี่ยวข้องกับสมาชิกของ Growth Task', 403);
+      }
+      const { data, error } = await db.from('growth_task_stage_events').insert({ growth_task_id:taskId, chapter_id:scope.chapterId, stage, matching_pair_id:pairId || null, safe_summary:safeSummary, recorded_by:String(auth.email || auth.role || 'growth') }).select('id,stage,matching_pair_id,recorded_at').single();
+      if (error?.code === '23505') return jsonResponse({ ok:true, duplicate:true });
+      if (error) return errResponse(error.message);
+      return jsonResponse({ ok:true, event:data });
     }
 
     // ── Preview Monthly Sync: no operational writes ──────────────
@@ -1689,6 +1725,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'monthlySync': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      if (!hasGrowthCapability(auth, CAPABILITY.GROWTH_MONTHLY_SYNC_EXECUTE)) return errResponse('Monthly Sync ต้องได้รับสิทธิ์ Admin', 403);
 
       const tlCsv = typeof p.tlCsv === 'string' ? p.tlCsv : null;
       const r2yCsv = typeof p.r2yCsv === 'string' ? p.r2yCsv : null;
@@ -1979,6 +2016,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'rollbackMonthlySync': {
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
+      if (!hasGrowthCapability(auth, CAPABILITY.GROWTH_MONTHLY_SYNC_EXECUTE)) return errResponse('Rollback Monthly Sync ต้องได้รับสิทธิ์ Admin', 403);
       const batchId = String(p.batchId || '');
       if (!batchId || !Boolean(p.confirmed)) return errResponse('ต้องระบุรอบและยืนยัน Rollback');
       try {
@@ -2001,6 +2039,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'updateGrowthMember': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      if (!hasGrowthCapability(auth, CAPABILITY.GROWTH_MEMBER_MANAGE)) return errResponse('แก้ไขข้อมูลสมาชิกต้องได้รับสิทธิ์ Admin', 403);
 
       const memberId = String(p.sheetRow || '');
       if (!memberId) return errResponse('sheetRow required');
@@ -2027,6 +2066,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'addGrowthMember': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      if (!hasGrowthCapability(auth, CAPABILITY.GROWTH_MEMBER_MANAGE)) return errResponse('เพิ่มข้อมูลสมาชิกต้องได้รับสิทธิ์ Admin', 403);
 
       const name      = String(p.name      || '').trim();
       const groupName = String(p.groupName || '').trim();
@@ -2064,6 +2104,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'moveGrowthMember': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      if (!hasGrowthCapability(auth, CAPABILITY.GROWTH_MEMBER_MANAGE)) return errResponse('ย้ายข้อมูลสมาชิกต้องได้รับสิทธิ์ Admin', 403);
 
       const memberId  = String(p.sheetRow    || '');
       const groupName = String(p.targetGroup || '').trim();

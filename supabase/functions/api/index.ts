@@ -119,6 +119,7 @@ const ROUTES: Record<string, string> = {
   'setChapterAccessStatus': 'members',
   'getMemberSignals': 'members', 'getMemberSignalHistory': 'members', 'updateMemberSignal': 'members',
   'createSupportHandoff': 'members', 'getGrowthSupportHandoffs': 'members',
+  'acceptGrowthHandoff': 'members',
   'addMemberSignalNote': 'members', 'reopenMemberSignal': 'members',
 
   // Coaching / Core Issue
@@ -147,11 +148,13 @@ const ROUTES: Record<string, string> = {
   'getMentorActivity': 'growth', 'getWeeklyActions': 'growth',
   'createGrowthTask': 'growth', 'getGrowthTasks': 'growth',
   'respondGrowthTask': 'growth', 'previewMonthlySync': 'growth', 'monthlySync': 'growth',
+  'recordGrowthTaskStage': 'growth',
   'getMonthlySyncHistory': 'growth', 'rollbackMonthlySync': 'growth', 'importScoreHistory': 'growth',
 
   // Power Teams
   'getPowerTeams': 'power-teams', 'getPTMembers': 'power-teams',
   'getPowerTeamProposals': 'power-teams', 'savePowerTeamProposal': 'power-teams',
+  'updatePowerTeamProposal': 'power-teams', 'assignPowerTeamProposal': 'power-teams',
   'savePTMember': 'power-teams', 'deletePTMember': 'power-teams',
   'setPTMemberStatus': 'power-teams', 'updatePTMember': 'power-teams',
   'movePTMember': 'power-teams', 'moveSynMember': 'power-teams',

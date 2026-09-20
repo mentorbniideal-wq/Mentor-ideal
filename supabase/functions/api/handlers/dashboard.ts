@@ -659,8 +659,11 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
           idealClient: consentReferral ? String(profile.ideal_client || '') : '',
           referralTrigger: consentReferral ? String(profile.referral_trigger || '') : '',
           businessSummary: consentBusiness ? String(profile.business_summary || '') : '',
-          lookingForCategories: Array.isArray(plan.looking_for_categories) ? plan.looking_for_categories.map(String) : [],
-          powerTeamCategories: Array.isArray(plan.power_team_categories) ? plan.power_team_categories.map(String) : [],
+          // Detailed category consent is enforced by Blueprint Intelligence;
+          // this direct Growth context must default-deny until it has loaded
+          // the member's explicit category grants.
+          lookingForCategories: consentReferral && Array.isArray(plan.looking_for_categories) ? plan.looking_for_categories.map(String) : [],
+          powerTeamCategories: consentReferral && Array.isArray(plan.power_team_categories) ? plan.power_team_categories.map(String) : [],
           updatedAt: profileUpdatedAt || null,
           stale,
           consent: { business: consentBusiness, referralFocus: consentReferral },

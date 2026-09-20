@@ -9,6 +9,10 @@ export const CAPABILITY = {
   LT_MANAGE: 'lt.manage',
   SIGNALS_VIEW: 'signals.view',
   SIGNALS_MANAGE: 'signals.manage',
+  GROWTH_TASK_MANAGE_ASSIGNED: 'growth.task.manage_assigned',
+  GROWTH_COORDINATE: 'growth.coordinate',
+  GROWTH_MEMBER_MANAGE: 'growth.member.manage',
+  GROWTH_MONTHLY_SYNC_EXECUTE: 'growth.monthly_sync.execute',
 } as const;
 
 export interface CapabilitySubject {
