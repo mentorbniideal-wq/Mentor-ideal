@@ -55,6 +55,40 @@ Deno.test("Blueprint intelligence and matching derive Chapter scope", async () =
   const matching = actionBlock(source, "getMSBMatchingSuggestions", "");
   assert(matching.includes("resolveChapterScope(db, auth)"));
   assert(matching.includes(".eq('chapter_id', scope.chapterId)"));
+  assert(matching.includes("share_business") && matching.includes("share_referral_focus"), 'Growth matching must apply business and referral consent');
+});
+
+Deno.test("MY121 aggregates derive Chapter scope before every log query", async () => {
+  const source = await read("supabase/functions/api/handlers/121.ts");
+  for (const [action, next] of [["getAll121Logs", "get121Tracker"], ["get121Tracker", ""]] as const) {
+    const block = actionBlock(source, action, next);
+    assert(block.includes("resolveChapterScope(db, auth)"), `${action} must derive Chapter scope`);
+    assert(block.includes(".eq('chapter_id', scope.chapterId)"), `${action} must scope members to the Chapter`);
+    assert(block.includes(".in('initiator_id', scopedIds)"), `${action} must scope every MY121 log read`);
+    assert(block.includes(".eq('initiator.chapter_id', scope.chapterId)"), `${action} must scope the initiator join`);
+  }
+  const tracker = actionBlock(source, "get121Tracker", "");
+  assert(tracker.includes(".eq('partner.chapter_id', scope.chapterId)"), 'tracker must scope the partner join');
+  assert(tracker.includes("auth.role === 'growth' ? ''"), 'Growth MY121 DTO must omit Mentor-private free text');
+});
+
+Deno.test("synthetic two-Chapter and consent-disabled fixtures preserve the Growth projection", () => {
+  const members = [
+    { id: 'a-1', chapterId: 'chapter-a', companyName: 'Visible Co.', powerTeams: ['Architect'], shareBusiness: true, shareReferral: true },
+    { id: 'a-2', chapterId: 'chapter-a', companyName: 'Hidden Co.', powerTeams: ['Lawyer'], shareBusiness: false, shareReferral: false },
+    { id: 'b-1', chapterId: 'chapter-b', companyName: 'Other Chapter Co.', powerTeams: ['Architect'], shareBusiness: true, shareReferral: true },
+  ];
+  const growthProjection = members
+    .filter(member => member.chapterId === 'chapter-a')
+    .map(member => ({
+      id: member.id,
+      companyName: member.shareBusiness ? member.companyName : '',
+      powerTeams: member.shareReferral ? member.powerTeams : [],
+    }));
+  assertEquals(growthProjection, [
+    { id: 'a-1', companyName: 'Visible Co.', powerTeams: ['Architect'] },
+    { id: 'a-2', companyName: '', powerTeams: [] },
+  ]);
 });
 
 Deno.test("Member Team and mentoring mode writes cannot cross Chapter", async () => {

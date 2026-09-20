@@ -219,7 +219,28 @@ async function fetchPlanRows(
   if (!roleCanSeeAll(auth) && auth.teamName) q = q.eq('mentor_team', auth.teamName);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-  return ((data || []) as Record<string, unknown>[]).map(mapPlanRow);
+  const mapped = ((data || []) as Record<string, unknown>[]).map(mapPlanRow);
+  // Growth receives only the business/referral content that a member permits.
+  // Mentor/MC workflows keep their existing authorised view.
+  if (String(auth.role || '').toLowerCase() !== 'growth' || !mapped.length) return mapped;
+  const ids = mapped.map(row => row.memberId);
+  const { data: profiles, error: profileError } = await db.from('member_one_to_one_profiles')
+    .select('member_id,share_business,share_referral_focus').in('member_id', ids);
+  if (profileError) throw new Error(profileError.message);
+  const consent = new Map(((profiles || []) as Record<string, unknown>[]).map(row => [String(row.member_id), row]));
+  return mapped.map(row => {
+    const flags = consent.get(String(row.memberId)) || {};
+    const shareBusiness = flags.share_business !== false;
+    const shareReferral = flags.share_referral_focus !== false;
+    return {
+      ...row,
+      companyName: shareBusiness ? row.companyName : '',
+      lookingForCategories: shareReferral ? row.lookingForCategories : [],
+      lookingForDetail: shareReferral ? row.lookingForDetail : '',
+      powerTeamCategories: shareReferral ? row.powerTeamCategories : [],
+      powerTeamDetail: shareReferral ? row.powerTeamDetail : '',
+    };
+  });
 }
 
 function topCountsFromRows(rows: ReturnType<typeof mapPlanRow>[], field: 'lookingForCategories' | 'powerTeamCategories') {
@@ -1492,10 +1513,20 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       if (!roleCanSeeAll(auth) && auth.teamName) memberQuery = memberQuery.eq('mentor_team', auth.teamName);
       const { data, error } = await memberQuery;
       if (error) return errResponse(error.message, 400);
+      const candidateIds = ((data || []) as Record<string, unknown>[]).map(m => String(m.id));
+      const { data: profiles, error: profileError } = candidateIds.length
+        ? await db.from('member_one_to_one_profiles').select('member_id,share_business,share_referral_focus').in('member_id', candidateIds)
+        : { data: [], error: null };
+      if (profileError) return errResponse(profileError.message, 400);
+      const consent = new Map(((profiles || []) as Record<string, unknown>[]).map(row => [String(row.member_id), row]));
       const suggestions = ((data || []) as Record<string, unknown>[])
         .map(m => {
+          const flags = consent.get(String(m.id)) || {};
+          const shareBusiness = flags.share_business !== false;
+          const shareReferral = flags.share_referral_focus !== false;
+          if (!shareReferral) return null;
           const profession = txt(m.profession).toLowerCase();
-          const company = txt(m.company_name).toLowerCase();
+          const company = shareBusiness ? txt(m.company_name).toLowerCase() : '';
           const matched = desired.filter(cat => cat && (profession.includes(cat) || company.includes(cat) || cat.includes(profession)));
           return {
             memberId: m.id,
@@ -1503,13 +1534,13 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
             nickname: m.nickname,
             mentorTeam: m.mentor_team,
             profession: m.profession,
-            companyName: m.company_name,
+            companyName: shareBusiness ? m.company_name : '',
             matchedCategories: Array.from(new Set(matched)),
             confidence: matched.length >= 2 ? 'medium' : matched.length === 1 ? 'low' : '',
             label: 'category-based suggestion',
           };
         })
-        .filter(m => m.matchedCategories.length)
+        .filter((m) => Boolean(m && m.matchedCategories.length))
         .slice(0, 12);
       return jsonResponse({ ok: true, blueprintYear: year, suggestions });
     }

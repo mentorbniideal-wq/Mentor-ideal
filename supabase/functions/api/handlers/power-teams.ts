@@ -16,7 +16,11 @@ function cleanText(value: unknown, limit: number): string {
   return String(value ?? '').trim().replace(/\s+/g, ' ').slice(0, limit);
 }
 
-async function powerTeamCandidates(db: ReturnType<typeof getServiceClient>, chapterId: string) {
+async function powerTeamCandidates(
+  db: ReturnType<typeof getServiceClient>,
+  chapterId: string,
+  respectReferralConsent = false,
+) {
   const year = new Date().getFullYear();
   const { data: scopedMembers, error: scopeError } = await db.from('members').select('id')
     .eq('chapter_id', chapterId).eq('is_archived', false);
@@ -35,12 +39,23 @@ async function powerTeamCandidates(db: ReturnType<typeof getServiceClient>, chap
   }
   const ids = [...newestByMember.keys()];
   if (!ids.length) return [];
+  const consentByMember = new Map<string, Record<string, unknown>>();
+  if (respectReferralConsent) {
+    const { data: profiles, error: profileError } = await db.from('member_one_to_one_profiles')
+      .select('member_id,share_business,share_referral_focus').in('member_id', ids);
+    if (profileError) throw new Error(profileError.message);
+    for (const profile of (profiles || []) as Record<string, unknown>[]) {
+      consentByMember.set(String(profile.member_id), profile);
+    }
+  }
   const { data: members, error: memberError } = await db.from('members')
     .select('id,name,nickname,profession,company_name,mentor_team,is_archived').in('id', ids).eq('chapter_id', chapterId).eq('is_archived', false);
   if (memberError) throw new Error(memberError.message);
   const groups = new Map<string, { memberIds: string[]; members: Record<string, unknown>[]; details: string[] }>();
   for (const member of (members || []) as Record<string, unknown>[]) {
     const plan = newestByMember.get(String(member.id));
+    const consent = consentByMember.get(String(member.id));
+    if (respectReferralConsent && consent?.share_referral_focus === false) continue;
     const categories = Array.isArray(plan?.power_team_categories) ? plan.power_team_categories : [];
     const detail = cleanText(plan?.power_team_detail, 500);
     for (const rawCategory of categories) {
@@ -67,8 +82,12 @@ async function powerTeamCandidates(db: ReturnType<typeof getServiceClient>, chap
  * Mentor ownership team. Keep the performance fields that the existing Growth
  * UI needs, while deriving every member ID from the authenticated Chapter.
  */
-async function fetchGrowthPowerTeamOverview(db: ReturnType<typeof getServiceClient>, chapterId: string) {
-  const candidates = await powerTeamCandidates(db, chapterId);
+async function fetchGrowthPowerTeamOverview(
+  db: ReturnType<typeof getServiceClient>,
+  chapterId: string,
+  respectReferralConsent = false,
+) {
+  const candidates = await powerTeamCandidates(db, chapterId, respectReferralConsent);
   const memberIds = [...new Set(candidates.flatMap(candidate => candidate.memberIds))];
   if (!memberIds.length) {
     return {
@@ -252,7 +271,7 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
         if (!scope.ok) return errResponse(scope.error, 403);
         const chapterId = scope.chapterId;
         const [candidates, saved] = await Promise.all([
-          powerTeamCandidates(db, chapterId),
+          powerTeamCandidates(db, chapterId, String(auth.role || '').toLowerCase() === 'growth'),
           db.from('power_team_proposals').select('id,title,target_customer_group,rationale,source_category,status,created_by,created_at,updated_at,power_team_proposal_members(member_id,members(id,name,nickname,profession,company_name,mentor_team))')
             .eq('chapter_id', chapterId).neq('status', 'archived').order('updated_at', { ascending: false }),
         ]);
@@ -651,7 +670,11 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
       const scope = await resolveChapterScope(db, auth);
       if (!scope.ok) return errResponse(scope.error, 403);
       try {
-        const overview = await fetchGrowthPowerTeamOverview(db, scope.chapterId);
+        const overview = await fetchGrowthPowerTeamOverview(
+          db,
+          scope.chapterId,
+          String(auth.role || '').toLowerCase() === 'growth',
+        );
         return jsonResponse({ ok: true, ...overview });
       } catch (error) {
         return errResponse(error instanceof Error ? error.message : String(error));

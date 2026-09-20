@@ -3,6 +3,7 @@
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { memberAccessError, resolveMemberAccess } from '../../_shared/authorization.ts';
+import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
 
 export async function handle121(p: Record<string, unknown>): Promise<Response> {
   const db = getServiceClient();
@@ -114,6 +115,13 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
     case 'getAll121Logs': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const { data: scopedMembers, error: scopeError } = await db.from('members')
+        .select('id').eq('chapter_id', scope.chapterId).eq('is_archived', false);
+      if (scopeError) return errResponse(scopeError.message);
+      const scopedIds = (scopedMembers || []).map((row: Record<string, unknown>) => String(row.id));
+      if (!scopedIds.length) return jsonResponse({ ok: true, total: 0, byTeam: {}, recent: [] });
 
       // Fetch all logs with member info (mentor_team via initiator)
       const { data, error } = await db
@@ -125,8 +133,10 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
           partner_name,
           met_at,
           created_at,
-          initiator:members!one_to_one_logs_initiator_id_fkey(name, nickname, mentor_team)
+          initiator:members!one_to_one_logs_initiator_id_fkey(name, nickname, mentor_team, chapter_id)
         `)
+        .in('initiator_id', scopedIds)
+        .eq('initiator.chapter_id', scope.chapterId)
         .order('created_at', { ascending: false })
         .limit(500);
       if (error) return errResponse(error.message);
@@ -154,7 +164,9 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
         return {
           team:      String(initiator?.mentor_team || ''),
           member:    String(initiator?.name        || ''),
-          note:      String(row.notes              || ''),
+          // Growth can monitor Chapter-level activity, but the free-text
+          // 1-2-1 discussion belongs to the Mentor workflow.
+          note:      auth.role === 'growth' ? '' : String(row.notes || ''),
           loggedAt:  String(row.met_at             || row.created_at || ''),
         };
       });
@@ -167,6 +179,13 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
     case 'get121Tracker': {
       const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const { data: scopedMembers, error: scopeError } = await db.from('members')
+        .select('id').eq('chapter_id', scope.chapterId).eq('is_archived', false);
+      if (scopeError) return errResponse(scopeError.message);
+      const scopedIds = (scopedMembers || []).map((row: Record<string, unknown>) => String(row.id));
+      if (!scopedIds.length) return jsonResponse({ ok: true, list: [], stats: { total: 0, met: 0, pending: 0, gotRef: 0, convRate: 0 } });
 
       const { data, error } = await db
         .from('one_to_one_logs')
@@ -178,9 +197,12 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
           met_at,
           scheduled_date,
           created_at,
-          initiator:members!one_to_one_logs_initiator_id_fkey(name, nickname, mentor_team),
-          partner:members!one_to_one_logs_partner_id_fkey(name, nickname, mentor_team)
+          initiator:members!one_to_one_logs_initiator_id_fkey(name, nickname, mentor_team, chapter_id),
+          partner:members!one_to_one_logs_partner_id_fkey(name, nickname, mentor_team, chapter_id)
         `)
+        .in('initiator_id', scopedIds)
+        .eq('initiator.chapter_id', scope.chapterId)
+        .eq('partner.chapter_id', scope.chapterId)
         .order('created_at', { ascending: false })
         .limit(500);
       if (error) return errResponse(error.message);
@@ -218,8 +240,10 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
           partner:     String(row.partner_name || partner?.name || ''),
           partnerTeam: String(partner?.mentor_team || ''),
           team:        String(initiator?.mentor_team || ''),
-          note:        String(row.notes           || ''),
-          outcome:     outcomeStr,
+          // Do not disclose Mentor-private free text through a tracker that
+          // is available to Growth. Status and aggregate counts remain.
+          note:        auth.role === 'growth' ? '' : String(row.notes || ''),
+          outcome:     auth.role === 'growth' ? '' : outcomeStr,
           status:      statusThai,
           date:        dateStr,
           loggedAt:    dateStr,

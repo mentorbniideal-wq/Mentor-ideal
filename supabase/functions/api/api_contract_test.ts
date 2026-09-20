@@ -183,11 +183,11 @@ Deno.test('Growth Intelligence and legacy Growth Sheet derive tenant scope serve
     const block = growthHandler.slice(start, next < 0 ? undefined : next);
     assert(block.includes('resolveChapterScope(db, auth)') && block.includes('scope.chapterId'), `${action} must use server-derived Chapter scope`);
   }
-  assert(powerHandler.includes('powerTeamCandidates(db, chapterId)') && powerHandler.includes('resolveChapterScope(db, auth)'), 'Power Team proposals must use the authenticated Chapter scope');
+  assert(powerHandler.includes('powerTeamCandidates(db, chapterId,') && powerHandler.includes('resolveChapterScope(db, auth)'), 'Power Team proposals must use the authenticated Chapter scope');
   const growthPowerStart = powerHandler.indexOf("case 'getGrowthPowerTeams':");
   const growthPowerEnd = powerHandler.indexOf('\n    case ', growthPowerStart + 1);
   const growthPowerBlock = powerHandler.slice(growthPowerStart, growthPowerEnd < 0 ? undefined : growthPowerEnd);
-  assert(growthPowerBlock.includes('resolveChapterScope(db, auth)') && growthPowerBlock.includes('fetchGrowthPowerTeamOverview(db, scope.chapterId)'), 'Growth Power Team data must be Blueprint-based and Chapter-scoped');
+  assert(growthPowerBlock.includes('resolveChapterScope(db, auth)') && growthPowerBlock.includes('fetchGrowthPowerTeamOverview(') && growthPowerBlock.includes('scope.chapterId'), 'Growth Power Team data must be Blueprint-based and Chapter-scoped');
   assert(!growthPowerBlock.includes('fetchTeamGroups(db)'), 'Growth Power Team data must not fall back to Mentor-team grouping');
   assert(migration.includes('idx_growth_referral_groups_chapter_order') && migration.includes('idx_growth_tasks_chapter_status_due'), 'legacy Growth records need Chapter indexes');
 });
