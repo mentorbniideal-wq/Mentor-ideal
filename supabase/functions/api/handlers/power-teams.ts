@@ -62,6 +62,90 @@ async function powerTeamCandidates(db: ReturnType<typeof getServiceClient>, chap
     })).sort((a, b) => b.memberIds.length - a.memberIds.length || a.category.localeCompare(b.category, 'th'));
 }
 
+/**
+ * Growth works from declared Blueprint Power Team categories, never from a
+ * Mentor ownership team. Keep the performance fields that the existing Growth
+ * UI needs, while deriving every member ID from the authenticated Chapter.
+ */
+async function fetchGrowthPowerTeamOverview(db: ReturnType<typeof getServiceClient>, chapterId: string) {
+  const candidates = await powerTeamCandidates(db, chapterId);
+  const memberIds = [...new Set(candidates.flatMap(candidate => candidate.memberIds))];
+  if (!memberIds.length) {
+    return {
+      teams: [],
+      summary: { overallPct: 0, totalGoal: 0, totalRecv: 0, memberCount: 0, activeTotal: 0, departedTotal: 0 },
+    };
+  }
+
+  // Candidate IDs have already been constrained by chapter_id above. The
+  // second membership check prevents a dashboard view from widening scope.
+  const { data: scopedMembers, error: memberError } = await db.from('members')
+    .select('id').in('id', memberIds).eq('chapter_id', chapterId).eq('is_archived', false);
+  if (memberError) throw new Error(memberError.message);
+  const scopedIds = (scopedMembers || []).map((member: Record<string, unknown>) => String(member.id));
+  if (!scopedIds.length) {
+    return {
+      teams: [],
+      summary: { overallPct: 0, totalGoal: 0, totalRecv: 0, memberCount: 0, activeTotal: 0, departedTotal: 0 },
+    };
+  }
+  const { data: dashboardRows, error: dashboardError } = await db.from('v_member_dashboard')
+    .select('id,name,nickname,mentor_team,display_score,traffic_light,given_thb,received_thb,bni_goal')
+    .in('id', scopedIds);
+  if (dashboardError) throw new Error(dashboardError.message);
+  const byId = new Map((dashboardRows || []).map((row: Record<string, unknown>) => [String(row.id), row]));
+  const tlShort: Record<string, string> = { green: 'G', yellow: 'Y', red: 'R', black: 'B', none: '' };
+
+  const teams = candidates.map((candidate, index) => {
+    const members = candidate.memberIds.map(id => byId.get(id)).filter(Boolean) as Record<string, unknown>[];
+    const teamGoal = members.reduce((sum, member) => sum + (Number(member.bni_goal) || 0), 0);
+    const teamRecv = members.reduce((sum, member) => sum + (Number(member.received_thb) || 0), 0);
+    const scored = members.filter(member => Number(member.display_score) > 0);
+    const avgScore = scored.length ? Math.round(scored.reduce((sum, member) => sum + (Number(member.display_score) || 0), 0) / scored.length) : 0;
+    return {
+      id: `power-${index + 1}`,
+      name: candidate.category,
+      team: candidate.category,
+      icon: '⚡',
+      targetCustomerGroup: candidate.targetCustomerGroup,
+      rationale: candidate.rationale,
+      members: members.map((member, memberIndex) => {
+        const goal = Number(member.bni_goal) || 0;
+        const recv = Number(member.received_thb) || 0;
+        return {
+          row: memberIndex + 1,
+          id: String(member.id), name: String(member.name || ''), nick: String(member.nickname || ''),
+          firstName: String(member.name || ''), lastName: '', profession: '',
+          tl: tlShort[String(member.traffic_light || 'none')] || '',
+          bniGoal: goal, recv, given: Number(member.given_thb) || 0,
+          goalPct: goal > 0 ? (recv / goal) * 100 : 0,
+          score: Number(member.display_score) || 0,
+          mentor: String(member.mentor_team || ''),
+        };
+      }),
+      count: members.length, memberCount: members.length, teamGoal, teamRecv,
+      teamPct: teamGoal > 0 ? (teamRecv / teamGoal) * 100 : 0,
+      avgScore,
+      redBlack: members.filter(member => ['red', 'black'].includes(String(member.traffic_light))).length,
+      totalGiven: members.reduce((sum, member) => sum + (Number(member.given_thb) || 0), 0),
+      totalRecv: teamRecv,
+      suggestions: [],
+    };
+  }).filter(team => team.members.length >= 2);
+
+  const uniqueMembers = [...byId.values()];
+  const totalGoal = uniqueMembers.reduce((sum, member) => sum + (Number(member.bni_goal) || 0), 0);
+  const totalRecv = uniqueMembers.reduce((sum, member) => sum + (Number(member.received_thb) || 0), 0);
+  return {
+    teams,
+    summary: {
+      overallPct: totalGoal > 0 ? (totalRecv / totalGoal) * 100 : 0,
+      totalGoal, totalRecv, memberCount: uniqueMembers.length,
+      activeTotal: uniqueMembers.length, departedTotal: 0,
+    },
+  };
+}
+
 /** Build per-team member groups from v_member_dashboard. */
 async function fetchTeamGroups(db: ReturnType<typeof getServiceClient>) {
   const { data: rows, error } = await db
@@ -564,22 +648,14 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
     case 'getGrowthPowerTeams': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
-
-      const { teams, error } = await fetchTeamGroups(db);
-      if (error || !teams) return errResponse(error || 'Failed to fetch teams');
-
-      // Compute chapter-level summary
-      let activeTotal = 0, departedTotal = 0, scoreSum = 0, scoredCount = 0;
-      for (const t of teams) {
-        const count = Number(t.count) || 0;
-        const avgScore = Number(t.avgScore) || 0;
-        activeTotal   += count;
-        scoreSum      += avgScore * count;
-        scoredCount   += count;
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      try {
+        const overview = await fetchGrowthPowerTeamOverview(db, scope.chapterId);
+        return jsonResponse({ ok: true, ...overview });
+      } catch (error) {
+        return errResponse(error instanceof Error ? error.message : String(error));
       }
-      const overallPct = scoredCount > 0 ? Math.round(scoreSum / scoredCount) : 0;
-
-      return jsonResponse({ ok: true, teams, summary: { overallPct, activeTotal, departedTotal } });
     }
 
     default:

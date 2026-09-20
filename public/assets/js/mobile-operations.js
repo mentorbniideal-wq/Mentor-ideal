@@ -4255,7 +4255,12 @@ function loadGrowthPowerTeams(forceReload){
 }
 
 function renderPTChapterBar(sum,teams){
-  var pct=sum.overallPct;
+  sum=sum||{}; teams=Array.isArray(teams)?teams:[];
+  var pct=Number(sum.overallPct);
+  if(!isFinite(pct))pct=0;
+  var totalRecv=Number(sum.totalRecv)||0;
+  var totalGoal=Number(sum.totalGoal)||0;
+  var memberCount=Number(sum.memberCount)||0;
   var barColor=pct>=75?'var(--green)':pct>=40?'var(--yellow)':'var(--red)';
   var withGoal=0,withRecv=0,hitGoal=0;
   teams.forEach(function(t){t.members.forEach(function(m){
@@ -4268,7 +4273,7 @@ function renderPTChapterBar(sum,teams){
       +(sum.departedTotal>0?'<span class="pt-chapter-tag pt-tag-departed">🚪 ออกแล้ว '+sum.departedTotal+' คน (รวมยอด KPI)</span>':'')
       +'</div>';
   }
-  var editBtn=PT.isGrowth
+  var editBtn=PT.isGrowth&&!S.isReadOnly
     ?'<button class="pt-em-mode-btn'+(PT.editMode?' active':'')+'" onclick="togglePTEditMode()">'+(PT.editMode?'✅ เสร็จ':'✏️ แก้ไข')+'</button>'
     :'';
   var filterBar=PT.editMode?'':('<div class="pt-filter-bar">'
@@ -4294,14 +4299,14 @@ function renderPTChapterBar(sum,teams){
     +'<div>'+editBtn+'<button class="pt-refresh-btn" onclick="loadGrowthPowerTeams(true)">🔄</button></div>'
     +'</div>'
     +'<div class="pt-chapter-bar">'
-    +'<div class="pt-chapter-title">Chapter Revenue Progress</div>'
+    +'<div class="pt-chapter-title">Power Team Revenue Progress</div>'
     +'<div class="pt-chapter-nums">'
-    +'<div><span class="pt-chapter-recv">฿'+fmt(sum.totalRecv)+'</span>'
-    +' <span class="pt-chapter-goal">/ ฿'+fmt(sum.totalGoal)+'</span></div>'
+    +'<div><span class="pt-chapter-recv">฿'+fmt(totalRecv)+'</span>'
+    +' <span class="pt-chapter-goal">/ ฿'+fmt(totalGoal)+'</span></div>'
     +'<span class="pt-chapter-pct">'+pct.toFixed(1)+'%</span>'
     +'</div>'
     +'<div class="pt-bar-track"><div class="pt-bar-fill" style="width:'+Math.min(pct,100)+'%;background:'+barColor+';"></div></div>'
-    +'<div class="pt-chapter-meta">สมาชิกรวม '+sum.memberCount+' คน &nbsp;|&nbsp; มีเป้า '+withGoal+' คน &nbsp;|&nbsp; รับรายได้แล้ว '+withRecv+' คน &nbsp;|&nbsp; ถึงเป้า '+hitGoal+' คน</div>'
+    +'<div class="pt-chapter-meta">สมาชิกใน Power Team '+memberCount+' คน &nbsp;|&nbsp; มีเป้า '+withGoal+' คน &nbsp;|&nbsp; รับรายได้แล้ว '+withRecv+' คน &nbsp;|&nbsp; ถึงเป้า '+hitGoal+' คน</div>'
     +activeTags
     +'</div>'
     +searchBox
@@ -4658,7 +4663,7 @@ function loadPowerTeamsSynergy(){
   document.getElementById('g-pt-list').innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
   document.getElementById('syn-toolbar').innerHTML='';
   SYN.editMode=false;
-  call('getPowerTeams',{},function(err,r){
+  call('getGrowthPowerTeams',{},function(err,r){
     PT_SYN_LOADED=true;
     if(err||!r||!r.ok){
       document.getElementById('g-pt-list').innerHTML='<div class="empty">❌ '+(err?err.message:(r&&r.error)||'ไม่สามารถโหลดข้อมูลได้')+'</div>';
@@ -4749,12 +4754,12 @@ function togglePT(idx){
 
 function renderSynView(){
   if(!SYN.teams)return;
-  var isGrowth=(S&&S.role==='growth')||PT.isGrowth;
+  var isGrowth=((S&&S.role==='growth')||PT.isGrowth)&&!S.isReadOnly;
   var toolbar=isGrowth
-    ?'<div class="pt-toolbar"><span class="pt-toolbar-label">💡 1-2-1 Synergy Teams</span>'
+    ?'<div class="pt-toolbar"><span class="pt-toolbar-label">💡 Power Team Synergy</span>'
       +'<button class="pt-em-mode-btn'+(SYN.editMode?' active':'')+'" onclick="toggleSynEditMode()">'+(SYN.editMode?'✅ เสร็จ':'✏️ แก้ไขทีม')+'</button>'
       +'</div>'
-    :'';
+    :'<div class="pt-toolbar"><span class="pt-toolbar-label">💡 Power Team Synergy</span></div>';
   document.getElementById('syn-toolbar').innerHTML=toolbar;
   if(SYN.editMode){
     document.getElementById('g-pt-list').innerHTML=renderSynEditTableHtml();
