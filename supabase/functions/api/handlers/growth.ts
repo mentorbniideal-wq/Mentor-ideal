@@ -842,16 +842,19 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       if (memberError) return errResponse(memberError.message);
       const ids = (members || []).map((m: Record<string, unknown>) => String(m.id));
       if (!ids.length) return jsonResponse({ ok: true, priorities: [], opportunities: [], connections: [], dataConfidence: 'INSUFFICIENT', freshness: null });
-      const [plansQ, tasksQ, proposalsQ, pairsAQ, pairsBQ] = await Promise.all([
+      const [plansQ, profilesQ, categoryQ, tasksQ, proposalsQ, pairsAQ, pairsBQ] = await Promise.all([
         db.from('member_success_blueprints').select('member_id,looking_for_categories,power_team_categories,updated_at').eq('blueprint_year', year).eq('status', 'submitted').in('member_id', ids),
+        db.from('member_one_to_one_profiles').select('member_id,share_referral_focus').in('member_id', ids),
+        db.from('member_growth_category_consents').select('member_id,category_type,category').in('member_id', ids).is('revoked_at', null),
         db.from('growth_tasks').select('id,status,task_text,member_id,created_at').eq('chapter_id', scope.chapterId).not('status', 'in', '(completed,cancelled)').order('created_at', { ascending: false }).limit(100),
         db.from('power_team_proposals').select('id,status,source_category,power_team_proposal_members(member_id)').eq('chapter_id', scope.chapterId).neq('status', 'archived'),
         db.from('matching_pairs').select('member_a_id,member_b_id,status,round:matching_rounds(meeting_date)').in('member_a_id', ids).limit(1000),
         db.from('matching_pairs').select('member_a_id,member_b_id,status,round:matching_rounds(meeting_date)').in('member_b_id', ids).limit(1000),
       ]);
-      const failed = [plansQ, tasksQ, proposalsQ, pairsAQ, pairsBQ].find(q => q.error);
+      const failed = [plansQ, profilesQ, categoryQ, tasksQ, proposalsQ, pairsAQ, pairsBQ].find(q => q.error);
       if (failed?.error) return errResponse(failed.error.message);
-      const plans = (plansQ.data || []).map((row: Record<string, unknown>) => ({ memberId: String(row.member_id), lookingFor: Array.isArray(row.looking_for_categories) ? row.looking_for_categories.map(String) : [], powerTeam: Array.isArray(row.power_team_categories) ? row.power_team_categories.map(String) : [], updatedAt: row.updated_at ? String(row.updated_at) : null }));
+      const referral = new Map(((profilesQ.data || []) as Record<string,unknown>[]).map(row=>[String(row.member_id),row.share_referral_focus !== false])); const allowed = new Map<string,Set<string>>(); for(const row of (categoryQ.data||[]) as Record<string,unknown>[]){const key=`${row.member_id}:${row.category_type}`, set=allowed.get(key)||new Set<string>();set.add(String(row.category).toLowerCase());allowed.set(key,set);}
+      const plans = (plansQ.data || []).map((row: Record<string, unknown>) => { const id=String(row.member_id), visible=(raw:unknown,type:string)=>Array.isArray(raw)?raw.map(String).filter(category=>referral.get(id)!==false||allowed.get(`${id}:${type}`)?.has(category.toLowerCase())):[]; return { memberId:id, lookingFor:visible(row.looking_for_categories,'looking_for'), powerTeam:visible(row.power_team_categories,'power_team'), updatedAt: row.updated_at ? String(row.updated_at) : null }; });
       const proposals = (proposalsQ.data || []).map((row: Record<string, unknown>) => ({ id: String(row.id), status: String(row.status), sourceCategory: row.source_category ? String(row.source_category) : null, memberIds: (Array.isArray(row.power_team_proposal_members) ? row.power_team_proposal_members : []).map((x: Record<string, unknown>) => String(x.member_id)).filter(Boolean) }));
       const pairMap = new Map<string, Record<string, unknown>>();
       for (const pair of [...(pairsAQ.data || []), ...(pairsBQ.data || [])] as Record<string, unknown>[]) pairMap.set(`${pair.member_a_id}:${pair.member_b_id}`, pair);

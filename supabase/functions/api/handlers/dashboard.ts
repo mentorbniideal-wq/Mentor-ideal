@@ -608,6 +608,12 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         db.from('member_journey_events').select('event_type,role_title,occurred_on,note,created_at').eq('chapter_id', scope.chapterId).eq('member_id', memberId).order('occurred_on',{ascending:false}).limit(4),
       ]);
       const profile = (profileQ.data || {}) as Record<string, unknown>, plan = (planQ.data || {}) as Record<string, unknown>;
+      const { data: explicitCategoryRows } = isGrowthLens && profile.share_referral_focus === false
+        ? await db.from('member_growth_category_consents').select('category_type,category').eq('member_id', memberId).is('revoked_at', null)
+        : { data: [] };
+      const explicitCategories = new Map<string, Set<string>>();
+      for (const row of (explicitCategoryRows || []) as Record<string, unknown>[]) { const key=String(row.category_type); const values=explicitCategories.get(key)||new Set<string>(); values.add(String(row.category).toLowerCase()); explicitCategories.set(key, values); }
+      const visibleCategories = (raw: unknown, type: string) => Array.isArray(raw) ? raw.map(String).filter(category => profile.share_referral_focus !== false || !isGrowthLens || explicitCategories.get(type)?.has(category.toLowerCase())) : [];
       const sharedSignals = ((signalsQ.data || []) as Record<string, unknown>[]).filter(row => canViewMemberSignal(auth, { ...row, members: { mentor_team: (member as Record<string,unknown>).mentor_team } }));
       const safeSignal = (row: Record<string, unknown>) => ({ id:String(row.id), type:String(row.signal_type), title:String(row.title||''), detail:String(row.detail||'').slice(0,500), status:String(row.status), priority:String(row.priority), targetRoles:Array.isArray(row.target_roles)?row.target_roles.map(String):[], owner:row.assigned_role||null, createdAt:row.created_at||null });
       const history = [
@@ -617,7 +623,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         ...((journeyQ.data || []) as Record<string,unknown>[]).map(row => ({ kind:'journey', title:String(row.role_title||row.event_type||''), status:'recorded', at:row.occurred_on||row.created_at, detail:'' })),
       ].filter(row => row.at).sort((a,b) => String(b.at).localeCompare(String(a.at))).slice(0,8);
       const m = member as Record<string, unknown>;
-      return jsonResponse({ ok:true, member:{ id:String(m.id), name:String(m.name||''), nickname:String(m.nickname||''), profession:String(m.profession||''), company:String(m.company_name||''), mentorTeam:String(m.mentor_team||'') }, sharedBusinessContext:{ businessSummary:profile.share_business===false?'':String(profile.business_summary||''), lookingFor:profile.share_referral_focus===false?'':String(profile.looking_for||''), idealClient:profile.share_referral_focus===false?'':String(profile.ideal_client||''), updatedAt:profile.updated_at||plan.updated_at||null, partial:!profileQ.data&&!planQ.data }, supportSummary:{ openCount:sharedSignals.length, nextAction:sharedSignals[0]?safeSignal(sharedSignals[0]):null, lastSharedInteraction:history[0]||null }, openSupportItems:sharedSignals.map(safeSignal), supportHistory:history, roleLens:{ role:isGrowthLens?'growth':isMentorLens?'mentor':'shared', growth:isGrowthLens?{ tasks:((taskQ.data||[]) as Record<string,unknown>[]).map(row=>({id:String(row.id),type:String(row.task_type||''),status:String(row.status||''),dueDate:row.due_date||null,owner:row.assigned_owner_name||null})), categories:Array.isArray(plan.looking_for_categories)?plan.looking_for_categories.map(String):[], powerTeamCategories:Array.isArray(plan.power_team_categories)?plan.power_team_categories.map(String):[] }:null, mentor:isMentorLens?{ activeMy121:((pairsQ.data||[]) as Record<string,unknown>[]).filter(row=>!['verified','late_verified','completed'].includes(String(row.status))).length }:null }, privacy:'Shared context excludes Mentor logs, notes, reviews, contact details, GAINS, and confidential coaching content.' });
+      return jsonResponse({ ok:true, member:{ id:String(m.id), name:String(m.name||''), nickname:String(m.nickname||''), profession:String(m.profession||''), company:String(m.company_name||''), mentorTeam:String(m.mentor_team||'') }, sharedBusinessContext:{ businessSummary:profile.share_business===false?'':String(profile.business_summary||''), lookingFor:profile.share_referral_focus===false?'':String(profile.looking_for||''), idealClient:profile.share_referral_focus===false?'':String(profile.ideal_client||''), updatedAt:profile.updated_at||plan.updated_at||null, partial:!profileQ.data&&!planQ.data }, supportSummary:{ openCount:sharedSignals.length, nextAction:sharedSignals[0]?safeSignal(sharedSignals[0]):null, lastSharedInteraction:history[0]||null }, openSupportItems:sharedSignals.map(safeSignal), supportHistory:history, roleLens:{ role:isGrowthLens?'growth':isMentorLens?'mentor':'shared', growth:isGrowthLens?{ tasks:((taskQ.data||[]) as Record<string,unknown>[]).map(row=>({id:String(row.id),type:String(row.task_type||''),status:String(row.status||''),dueDate:row.due_date||null,owner:row.assigned_owner_name||null})), categories:visibleCategories(plan.looking_for_categories,'looking_for'), powerTeamCategories:visibleCategories(plan.power_team_categories,'power_team') }:null, mentor:isMentorLens?{ activeMy121:((pairsQ.data||[]) as Record<string,unknown>[]).filter(row=>!['verified','late_verified','completed'].includes(String(row.status))).length }:null }, privacy:'Shared context excludes Mentor logs, notes, reviews, contact details, GAINS, and confidential coaching content.' });
     }
 
     case 'getGrowthMemberContext': {
@@ -649,6 +655,10 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       const plan = (planQ.data || {}) as Record<string, unknown>;
       const consentBusiness = profile.share_business !== false;
       const consentReferral = profile.share_referral_focus !== false;
+      const { data: explicitCategoryRows } = !consentReferral
+        ? await db.from('member_growth_category_consents').select('category_type,category').eq('member_id', memberId).is('revoked_at', null)
+        : { data: [] };
+      const categoryAllowed = (category: string, type: string) => consentReferral || ((explicitCategoryRows || []) as Record<string, unknown>[]).some(row => String(row.category_type) === type && String(row.category).toLowerCase() === category.toLowerCase());
       const profileUpdatedAt = String(profile.updated_at || plan.updated_at || '');
       const stale = profileUpdatedAt ? Date.now() - new Date(profileUpdatedAt).getTime() > 180 * 86400000 : true;
       return jsonResponse({
@@ -662,8 +672,8 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
           // Detailed category consent is enforced by Blueprint Intelligence;
           // this direct Growth context must default-deny until it has loaded
           // the member's explicit category grants.
-          lookingForCategories: consentReferral && Array.isArray(plan.looking_for_categories) ? plan.looking_for_categories.map(String) : [],
-          powerTeamCategories: consentReferral && Array.isArray(plan.power_team_categories) ? plan.power_team_categories.map(String) : [],
+          lookingForCategories: Array.isArray(plan.looking_for_categories) ? plan.looking_for_categories.map(String).filter(category => categoryAllowed(category, 'looking_for')) : [],
+          powerTeamCategories: Array.isArray(plan.power_team_categories) ? plan.power_team_categories.map(String).filter(category => categoryAllowed(category, 'power_team')) : [],
           updatedAt: profileUpdatedAt || null,
           stale,
           consent: { business: consentBusiness, referralFocus: consentReferral },
