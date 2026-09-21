@@ -143,6 +143,9 @@ Deno.test('member CRUD and Member 360 resolve Chapter before accessing a member'
   const memberDetailStart = dashboardHandler.indexOf("case 'getMemberDetail':");
   const memberDetailBlock = dashboardHandler.slice(memberDetailStart, dashboardHandler.indexOf("\n    case ", memberDetailStart + 1));
   assert(memberDetailBlock.includes('resolveChapterScope(db, auth)'), 'Member 360 must derive Chapter scope server-side');
+  assert(memberDetailBlock.includes("db.from('passport_sessions').select('id,week_no,scheduled_date,title,lt_role,status,completed_at,notes,updated_at')"), 'Mentor Journey must use the scoped Member 360 Passport projection, not the Passport Board');
+  assert(memberDetailBlock.includes("db.from('ninety_day_reviews').select('id,mentor_team,review_date,content,created_at')"), 'Mentor Journey must use persisted review evidence only');
+  assert(memberDetailBlock.includes("db.from('member_signals').select('id,signal_type,title,detail,status,priority,target_roles,created_at,updated_at')"), 'Mentor Journey must use the existing scoped member signal projection');
   assert(memberDetailBlock.includes("from('members').select('id').eq('chapter_id', scope.chapterId)"), 'Member 360 must resolve member identity within the Chapter before reading related records');
 });
 

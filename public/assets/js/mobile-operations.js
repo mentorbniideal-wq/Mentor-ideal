@@ -1974,6 +1974,53 @@ function loadMemberPassportCard(memberId,name){
 
 var _lastDetail=null;
 var _talkText='';
+// Read-only Mentor Journey: compose only fields already returned by the
+// authorized Member 360 DTO. Do not fetch the MC-only Passport Board here.
+function buildMentorJourney(d){
+  var m360=d.member360||{},identity=m360.identity||{},passport=m360.passport||{};
+  var sessions=Array.isArray(passport.sessions)?passport.sessions:[];
+  var completed=sessions.filter(function(x){return String(x.status||'')==='completed';}).length;
+  var next=sessions.filter(function(x){return ['completed','missed'].indexOf(String(x.status||''))<0;})[0]||null;
+  var reviews=Array.isArray(m360.reviews)?m360.reviews:[];
+  var latestReview=reviews[0]||null;
+  var signals=Array.isArray(m360.signals)?m360.signals:[];
+  var handoffs=signals.filter(function(x){
+    var targets=Array.isArray(x.target_roles)?x.target_roles:[];
+    return targets.indexOf('Growth Coordinator')>=0||String(x.title||'')==='Handoff to Growth Coordinator';
+  });
+  var generalSignals=signals.filter(function(x){return handoffs.indexOf(x)<0;}).slice(0,3);
+  var one=m360.oneToOne||{},followUps=Array.isArray(one.followUps)?one.followUps.slice(0,3):[];
+  var attention=Array.isArray(one.attention)?one.attention:[];
+  function state(v,empty){return v?escHtml(v):'<span style="color:var(--gray2)">'+escHtml(empty||'ยังไม่มีข้อมูลในระบบ')+'</span>';}
+  function line(label,value){return '<div class="mobile-mini-note"><b style="color:var(--white)">'+escHtml(label)+':</b> '+value+'</div>';}
+  var passportHtml=line('ความคืบหน้า',sessions.length?completed+'/'+sessions.length+' กิจกรรม':'ยังไม่มี Passport')
+    +line('กิจกรรมถัดไป',next?state(next.title,'ยังไม่ระบุ'):'ยังไม่มีตาราง')
+    +line('ผู้รับผิดชอบ',next?state(next.lt_role,'ยังไม่กำหนด'):'ยังไม่กำหนด')
+    +(next?line('กำหนด',state(next.scheduled_date,'ไม่ระบุวัน')):'');
+  var milestones=line('30 วัน','ยังไม่มีหลักฐานการทบทวน')
+    +line('90 วัน',latestReview?('บันทึกแล้ว · '+state(latestReview.review_date||latestReview.created_at,'ไม่ระบุวัน')):'ยังไม่มีหลักฐานการทบทวน')
+    +line('5 เดือน','ยังไม่มีหลักฐานการทบทวน');
+  var followHtml=generalSignals.map(function(x){return line(x.title||'งานติดตาม',state(x.status,'ยังไม่ระบุสถานะ')+' · '+state(x.priority,'ปกติ')+' · ไม่ระบุวัน');}).join('')
+    +followUps.map(function(x){return line(x.description||x.action_type||'MY121 Follow-up',state(x.status,'ยังไม่ระบุสถานะ')+' · '+state(x.due_date,'ไม่ระบุวัน'));}).join('');
+  if(!followHtml)followHtml='<div class="mobile-mini-note">ยังไม่มีงานติดตามที่เปิดอยู่</div>';
+  var handoffHtml=handoffs.slice(0,2).map(function(x){return line('Growth Handoff',state(x.status,'ยังไม่ระบุสถานะ')+' · ผู้รับผิดชอบ/กำหนดติดตาม: ยังไม่มีข้อมูลที่อนุญาต');}).join('');
+  if(!handoffHtml)handoffHtml='<div class="mobile-mini-note">ยังไม่มี Handoff ถึง Growth</div>';
+  return '<section class="card workspace-section" id="dp-mentor-journey" aria-label="Mentor Journey">'
+    +'<div class="ct">🧭 Mentor Journey</div>'
+    +'<div class="mobile-mini-note">แสดงเฉพาะหลักฐานที่มีในระบบ ไม่อนุมานการเสร็จงาน</div>'
+    +'<div class="sh" style="margin-top:.7rem">Mentor & Welcome</div>'
+    +line('Mentor Team',state(identity.mentorTeam||d.mentor,'ยังไม่กำหนดทีม'))
+    +line('Personal Mentor','ยังไม่มีแหล่งข้อมูลที่ตรวจสอบได้')
+    +line('First contact','ยังไม่มีหลักฐานการติดต่อครั้งแรก')
+    +'<div class="sh" style="margin-top:.7rem">Passport</div>'+passportHtml
+    +'<div class="sh" style="margin-top:.7rem">Review Milestones</div>'+milestones
+    +'<div class="sh" style="margin-top:.7rem">Follow-up</div>'+followHtml
+    +'<div class="sh" style="margin-top:.7rem">Care indicators</div>'
+    +line('Traffic Light',state(d.tl,'ยังไม่มีคะแนน')+' · '+state(String(d.score||''),'—')+' คะแนน · ควรทบทวนตามดุลยพินิจ Mentor')
+    +line('MY121 Care',attention.length?attention.length+' รายการที่ต้องติดตาม':'ยังไม่มีรายการ Care ที่เปิดอยู่')
+    +'<div class="sh" style="margin-top:.7rem">Growth handoff</div>'+handoffHtml
+    +'</section>';
+}
 function buildDetail(d){
   _lastDetail=d;
   var score=d.score;
@@ -2171,12 +2218,12 @@ function buildDetail(d){
   var nextAction='<div class="next-action-card"><strong>✨ ขั้นตอนถัดไปที่แนะนำ</strong>'
     +'<div style="font-size:.73rem;color:var(--gray2);margin-top:3px;">'+(d.priorities&&d.priorities.length?escHtml(d.priorities[0].action):'รักษาความต่อเนื่องและบันทึกผลการพูดคุยครั้งถัดไป')+'</div>'
     +'<div class="next-action-buttons"><button onclick="workspaceLog(\''+safeWorkspaceName+'\')">บันทึก Mentor Log</button><button onclick="workspaceReport(\''+safeWorkspaceName+'\')">สร้าง Report</button><button onclick="document.getElementById(\'dp-timeline-section\').scrollIntoView({behavior:\'smooth\'})">ดู Timeline</button></div></div>';
-  setTimeout(function(){loadMemberTimeline(d.name);loadMemberMSBCard(d.memberId);loadMemberPassportCard(d.memberId,d.name);},0);
+  setTimeout(function(){loadMemberTimeline(d.name);loadMemberMSBCard(d.memberId);},0);
 
   return workspaceActions+heroHTML+nextAction+actBtns+statusHTML+statsHTML+bniHTML+ftHTML+chartHTML+attendCardHTML
     +'<div class="card workspace-section"><div class="ct">5 Keys (6 เดือน)</div>'+keysHTML+'</div>'
     +'<div id="dp-msb-section" class="workspace-section"><div class="card"><div class="ct">🎯 MSB Goal</div><div class="lt">⏳ กำลังโหลด Blueprint...</div></div></div>'
-    +'<div id="dp-passport-section" class="workspace-section"></div>'
+    +buildMentorJourney(d)
     +'<div class="sh">⚔️ Priority</div>'+prHTML
     +buildConvHistory(d)
     +'<div id="dp-121-section" class="workspace-section"></div>'
