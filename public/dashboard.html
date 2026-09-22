@@ -902,6 +902,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <select id="msb-mc-year" onchange="msbLoad('mc',true)" style="background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:6px 10px;font-size:12px"></select>
+          <button class="bsm" onclick="msbExportPdf('mc')" style="font-size:11px">📄 Export PDF</button>
           <button class="bsm" onclick="msbLoad('mc',true)" style="font-size:11px">🔄 รีเฟรช</button>
         </div>
       </div>
@@ -932,6 +933,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         <div style="display:flex;gap:8px;align-items:center">
           <button class="bsm" onclick="sw('gr-rev',null,'gr');rvLoad()" style="font-size:11px;background:rgba(199,167,106,.14);border-color:rgba(199,167,106,.32);color:var(--ac);font-weight:700">← Growth Plan</button>
           <select id="msb-gr-year" onchange="msbLoad('gr',true)" style="background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:6px 10px;font-size:12px"></select>
+          <button class="bsm" onclick="msbExportPdf('gr')" style="font-size:11px">📄 Export PDF</button>
           <button class="bsm" onclick="msbLoad('gr',true)" style="font-size:11px">🔄 รีเฟรช</button>
         </div>
       </div>
@@ -2232,7 +2234,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 <script src="/assets/js/growth-weekly-board.js?v=20260920-weekly-board.1" defer></script>
 <script src="/assets/js/desktop-blueprint-workspace.js?v=20260919.1" defer></script>
 <script src="/assets/js/desktop-growth-workspace.js?v=20260919.1" defer></script>
-<script src="/assets/js/desktop-operations.js?v=20260919-blueprint-workspace.1" defer></script>
+<script src="/assets/js/desktop-operations.js?v=20260922-blueprint-pdf.1" defer></script>
 <script src="/assets/js/desktop-line-compose.js?v=20260909-audit.1" defer></script>
 <script src="/assets/js/desktop-navigation.js?v=20260909-audit.1" defer></script>
 <script src="/assets/js/desktop-member-360.js" defer></script>
