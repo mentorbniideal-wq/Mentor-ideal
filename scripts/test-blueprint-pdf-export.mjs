@@ -6,7 +6,8 @@ const dashboard = readFileSync('public/dashboard.html', 'utf8');
 const exporter = readFileSync('public/assets/js/desktop-blueprint-summary.js', 'utf8');
 
 assert.ok(dashboard.includes("msbExportPdf('mc')") && dashboard.includes("msbExportPdf('gr')"), 'Mentor and Growth Blueprint views expose PDF export');
-assert.ok(dashboard.includes('desktop-blueprint-summary.js?v=20260924.1'), 'Blueprint summary module has an explicit cache key');
+assert.ok(dashboard.includes('desktop-blueprint-summary.js?v=20260924.2'), 'Blueprint summary module has an explicit cache key');
+assert.ok(dashboard.includes('📄 Save as PDF'), 'Blueprint views describe the browser PDF action clearly');
 assert.ok(dashboard.includes('id="msb-gr-meeting-summary"'), 'Growth Blueprint includes the meeting summary entry point');
 assert.match(exporter, /row\.status==='submitted'/, 'Only submitted Blueprints are included');
 assert.match(exporter, /safePlanByMember/, 'Category values come from the consent-projected plan DTO');
@@ -66,5 +67,12 @@ context.BlueprintMeetingSummary.render(state);
 assert.ok(summaryRoot.innerHTML.includes('ส่งแล้ว') && summaryRoot.innerHTML.includes('Draft') && summaryRoot.innerHTML.includes('ยังไม่กรอก'), 'Dashboard summary shows all submission states');
 assert.ok(summaryRoot.innerHTML.includes('Draft Member') && summaryRoot.innerHTML.includes('Missing Member'), 'Dashboard summary identifies members who need follow-up');
 assert.ok(summaryRoot.innerHTML.includes('2027') && summaryRoot.innerHTML.includes('2026'), 'Dashboard summary shows per-year coverage');
+assert.ok(summaryRoot.innerHTML.includes('Copy สรุปส่ง LINE') && summaryRoot.innerHTML.includes('Save as PDF'), 'Meeting summary exposes both approved sharing actions');
+const copyText = context.BlueprintMeetingSummary.buildCopyText(state);
+assert.ok(copyText.includes('Blueprint Meeting Summary ปี 2027'), 'LINE summary identifies its reporting year');
+assert.ok(copyText.includes('ส่งแล้ว 1 คน') && copyText.includes('Draft 1 คน') && copyText.includes('ยังไม่กรอก 1 คน'), 'LINE summary contains submission counts');
+assert.ok(copyText.includes('Draft Member — Draft') && copyText.includes('Missing Member — ยังไม่กรอก'), 'LINE summary identifies follow-up members');
+assert.ok(!copyText.includes('PRIVATE DETAIL') && !copyText.includes('Allowed <A>'), 'LINE summary contains no Blueprint business content');
+assert.ok(copyText.length <= 4500, 'LINE summary stays within the client safety limit');
 
 console.log('PASS Blueprint meeting summary: year coverage, follow-up roster, consent-safe A4 report');
