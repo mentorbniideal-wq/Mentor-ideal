@@ -6,6 +6,7 @@ const budgets = [
   // Ratchet ceilings: current modularisation baseline plus <1% headroom.
   // Do not raise these when adding features; move new modules into separate files.
   ['public/assets/js/desktop-operations.js', 730_000],
+  ['public/assets/js/desktop-blueprint-summary.js', 18_000],
   ['public/assets/js/desktop-member-360.js', 20_000],
   ['public/assets/js/desktop-line-compose.js', 45_000],
   ['public/assets/js/desktop-navigation.js', 6_000],

@@ -8347,7 +8347,7 @@ function tlC(tl){return tl==='green'?'var(--gr)':tl==='yellow'?'var(--ye)':tl===
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 // ── Member Success Blueprint (MSB) ───────────────────────────
-var MSB={mc:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,pairs:null,followups:null,dataQuality:null,comparison:null,year:0},gr:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,pairs:null,followups:null,dataQuality:null,comparison:null,year:0}};
+var MSB={mc:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,pairs:null,followups:null,dataQuality:null,comparison:null,coverage:null,year:0},gr:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,pairs:null,followups:null,dataQuality:null,comparison:null,coverage:null,year:0}};
 function msbMoney(v){v=Number(v)||0;if(v>=1000000)return '฿'+(v/1000000).toFixed(v>=10000000?0:1)+'M';if(v>=1000)return '฿'+Math.round(v/1000)+'K';return '฿'+Math.round(v).toLocaleString('th-TH');}
 function msbNum(v,d){v=Number(v)||0;return v.toLocaleString('th-TH',{maximumFractionDigits:d==null?1:d});}
 function msbYearSelect(group,selectedYear){
@@ -8416,6 +8416,7 @@ function msbLoad(group,force){
       MSB[group].followups=b.followups||null;
       MSB[group].dataQuality=b.dataQuality||null;
       MSB[group].comparison=b.yearComparison||null;
+      MSB[group].coverage=b.submissionCoverage||null;
       MSB[group].loaded=true;
       msbRender(group);
       return;
@@ -8453,63 +8454,6 @@ function msbLoadLegacy(group,year,table){
 }
 function msbSummaryCard(label,value,sub,color){
   return '<div class="kc"><div class="kl">'+esc(label)+'</div><div class="kv" style="color:'+(color||'var(--tx)')+'">'+value+'</div><div style="font-size:11px;color:var(--sub);margin-top:6px">'+esc(sub||'')+'</div></div>';
-}
-function msbPdfNumber(v,d){
-  var n=Number(v);if(!Number.isFinite(n))n=0;
-  return n.toLocaleString('th-TH',{minimumFractionDigits:d||0,maximumFractionDigits:d||0});
-}
-function msbBuildBlueprintPdfReport(group,state){
-  group=group==='gr'?'gr':'mc';state=state||{};
-  var year=Number(state.year)||new Date().getFullYear();
-  var rows=(state.rows||[]).filter(function(row){return row&&row.status==='submitted'&&row.blueprint;});
-  var safePlanByMember={};
-  (state.intelRows||[]).forEach(function(row){if(row&&row.memberId)safePlanByMember[String(row.memberId)]=row;});
-  var totalMembers=(state.rows||[]).length;
-  var drafts=(state.rows||[]).filter(function(row){return row&&row.status==='draft';}).length;
-  var missing=Math.max(0,totalMembers-rows.length-drafts);
-  var totalGoal=rows.reduce(function(sum,row){return sum+(Number(row.blueprint.expected_sales_from_bni_year)||0);},0);
-  var totalReferrals=rows.reduce(function(sum,row){return sum+(Number(row.blueprint.referral_needed)||0);},0);
-  var generatedAt=new Date().toLocaleString('th-TH',{dateStyle:'long',timeStyle:'short',timeZone:'Asia/Bangkok'});
-  var scopeLabel=group==='gr'?'Growth Chapter View':'Mentor Coordinator View';
-  function money(v){return '฿'+msbPdfNumber(v,0);}
-  function safeCategories(plan,key){
-    var values=plan&&Array.isArray(plan[key])?plan[key]:[];
-    return values.length?values.slice(0,6).map(esc).join(', '):'<span class="muted">ไม่แสดง / ไม่ได้อนุญาต</span>';
-  }
-  var body=rows.map(function(row,index){
-    var b=row.blueprint||{},plan=safePlanByMember[String(row.memberId)]||{};
-    return '<tr>'
-      +'<td class="center">'+(index+1)+'</td>'
-      +'<td><strong>'+esc(row.nickname||row.name||'—')+'</strong><div class="muted">'+esc(row.name||'')+'</div></td>'
-      +'<td class="num">'+money(b.total_sales_target_year)+'</td>'
-      +'<td class="num"><strong>'+money(b.expected_sales_from_bni_year)+'</strong><div class="muted">เดิม '+money(b.existing_customer_revenue_from_bni)+' · ใหม่ '+money(b.new_customer_revenue_from_bni)+'</div></td>'
-      +'<td class="num">'+money(b.average_customer_value_year)+'</td>'
-      +'<td class="num">'+msbPdfNumber(b.conversion_rate_percent,1)+'%</td>'
-      +'<td class="num">'+msbPdfNumber(b.customer_needed,0)+'</td>'
-      +'<td class="num">'+msbPdfNumber(b.referral_needed,0)+'<div class="muted">'+msbPdfNumber(b.referral_per_week,1)+'/สัปดาห์</div></td>'
-      +'<td>'+safeCategories(plan,'lookingForCategories')+'</td>'
-      +'<td>'+safeCategories(plan,'powerTeamCategories')+'</td>'
-      +'</tr>';
-  }).join('');
-  var empty='<tr><td colspan="10" class="empty">ยังไม่มี Blueprint ที่ส่งสมบูรณ์ในปี '+esc(year)+'</td></tr>';
-  return '<!doctype html><html lang="th"><head><meta charset="utf-8"><title>Blueprint Summary '+esc(year)+'</title>'
-    +'<style>@page{size:A4 landscape;margin:12mm 10mm 14mm}*{box-sizing:border-box}body{font-family:"Noto Sans Thai","Thonburi","Tahoma",sans-serif;color:#17221c;margin:0;font-size:9px}header{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;border-bottom:3px solid #b89045;padding-bottom:10px;margin-bottom:10px}h1{font-size:21px;margin:0 0 3px}.eyebrow{color:#98752f;font-weight:800;letter-spacing:.12em;font-size:8px}.meta{text-align:right;color:#59645d;line-height:1.55}.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-bottom:11px}.stat{border:1px solid #d8ddd9;border-radius:8px;padding:7px 9px;background:#f8faf8}.stat b{display:block;font-size:15px;color:#274c3a;margin-top:2px}.stat.gold b{color:#98752f}table{width:100%;border-collapse:collapse;table-layout:fixed}thead{display:table-header-group}tr{break-inside:avoid}th{background:#274c3a;color:#fff;padding:7px 5px;text-align:left;font-size:8px}td{border-bottom:1px solid #dfe4e0;padding:7px 5px;vertical-align:top;line-height:1.35;overflow-wrap:anywhere}tbody tr:nth-child(even){background:#f7f9f7}.center{text-align:center}.num{text-align:right;white-space:nowrap}.muted{color:#718078;font-size:7px;margin-top:2px}.empty{text-align:center;padding:35px;color:#718078}.privacy{margin-top:9px;padding:7px 9px;border:1px solid #e1d5bd;background:#fffaf0;border-radius:7px;color:#6f5a32;font-size:8px}.footer{position:fixed;bottom:-9mm;left:0;right:0;text-align:center;color:#87918b;font-size:7px}.footer:after{content:" · หน้า " counter(page)}@media screen{body{padding:24px;background:#eef1ee}header,.summary,table,.privacy{max-width:1280px;margin-left:auto;margin-right:auto}}</style></head><body>'
-    +'<header><div><div class="eyebrow">MY IDEAL · MEMBER SUCCESS BLUEPRINT</div><h1>รายงานสรุป Blueprint ปี '+esc(year)+'</h1><div>'+esc(scopeLabel)+' · เฉพาะรายการที่สมาชิกส่งสมบูรณ์</div></div><div class="meta">สร้างเมื่อ '+esc(generatedAt)+'<br>ข้อมูลตามสิทธิ์ของบัญชีและ Chapter ปัจจุบัน</div></header>'
-    +'<section class="summary"><div class="stat"><span>สมาชิกในขอบเขต</span><b>'+msbPdfNumber(totalMembers,0)+'</b></div><div class="stat"><span>ส่งแล้ว</span><b>'+msbPdfNumber(rows.length,0)+'</b></div><div class="stat"><span>Draft / ยังไม่กรอก</span><b>'+msbPdfNumber(drafts,0)+' / '+msbPdfNumber(missing,0)+'</b></div><div class="stat gold"><span>เป้ารายได้จาก BNI รวม</span><b>'+money(totalGoal)+'</b></div><div class="stat gold"><span>Referral ที่ต้องการรวม</span><b>'+msbPdfNumber(totalReferrals,0)+'</b></div></section>'
-    +'<table><colgroup><col style="width:3%"><col style="width:12%"><col style="width:9%"><col style="width:14%"><col style="width:9%"><col style="width:7%"><col style="width:6%"><col style="width:8%"><col style="width:16%"><col style="width:16%"></colgroup><thead><tr><th>#</th><th>สมาชิก</th><th>เป้ารวม/ปี</th><th>เป้าจาก BNI</th><th>มูลค่า/ลูกค้า</th><th>Conversion</th><th>ลูกค้า</th><th>Referral</th><th>Looking For</th><th>Power Team</th></tr></thead><tbody>'+(body||empty)+'</tbody></table>'
-    +'<div class="privacy">รายงานนี้ไม่รวมรายละเอียดข้อความอิสระ, Mentor/MY121 notes หรือข้อมูลที่สมาชิกไม่ได้อนุญาตให้ Growth ใช้ หมวด Looking For และ Power Team แสดงจาก DTO ที่ผ่าน consent policy ของระบบเท่านั้น</div>'
-    +'<div class="footer">MY IDEAL · Blueprint Summary '+esc(year)+'</div>'
-    +'<script>window.onload=function(){setTimeout(function(){window.print();},150)};<\/script></body></html>';
-}
-function msbExportPdf(group){
-  group=group==='gr'?'gr':'mc';
-  var state=MSB[group];
-  if(!state||!state.loaded){toast('กรุณารอให้ข้อมูล Blueprint โหลดเสร็จก่อน Export','warn');return;}
-  var submitted=(state.rows||[]).filter(function(row){return row&&row.status==='submitted';}).length;
-  if(!submitted&&!confirm('ยังไม่มี Blueprint ที่ส่งสมบูรณ์ ต้องการเปิดรายงานเปล่าหรือไม่?'))return;
-  var w=window.open('','_blank','width=1280,height=820');
-  if(!w){toast('กรุณาอนุญาต Popup แล้วลอง Export PDF อีกครั้ง','err');return;}
-  w.document.open();w.document.write(msbBuildBlueprintPdfReport(group,state));w.document.close();
 }
 function msbActionBtn(label,fn,color){
   return '<button class="bsm" onclick="'+esc(fn)+'" style="font-size:10px;padding:5px 8px;border-color:'+color+';color:'+color+'">'+label+'</button>';
@@ -8840,6 +8784,7 @@ function msbRender(group){
     }
   }
   msbDataQualityRender(group);
+  if(group==='gr'&&window.BlueprintMeetingSummary)window.BlueprintMeetingSummary.render(state);
   msbFollowUpRender(group);
   msbRadarRender(group);
   msbPairsRender(group);

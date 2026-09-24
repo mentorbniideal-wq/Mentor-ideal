@@ -8,6 +8,7 @@ import { sha256Hex } from '../../_shared/line.ts';
 import { calculateMsbGoal } from '../../_shared/msb-goal-calculation.ts';
 import { annualGoalProgress } from '../../_shared/msb-goal-progress.ts';
 import { resolveMsbPlanningYear } from '../../_shared/msb-planning-year.ts';
+import { buildBlueprintSubmissionCoverage } from '../../_shared/msb-submission-coverage.ts';
 import { serverEnvironment } from '../../_shared/environment.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
@@ -892,6 +893,33 @@ async function listDashboardRows(db: Db, auth: Awaited<ReturnType<typeof require
   });
 }
 
+async function loadBlueprintSubmissionCoverage(
+  db: Db,
+  auth: Awaited<ReturnType<typeof requireAuth>>,
+  chapterId: string,
+  focusYear: number,
+) {
+  let memberQuery = db.from('members')
+    .select('id,name,nickname')
+    .eq('chapter_id', chapterId)
+    .eq('is_archived', false)
+    .order('name');
+  if (!auth.isMC && String(auth.role) !== 'growth' && auth.teamName) {
+    memberQuery = memberQuery.eq('mentor_team', auth.teamName);
+  }
+  const { data: members, error: memberError } = await memberQuery;
+  if (memberError) throw new Error(memberError.message);
+  const memberRows = (members || []) as Record<string, unknown>[];
+  const memberIds = memberRows.map(member => String(member.id || '')).filter(Boolean);
+  const { data: blueprints, error: blueprintError } = memberIds.length
+    ? await db.from('member_success_blueprints')
+      .select('member_id,blueprint_year,status,updated_at')
+      .in('member_id', memberIds)
+    : { data: [], error: null };
+  if (blueprintError) throw new Error(blueprintError.message);
+  return buildBlueprintSubmissionCoverage(memberRows, (blueprints || []) as Record<string, unknown>[], focusYear);
+}
+
 function summarizeDashboardRows(rows: Awaited<ReturnType<typeof listDashboardRows>>) {
   const submitted = rows.filter(r => r.status === 'submitted');
   const drafts = rows.filter(r => r.status === 'draft');
@@ -1362,9 +1390,10 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
         listDashboardRows(db, auth, year - 1, scope.chapterId),
       ]);
       const historicalGoals = await loadHistoricalGrowthGoals(db, dashboardRows, year - 1);
-      const [planResult, followupResult] = await Promise.allSettled([
+      const [planResult, followupResult, coverageResult] = await Promise.allSettled([
         fetchPlanRows(db, auth, year, scope.chapterId),
         buildFollowUpQueue(db, auth, scope.chapterId),
+        loadBlueprintSubmissionCoverage(db, auth, scope.chapterId, year),
       ]);
       const planRows = planResult.status === 'fulfilled' ? planResult.value : [];
       const followups = followupResult.status === 'fulfilled'
@@ -1373,6 +1402,7 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       const partialErrors = [
         planResult.status === 'rejected' ? 'plan_vs_actual' : '',
         followupResult.status === 'rejected' ? 'followups' : '',
+        coverageResult.status === 'rejected' ? 'submission_coverage' : '',
       ].filter(Boolean);
       const summary = summarizeDashboardRows(dashboardRows);
       const overview = intelligenceOverviewFromRows(planRows);
@@ -1389,6 +1419,9 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
         followups,
         dataQuality: dataQualityCenterFromRows(dashboardRows, planRows),
         yearComparison: compareBlueprintYears(dashboardRows, previousRows, year, historicalGoals),
+        submissionCoverage: coverageResult.status === 'fulfilled'
+          ? coverageResult.value
+          : buildBlueprintSubmissionCoverage(dashboardRows.map(row => ({ id: row.memberId, name: row.name, nickname: row.nickname })), [], year),
         meta: {
           bundled: true,
           generatedAt: new Date().toISOString(),
