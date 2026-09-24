@@ -48,9 +48,14 @@
       }).join(' · ');
       return '<tr><td><b>'+esc(displayName(member))+'</b><div style="font-size:10px;color:var(--sub)">'+esc(member.name||'')+'</div></td><td style="white-space:normal">'+(statuses||'—')+'</td></tr>';
     }).join('');
+    var historical=state&&state.historicalGoalCoverage||null;
+    var historicalText=historical&&Number.isFinite(Number(historical.available))
+      ? 'เป้า Growth ปี '+esc(historical.year)+' จากไฟล์เดิม: มี '+number(historical.available,0)+'/'+number(historical.totalMembers,0)+' คน'
+      : 'เป้า Growth ปี '+esc(year-1)+' จากไฟล์เดิม: ยังตรวจไม่สำเร็จ';
     root.innerHTML='<section style="background:linear-gradient(135deg,rgba(199,167,106,.12),rgba(29,185,126,.06));border:1px solid rgba(199,167,106,.3);border-radius:16px;padding:16px">'
-      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap"><div><div style="font-size:10px;color:var(--ac);font-weight:900;letter-spacing:.08em">BLUEPRINT MEETING SUMMARY</div><h3 style="font-size:16px;margin:4px 0 0">สถานะการกรอกปี '+esc(year)+'</h3><div style="font-size:11px;color:var(--sub);margin-top:4px">ตรวจคนที่ส่งแล้ว Draft และผู้ที่ยังตกหล่นก่อนประชุม</div></div><div style="display:flex;gap:7px;flex-wrap:wrap"><button type="button" class="bsm" onclick="copyBlueprintMeetingSummary()" style="font-weight:900">📋 Copy สรุปส่ง LINE</button><button type="button" class="bsm" onclick="msbExportPdf(&quot;gr&quot;)" style="background:var(--ac);color:#111;border-color:transparent;font-weight:900">📄 Save as PDF</button></div></div>'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap"><div><div style="font-size:10px;color:var(--ac);font-weight:900;letter-spacing:.08em">BLUEPRINT MEETING SUMMARY</div><h3 style="font-size:16px;margin:4px 0 0">สถานะการกรอก Blueprint ปี '+esc(year)+'</h3><div style="font-size:11px;color:var(--sub);margin-top:4px">นับเฉพาะแบบฟอร์ม Blueprint ที่ส่งแล้วหรือ Draft ไม่ใช่ยอดเป้า Growth เดิม</div></div><div style="display:flex;gap:7px;flex-wrap:wrap"><button type="button" class="bsm" onclick="copyBlueprintMeetingSummary()" style="font-weight:900">📋 Copy สรุปส่ง LINE</button><button type="button" class="bsm" onclick="msbExportPdf(&quot;gr&quot;)" style="background:var(--ac);color:#111;border-color:transparent;font-weight:900">📄 Save as PDF</button></div></div>'
       +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:14px"><div class="kc"><div class="kl">สมาชิกทั้งหมด</div><div class="kv">'+number(total,0)+'</div></div><div class="kc"><div class="kl">ส่งแล้ว</div><div class="kv" style="color:var(--gr)">'+number(lists.submitted.length,0)+'</div></div><div class="kc"><div class="kl">Draft</div><div class="kv" style="color:var(--ye)">'+number(lists.draft.length,0)+'</div></div><div class="kc"><div class="kl">ยังไม่กรอก</div><div class="kv" style="color:var(--re)">'+number(lists.missing.length,0)+'</div></div></div>'
+      +'<div style="margin-top:10px;padding:9px 10px;border-radius:10px;background:rgba(199,167,106,.08);font-size:11px;color:var(--sub)">🎯 '+historicalText+'</div>'
       +'<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:12px">'+(yearly||'<span style="font-size:11px;color:var(--sub)">ยังไม่มีข้อมูลรายปี</span>')+'</div>'
       +'<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bd)"><div style="font-size:11px;font-weight:900;margin-bottom:8px">คนที่ต้องติดตาม '+number(pending.length,0)+' คน</div><div style="display:flex;gap:6px;flex-wrap:wrap">'+(pendingNames||'<span style="font-size:11px;color:var(--gr)">✅ ครบทุกคนแล้ว</span>')+(pending.length>10?'<span style="font-size:10px;color:var(--sub);padding:5px">และอีก '+number(pending.length-10,0)+' คน</span>':'')+'</div></div>'
       +'<details style="margin-top:12px"><summary style="cursor:pointer;font-size:11px;font-weight:900;color:var(--ac)">ดูว่าแต่ละคนมีข้อมูลปีใดบ้าง</summary><div style="overflow-x:auto;margin-top:8px;max-height:320px"><table class="tbl"><thead><tr><th>สมาชิก</th><th>สถานะรายปี</th></tr></thead><tbody>'+matrix+'</tbody></table></div></details></section>';
@@ -90,6 +95,7 @@
     state=state||{};
     var year=Number(state.year)||new Date().getFullYear(),coverage=coverageFor(state),lists=currentLists(coverage,year);
     var pending=lists.draft.concat(lists.missing);
+    var historical=state.historicalGoalCoverage||null;
     var lines=[
       '📊 Blueprint Meeting Summary ปี '+year,
       'สมาชิกทั้งหมด '+number((coverage.members||[]).length,0)+' คน',
@@ -100,8 +106,9 @@
       'สถานะรายปี'
     ];
     (coverage.byYear||[]).forEach(function(item){
-      lines.push('• '+item.year+': ส่งแล้ว '+number(item.submitted,0)+'/'+number(item.totalMembers,0)+' · Draft '+number(item.draft,0)+' · ยังไม่กรอก '+number(item.missing,0));
+      lines.push('• Blueprint '+item.year+': ส่งแล้ว '+number(item.submitted,0)+'/'+number(item.totalMembers,0)+' · Draft '+number(item.draft,0)+' · ยังไม่กรอก '+number(item.missing,0));
     });
+    if(historical&&Number.isFinite(Number(historical.available)))lines.push('','🎯 เป้า Growth ปี '+historical.year+' จากไฟล์เดิม: มีข้อมูล '+number(historical.available,0)+'/'+number(historical.totalMembers,0)+' คน');
     lines.push('','ผู้ที่ต้องติดตาม ('+number(pending.length,0)+' คน)');
     lines.push(pending.length?pending.map(function(member){
       var entry=yearEntry(member,year);

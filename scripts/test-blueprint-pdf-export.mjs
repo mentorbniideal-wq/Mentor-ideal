@@ -6,7 +6,7 @@ const dashboard = readFileSync('public/dashboard.html', 'utf8');
 const exporter = readFileSync('public/assets/js/desktop-blueprint-summary.js', 'utf8');
 
 assert.ok(dashboard.includes("msbExportPdf('mc')") && dashboard.includes("msbExportPdf('gr')"), 'Mentor and Growth Blueprint views expose PDF export');
-assert.ok(dashboard.includes('desktop-blueprint-summary.js?v=20260924.2'), 'Blueprint summary module has an explicit cache key');
+assert.ok(dashboard.includes('desktop-blueprint-summary.js?v=20260924.3'), 'Blueprint summary module has an explicit cache key');
 assert.ok(dashboard.includes('📄 Save as PDF'), 'Blueprint views describe the browser PDF action clearly');
 assert.ok(dashboard.includes('id="msb-gr-meeting-summary"'), 'Growth Blueprint includes the meeting summary entry point');
 assert.match(exporter, /row\.status==='submitted'/, 'Only submitted Blueprints are included');
@@ -46,13 +46,17 @@ const state = {
   intelRows: [{ memberId: 'm1', lookingForCategories: ['Allowed <A>'], powerTeamCategories: [] }],
   coverage: {
     availableYears: [2027, 2026],
-    byYear: [{ year: 2027, totalMembers: 3, submitted: 1, draft: 1, missing: 1 }],
+    byYear: [
+      { year: 2027, totalMembers: 3, submitted: 1, draft: 1, missing: 1 },
+      { year: 2026, totalMembers: 3, submitted: 1, draft: 0, missing: 2 },
+    ],
     members: [
       { memberId: 'm1', name: '<script>alert(1)</script>', nickname: 'ทดสอบ', years: [{ year: 2027, status: 'submitted' }, { year: 2026, status: 'submitted' }] },
       { memberId: 'm2', name: 'Draft Member', nickname: '', years: [{ year: 2027, status: 'draft' }] },
       { memberId: 'm3', name: 'Missing Member', nickname: '', years: [] },
     ],
   },
+  historicalGoalCoverage: { year: 2026, totalMembers: 3, available: 2, missing: 1, source: 'member_annual_growth_goals' },
 };
 const html = context.BlueprintMeetingSummary.buildPdf('gr', state);
 assert.ok(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;') && !html.includes('<script>alert(1)</script>'), 'Member text is HTML escaped');
@@ -67,11 +71,14 @@ context.BlueprintMeetingSummary.render(state);
 assert.ok(summaryRoot.innerHTML.includes('ส่งแล้ว') && summaryRoot.innerHTML.includes('Draft') && summaryRoot.innerHTML.includes('ยังไม่กรอก'), 'Dashboard summary shows all submission states');
 assert.ok(summaryRoot.innerHTML.includes('Draft Member') && summaryRoot.innerHTML.includes('Missing Member'), 'Dashboard summary identifies members who need follow-up');
 assert.ok(summaryRoot.innerHTML.includes('2027') && summaryRoot.innerHTML.includes('2026'), 'Dashboard summary shows per-year coverage');
+assert.ok(summaryRoot.innerHTML.includes('สถานะการกรอก Blueprint') && summaryRoot.innerHTML.includes('ไม่ใช่ยอดเป้า Growth เดิม'), 'Dashboard distinguishes Blueprint submissions from historical Growth goals');
+assert.ok(summaryRoot.innerHTML.includes('มี 2/3 คน'), 'Dashboard shows the separate historical Growth-goal coverage');
 assert.ok(summaryRoot.innerHTML.includes('Copy สรุปส่ง LINE') && summaryRoot.innerHTML.includes('Save as PDF'), 'Meeting summary exposes both approved sharing actions');
 const copyText = context.BlueprintMeetingSummary.buildCopyText(state);
 assert.ok(copyText.includes('Blueprint Meeting Summary ปี 2027'), 'LINE summary identifies its reporting year');
 assert.ok(copyText.includes('ส่งแล้ว 1 คน') && copyText.includes('Draft 1 คน') && copyText.includes('ยังไม่กรอก 1 คน'), 'LINE summary contains submission counts');
 assert.ok(copyText.includes('Draft Member — Draft') && copyText.includes('Missing Member — ยังไม่กรอก'), 'LINE summary identifies follow-up members');
+assert.ok(copyText.includes('Blueprint 2026') && copyText.includes('เป้า Growth ปี 2026 จากไฟล์เดิม: มีข้อมูล 2/3 คน'), 'LINE summary distinguishes historical targets from Blueprint submissions');
 assert.ok(!copyText.includes('PRIVATE DETAIL') && !copyText.includes('Allowed <A>'), 'LINE summary contains no Blueprint business content');
 assert.ok(copyText.length <= 4500, 'LINE summary stays within the client safety limit');
 

@@ -978,7 +978,7 @@ function compareBlueprintYears(
 
 async function loadHistoricalGrowthGoals(
   db: Db,
-  rows: Awaited<ReturnType<typeof listDashboardRows>>,
+  rows: Array<{ memberId: unknown }>,
   goalYear: number,
 ) {
   const memberIds = rows.map(row => String(row.memberId)).filter(Boolean);
@@ -1372,6 +1372,16 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
         listDashboardRows(db, auth, year - 1, scope.chapterId),
       ]);
       const historicalGoals = await loadHistoricalGrowthGoals(db, dashboardRows, year - 1);
+      // This is intentionally separate from Blueprint submission coverage:
+      // historical Growth targets are imported reference data, not a member
+      // having submitted an older Blueprint form.
+      const historicalGoalCoverage = {
+        year: year - 1,
+        totalMembers: dashboardRows.length,
+        available: historicalGoals.size,
+        missing: Math.max(0, dashboardRows.length - historicalGoals.size),
+        source: 'member_annual_growth_goals',
+      };
       const [planResult, followupResult, coverageResult] = await Promise.allSettled([
         fetchPlanRows(db, auth, year, scope.chapterId),
         buildFollowUpQueue(db, auth, scope.chapterId),
@@ -1401,6 +1411,7 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
         followups,
         dataQuality: dataQualityCenterFromRows(dashboardRows, planRows),
         yearComparison: compareBlueprintYears(dashboardRows, previousRows, year, historicalGoals),
+        historicalGoalCoverage,
         submissionCoverage: coverageResult.status === 'fulfilled'
           ? coverageResult.value
           : buildBlueprintSubmissionCoverage(dashboardRows.map(row => ({ id: row.memberId, name: row.name, nickname: row.nickname })), [], year),
@@ -1472,6 +1483,11 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       const rows = await fetchPlanRows(db, auth, year, scope.chapterId, memberId);
       const row = rows[0];
       if (!row) return errResponse('ไม่พบข้อมูลสมาชิกนี้ หรือไม่มีสิทธิ์ดูข้อมูล', 404);
+      const historicalGoals = await loadHistoricalGrowthGoals(db, [row], year - 1);
+      const previousGoal = historicalGoals.get(String(row.memberId));
+      const currentGoal = row.msbGoal;
+      const comparable = previousGoal !== undefined && currentGoal > 0;
+      const goalDelta = comparable ? currentGoal - previousGoal : null;
       return jsonResponse({
         ok: true,
         blueprintYear: year,
@@ -1512,6 +1528,15 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
           referralWeekGap: row.referralWeekGap,
           status: row.status,
           statusLabel: row.statusLabel,
+        },
+        yearComparison: {
+          previousYear: year - 1,
+          previousGoal: previousGoal ?? null,
+          previousGoalSource: previousGoal !== undefined ? 'historical_growth_goal' : null,
+          currentYear: year,
+          currentGoal,
+          delta: goalDelta,
+          deltaPercent: comparable && previousGoal > 0 ? (Number(goalDelta) / previousGoal) * 100 : null,
         },
         lookingFor: { categories: row.lookingForCategories, detail: row.lookingForDetail },
         powerTeam: { categories: row.powerTeamCategories, detail: row.powerTeamDetail },
