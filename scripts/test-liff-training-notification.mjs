@@ -16,4 +16,19 @@ assert.doesNotMatch(trainingBlock, /return response\(\{ok:true,message:intent===
 assert.match(notifier, /notificationType: notice\.notificationType \|\| 'issue_alert'/, 'delivery ledger identifies training notifications separately');
 assert.match(liff, /Number\(r\.delivery\?\.sent\|\|0\)>0\?'แจ้งแล้ว ✓':'บันทึกแล้ว ✓'/, 'LIFF distinguishes a delivered LINE message from a saved request');
 
-console.log('PASS LIFF training interest: audited LINE dispatch and truthful delivery status');
+const goalBlock = api.match(/if \(action === 'goal'\) \{[\s\S]*?\n  \}\n\n  if \(action === 'renewal'\)/)?.[0] || '';
+assert.ok(goalBlock, 'goal handler exists');
+assert.match(goalBlock, /const goalChanged/, 'goal updates determine whether a real goal change occurred');
+assert.match(goalBlock, /await notifyIssueStakeholders\(db, \{/, 'changed goals dispatch through the LINE delivery path');
+assert.match(goalBlock, /signalType: 'goal'/, 'goal updates route to Growth recipients');
+assert.match(goalBlock, /!goalChanged[\s\S]*?ไม่ส่ง LINE ซ้ำ/, 'unchanged goals do not send duplicate notifications');
+assert.match(goalBlock, /skippedReason === 'no_recipient'/, 'goal response reports missing recipients truthfully');
+
+const renewalBlock = api.match(/if \(action === 'renewal-intent'\) \{[\s\S]*?\n  \}\n\n  if \(action === 'training-interest'\)/)?.[0] || '';
+assert.ok(renewalBlock, 'renewal intent handler exists');
+assert.match(renewalBlock, /if\(intent==='not_now'\)return response/, 'not-now is saved without an unwanted operational notification');
+assert.match(renewalBlock, /await notifyIssueStakeholders\(db,\{/, 'renewal requests dispatch through the LINE delivery path');
+assert.match(renewalBlock, /signalType:'renewal'/, 'renewal requests route to Membership and Secretary/Treasurer');
+assert.match(renewalBlock, /ยังไม่ได้ตั้งผู้รับทีมต่ออายุ/, 'renewal response reports missing recipients truthfully');
+
+console.log('PASS LIFF operational notifications: training, goal and renewal use audited delivery with truthful status');

@@ -5,7 +5,7 @@ import { trackLineEvent } from '../_shared/analytics.ts';
 import { buildIdempotencyKey } from '../_shared/line.ts';
 import { notifyAbsenceStakeholders } from '../_shared/line-absence-notify.ts';
 import { notifyVisitorStakeholders } from '../_shared/line-visitor-notify.ts';
-import { notifyIssueStakeholders } from '../_shared/line-issue-notify.ts';
+import { notifyIssueStakeholders, type IssueNotifyResult } from '../_shared/line-issue-notify.ts';
 import { notifyOneToOneMentorAndMc, notifyOneToOnePartner } from '../_shared/one-to-one-notify.ts';
 import { handshakeCodeHash, oneToOneGoogleCalendarUrl, oneToOneIcs, pairStatusFromVerification, recoverableHandshakeCode, safeHashEqual } from '../_shared/one-to-one.ts';
 import { GUIDED_MODES, canEditOwnedGuidedData, cleanGuidedText, normalizeGuidedContent, recommendedGuidedMode, validGuidedStep } from '../_shared/guided-one-to-one.ts';
@@ -812,16 +812,51 @@ Deno.serve(async (req: Request) => {
     if (!['ref', 'visitor', 'oto', 'ceu', 'tyfb'].includes(goalType) || !Number.isFinite(target) || target <= 0 || target>maxTarget) {
       return response({ ok: false, error: 'เป้าหมายไม่ถูกต้อง' }, 400);
     }
+    const { data: currentGoal } = await db.from('line_goals')
+      .select('target').eq('member_id', memberId).eq('goal_type', goalType).maybeSingle();
+    const goalChanged = Number((currentGoal as Record<string, unknown> | null)?.target) !== target;
     const { error } = await db.from('line_goals').upsert({
       member_id: memberId, goal_type: goalType, target, set_at: new Date().toISOString(),
     }, { onConflict: 'member_id,goal_type' });
     if (error) return response({ ok: false, error: error.message }, 400);
     const month = new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit'}).format(new Date());
-    await upsertMemberSignal(db,{memberId,signalType:'goal',subjectType:'line_goal',subjectId:goalType,title:'สมาชิกตั้งเป้าหมายใหม่',detail:`${goalType}: ${target}`,payload:{goalType,target},priority:'low',idempotencyKey:`goal:${memberId}:${goalType}:${month}`});
+    const { data: signal } = await upsertMemberSignal(db,{memberId,signalType:'goal',subjectType:'line_goal',subjectId:goalType,title:'สมาชิกตั้งเป้าหมายใหม่',detail:`${goalType}: ${target}`,payload:{goalType,target},priority:'low',idempotencyKey:`goal:${memberId}:${goalType}:${month}`});
+    let delivery: IssueNotifyResult | null = null;
+    if (goalChanged) {
+      const deliveryResult = await notifyIssueStakeholders(db, {
+        issueId: String((signal as Record<string, unknown> | null)?.id || `goal:${memberId}:${goalType}:${month}`),
+        memberId,
+        memberName: String(identity.member.name || ''),
+        nickname: String(identity.member.nickname || identity.member.name || ''),
+        mentorTeam: String(identity.member.mentor_team || ''),
+        issueText: `สมาชิกตั้งเป้าหมาย ${goalType}: ${target}`,
+        signalType: 'goal',
+        routeLabel: 'Growth Team',
+        headline: '🎯 สมาชิกตั้งเป้าหมายใหม่',
+        actionHint: 'เปิดดูและติดตามได้ใน Growth Mobile / Desktop → งานจากสมาชิก',
+        notificationType: 'goal_updated',
+        idempotencyKey: `liff:goal:${memberId}:${goalType}:${month}:${target}`,
+        source: 'liff-api',
+      });
+      delivery = deliveryResult;
+      await trackLineEvent(db, 'liff_goal_delivery_result', {
+        lineUserId: identity.userId, memberId, source: 'liff',
+        properties: { goalType, target, attempted: deliveryResult.attempted, sent: deliveryResult.sent, failed: deliveryResult.failed, skipped: deliveryResult.skipped, skippedReason: deliveryResult.skippedReason || null },
+      });
+    }
     await trackLineEvent(db, 'liff_goal_saved', {
       lineUserId: identity.userId, memberId, source: 'liff', properties: { goalType },
     });
-    return response({ ok: true, message: 'บันทึกเป้าหมายแล้ว' });
+    const sent = Number(delivery?.sent || 0);
+    const skippedReason = String(delivery?.skippedReason || '');
+    const message = !goalChanged
+      ? 'บันทึกเป้าหมายเดิมแล้ว · ไม่ส่ง LINE ซ้ำ'
+      : sent > 0
+      ? `บันทึกเป้าหมายแล้ว · แจ้ง Growth Team ${sent} คน`
+      : skippedReason === 'no_recipient'
+      ? 'บันทึกเป้าหมายแล้ว แต่ยังส่ง LINE ไม่ได้ เพราะยังไม่ได้ตั้งผู้รับ Growth Team'
+      : 'บันทึกเป้าหมายแล้ว แต่ส่ง LINE ไม่สำเร็จ ทีม MC ได้รับแจ้งใน Dashboard';
+    return response({ ok: true, message, delivery });
   }
 
   if (action === 'renewal') {
@@ -844,9 +879,34 @@ Deno.serve(async (req: Request) => {
     const intent=String(body.intent||''),allowed=new Set(['renew_now','need_details','talk_mentor','unsure','not_now']);
     if(!allowed.has(intent))return response({ok:false,error:'กรุณาเลือกสิ่งที่ต้องการ'},400);
     const labels:Record<string,string>={renew_now:'พร้อมต่ออายุ',need_details:'ขอรายละเอียดการต่ออายุ',talk_mentor:'อยากคุยกับ Mentor ก่อน',unsure:'ยังไม่แน่ใจและอยากให้ช่วย',not_now:'ยังไม่ดำเนินการตอนนี้'};
-    const {error}=await upsertMemberSignal(db,{memberId,signalType:'renewal',subjectType:'renewal_intent',subjectId:intent,title:labels[intent],detail:'สมาชิกแจ้งความต้องการผ่าน MY IDEAL',payload:{intent},priority:intent==='talk_mentor'||intent==='unsure'?'high':'normal',consent:intent!=='not_now',idempotencyKey:`renewal:${memberId}:${intent}`});
+    const {data: signal,error}=await upsertMemberSignal(db,{memberId,signalType:'renewal',subjectType:'renewal_intent',subjectId:intent,title:labels[intent],detail:'สมาชิกแจ้งความต้องการผ่าน MY IDEAL',payload:{intent},priority:intent==='talk_mentor'||intent==='unsure'?'high':'normal',consent:intent!=='not_now',idempotencyKey:`renewal:${memberId}:${intent}`});
     if(error)return response({ok:false,error:'บันทึกความต้องการไม่สำเร็จ กรุณาลองใหม่'},400);
-    return response({ok:true,message:intent==='not_now'?'บันทึกไว้แล้ว คุณกลับมาแจ้งใหม่ได้ทุกเมื่อ':'ส่งความต้องการให้ทีมที่รับผิดชอบแล้ว'});
+    if(intent==='not_now')return response({ok:true,message:'บันทึกไว้แล้ว คุณกลับมาแจ้งใหม่ได้ทุกเมื่อ'});
+    const delivery=await notifyIssueStakeholders(db,{
+      issueId:String((signal as Record<string,unknown>|null)?.id||`renewal:${memberId}:${intent}`),
+      memberId,
+      memberName:String(identity.member.name||''),
+      nickname:String(identity.member.nickname||identity.member.name||''),
+      mentorTeam:String(identity.member.mentor_team||''),
+      issueText:labels[intent],
+      signalType:'renewal',
+      routeLabel:'Membership Committee / Secretary-Treasurer',
+      headline:'🔄 สมาชิกแจ้งความต้องการต่ออายุ',
+      actionHint:'เปิดดูและตอบกลับได้ใน Mobile / Desktop → งานจากสมาชิก',
+      notificationType:'renewal_intent',
+      idempotencyKey:`liff:renewal:${memberId}:${intent}`,
+      source:'liff-api',
+    });
+    await trackLineEvent(db,'liff_renewal_intent_delivery_result',{
+      lineUserId:identity.userId,memberId,source:'liff',
+      properties:{intent,attempted:delivery.attempted,sent:delivery.sent,failed:delivery.failed,skipped:delivery.skipped,skippedReason:delivery.skippedReason||null},
+    });
+    const deliveryMessage=delivery.sent>0
+      ? `ส่งให้ทีมต่ออายุแล้ว ${delivery.sent} คน`
+      : delivery.skippedReason==='no_recipient'
+      ? 'บันทึกความต้องการแล้ว แต่ยังส่ง LINE ไม่ได้ เพราะยังไม่ได้ตั้งผู้รับทีมต่ออายุ'
+      : 'บันทึกความต้องการแล้ว แต่ส่ง LINE ไม่สำเร็จ ทีม MC ได้รับแจ้งใน Dashboard';
+    return response({ok:true,message:deliveryMessage,delivery});
   }
 
   if (action === 'training-interest') {
