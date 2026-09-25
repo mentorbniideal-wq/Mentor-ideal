@@ -44,7 +44,10 @@ body{background:var(--bg);color:var(--tx);font-family:'Poppins',system-ui,sans-s
 
 /* App */
 #app{display:none;flex-direction:column;min-height:100vh}
-header{background:var(--sf);border-bottom:1px solid var(--bd);padding:0 28px;display:flex;align-items:center;gap:12px;height:56px;position:sticky;top:0;z-index:100}
+/* Only the application command bar is a sticky page header.  Styling every
+   semantic <header> made nested panels inherit a light, fixed background in
+   Dark mode (for example LINE Delivery Truth). */
+header.command-top{background:var(--sf);border-bottom:1px solid var(--bd);padding:0 28px;display:flex;align-items:center;gap:12px;height:56px;position:sticky;top:0;z-index:100}
 .hl{font-size:20px}.ht{font-size:15px;font-weight:700;flex:1}
 .hbadge{background:var(--sf2);border:none;border-radius:999px;padding:3px 12px;font-size:11px;color:var(--sub)}
 .hup{font-size:11px;color:var(--gy)}
@@ -961,7 +964,7 @@ body.dark input,body.dark select,body.dark textarea{box-shadow:inset 0 1px 0 rgb
 #lerr{color:var(--re);font-size:12px;margin-top:10px;min-height:18px;font-weight:500}
 
 /* Header */
-header{background:rgba(255,253,248,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--bd);padding:0 24px;height:58px}
+header.command-top{background:rgba(255,253,248,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--bd);padding:0 24px;height:58px}
 .hl{font-size:18px}.ht{font-size:15px;font-weight:700;letter-spacing:-.02em}
 .hbadge{background:var(--ac-dim);border:1px solid rgba(176,138,60,.24);border-radius:8px;padding:3px 12px;font-size:11px;color:var(--ac3);font-weight:700}
 .bsm{background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px;font-weight:500;transition:all .15s;color:var(--tx);font-family:'Poppins',sans-serif}

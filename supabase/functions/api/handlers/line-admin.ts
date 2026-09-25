@@ -18,6 +18,9 @@ import {
 import { provisionLineExperience } from '../../_shared/line-provision.ts';
 import { trackLineEvent } from '../../_shared/analytics.ts';
 import { lineAutomationDefaultPreview } from '../../_shared/line-automation-preview.ts';
+import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
+import { evaluateNotificationGuard, logSuppressedNotification } from '../../_shared/notification-orchestrator.ts';
+import { nextCustomLineRun, type CustomLineRecurrence } from '../../_shared/custom-line-automation.ts';
 
 // ── Unified LINE Push helper — no-op when token is absent (dev mode) ──
 const LINE_TOKEN = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || '';
@@ -2628,6 +2631,8 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
     case 'getLineAutoControlCenter': {
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const days = Math.min(90, Math.max(7, Number(p.days) || 30));
       const since = new Date(Date.now() - days * 86400000).toISOString();
       const monthStart = new Date();
@@ -2731,9 +2736,26 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       }
       const monthRows = deliveries.filter(row => txt(row.created_at) >= monthStart.toISOString());
       const monthSent = monthRows.reduce((sum, row) => sum + (txt(row.status) === 'sent' ? Math.max(1, num(row.estimated_count, 1)) : 0), 0);
+      const [customRes, memberRes] = await Promise.all([
+        db.from('line_custom_automations').select('*').eq('chapter_id', scope.chapterId).is('archived_at', null).order('created_at', { ascending: false }),
+        db.from('members').select('id,name,nickname').eq('chapter_id', scope.chapterId).eq('is_archived', false).order('name'),
+      ]);
+      if (customRes.error) return errResponse(customRes.error.message);
+      if (memberRes.error) return errResponse(memberRes.error.message);
+      const customRows = (customRes.data || []) as Record<string, unknown>[];
+      const customIds = customRows.map(row => txt(row.id));
+      const recipientRes = customIds.length
+        ? await db.from('line_custom_automation_recipients').select('automation_id,member_id').eq('chapter_id', scope.chapterId).in('automation_id', customIds)
+        : { data: [], error: null };
+      if (recipientRes.error) return errResponse(recipientRes.error.message);
+      const recipientMap = new Map<string, string[]>();
+      for (const row of (recipientRes.data || []) as Record<string, unknown>[]) {
+        const id = txt(row.automation_id); const values = recipientMap.get(id) || [];
+        values.push(txt(row.member_id)); recipientMap.set(id, values);
+      }
       return jsonResponse({
         ok: true,
-        canEdit: Boolean(auth.isAdmin),
+        canEdit: Boolean(auth.isAdmin && !auth.isReadOnly && !auth.isViewer),
         days,
         quota,
         quotaGuard: lineQuotaMode(quota),
@@ -2745,8 +2767,122 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
           monthSent,
         },
         controls,
+        customAutomations: customRows.map(row => ({ ...row, recipientIds: recipientMap.get(txt(row.id)) || [] })),
+        memberOptions: ((memberRes.data || []) as Record<string, unknown>[]).map(row => ({ id: row.id, name: txt(row.nickname || row.name) })),
         recent: recentRes.data || [],
       });
+    }
+
+    case 'saveLineCustomAutomation': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.isAdmin) return errResponse('เฉพาะ Chapter Admin เท่านั้นที่สร้าง Auto Message ได้', 403);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const id = txt(p.id);
+      const name = txt(p.name).slice(0, 120);
+      const message = txt(p.message).slice(0, 5000);
+      const recurrence = txt(p.recurrence);
+      const nextRun = new Date(txt(p.nextRunAt));
+      const recipientIds = [...new Set(Array.isArray(p.recipientIds) ? p.recipientIds.map(txt).filter(Boolean) : [])].slice(0, 100);
+      if (!name || !message) return errResponse('กรุณากรอกชื่อและข้อความ');
+      if (!['once', 'daily', 'weekly', 'monthly'].includes(recurrence)) return errResponse('รูปแบบการส่งไม่ถูกต้อง');
+      if (!Number.isFinite(nextRun.getTime()) || nextRun.getTime() <= Date.now() + 60_000) return errResponse('เวลาส่งต้องอยู่ในอนาคตอย่างน้อย 1 นาที');
+      if (!recipientIds.length) return errResponse('กรุณาเลือกผู้รับอย่างน้อย 1 คน');
+      const { data: scopedMembers, error: memberError } = await db.from('members').select('id').eq('chapter_id', scope.chapterId).eq('is_archived', false).in('id', recipientIds);
+      if (memberError) return errResponse(memberError.message);
+      if ((scopedMembers || []).length !== recipientIds.length) return errResponse('พบผู้รับที่ไม่อยู่ใน Chapter หรือไม่ได้ใช้งาน', 403);
+      const actorEmail = txt(auth.email).toLowerCase();
+      let automationId = id;
+      if (id) {
+        const { data: current } = await db.from('line_custom_automations').select('id').eq('id', id).eq('chapter_id', scope.chapterId).is('archived_at', null).maybeSingle();
+        if (!current) return errResponse('ไม่พบ Auto Message ใน Chapter นี้', 404);
+        const { error } = await db.from('line_custom_automations').update({ name, message, recurrence, next_run_at: nextRun.toISOString(), enabled: false, updated_at: new Date().toISOString(), updated_by_email: actorEmail, locked_at: null }).eq('id', id).eq('chapter_id', scope.chapterId);
+        if (error) return errResponse(error.message);
+      } else {
+        const { data: created, error } = await db.from('line_custom_automations').insert({ chapter_id: scope.chapterId, name, message, recurrence, next_run_at: nextRun.toISOString(), enabled: false, created_by_email: actorEmail, updated_by_email: actorEmail }).select('id').single();
+        if (error || !created) return errResponse(error?.message || 'สร้าง Auto Message ไม่สำเร็จ');
+        automationId = txt((created as Record<string, unknown>).id);
+      }
+      const { error: deleteError } = await db.from('line_custom_automation_recipients').delete().eq('automation_id', automationId).eq('chapter_id', scope.chapterId);
+      if (deleteError) return errResponse(deleteError.message);
+      const { error: recipientError } = await db.from('line_custom_automation_recipients').insert(recipientIds.map(memberId => ({ automation_id: automationId, member_id: memberId, chapter_id: scope.chapterId })));
+      if (recipientError) return errResponse(recipientError.message);
+      await db.from('chapter_audit_events').insert({ chapter_id: scope.chapterId, event_type: id ? 'line_custom_automation_updated' : 'line_custom_automation_created', actor_role: auth.role || 'admin', actor_ref: actorEmail, subject_type: 'line_custom_automation', subject_ref: automationId, metadata: { recurrence, next_run_at: nextRun.toISOString(), recipient_count: recipientIds.length, message_length: message.length } });
+      return jsonResponse({ ok: true, id: automationId, enabled: false, note: 'บันทึกเป็นฉบับปิด กรุณาตรวจและเปิดใช้งานเมื่อพร้อม' });
+    }
+
+    case 'setLineCustomAutomationEnabled': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.isAdmin) return errResponse('เฉพาะ Chapter Admin เท่านั้นที่เปิดหรือปิด Auto Message ได้', 403);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const id = txt(p.id); const enabled = p.enabled === true;
+      const { data: current } = await db.from('line_custom_automations').select('id,next_run_at').eq('id', id).eq('chapter_id', scope.chapterId).is('archived_at', null).maybeSingle();
+      if (!current) return errResponse('ไม่พบ Auto Message ใน Chapter นี้', 404);
+      if (enabled && new Date(txt((current as Record<string, unknown>).next_run_at)).getTime() <= Date.now()) return errResponse('กำหนดเวลานี้ผ่านไปแล้ว กรุณาแก้วันเวลาก่อนเปิด');
+      const actorEmail = txt(auth.email).toLowerCase();
+      const { error } = await db.from('line_custom_automations').update({ enabled, updated_at: new Date().toISOString(), updated_by_email: actorEmail, locked_at: null }).eq('id', id).eq('chapter_id', scope.chapterId);
+      if (error) return errResponse(error.message);
+      await db.from('chapter_audit_events').insert({ chapter_id: scope.chapterId, event_type: enabled ? 'line_custom_automation_enabled' : 'line_custom_automation_disabled', actor_role: auth.role || 'admin', actor_ref: actorEmail, subject_type: 'line_custom_automation', subject_ref: id, metadata: {} });
+      return jsonResponse({ ok: true, id, enabled });
+    }
+
+    case 'archiveLineCustomAutomation': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.isAdmin) return errResponse('เฉพาะ Chapter Admin เท่านั้นที่เก็บ Auto Message ได้', 403);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const id = txt(p.id); const actorEmail = txt(auth.email).toLowerCase(); const now = new Date().toISOString();
+      const { data, error } = await db.from('line_custom_automations').update({ archived_at: now, enabled: false, locked_at: null, updated_at: now, updated_by_email: actorEmail }).eq('id', id).eq('chapter_id', scope.chapterId).is('archived_at', null).select('id').maybeSingle();
+      if (error) return errResponse(error.message);
+      if (!data) return errResponse('ไม่พบ Auto Message ใน Chapter นี้', 404);
+      await db.from('chapter_audit_events').insert({ chapter_id: scope.chapterId, event_type: 'line_custom_automation_archived', actor_role: auth.role || 'admin', actor_ref: actorEmail, subject_type: 'line_custom_automation', subject_ref: id, metadata: {} });
+      return jsonResponse({ ok: true, id });
+    }
+
+    case 'runCustomLineAutomations': {
+      const cronSecret = txt(p.cron_secret);
+      const { data: cfg } = await db.from('cron_config').select('value').eq('key', 'cron_secret').maybeSingle();
+      if (!cronSecret || !cfg || txt((cfg as Record<string, unknown>).value) !== cronSecret) return errResponse('Invalid cron_secret', 403);
+      const now = new Date();
+      const { data: claimed, error: claimError } = await db.rpc('fn_claim_due_line_custom_automations', { p_now: now.toISOString() });
+      if (claimError) return errResponse(claimError.message);
+      const summaries: Record<string, unknown>[] = [];
+      for (const raw of (claimed || []) as Record<string, unknown>[]) {
+        const automationId = txt(raw.id); const chapterId = txt(raw.chapter_id); const scheduledFor = txt(raw.next_run_at);
+        const { data: recipientRows } = await db.from('line_custom_automation_recipients').select('member_id').eq('automation_id', automationId).eq('chapter_id', chapterId);
+        const memberIds = ((recipientRows || []) as Record<string, unknown>[]).map(row => txt(row.member_id)).filter(Boolean);
+        const [{ data: members }, { data: links }] = memberIds.length ? await Promise.all([
+          db.from('members').select('id').eq('chapter_id', chapterId).eq('is_archived', false).in('id', memberIds),
+          db.from('line_members').select('member_id,line_user_id').in('member_id', memberIds),
+        ]) : [{ data: [] }, { data: [] }];
+        const active = new Set(((members || []) as Record<string, unknown>[]).map(row => txt(row.id)));
+        const lineByMember = new Map(((links || []) as Record<string, unknown>[]).map(row => [txt(row.member_id), txt(row.line_user_id)]));
+        let sent = 0, skipped = 0, failed = 0;
+        for (const memberId of memberIds.filter(id => active.has(id))) {
+          const lineUserId = lineByMember.get(memberId) || '';
+          if (!lineUserId) { failed++; continue; }
+          const category = `custom_line_auto:${automationId}`;
+          const guardInput = { memberId, module: 'operational', category, priority: 'informational' as const };
+          const guard = await evaluateNotificationGuard(db, guardInput);
+          const key = `custom-line:${chapterId}:${automationId}:${scheduledFor}:${memberId}`;
+          if (!guard.allowed) { await logSuppressedNotification(db, guardInput, guard, key, lineUserId); skipped++; continue; }
+          try {
+            const result = await linePush(lineUserId, txt(raw.message), { db, idempotencyKey: key, memberId, notificationType: category, source: 'api/custom-line-automation', module: 'operational', category, priority: 'informational' });
+            result.skipped ? skipped++ : sent++;
+          } catch (error) { console.error('[custom-line-automation]', automationId, memberId, error); failed++; }
+        }
+        const status = failed ? (sent || skipped ? 'partial' : 'failed') : 'completed';
+        const { nextRunAt, enabled } = nextCustomLineRun(txt(raw.recurrence) as CustomLineRecurrence, scheduledFor, now);
+        const summary = { recipient_count: memberIds.length, sent, skipped, failed, scheduled_for: scheduledFor };
+        await db.from('line_custom_automations').update({ enabled, next_run_at: nextRunAt, last_run_at: now.toISOString(), last_run_status: status, last_run_summary: summary, locked_at: null, updated_at: now.toISOString() }).eq('id', automationId).eq('chapter_id', chapterId).eq('locked_at', now.toISOString());
+        await db.from('chapter_audit_events').insert({ chapter_id: chapterId, event_type: 'line_custom_automation_run', actor_role: 'system', actor_ref: 'cron', subject_type: 'line_custom_automation', subject_ref: automationId, metadata: summary });
+        summaries.push({ id: automationId, status, ...summary });
+      }
+      return jsonResponse({ ok: true, processed: summaries.length, summaries });
     }
 
     case 'setLineAutomationControl': {

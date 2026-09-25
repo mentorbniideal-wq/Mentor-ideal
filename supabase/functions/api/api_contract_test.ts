@@ -348,3 +348,19 @@ Deno.test('Mentor MY121 applies the authenticated Chapter before team filtering'
   assert(handler.includes("eq('matching_rounds.chapter_id',chapterId)"), 'pair operations and timelines must root reads in the Chapter-scoped round');
   assert(handler.includes("round:matching_rounds!inner(chapter_id)"), 'retry delivery must prove its matching round belongs to the Chapter');
 });
+
+Deno.test('Admin-authored LINE automation is Chapter-scoped and fail-closed', async () => {
+  const handler = await read('supabase/functions/api/handlers/line-admin.ts');
+  const routes = await read('supabase/functions/api/index.ts');
+  const migration = await read('supabase/migrations/20260925000001_custom_line_automations.sql');
+  for (const action of ['saveLineCustomAutomation','setLineCustomAutomationEnabled','archiveLineCustomAutomation','runCustomLineAutomations']) {
+    assert(routes.includes(`'${action}': 'line-admin'`), `${action} must route through the authenticated LINE Admin handler`);
+  }
+  assert(handler.includes('resolveChapterScope(db, auth)') && handler.includes("eq('chapter_id', scope.chapterId)"), 'Admin custom automation reads and writes must use server-derived Chapter scope');
+  assert(handler.includes('auth.isAdmin && !auth.isReadOnly && !auth.isViewer'), 'read-only accounts must not receive editable LINE AUTO controls');
+  assert(handler.includes("enabled: false") && handler.includes('บันทึกเป็นฉบับปิด'), 'new or edited custom messages must fail closed');
+  assert(handler.includes("eq('chapter_id', chapterId)") && handler.includes('evaluateNotificationGuard(db, guardInput)'), 'dispatcher must preserve Chapter scope and existing notification governance');
+  assert(handler.includes('custom-line:${chapterId}:${automationId}:${scheduledFor}:${memberId}'), 'each scheduled recipient must use a stable idempotency key');
+  assert(migration.includes('enforce_line_custom_automation_recipient_scope') && migration.includes('FOR UPDATE SKIP LOCKED'), 'database must reject cross-Chapter recipients and atomically claim due work');
+  assert(migration.includes("'*/5 * * * *'") && migration.includes("call_edge_function('runCustomLineAutomations')"), 'scheduler must dispatch the governed custom automation action');
+});

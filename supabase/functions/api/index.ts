@@ -214,6 +214,7 @@ const ROUTES: Record<string, string> = {
   'getLineHealth': 'line-admin', 'testLineCommand': 'line-admin',
   'getLineCommandGuide': 'line-admin', 'getLineAutomationLibrary': 'line-admin',
   'getLineAutoControlCenter': 'line-admin', 'setLineAutomationControl': 'line-admin', 'setLineAutomationMessage': 'line-admin', 'applyLineAutomationPreset': 'line-admin',
+  'saveLineCustomAutomation': 'line-admin', 'setLineCustomAutomationEnabled': 'line-admin', 'archiveLineCustomAutomation': 'line-admin', 'runCustomLineAutomations': 'line-admin',
   'getLineMemberJourney': 'line-admin',
 
   // AI Copilot (read-only recommendations; write actions require separate confirmation)
