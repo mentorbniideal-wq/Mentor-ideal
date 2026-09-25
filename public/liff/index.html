@@ -118,8 +118,24 @@
       <div id="m2mMembers" class="m2m-members" aria-label="เลือกสมาชิก"><div class="loading" style="padding:16px">กำลังโหลดรายชื่อ…</div></div>
       <label for="m2mCategory">หมวด <span aria-hidden="true">*</span></label>
       <select id="m2mCategory" required><option value="">เลือกหมวดข้อความ</option><option value="meeting">นัดหมาย / การประชุม</option><option value="training">การอบรม</option><option value="visitor">Visitor</option><option value="renewal">ต่ออายุสมาชิก</option><option value="member_support">ช่วยเหลือสมาชิก</option><option value="announcement">ประกาศจาก LT</option><option value="other">อื่น ๆ</option></select>
-      <label for="m2mMessage">ข้อความ <span aria-hidden="true">*</span></label>
-      <textarea id="m2mMessage" maxlength="5000" placeholder="พิมพ์ข้อความที่จะส่งถึงสมาชิก"></textarea>
+      <label for="m2mMessageType">รูปแบบข้อความ</label>
+      <select id="m2mMessageType" onchange="setM2MMessageType(this.value)"><option value="text">ข้อความธรรมดา</option><option value="flex">Flex Card</option><option value="image">รูปภาพ</option></select>
+      <div id="m2mFlexConfig" hidden style="display:grid;gap:8px;margin-top:8px">
+        <input id="m2mFlexTitle" type="text" maxlength="160" placeholder="หัวข้อ (เช่น M2M Announcement)">
+        <textarea id="m2mFlexBody" maxlength="5000" rows="4" placeholder="รายละเอียดข้อความสำหรับ Flex Card"></textarea>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <input id="m2mFlexButtonLabel" type="text" maxlength="80" placeholder="ป้ายบนปุ่ม">
+          <input id="m2mFlexButtonUri" type="url" placeholder="https://example.com">
+        </div>
+      </div>
+      <div id="m2mImageConfig" hidden style="display:grid;gap:8px;margin-top:8px">
+        <input id="m2mImageFile" type="file" accept="image/jpeg,image/png,image/webp">
+        <small style="color:var(--muted)">รองรับ JPEG, PNG หรือ WebP ขนาดไม่เกิน 10 MB</small>
+      </div>
+      <div id="m2mTextConfig">
+        <label for="m2mMessage">ข้อความ <span aria-hidden="true">*</span></label>
+        <textarea id="m2mMessage" maxlength="5000" placeholder="พิมพ์ข้อความที่จะส่งถึงสมาชิก"></textarea>
+      </div>
       <button type="button" class="submit" onclick="m2mPreview()">ตรวจข้อความและผู้รับ</button>
       <div id="m2mPreview" class="m2m-preview" hidden></div>
     </section>
@@ -427,25 +443,67 @@ async function loadM2M(force = false) {
   if (status) { status.className = 'status ok'; status.textContent = `LT: ${(result.roles || []).map(escHtml).join(', ')}`; }
   renderM2MMembers();
 }
+function setM2MMessageType(mode) {
+  const textConfig = $('#m2mTextConfig');
+  const flexConfig = $('#m2mFlexConfig');
+  const imageConfig = $('#m2mImageConfig');
+  if (textConfig) textConfig.hidden = mode !== 'text';
+  if (flexConfig) flexConfig.hidden = mode !== 'flex';
+  if (imageConfig) imageConfig.hidden = mode !== 'image';
+  m2mInvalidatePreview();
+}
+async function uploadM2MImageFile(file) {
+  const allowed = new Set(['image/jpeg', 'image/png', 'image/webp']);
+  if (!file || !allowed.has(file.type)) throw new Error('รองรับเฉพาะ JPEG, PNG หรือ WebP');
+  if (file.size > 10 * 1024 * 1024) throw new Error('รูปต้องมีขนาดไม่เกิน 10 MB');
+  const prepared = await api({ action: 'prepare-m2m-upload', fileName: file.name, contentType: file.type });
+  if (!prepared.ok) throw new Error(prepared.error || 'เตรียมอัปโหลดรูปไม่สำเร็จ');
+  const upload = await fetch(prepared.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+  if (!upload.ok) throw new Error('อัปโหลดรูปไม่สำเร็จ');
+  const completed = await api({ action: 'complete-m2m-upload', path: prepared.path, contentType: file.type });
+  if (!completed.ok || !completed.imageUrl || !completed.path) throw new Error(completed.error || 'สร้างลิงก์รูปไม่สำเร็จ');
+  return { imageUrl: completed.imageUrl, imagePath: completed.path };
+}
 function m2mPayload() {
   const audienceMode = $('#m2mMode')?.value === 'all' ? 'all' : 'selected';
+  const messageType = String($('#m2mMessageType')?.value || 'text');
+  const imageFile = $('#m2mImageFile')?.files?.[0] || null;
   return {
     audienceMode,
     memberIds: audienceMode === 'all' ? [] : [...m2mSelectedMemberIds],
     senderRole: String($('#m2mSenderRole')?.value || ''),
     category: String($('#m2mCategory')?.value || ''),
+    messageType,
     message: String($('#m2mMessage')?.value || '').trim(),
+    title: String($('#m2mFlexTitle')?.value || '').trim(),
+    body: String($('#m2mFlexBody')?.value || '').trim(),
+    buttonLabel: String($('#m2mFlexButtonLabel')?.value || '').trim(),
+    buttonUri: String($('#m2mFlexButtonUri')?.value || '').trim(),
+    imageFile,
   };
 }
 async function m2mPreview() {
   const payload = m2mPayload();
   const preview = $('#m2mPreview');
   const status = $('#m2mStatus');
-  if (!payload.senderRole || !payload.category || !payload.message || (payload.audienceMode === 'selected' && !payload.memberIds.length)) {
-    if (status) { status.className = 'status err'; status.textContent = 'เลือกตำแหน่ง LT ผู้รับ หมวด และเขียนข้อความให้ครบก่อนตรวจ'; }
+  const missingContent = payload.messageType === 'text' ? !payload.message
+    : payload.messageType === 'flex' ? !payload.body : !payload.imageFile;
+  if (!payload.senderRole || !payload.category || missingContent || (payload.audienceMode === 'selected' && !payload.memberIds.length)) {
+    if (status) { status.className = 'status err'; status.textContent = 'เลือกตำแหน่ง LT ผู้รับ หมวด และกรอกข้อมูลให้ครบก่อนตรวจ'; }
     return;
   }
   if (status) { status.className = 'status'; status.textContent = 'กำลังตรวจข้อความและผู้รับ…'; }
+  if (payload.messageType === 'image') {
+    try {
+      const uploaded = await uploadM2MImageFile(payload.imageFile);
+      payload.imageUrl = uploaded.imageUrl;
+      payload.imagePath = uploaded.imagePath;
+      delete payload.imageFile;
+    } catch (error) {
+      if (status) { status.className = 'status err'; status.textContent = error instanceof Error ? error.message : 'อัปโหลดรูปไม่สำเร็จ'; }
+      return;
+    }
+  }
   const result = await api({ action: 'preview-m2m', ...payload });
   if (!result.ok) {
     if (status) { status.className = 'status err'; status.textContent = result.error || 'ตรวจข้อความไม่สำเร็จ'; }

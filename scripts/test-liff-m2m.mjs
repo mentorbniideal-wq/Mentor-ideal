@@ -22,6 +22,9 @@ assert.match(liff, /senderRole:/);
 assert.match(liff, /hydrateM2MSenderRoles/);
 assert.match(liff, /confirmed: true/);
 assert.match(liff, /lt-m2m-tab hidden/);
+assert.match(liff, /setM2MMessageType/);
+assert.match(liff, /prepare-m2m-upload/);
+assert.match(liff, /delete payload\.imageFile/);
 
 assert.match(api, /const M2M_CATEGORIES/);
 assert.match(api, /requireActiveLt/);
@@ -33,9 +36,11 @@ assert.match(api, /message_digest/);
 assert.match(api, /audience_digest/);
 assert.match(api, /senderRole/);
 assert.match(api, /roles\.includes\(senderRole\)/);
-assert.match(api, /ข้อความจากทีม LT/);
+assert.match(api, /buildM2MLineMessages/);
+assert.match(api, /senderRole,/);
+assert.match(api, /M2M_IMAGE_TYPES/);
 assert.match(api, /line_notif_settings/);
-assert.match(api, /linePush\(recipient\.lineUserId/);
+assert.match(api, /linePushMessages\(recipient\.lineUserId/);
 assert.match(api, /event_type: 'lt_m2m_sent'/);
 
 console.log('LIFF M2M contract checks passed');

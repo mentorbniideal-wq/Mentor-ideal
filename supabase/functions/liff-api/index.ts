@@ -2,7 +2,7 @@ import { verificationHelp } from '../_shared/verification-help.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { getServiceClient } from '../_shared/db.ts';
 import { trackLineEvent } from '../_shared/analytics.ts';
-import { buildIdempotencyKey, linePush } from '../_shared/line.ts';
+import { buildIdempotencyKey, buildM2MLineMessages, linePushMessages } from '../_shared/line.ts';
 import { notifyAbsenceStakeholders } from '../_shared/line-absence-notify.ts';
 import { notifyVisitorStakeholders } from '../_shared/line-visitor-notify.ts';
 import { notifyIssueStakeholders, type IssueNotifyResult } from '../_shared/line-issue-notify.ts';
@@ -105,6 +105,31 @@ Deno.serve(async (req: Request) => {
     return roles.length ? roles : null;
   }
 
+  const M2M_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+  if (action === 'prepare-m2m-upload') {
+    const roles = await requireActiveLt();
+    if (!roles) return response({ ok: false, error: 'M2M เปิดใช้เฉพาะผู้ดำรงตำแหน่ง LT ในวาระปัจจุบัน' }, 403);
+    const contentType = String(body.contentType || '').trim().toLowerCase();
+    if (!M2M_IMAGE_TYPES.has(contentType)) return response({ ok: false, error: 'รองรับเฉพาะ JPEG, PNG หรือ WebP' }, 400);
+    const safeName = String(body.fileName || 'm2m-image').replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 80) || 'm2m-image';
+    const path = `lt-m2m/${chapterId}/${memberId}/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}-${safeName}`;
+    const { data, error } = await db.storage.from('line-broadcast-media').createSignedUploadUrl(path);
+    if (error || !data) return response({ ok: false, error: error?.message || 'เตรียมอัปโหลดรูปไม่สำเร็จ' }, 500);
+    return response({ ok: true, path, uploadUrl: data.signedUrl });
+  }
+  if (action === 'complete-m2m-upload') {
+    const roles = await requireActiveLt();
+    if (!roles) return response({ ok: false, error: 'M2M เปิดใช้เฉพาะผู้ดำรงตำแหน่ง LT ในวาระปัจจุบัน' }, 403);
+    const path = String(body.path || '').trim();
+    const contentType = String(body.contentType || '').trim().toLowerCase();
+    if (!path.startsWith(`lt-m2m/${chapterId}/${memberId}/`) || !M2M_IMAGE_TYPES.has(contentType)) {
+      return response({ ok: false, error: 'ไฟล์รูปไม่ถูกต้อง' }, 400);
+    }
+    const { data, error } = await db.storage.from('line-broadcast-media').createSignedUrl(path, 60 * 60 * 24);
+    if (error || !data?.signedUrl) return response({ ok: false, error: error?.message || 'สร้างลิงก์รูปไม่สำเร็จ' }, 500);
+    return response({ ok: true, imageUrl: data.signedUrl, path });
+  }
+
   if (action === 'm2m-audience') {
     const roles = await requireActiveLt();
     if (!roles) return response({ ok: false, error: 'M2M เปิดใช้เฉพาะผู้ดำรงตำแหน่ง LT ในวาระปัจจุบัน' }, 403);
@@ -126,10 +151,35 @@ Deno.serve(async (req: Request) => {
     if (!roles) return response({ ok: false, error: 'M2M เปิดใช้เฉพาะผู้ดำรงตำแหน่ง LT ในวาระปัจจุบัน' }, 403);
     const senderRole = String(body.senderRole || '').trim();
     const category = String(body.category || '').trim();
-    const message = String(body.message || '').trim().slice(0, 5000);
+    const messageType = String(body.messageType || 'text').trim() as 'text' | 'flex' | 'image';
+    const text = String(body.message || '').trim().slice(0, 5000);
+    const title = String(body.title || 'M2M').trim().slice(0, 160);
+    const bodyText = String(body.body || body.message || '').trim().slice(0, 5000);
+    const buttonLabel = String(body.buttonLabel || 'เปิด').trim().slice(0, 80);
+    const buttonUri = String(body.buttonUri || '').trim();
+    const imagePath = String(body.imagePath || '').trim();
     const mode = body.audienceMode === 'all' ? 'all' : 'selected';
-    if (!roles.includes(senderRole) || !M2M_CATEGORIES.has(category) || !message) {
-      return response({ ok: false, error: 'กรุณาเลือกตำแหน่ง LT หมวด และเขียนข้อความให้ครบ' }, 400);
+    if (!['text', 'flex', 'image'].includes(messageType)) return response({ ok: false, error: 'messageType ต้องเป็น text, flex หรือ image' }, 400);
+    if (!roles.includes(senderRole) || !M2M_CATEGORIES.has(category)) {
+      return response({ ok: false, error: 'กรุณาเลือกตำแหน่ง LT และหมวดข้อความให้ถูกต้อง' }, 400);
+    }
+    if ((messageType === 'text' && !text) || (messageType === 'flex' && !bodyText) || (messageType === 'image' && !imagePath)) {
+      return response({ ok: false, error: 'กรุณากรอกข้อความให้ครบสำหรับรูปแบบที่เลือก' }, 400);
+    }
+    if (buttonUri) {
+      try {
+        if (new URL(buttonUri).protocol !== 'https:') throw new Error('HTTPS required');
+      } catch {
+        return response({ ok: false, error: 'ลิงก์ปุ่มต้องเป็น HTTPS URL ที่ถูกต้อง' }, 400);
+      }
+    }
+    let imageUrl = '';
+    if (messageType === 'image') {
+      const ownedPrefix = `lt-m2m/${chapterId}/${memberId}/`;
+      if (!imagePath.startsWith(ownedPrefix)) return response({ ok: false, error: 'ไฟล์รูปไม่ถูกต้อง' }, 400);
+      const { data, error } = await db.storage.from('line-broadcast-media').createSignedUrl(imagePath, 60 * 60 * 24);
+      if (error || !data?.signedUrl) return response({ ok: false, error: error?.message || 'สร้างลิงก์รูปไม่สำเร็จ' }, 500);
+      imageUrl = data.signedUrl;
     }
     const requested = new Set(Array.isArray(body.memberIds)
       ? body.memberIds.map(String).filter(Boolean).slice(0, 100) : []);
@@ -154,15 +204,20 @@ Deno.serve(async (req: Request) => {
       memberId: String(x.id), name: String(x.nickname || x.name || 'สมาชิก'),
       lineUserId: lineByMember.get(String(x.id)) || '',
     }));
-    const deliveredMessage = `📨 ข้อความจากทีม LT: ${senderRole}\n\n${message}`;
-    const digest = await sha256Hex(deliveredMessage);
+    const payloadMessages = buildM2MLineMessages({
+      messageType, text, title, body: bodyText || text, buttonLabel, buttonUri, imageUrl, senderRole,
+    });
+    const digest = await sha256Hex(JSON.stringify({
+      senderRole, category, messageType, text, title, body: bodyText, buttonLabel, buttonUri, imagePath,
+      recipients: recipients.map(r => r.memberId).sort().join('|'),
+    }));
     const audienceDigest = await sha256Hex(ids.sort().join('|'));
     if (action === 'preview-m2m') {
       const previewId = crypto.randomUUID();
       await db.from('chapter_audit_events').insert({
         chapter_id: chapterId, event_type: 'lt_m2m_preview', actor_role: 'lt', actor_ref: memberId,
         subject_type: 'line_delivery_preview', subject_ref: previewId,
-        metadata: { roles, sender_role: senderRole, category, mode, recipient_count: recipients.length, message_digest: digest, audience_digest: audienceDigest },
+        metadata: { roles, sender_role: senderRole, category, mode, recipient_count: recipients.length, message_digest: digest, audience_digest: audienceDigest, message_type: messageType },
       });
       return response({ ok: true, dryRun: true, previewId, roles,
         recipientCount: recipients.filter(x => x.lineUserId && !mutedMemberIds.has(x.memberId)).length,
@@ -195,18 +250,18 @@ Deno.serve(async (req: Request) => {
         continue;
       }
       try {
-        const result = await linePush(recipient.lineUserId, deliveredMessage, {
+        const result = await linePushMessages(recipient.lineUserId, payloadMessages, {
           db, idempotencyKey: key, memberId: recipient.memberId,
           notificationType: `lt_m2m_${category}`, source: 'liff/lt-m2m', module: 'lt_m2m',
           category: `lt_m2m:${category}`, priority: 'informational',
         });
-        result.skipped ? skipped++ : sent++;
+        if (result.skipped) skipped++; else sent++;
       } catch { failed++; }
     }
     await db.from('chapter_audit_events').insert({
       chapter_id: chapterId, event_type: 'lt_m2m_sent', actor_role: 'lt', actor_ref: memberId,
       subject_type: 'line_delivery_batch', subject_ref: batchId,
-      metadata: { roles, sender_role: senderRole, category, mode, requested: recipients.length, sent, skipped, muted, failed, message_digest: digest.slice(0, 24) },
+      metadata: { roles, sender_role: senderRole, category, mode, requested: recipients.length, sent, skipped, muted, failed, message_type: messageType },
     });
     return response({ ok: true, batchId, sent, skipped, muted, failed, total: recipients.length });
   }

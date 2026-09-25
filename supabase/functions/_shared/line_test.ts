@@ -30,11 +30,11 @@ function assertEquals(actual: unknown, expected: unknown): void {
   if (left !== right) throw new Error(`Expected ${right}, received ${left}`);
 }
 
-Deno.test('M2M rich message builder supports plain text, flex card, and image', () => {
-  const textMessages = buildM2MLineMessages({ messageType: 'text', text: 'สวัสดีครับ' });
+Deno.test('M2M rich messages retain the LT sender role for every format', () => {
+  const textMessages = buildM2MLineMessages({ messageType: 'text', text: 'สวัสดีครับ', senderRole: 'Growth Coordinator' });
   assertEquals(textMessages.length, 1);
   assertEquals(textMessages[0].type, 'text');
-  assertEquals(textMessages[0].text, 'สวัสดีครับ');
+  assertEquals(textMessages[0].text, '📨 ข้อความจากทีม LT: Growth Coordinator\n\nสวัสดีครับ');
 
   const flexMessages = buildM2MLineMessages({
     messageType: 'flex',
@@ -42,20 +42,24 @@ Deno.test('M2M rich message builder supports plain text, flex card, and image', 
     body: 'รายละเอียดข่าวสาร',
     buttonLabel: 'เปิดหน้า',
     buttonUri: 'https://example.com/announce',
+    senderRole: 'Mentor Coordinator',
   });
-  assertEquals(flexMessages.length, 1);
-  assertEquals(flexMessages[0].type, 'flex');
-  assert(String((flexMessages[0] as Record<string, unknown>).altText || '').includes('M2M Announcement'));
-  const contents = (flexMessages[0] as Record<string, unknown>).contents as Record<string, unknown>;
+  assertEquals(flexMessages.length, 2);
+  assertEquals(flexMessages[0].text, '📨 ข้อความจากทีม LT: Mentor Coordinator');
+  assertEquals(flexMessages[1].type, 'flex');
+  assert(String((flexMessages[1] as Record<string, unknown>).altText || '').includes('M2M Announcement'));
+  const contents = (flexMessages[1] as Record<string, unknown>).contents as Record<string, unknown>;
   assertEquals(contents.type, 'bubble');
 
   const imageMessages = buildM2MLineMessages({
     messageType: 'image',
     imageUrl: 'https://cdn.example.com/promo.jpg',
     altText: 'ภาพประชาสัมพันธ์',
+    senderRole: 'President',
   });
-  assertEquals(imageMessages.length, 1);
+  assertEquals(imageMessages.length, 2);
   assertEquals(imageMessages[0].type, 'image');
+  assertEquals(imageMessages[1].text, '📨 ข้อความจากทีม LT: President');
   assertEquals(imageMessages[0].originalContentUrl, 'https://cdn.example.com/promo.jpg');
   assertEquals(imageMessages[0].altText, 'ภาพประชาสัมพันธ์');
 });
