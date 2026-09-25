@@ -16,6 +16,7 @@ assert.match(form, /event\.preventDefault\(\)/, 'Enter adds a custom category wi
 assert.match(form, /function addCategoryValue\(current,value\)/, 'custom category addition uses a testable normalized operation');
 assert.doesNotMatch(form, /onclick="toggleArr\(&quot;power_team_categories&quot;/, 'Power Team suggestions use the delegated selection path');
 assert.match(form, /remainingCategoryChoices\(powerList,'power_team'\)/, 'popular Power Team categories are not rendered as duplicate selection buttons');
+assert.match(form, /inputmode="'\+\(monetary\?'numeric':'decimal'\)/, 'money inputs request the numeric mobile keyboard');
 assert.match(form, /ข้อมูลอ้างอิงจาก Excel/, '2026 historic goal is labelled as reference-only');
 
 assert.match(handler, /const entryYear = await resolveMsbPlanningYear\(db, \{ chapterId: scope\.chapterId, memberId \}\)/, 'dashboard-generated entry links use configured planning year');
@@ -29,7 +30,7 @@ const scripts = [...form.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(match =>
 for (const script of scripts) new Function(script);
 
 const inline = scripts.at(-1).replace(/\s*init\(\);\s*$/, `
-  return { data, helperState, categoryDraft, categorySuggestions, calc, setInput, setConversionCalc, addCategoryValue, remainingCategoryChoices };
+  return { data, helperState, categoryDraft, categorySuggestions, calc, setInput, setMoneyInput, setConversionCalc, addCategoryValue, remainingCategoryChoices, amountText };
 `);
 const elements = new Map();
 const documentMock = {
@@ -49,6 +50,11 @@ const api = new Function('document', 'window', 'localStorage', 'fetch', 'AbortCo
 
 api.data.new_customer_revenue_from_bni = '600000';
 api.data.average_customer_value_year = '30000';
+const moneyInput = { value: '4000000' };
+api.setMoneyInput('total_sales_target_year', moneyInput);
+assert.equal(moneyInput.value, '4,000,000', 'money input displays thousands separators while typing');
+assert.equal(api.data.total_sales_target_year, '4000000', 'money input keeps a calculation-safe numeric value');
+assert.equal(api.amountText('1,250,000'), '1,250,000', 'existing formatted amounts remain stable');
 api.setInput('conversion_rate_percent', '25');
 assert.equal(api.data.conversion_rate_percent, '25', 'direct Conversion input is not rounded or overwritten');
 assert.deepEqual(api.helperState, { avgMonthly: '2500', convReferrals: '100', convClosed: '25' }, 'conversion helper mirrors direct percentages exactly');

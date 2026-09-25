@@ -98,6 +98,8 @@
     function n(v){var x=Number(String(v||'').replace(/[,฿\\s]/g,''));return isFinite(x)?x:0;}
     function fmt(v){return n(v).toLocaleString('th-TH',{maximumFractionDigits:1});}
     function money(v){return '฿'+n(v).toLocaleString('th-TH',{maximumFractionDigits:0});}
+    function isMoneyField(k){return ['total_sales_target_year','existing_customer_revenue_from_bni','new_customer_revenue_from_bni','average_customer_value_year'].includes(k);}
+    function amountText(v){var raw=String(v==null?'':v).trim();return raw?Math.max(0,Math.round(n(raw))).toLocaleString('en-US'):'';}
     function toast(s){var t=document.getElementById('toast');t.textContent=s;t.classList.add('on');setTimeout(function(){t.classList.remove('on');},2600);}
     function call(action,p,cb){var controller=new AbortController(),timer=setTimeout(function(){controller.abort();},20000);fetch(API,{method:'POST',headers:HEADERS,body:JSON.stringify(Object.assign({action:action,token:formToken},p||{})),signal:controller.signal}).then(function(r){return r.json().catch(function(){return{ok:false,error:'ระบบตอบกลับไม่สมบูรณ์'};}).then(function(body){if(!r.ok&&body.ok!==false)body.ok=false;return body;});}).then(cb).catch(function(e){cb({ok:false,error:e.name==='AbortError'?'การเชื่อมต่อใช้เวลานานเกินไป กรุณาลองอีกครั้ง':e.message});}).finally(function(){clearTimeout(timer);});}
     function calc(){
@@ -173,6 +175,7 @@
       persist();
       updateLive();
     }
+    function setMoneyInput(k,input){var raw=String(input&&input.value||'').replace(/[^0-9]/g,'');data[k]=raw?String(Number(raw)):'';if(k==='average_customer_value_year'&&n(data[k])>0)helperState.avgMonthly=String(Math.round(n(data[k])/12));if(input)input.value=amountText(data[k]);persist();updateLive();}
     function marketingPlanRows(){var source=Array.isArray(data.monthly_marketing_plan)?data.monthly_marketing_plan:[];return Array.from({length:12},function(_,i){var row=source.find(function(x){return Number(x&&x.month)===i+1;})||{};return {month:i+1,season_event:row.season_event||'',product_service:row.product_service||'',specific_looking_for:row.specific_looking_for||''};});}
     function setMarketingPlan(month,key,value){var rows=marketingPlanRows();rows[month-1][key]=value;data.monthly_marketing_plan=rows;persist();}
     function setMonthlyTotal(v){data.total_sales_target_year=String(n(v)*12);persist();render();}
@@ -239,7 +242,7 @@
       html+='</div>';
       return html;
     }
-    function field(k,label,type,ph,helper){return '<label>'+label+'</label><input id="fld_'+esc(k)+'" inputmode="decimal" type="'+(type||'text')+'" value="'+esc(data[k])+'" placeholder="'+esc(ph||'')+'" oninput=\'setInput('+JSON.stringify(k)+',this.value)\'>'+(helper?'<details class="learn"><summary>วิธีการคำนวณ</summary><div class="coach" id="'+helper+'">'+coach(helper)+'</div></details>':'');}
+    function field(k,label,type,ph,helper){var monetary=isMoneyField(k);return '<label>'+label+'</label><input id="fld_'+esc(k)+'" inputmode="'+(monetary?'numeric':'decimal')+'" type="'+(monetary?'text':(type||'text'))+'" value="'+esc(monetary?amountText(data[k]):data[k])+'" placeholder="'+esc(ph||'')+'" oninput=\''+(monetary?'setMoneyInput('+JSON.stringify(k)+',this)':'setInput('+JSON.stringify(k)+',this.value)')+'\'>'+(helper?'<details class="learn"><summary>วิธีการคำนวณ</summary><div class="coach" id="'+helper+'">'+coach(helper)+'</div></details>':'');}
     function area(k,label,ph){return '<label>'+label+'</label><textarea placeholder="'+esc(ph||'')+'" oninput=\'setInput('+JSON.stringify(k)+',this.value)\'>'+esc(data[k])+'</textarea>';}
     function quickMonthly(){
       return '<div class="quick">'+[50000,80000,100000,150000,200000].map(function(v){return '<button type="button" class="qbtn" onclick="setMonthlyTotal('+v+')">'+fmt(v)+' / เดือน</button>';}).join('')+'</div>';
@@ -355,7 +358,7 @@
       ['pct','cust','ref','month','week','splitWarn','logicWarn'].forEach(function(id){var el=document.getElementById(id);if(!el)return;});
       syncHelperStateFromData();
       var c=calc();
-      ['average_customer_value_year','conversion_rate_percent'].forEach(function(k){var el=document.getElementById('fld_'+k);if(el&&document.activeElement!==el)el.value=data[k]||'';});
+      ['average_customer_value_year','conversion_rate_percent'].forEach(function(k){var el=document.getElementById('fld_'+k);if(el&&document.activeElement!==el)el.value=isMoneyField(k)?amountText(data[k]):(data[k]||'');});
       var pct=document.getElementById('pct');if(pct)pct.textContent=fmt(c.pct)+'%';
       var cust=document.getElementById('cust');if(cust)cust.textContent=fmt(c.cust);
       var ref=document.getElementById('ref');if(ref)ref.textContent=fmt(c.ref);
