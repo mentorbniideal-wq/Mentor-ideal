@@ -14,6 +14,9 @@ for (const source of ['m2m-audience', 'preview-m2m', 'send-m2m', 'm2mPreview', '
 }
 assert.match(liff, /<option value="selected">ส่งเฉพาะคน/);
 assert.match(liff, /<option value="all">ส่งสมาชิกทุกคน/);
+assert.match(liff, /id="m2mMemberSearch"/);
+assert.match(liff, /m2mToggleVisibleMembers/);
+assert.match(liff, /m2mSelectedMemberIds/);
 assert.match(liff, /confirmed: true/);
 assert.match(liff, /lt-m2m-tab hidden/);
 

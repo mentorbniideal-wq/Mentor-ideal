@@ -65,7 +65,7 @@
     .oto-growth-actions button,.p121-question-actions button{padding:10px 12px}.p121-head button,.g-head button{width:44px;height:44px}
     button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #1b75d0;outline-offset:3px}
     .network-state{position:fixed;z-index:120;left:12px;right:12px;top:calc(8px + env(safe-area-inset-top));max-width:496px;margin:auto;padding:11px 14px;border-radius:12px;background:#7d2f28;color:#fff;text-align:center;font-size:13px;font-weight:700;box-shadow:0 8px 28px #0004}.network-state[hidden]{display:none}
-    .m2m-members{display:grid;gap:7px;max-height:260px;overflow:auto;padding:4px;border:1px solid var(--line);border-radius:13px;background:#faf8f2}.m2m-member{display:flex;align-items:center;gap:9px;margin:0;padding:10px;border-radius:10px;background:#fff;font-size:13px}.m2m-member input{width:20px;height:20px;flex:0 0 auto;padding:0}.m2m-member small{margin-left:auto;color:var(--muted);font-size:10px}.m2m-preview{margin-top:14px;padding:13px;border:1px solid #d5c08d;border-radius:14px;background:#fffaf0;font-size:13px;line-height:1.6}.m2m-preview b{display:block}.m2m-preview button{width:100%;min-height:46px;margin-top:10px;border:0;border-radius:11px;background:var(--ink);color:#fff;font:800 13px inherit}
+    .m2m-recipient-tools{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;margin:8px 0}.m2m-recipient-tools input{margin:0;min-width:0}.m2m-filter-all{min-height:44px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--ink);padding:0 11px;font:800 11px inherit}.m2m-selection{min-height:20px;margin:0 2px 8px;color:var(--muted);font-size:11px;line-height:1.45}.m2m-members{display:grid;gap:7px;max-height:280px;overflow:auto;padding:5px;border:1px solid var(--line);border-radius:14px;background:#faf8f2}.m2m-member{display:flex;align-items:center;gap:9px;margin:0;padding:11px;border-radius:11px;background:#fff;font-size:13px;transition:background .15s ease,box-shadow .15s ease}.m2m-member:has(input:checked){background:#edf5f1;box-shadow:inset 0 0 0 1px #bad5c8}.m2m-member input{width:20px;height:20px;flex:0 0 auto;padding:0}.m2m-member span{min-width:0;overflow-wrap:anywhere}.m2m-member small{margin-left:auto;color:var(--muted);font-size:10px;text-align:right}.m2m-empty{padding:20px 12px;text-align:center;color:var(--muted);font-size:12px}.m2m-preview{margin-top:14px;padding:13px;border:1px solid #d5c08d;border-radius:14px;background:#fffaf0;font-size:13px;line-height:1.6}.m2m-preview b{display:block}.m2m-preview button{width:100%;min-height:46px;margin-top:10px;border:0;border-radius:11px;background:var(--ink);color:#fff;font:800 13px inherit}@media(max-width:390px){.m2m-recipient-tools{grid-template-columns:1fr}.m2m-filter-all{width:100%}.m2m-member small{display:none}}
     .my121-nav{grid-template-columns:repeat(6,minmax(0,1fr))}.my121-self-list{display:grid;gap:9px}.my121-self-item{padding:13px;border:1px solid var(--line);border-radius:15px;background:#fff}.my121-self-item b,.my121-self-item small{display:block}.my121-self-item small{margin-top:3px;color:var(--muted);font-size:11px;line-height:1.5}.my121-self-item-actions{display:flex;gap:7px;margin-top:10px}.my121-self-item-actions button{min-height:42px;flex:1;border-radius:10px;border:1px solid var(--ink);background:#fff;color:var(--ink);font:800 12px inherit}.my121-self-item-actions button.primary{background:var(--ink);color:#fff}.my121-self-guidance{padding:14px;border:1px dashed #bca46d;border-radius:15px;background:#fffaf0;color:#5e522f;font-size:12px;line-height:1.6}.my121-self-guidance button{width:100%;min-height:44px;margin-top:9px;border:0;border-radius:11px;background:#765d2e;color:#fff;font:800 12px inherit}
   </style>
 </head>
@@ -109,6 +109,10 @@
       <div id="m2mStatus" class="status" aria-live="polite"></div>
       <label for="m2mMode">ผู้รับ</label>
       <select id="m2mMode" onchange="m2mModeChanged()"><option value="selected">ส่งเฉพาะคน</option><option value="all">ส่งสมาชิกทุกคน</option></select>
+      <div id="m2mRecipientPicker">
+        <div class="m2m-recipient-tools"><input id="m2mMemberSearch" type="search" autocomplete="off" placeholder="ค้นหาชื่อสมาชิก…" oninput="renderM2MMembers()"><button type="button" class="m2m-filter-all" onclick="m2mToggleVisibleMembers()">เลือกทั้งหมดที่พบ</button></div>
+        <div id="m2mSelection" class="m2m-selection" aria-live="polite"></div>
+      </div>
       <div id="m2mMembers" class="m2m-members" aria-label="เลือกสมาชิก"><div class="loading" style="padding:16px">กำลังโหลดรายชื่อ…</div></div>
       <label for="m2mCategory">หมวด <span aria-hidden="true">*</span></label>
       <select id="m2mCategory" required><option value="">เลือกหมวดข้อความ</option><option value="meeting">นัดหมาย / การประชุม</option><option value="training">การอบรม</option><option value="visitor">Visitor</option><option value="renewal">ต่ออายุสมาชิก</option><option value="member_support">ช่วยเหลือสมาชิก</option><option value="announcement">ประกาศจาก LT</option><option value="other">อื่น ๆ</option></select>
@@ -288,6 +292,7 @@
 <script>
 const cfg = window.BNI_LIFF_CONFIG || {};
 let accessToken = '', _role = 'member', m2mAudience = null, m2mPreviewState = null;
+const m2mSelectedMemberIds = new Set();
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const escHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -356,15 +361,46 @@ function renderM2MMembers() {
   const box = $('#m2mMembers');
   if (!box || !m2mAudience) return;
   const members = Array.isArray(m2mAudience.members) ? m2mAudience.members : [];
-  box.innerHTML = members.length ? members.map(member => `<label class="m2m-member"><input type="checkbox" value="${escHtml(member.id)}"><span>${escHtml(member.name)}</span><small>${member.lineLinked ? 'เชื่อม LINE แล้ว' : 'ยังไม่เชื่อม LINE'}</small></label>`).join('') : '<div class="status">ไม่พบสมาชิกใน Chapter นี้</div>';
-  m2mModeChanged();
+  const query = String($('#m2mMemberSearch')?.value || '').trim().toLocaleLowerCase('th-TH');
+  const visible = query ? members.filter(member => String(member.name || '').toLocaleLowerCase('th-TH').includes(query)) : members;
+  box.innerHTML = visible.length
+    ? visible.map(member => `<label class="m2m-member"><input type="checkbox" value="${escHtml(member.id)}" ${m2mSelectedMemberIds.has(String(member.id)) ? 'checked' : ''} onchange="m2mSetMemberSelected(this.value,this.checked)"><span>${escHtml(member.name)}</span><small>${member.lineLinked ? 'เชื่อม LINE แล้ว' : 'ยังไม่เชื่อม LINE'}</small></label>`).join('')
+    : '<div class="m2m-empty">ไม่พบชื่อสมาชิกที่ค้นหา</div>';
+  m2mUpdateSelectionSummary(visible.length, members.length);
+  const all = $('#m2mMode')?.value === 'all';
+  box.hidden = all;
+  $('#m2mRecipientPicker').hidden = all;
+}
+function m2mSetMemberSelected(memberId, selected) {
+  selected ? m2mSelectedMemberIds.add(String(memberId)) : m2mSelectedMemberIds.delete(String(memberId));
+  m2mPreviewState = null;
+  $('#m2mPreview').hidden = true;
+  m2mUpdateSelectionSummary();
+}
+function m2mUpdateSelectionSummary(visibleCount, totalCount) {
+  const el = $('#m2mSelection');
+  if (!el) return;
+  const allMembers = Array.isArray(m2mAudience?.members) ? m2mAudience.members : [];
+  const visible = visibleCount ?? allMembers.length;
+  const total = totalCount ?? allMembers.length;
+  el.textContent = `เลือกแล้ว ${m2mSelectedMemberIds.size.toLocaleString('th-TH')} คน · แสดง ${visible.toLocaleString('th-TH')}/${total.toLocaleString('th-TH')} คน`;
+}
+function m2mToggleVisibleMembers() {
+  const members = Array.isArray(m2mAudience?.members) ? m2mAudience.members : [];
+  const query = String($('#m2mMemberSearch')?.value || '').trim().toLocaleLowerCase('th-TH');
+  const visible = query ? members.filter(member => String(member.name || '').toLocaleLowerCase('th-TH').includes(query)) : members;
+  const select = visible.some(member => !m2mSelectedMemberIds.has(String(member.id)));
+  visible.forEach(member => select ? m2mSelectedMemberIds.add(String(member.id)) : m2mSelectedMemberIds.delete(String(member.id)));
+  m2mPreviewState = null;
+  $('#m2mPreview').hidden = true;
+  renderM2MMembers();
 }
 function m2mModeChanged() {
   const all = $('#m2mMode')?.value === 'all';
   const box = $('#m2mMembers');
   if (!box) return;
   box.hidden = all;
-  [...box.querySelectorAll('input[type="checkbox"]')].forEach(input => { input.disabled = all; });
+  $('#m2mRecipientPicker').hidden = all;
   m2mPreviewState = null;
   $('#m2mPreview').hidden = true;
 }
@@ -386,7 +422,7 @@ function m2mPayload() {
   const audienceMode = $('#m2mMode')?.value === 'all' ? 'all' : 'selected';
   return {
     audienceMode,
-    memberIds: audienceMode === 'all' ? [] : [...($('#m2mMembers')?.querySelectorAll('input[type="checkbox"]:checked') || [])].map(input => input.value),
+    memberIds: audienceMode === 'all' ? [] : [...m2mSelectedMemberIds],
     category: String($('#m2mCategory')?.value || ''),
     message: String($('#m2mMessage')?.value || '').trim(),
   };
