@@ -15,6 +15,7 @@ import { buildGoalCoach } from '../_shared/goal-coach.ts';
 import { upsertMemberSignal } from '../_shared/member-signals.ts';
 import { helpRequestRoute } from '../_shared/help-request.ts';
 import { directoryMatchReasons, directoryProfileProjection, directoryResult, directorySearchScore, normalizeDirectoryQuery } from '../_shared/chapter-directory.ts';
+import { resolveMsbPlanningYear } from '../_shared/msb-planning-year.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
 
@@ -589,7 +590,9 @@ Deno.serve(async (req: Request) => {
   if (action === 'member-home') {
     const today = new Date().toISOString().slice(0, 10);
     const trainingUntil = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
-    const blueprintYear = new Date().getFullYear();
+    // MSB is an annual planning cycle, not the browser/calendar year. This
+    // keeps LINE and Dashboard links on the Chapter-configured planning year.
+    const blueprintYear = await resolveMsbPlanningYear(db, { memberId });
     const [{ data: profile }, { data: pairRows }, { count: visitorCount }, { count: requestCount }, { count: trainingCount }, { count: followUpCount }, { data: renewal }, { data: blueprint }, { data: existingBlueprintToken }] = await Promise.all([
       db.from('member_one_to_one_profiles').select('*').eq('member_id', memberId).maybeSingle(),
       db.from('matching_pairs').select('id,member_a_id,member_b_id,status,created_at').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId}`).is('archived_at', null).order('created_at', { ascending: false }).limit(1),
@@ -632,7 +635,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if (action === 'member-blueprint-link') {
-    const blueprintYear = new Date().getFullYear();
+    const blueprintYear = await resolveMsbPlanningYear(db, { memberId });
     const { data: tokenRow } = await db.from('msb_access_tokens').select('token,expires_at').eq('member_id', memberId).eq('blueprint_year', blueprintYear).maybeSingle();
     const existing = tokenRow as Record<string, unknown> | null;
     const expiry = existing?.expires_at ? new Date(String(existing.expires_at)).getTime() : 0;

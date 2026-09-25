@@ -647,6 +647,19 @@ function msbLink(token: string): string {
   return `${MSB_FORM_URL}?t=${encodeURIComponent(token)}`;
 }
 
+async function currentMemberPlanningYear(
+  db: Db,
+  identity: { memberId?: string; blueprintYear?: number },
+): Promise<{ year?: number; error?: string }> {
+  if (!identity.memberId) return { error: 'Unauthorized' };
+  const planningYear = await resolveMsbPlanningYear(db, { memberId: identity.memberId });
+  const tokenYear = Number(identity.blueprintYear || planningYear);
+  if (tokenYear !== planningYear) {
+    return { error: `ลิงก์ Blueprint ปี ${tokenYear} เป็นข้อมูลอ้างอิงแล้ว กรุณาขอลิงก์ Blueprint ปี ${planningYear} ใหม่` };
+  }
+  return { year: planningYear };
+}
+
 async function resolveLineMember(db: Db, accessToken: string): Promise<{
   memberId?: string;
   member?: Record<string, unknown>;
@@ -1202,11 +1215,15 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       if (memErr) return errResponse(memErr.message, 400);
       if (!member) return errResponse('ไม่พบสมาชิกนี้', 404);
 
+      // New member entry links must always use the configured Chapter planning
+      // year. Historic Blueprint years remain available only in dashboard views.
+      const entryYear = await resolveMsbPlanningYear(db, { chapterId: scope.chapterId, memberId });
+
       const now = Date.now();
       const { data: existing, error: exErr } = await db.from('msb_access_tokens')
         .select('id, token, expires_at, created_at, used_at')
         .eq('member_id', memberId)
-        .eq('blueprint_year', year)
+        .eq('blueprint_year', entryYear)
         .maybeSingle();
       if (exErr) return errResponse(exErr.message, 400);
 
@@ -1216,14 +1233,14 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
         : null;
       let expiresAt = existing && (existing as Record<string, unknown>).expires_at
         ? String((existing as Record<string, unknown>).expires_at)
-        : defaultExpiresAt(year);
+        : defaultExpiresAt(entryYear);
       if (!token || (expiresAtExisting && expiresAtExisting < now)) {
         token = newAccessToken();
-        expiresAt = defaultExpiresAt(year);
+        expiresAt = defaultExpiresAt(entryYear);
         const payload = {
           member_id: memberId,
           token,
-          blueprint_year: year,
+          blueprint_year: entryYear,
           expires_at: expiresAt,
           used_at: existing ? (existing as Record<string, unknown>).used_at || null : null,
           created_by: `dashboard:${String(auth.role || 'unknown')}`,
@@ -1238,7 +1255,7 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
         ok: true,
         link: msbLink(token),
         token,
-        blueprintYear: year,
+        blueprintYear: entryYear,
         member,
         expiresAt,
       });
@@ -1247,7 +1264,9 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
     case 'getMemberSuccessBlueprintByToken': {
       const identity = await resolveWebAccessToken(db, String(p.token || p.t || p.msbToken || ''));
       if (identity.error || !identity.memberId) return errResponse(identity.error || 'Unauthorized', 401);
-      const tokenYear = identity.blueprintYear || year;
+      const currentYear = await currentMemberPlanningYear(db, identity);
+      if (currentYear.error || !currentYear.year) return errResponse(currentYear.error || 'Unauthorized', 409);
+      const tokenYear = currentYear.year;
       const blueprint = await getBlueprint(db, identity.memberId, tokenYear);
       const previousBlueprint = tokenYear > 2020 ? await getBlueprint(db, identity.memberId, tokenYear - 1) : null;
       const historicalActual = tokenYear > 2026 ? await getGrowth2026Actual(db, identity.memberId) : null;
@@ -1264,7 +1283,9 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
     case 'saveMemberSuccessBlueprintByToken': {
       const identity = await resolveWebAccessToken(db, String(p.token || p.t || p.msbToken || ''));
       if (identity.error || !identity.memberId) return errResponse(identity.error || 'Unauthorized', 401);
-      const tokenYear = identity.blueprintYear || year;
+      const currentYear = await currentMemberPlanningYear(db, identity);
+      if (currentYear.error || !currentYear.year) return errResponse(currentYear.error || 'Unauthorized', 409);
+      const tokenYear = currentYear.year;
       const saved = await saveBlueprintForMember(db, identity.memberId, tokenYear, p);
       if (saved.error) return errResponse(saved.error, saved.status || 400);
       return jsonResponse({ ok: true, blueprint: saved.blueprint, blueprintYear: tokenYear });
@@ -1273,7 +1294,9 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
     case 'getMSBCategorySuggestions': {
       const identity = await resolveWebAccessToken(db, String(p.token || p.t || p.msbToken || ''));
       if (identity.error || !identity.memberId) return errResponse(identity.error || 'Unauthorized', 401);
-      const tokenYear = identity.blueprintYear || year;
+      const currentYear = await currentMemberPlanningYear(db, identity);
+      if (currentYear.error || !currentYear.year) return errResponse(currentYear.error || 'Unauthorized', 409);
+      const tokenYear = currentYear.year;
       const [{ data, error }, { data: aliases, error: aliasErr }] = await Promise.all([
         db.from('v_msb_category_demand')
           .select('category_type, category')
@@ -1318,7 +1341,9 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
     case 'getMyMemberSuccessBlueprint': {
       const identity = await resolveMemberIdentity(db, p);
       if (identity.error || !identity.memberId) return errResponse(identity.error || 'Unauthorized', 401);
-      const tokenYear = identity.blueprintYear || year;
+      const currentYear = await currentMemberPlanningYear(db, identity);
+      if (currentYear.error || !currentYear.year) return errResponse(currentYear.error || 'Unauthorized', 409);
+      const tokenYear = currentYear.year;
       const blueprint = await getBlueprint(db, identity.memberId, tokenYear);
       return jsonResponse({
         ok: true,
@@ -1331,7 +1356,9 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
     case 'saveMyMemberSuccessBlueprint': {
       const identity = await resolveMemberIdentity(db, p);
       if (identity.error || !identity.memberId) return errResponse(identity.error || 'Unauthorized', 401);
-      const tokenYear = identity.blueprintYear || year;
+      const currentYear = await currentMemberPlanningYear(db, identity);
+      if (currentYear.error || !currentYear.year) return errResponse(currentYear.error || 'Unauthorized', 409);
+      const tokenYear = currentYear.year;
       const saved = await saveBlueprintForMember(db, identity.memberId, tokenYear, p);
       if (saved.error) return errResponse(saved.error, saved.status || 400);
       return jsonResponse({ ok: true, blueprint: saved.blueprint, blueprintYear: tokenYear });
