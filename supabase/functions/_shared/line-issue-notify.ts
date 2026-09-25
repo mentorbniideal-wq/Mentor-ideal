@@ -20,6 +20,11 @@ export interface IssueNotice {
   issueText: string;
   signalType?: string;
   routeLabel?: string;
+  // Optional presentation overrides for operational routes that reuse this
+  // delivery pipeline but are not a member-help request (for example CEU).
+  headline?: string;
+  actionHint?: string;
+  notificationType?: string;
   idempotencyKey: string;
   source: string;
 }
@@ -216,12 +221,12 @@ export async function notifyIssueStakeholders(db: Db, notice: IssueNotice): Prom
 
   const detail = notice.issueText.length > 180 ? `${notice.issueText.slice(0, 177)}...` : notice.issueText;
   const message = [
-    '🆘 ขอความช่วยเหลือจากสมาชิก',
+    notice.headline || '🆘 ขอความช่วยเหลือจากสมาชิก',
     `${nickname} · ทีม ${notice.mentorTeam || 'ยังไม่ระบุ'}`,
     `หมวด: ${notice.routeLabel || 'ทีมดูแลสมาชิก'}`,
     `เรื่อง: ${detail}`,
     '',
-    'เปิดดูและดำเนินการต่อได้ใน Mobile / Desktop → งานจากสมาชิก',
+    notice.actionHint || 'เปิดดูและดำเนินการต่อได้ใน Mobile / Desktop → งานจากสมาชิก',
   ].join('\n');
 
   let sent = 0;
@@ -233,7 +238,7 @@ export async function notifyIssueStakeholders(db: Db, notice: IssueNotice): Prom
         db,
         idempotencyKey: `${notice.idempotencyKey}:${recipient}`,
         memberId: notice.memberId,
-        notificationType: 'issue_alert',
+        notificationType: notice.notificationType || 'issue_alert',
         source: notice.source,
       });
       if (result.sent) sent++;

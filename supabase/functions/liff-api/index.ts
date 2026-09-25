@@ -855,10 +855,40 @@ Deno.serve(async (req: Request) => {
     const {data:event}=await db.from('bni_events').select('id,name,event_date').eq('id',eventId).maybeSingle();
     if(!event)return response({ok:false,error:'ไม่พบหลักสูตรนี้ กรุณารีเฟรชปฏิทิน'},404);
     const labels:Record<string,string>={interested:'สนใจเข้าร่วมอบรม',need_details:'ขอรายละเอียดหลักสูตร',registered:'ลงทะเบียนแล้ว',cancelled:'ยกเลิกความสนใจ'};
-    const {error}=await upsertMemberSignal(db,{memberId,signalType:'training',subjectType:'bni_event',subjectId:eventId,title:`${labels[intent]} · ${String((event as Record<string,unknown>).name||'')}`,detail:String((event as Record<string,unknown>).event_date||''),payload:{intent,eventId},priority:intent==='need_details'?'high':'normal',consent:intent!=='cancelled',idempotencyKey:`training:${memberId}:${eventId}`});
+    const eventName=String((event as Record<string,unknown>).name||'หลักสูตร CEU').trim();
+    const eventDate=String((event as Record<string,unknown>).event_date||'').trim();
+    const {data: signal,error}=await upsertMemberSignal(db,{memberId,signalType:'training',subjectType:'bni_event',subjectId:eventId,title:`${labels[intent]} · ${eventName}`,detail:eventDate,payload:{intent,eventId},priority:intent==='need_details'?'high':'normal',consent:intent!=='cancelled',idempotencyKey:`training:${memberId}:${eventId}`});
     if(error)return response({ok:false,error:'บันทึกความสนใจไม่สำเร็จ กรุณาลองใหม่'},400);
-    if(intent==='cancelled')await db.from('member_signals').update({status:'cancelled',resolved_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('idempotency_key',`training:${memberId}:${eventId}`);
-    return response({ok:true,message:intent==='cancelled'?'ยกเลิกความสนใจแล้ว':'ส่งข้อมูลให้ทีม ST / NEC แล้ว'});
+    if(intent==='cancelled'){
+      await db.from('member_signals').update({status:'cancelled',resolved_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('idempotency_key',`training:${memberId}:${eventId}`);
+      return response({ok:true,message:'ยกเลิกความสนใจแล้ว'});
+    }
+    const signalId=String((signal as Record<string,unknown>|null)?.id||`training:${memberId}:${eventId}`);
+    const delivery=await notifyIssueStakeholders(db,{
+      issueId:signalId,
+      memberId,
+      memberName:String(identity.member.name||''),
+      nickname:String(identity.member.nickname||identity.member.name||''),
+      mentorTeam:String(identity.member.mentor_team||''),
+      issueText:`${labels[intent]}: ${eventName}${eventDate?` (${eventDate})`:''}`,
+      signalType:'training',
+      routeLabel:'ST / NEC',
+      headline:'🎓 สมาชิกสนใจหลักสูตร',
+      actionHint:'เปิดดูและตอบกลับได้ใน Mobile / Desktop → งานจากสมาชิก',
+      notificationType:'training_interest',
+      idempotencyKey:`liff:training:${memberId}:${eventId}:${intent}`,
+      source:'liff-api',
+    });
+    await trackLineEvent(db,'liff_training_interest_delivery_result',{
+      lineUserId:identity.userId,memberId,source:'liff',
+      properties:{eventId,intent,attempted:delivery.attempted,sent:delivery.sent,failed:delivery.failed,skipped:delivery.skipped,skippedReason:delivery.skippedReason||null},
+    });
+    const deliveryMessage=delivery.sent>0
+      ? `ส่งให้ทีม ST / NEC แล้ว ${delivery.sent} คน`
+      : delivery.skippedReason==='no_recipient'
+      ? 'บันทึกคำขอแล้ว แต่ยังส่ง LINE ไม่ได้ เพราะยังไม่ได้ตั้งผู้รับ ST / NEC'
+      : 'บันทึกคำขอแล้ว แต่ส่ง LINE ไม่สำเร็จ ทีม MC ได้รับแจ้งใน Dashboard';
+    return response({ok:true,message:deliveryMessage,delivery});
   }
 
   if (action === 'visitor') {
