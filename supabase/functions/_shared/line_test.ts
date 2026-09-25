@@ -1,6 +1,7 @@
 import {
   bangkokDateKey,
   bangkokWeekKey,
+  buildM2MLineMessages,
   eventIdFor,
   generateLinkToken,
   LINE_QR_MEMBER,
@@ -28,6 +29,36 @@ function assertEquals(actual: unknown, expected: unknown): void {
   const right = JSON.stringify(expected);
   if (left !== right) throw new Error(`Expected ${right}, received ${left}`);
 }
+
+Deno.test('M2M rich message builder supports plain text, flex card, and image', () => {
+  const textMessages = buildM2MLineMessages({ messageType: 'text', text: 'สวัสดีครับ' });
+  assertEquals(textMessages.length, 1);
+  assertEquals(textMessages[0].type, 'text');
+  assertEquals(textMessages[0].text, 'สวัสดีครับ');
+
+  const flexMessages = buildM2MLineMessages({
+    messageType: 'flex',
+    title: 'M2M Announcement',
+    body: 'รายละเอียดข่าวสาร',
+    buttonLabel: 'เปิดหน้า',
+    buttonUri: 'https://example.com/announce',
+  });
+  assertEquals(flexMessages.length, 1);
+  assertEquals(flexMessages[0].type, 'flex');
+  assert(String((flexMessages[0] as Record<string, unknown>).altText || '').includes('M2M Announcement'));
+  const contents = (flexMessages[0] as Record<string, unknown>).contents as Record<string, unknown>;
+  assertEquals(contents.type, 'bubble');
+
+  const imageMessages = buildM2MLineMessages({
+    messageType: 'image',
+    imageUrl: 'https://cdn.example.com/promo.jpg',
+    altText: 'ภาพประชาสัมพันธ์',
+  });
+  assertEquals(imageMessages.length, 1);
+  assertEquals(imageMessages[0].type, 'image');
+  assertEquals(imageMessages[0].originalContentUrl, 'https://cdn.example.com/promo.jpg');
+  assertEquals(imageMessages[0].altText, 'ภาพประชาสัมพันธ์');
+});
 
 Deno.test('secure link tokens normalize and avoid ambiguous characters', () => {
   assertEquals(normalizeLinkToken(' ab-cd 2345 '), 'ABCD2345');

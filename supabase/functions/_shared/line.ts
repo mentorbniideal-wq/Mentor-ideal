@@ -1,3 +1,5 @@
+import { commandCardFlex } from './line-flex.ts';
+
 // Unified LINE Messaging API client.
 // Supports reply, push, multicast, delivery logging, and idempotent sends.
 
@@ -87,6 +89,51 @@ export function textMessage(text: string, quickReplyItems?: unknown[]): LineMess
     message.quickReply = { items: quickReplyItems.slice(0, 13) };
   }
   return message;
+}
+
+export type M2MMessageType = 'text' | 'flex' | 'image';
+
+export interface M2MLineMessageInput {
+  messageType?: M2MMessageType;
+  text?: string;
+  title?: string;
+  body?: string;
+  buttonLabel?: string;
+  buttonUri?: string;
+  imageUrl?: string;
+  altText?: string;
+}
+
+export function buildM2MLineMessages(input: M2MLineMessageInput): LineMessage[] {
+  const type = input.messageType || 'text';
+  const text = String(input.text || '').trim();
+
+  if (type === 'text') {
+    return [textMessage(text || 'ข้อความจากระบบ')];
+  }
+
+  if (type === 'flex') {
+    const title = String(input.title || 'M2M').trim() || 'M2M';
+    const body = String(input.body || '').trim() || 'รายละเอียดข้อความ';
+    const buttonLabel = String(input.buttonLabel || 'เปิด').trim() || 'เปิด';
+    const flex = commandCardFlex(title, body, {
+      actions: input.buttonUri ? [{ label: buttonLabel, type: 'uri', uri: input.buttonUri, primary: true }] : [],
+    });
+    return [flex as LineMessage];
+  }
+
+  if (type === 'image') {
+    const url = String(input.imageUrl || '').trim();
+    if (!url) return [textMessage('รูปยังไม่พร้อมใช้งาน')];
+    return [{
+      type: 'image',
+      originalContentUrl: url,
+      previewImageUrl: url,
+      altText: String(input.altText || 'รูปประกอบ'),
+    }];
+  }
+
+  return [textMessage(text || 'ข้อความจากระบบ')];
 }
 
 export async function sha256Hex(value: string): Promise<string> {
@@ -332,9 +379,9 @@ export async function linePush(
   return linePushMessages(userId, [textMessage(text)], options);
 }
 
-export async function lineMulticast(
+export async function lineMulticastMessages(
   userIds: string[],
-  text: string,
+  messages: LineMessage[],
   options: LineSendOptions = {},
 ): Promise<LineSendResult[]> {
   const uniqueIds = [...new Set(userIds.filter(Boolean))];
@@ -343,19 +390,26 @@ export async function lineMulticast(
 
   for (let index = 0; index < chunks.length; index++) {
     const chunk = chunks[index];
-    const messages = [textMessage(text)];
     const chunkOptions = options.idempotencyKey
       ? { ...options, idempotencyKey: `${options.idempotencyKey}:chunk:${index}` }
       : options;
     results.push(await sendLineRequest(
       'multicast',
       `multicast:${await sha256Hex(chunk.slice().sort().join('|'))}`,
-      { to: chunk, messages },
-      messages,
+      { to: chunk, messages: messages.slice(0, 5) },
+      messages.slice(0, 5),
       chunkOptions,
     ));
   }
   return results;
+}
+
+export async function lineMulticast(
+  userIds: string[],
+  text: string,
+  options: LineSendOptions = {},
+): Promise<LineSendResult[]> {
+  return lineMulticastMessages(userIds, [textMessage(text)], options);
 }
 
 function chunkArray<T>(items: T[], size: number): T[][] {

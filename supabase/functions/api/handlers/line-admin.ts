@@ -3,9 +3,11 @@
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import {
+  buildM2MLineMessages,
   generateLinkToken,
   linePush,
   linePushMessages,
+  lineMulticastMessages,
   normalizeLinkToken,
   sha256Hex,
   type LineSendOptions,
@@ -923,17 +925,36 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       if (!auth.ok) return errResponse(auth.error!);
 
       const memberName = String(p.memberName || '').trim();
-      const message    = String(p.message || '').trim();
-      if (!memberName || !message) return errResponse('memberName and message required');
+      const messageType = String(p.messageType || 'text').trim() as 'text' | 'flex' | 'image';
+      const text = String(p.message || p.text || '').trim();
+      const title = String(p.title || 'M2M').trim();
+      const body = String(p.body || p.message || '').trim();
+      const buttonLabel = String(p.buttonLabel || 'เปิด').trim();
+      const buttonUri = String(p.buttonUri || '').trim();
+      const imageUrl = String(p.imageUrl || '').trim();
+      if (!memberName) return errResponse('memberName required');
+      if (!['text', 'flex', 'image'].includes(messageType)) return errResponse('messageType ต้องเป็น text, flex หรือ image');
+      if (messageType === 'text' && !text) return errResponse('message required');
+      if (messageType === 'flex' && !body) return errResponse('body required');
+      if (messageType === 'image' && !imageUrl) return errResponse('imageUrl required');
       if (!Boolean(p.confirmed)) return errResponse('ต้องตรวจข้อความและยืนยันก่อนส่ง LINE');
 
       const userId = await findLineUserId(db, memberName);
-      if (!userId) return jsonResponse({ ok: true, sent: false });
+      if (!userId) return jsonResponse({ ok: true, sent: false, messageType });
 
+      const payloadMessages = buildM2MLineMessages({
+        messageType,
+        text,
+        title,
+        body,
+        buttonLabel,
+        buttonUri,
+        imageUrl,
+      });
       const memberId = await findMemberId(db, memberName);
-      const messageDigest = await sha256Hex(message);
+      const messageDigest = await sha256Hex(`${messageType}|${body || text || imageUrl}`);
       const windowKey = Math.floor(Date.now() / 300000);
-      const sent = await sendLineMsg(userId, message, {
+      const result = await linePushMessages(userId, payloadMessages, {
         db,
         idempotencyKey: `manual-member:${memberId || userId}:${messageDigest.slice(0,24)}:${windowKey}`,
         memberId,
@@ -945,24 +966,74 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       });
       await db.from('member_admin_events').insert({
         member_id: memberId,
-        event_type: sent ? 'manual_line_sent' : 'manual_line_failed',
+        event_type: result.sent || result.skipped ? 'manual_line_sent' : 'manual_line_failed',
         actor_role: String(auth.role || 'mc'),
         actor_ref: String(auth.role || 'mc'),
-        metadata: { source: 'desktop/member-360', message_length: message.length },
+        metadata: {
+          source: 'desktop/member-360',
+          message_type: messageType,
+          message_length: String(body || text || imageUrl).length,
+        },
       });
-      return jsonResponse({ ok: true, sent });
+      return jsonResponse({ ok: true, sent: Boolean(result.sent || result.skipped), messageType, deliveryId: result.deliveryId || null });
     }
 
     // ── BROADCAST: push message to all (or filtered) members (MC) ──
+    case 'prepareLineBroadcastUpload': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const fileName = String(p.fileName || 'm2m-broadcast-image').trim() || 'm2m-broadcast-image';
+      const contentType = String(p.contentType || 'image/jpeg').trim() || 'image/jpeg';
+      const allowed = new Set(['image/jpeg', 'image/png', 'image/webp']);
+      if (!allowed.has(contentType)) return errResponse('รองรับเฉพาะ JPEG, PNG หรือ WebP');
+      const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 80) || 'm2m-broadcast-image';
+      const bucket = 'line-broadcast-media';
+      const path = `broadcasts/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}-${safeName}`;
+      const { data, error } = await db.storage.from(bucket).createSignedUploadUrl(path);
+      if (error || !data) return errResponse(error?.message || 'เตรียมอัปโหลดรูปไม่สำเร็จ');
+      return jsonResponse({ ok: true, path, uploadUrl: data.signedUrl, token: data.token });
+    }
+
+    case 'completeLineBroadcastUpload': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const path = String(p.path || '').trim();
+      const contentType = String(p.contentType || '').trim();
+      if (!path || !contentType) return errResponse('path และ contentType required');
+      const { data, error } = await db.storage.from('line-broadcast-media').createSignedUrl(path, 60 * 60 * 24);
+      if (error || !data?.signedUrl) return errResponse(error?.message || 'สร้างลิงก์รูปไม่สำเร็จ');
+      return jsonResponse({ ok: true, imageUrl: data.signedUrl, path });
+    }
+
     case 'sendLineBroadcast': {
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const message    = String(p.message || '').trim();
-      // Accept teamName (from LINE activity panel) or targetRole (legacy)
+      const messageType = String(p.messageType || 'text').trim() as 'text' | 'flex' | 'image';
+      const text = String(p.message || p.text || '').trim();
+      const title = String(p.title || 'M2M').trim();
+      const body = String(p.body || p.message || '').trim();
+      const buttonLabel = String(p.buttonLabel || 'เปิด').trim();
+      const buttonUri = String(p.buttonUri || '').trim();
+      const imageUrl = String(p.imageUrl || '').trim();
       const targetRole = (p.teamName ? String(p.teamName) : p.targetRole ? String(p.targetRole) : '').trim() || null;
-      if (!message) return errResponse('message required');
+      if (!['text', 'flex', 'image'].includes(messageType)) return errResponse('messageType ต้องเป็น text, flex หรือ image');
+      if (messageType === 'text' && !text) return errResponse('message required');
+      if (messageType === 'flex' && !body) return errResponse('body required');
+      if (messageType === 'image' && !imageUrl) return errResponse('imageUrl required');
       if (!Boolean(p.confirmed)) return errResponse('ต้องตรวจข้อความและยืนยันก่อนส่ง LINE');
+
+      const payloadMessages = buildM2MLineMessages({
+        messageType,
+        text,
+        title,
+        body,
+        buttonLabel,
+        buttonUri,
+        imageUrl,
+      });
 
       const { data, error } = await db
         .from('line_members')
@@ -981,7 +1052,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
       const results: Record<string, unknown>[] = [];
       const windowKey = Math.floor(Date.now() / 300000);
-      const digest = await sha256Hex(`${targetRole || 'all'}|${message}`);
+      const digest = await sha256Hex(`${targetRole || 'all'}|${messageType}|${body || text || imageUrl}`);
       for (let offset = 0; offset < rows.length; offset += 10) {
         const chunk = await Promise.all(rows.slice(offset, offset + 10).map(async (row) => {
           const uid = String(row.line_user_id || '');
@@ -990,7 +1061,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
           const name = String(member.nickname || member.name || 'สมาชิก');
           if (!uid) return { memberId, name, status: 'failed', reason: 'no_line', error: 'สมาชิกยังไม่เชื่อม LINE' };
           try {
-            const result = await linePush(uid, message, {
+            const result = await lineMulticastMessages([uid], payloadMessages, {
               db,
               idempotencyKey: `desktop-broadcast:${digest.slice(0,24)}:${windowKey}:${memberId || uid}`,
               memberId: memberId || null,
@@ -999,7 +1070,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
               module: 'manual',
               category: 'manual_team_broadcast',
               priority: 'informational',
-            });
+            }).then(r => r[0]);
             return { memberId, name, status: result.skipped ? 'skipped' : 'sent', reason: result.skipped ? 'duplicate' : null, deliveryId: result.deliveryId || null, error: null };
           } catch (e) {
             const deliveryError = e instanceof Error ? e.message.slice(0, 500) : 'LINE delivery failed';
@@ -1021,6 +1092,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         subject_ref: batchId,
         metadata: {
           target_team: targetRole,
+          message_type: messageType,
           requested_member_count: requestedMemberIds?.size || null,
           sent: sentCount,
           failed,
@@ -1028,7 +1100,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
           total: results.length,
         },
       });
-      return jsonResponse({ ok: true, batchId, sent: sentCount, sentCount, failed, skipped, total: results.length, results });
+      return jsonResponse({ ok: true, batchId, sent: sentCount, sentCount, failed, skipped, total: results.length, results, messageType });
     }
 
     // ── INTRO: send 1-2-1 introduction between 2 members ─────

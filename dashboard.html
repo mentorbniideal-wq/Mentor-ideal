@@ -2190,14 +2190,36 @@ body.light .gs-drop,body.light .mbox,body.light .bk-box,body.light #meeting{back
 
 <!-- ── LINE Compose Modal (Desktop) ── -->
 <div id="desk-line-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:2000;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)closeDeskLine()">
-  <div style="background:var(--sf);border:1px solid var(--bd);border-radius:14px;width:100%;max-width:480px;padding:20px;box-sizing:border-box;">
+  <div style="background:var(--sf);border:1px solid var(--bd);border-radius:14px;width:100%;max-width:560px;padding:20px;box-sizing:border-box;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
       <span id="desk-line-title" style="font-size:15px;font-weight:700">📲 ส่ง LINE</span>
       <button onclick="closeDeskLine()" style="background:none;border:none;color:var(--sub);font-size:18px;cursor:pointer;line-height:1">✕</button>
     </div>
     <div id="desk-line-bcast-info" style="display:none;margin-bottom:10px;padding:6px 10px;background:rgba(6,199,85,.08);border:1px solid rgba(6,199,85,.2);border-radius:6px;font-size:11px;color:#06C755">📢 Broadcast ไปยัง mentee ทั้งทีมที่ลงทะเบียน LINE Bot แล้ว</div>
-    <div id="desk-line-tpls" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px"></div>
-    <textarea id="desk-line-txt" rows="6" style="width:100%;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;color:var(--tx);padding:10px;font-size:13px;resize:vertical;box-sizing:border-box;" placeholder="พิมพ์ข้อความ..."></textarea>
+    <div style="margin-bottom:10px;display:flex;flex-direction:column;gap:6px">
+      <label style="font-size:11px;color:var(--sub);font-weight:700">รูปแบบข้อความ</label>
+      <select id="desk-line-message-type" onchange="setDeskLineMessageType(this.value)" style="width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--sf2);color:var(--tx);font-size:12px">
+        <option value="text">ข้อความธรรมดา</option>
+        <option value="flex">Flex Card</option>
+        <option value="image">รูปภาพ</option>
+      </select>
+    </div>
+    <div id="desk-line-flex-config" style="display:none;gap:8px;margin-bottom:10px;flex-direction:column">
+      <input id="desk-line-flex-title" placeholder="หัวข้อ (เช่น M2M Announcement)" style="width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--sf2);color:var(--tx);font-size:12px;box-sizing:border-box;" />
+      <textarea id="desk-line-flex-body" rows="4" placeholder="รายละเอียดข้อความสำหรับ Flex Card" style="width:100%;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;color:var(--tx);padding:10px;font-size:12px;resize:vertical;box-sizing:border-box;"></textarea>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <input id="desk-line-flex-button-label" placeholder="ป้ายบนปุ่ม" style="width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--sf2);color:var(--tx);font-size:12px;box-sizing:border-box;" />
+        <input id="desk-line-flex-button-uri" placeholder="https://example.com" style="width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--sf2);color:var(--tx);font-size:12px;box-sizing:border-box;" />
+      </div>
+    </div>
+    <div id="desk-line-image-config" style="display:none;gap:8px;margin-bottom:10px;flex-direction:column">
+      <input id="desk-line-image-file" type="file" accept="image/jpeg,image/png,image/webp" style="width:100%;padding:8px;border:1px solid var(--bd);border-radius:8px;background:var(--sf2);color:var(--tx);font-size:12px;box-sizing:border-box;" />
+      <small id="desk-line-image-status" style="color:var(--sub);font-size:11px">เลือกรูปเพื่อแนบกับ LINE message</small>
+    </div>
+    <div id="desk-line-text-config">
+      <div id="desk-line-tpls" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px"></div>
+      <textarea id="desk-line-txt" rows="6" style="width:100%;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;color:var(--tx);padding:10px;font-size:13px;resize:vertical;box-sizing:border-box;" placeholder="พิมพ์ข้อความ..."></textarea>
+    </div>
     <div style="display:flex;gap:8px;margin-top:10px">
       <button onclick="closeDeskLine()" style="flex:1;padding:8px;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;color:var(--sub);cursor:pointer">ยกเลิก</button>
       <button onclick="doDeskSendLine()" id="desk-line-send-btn" style="flex:2;padding:8px;background:#06C755;border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer">📤 ส่ง LINE</button>
