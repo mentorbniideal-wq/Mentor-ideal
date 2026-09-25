@@ -128,12 +128,13 @@ export function buildM2MLineMessages(input: M2MLineMessageInput): LineMessage[] 
   if (type === 'image') {
     const url = String(input.imageUrl || '').trim();
     if (!url) return [textMessage('รูปยังไม่พร้อมใช้งาน')];
+    const caption = text ? `\n\n${text}` : '';
     return [{
       type: 'image',
       originalContentUrl: url,
       previewImageUrl: url,
       altText: String(input.altText || `รูปภาพจากทีม LT ${senderRole}`.trim()),
-    }, textMessage(senderLabel)];
+    }, textMessage(`${senderLabel}${caption}`)];
   }
 
   return [textMessage(text || 'ข้อความจากระบบ')];

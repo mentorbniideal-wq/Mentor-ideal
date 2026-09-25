@@ -25,6 +25,8 @@ assert.match(liff, /lt-m2m-tab hidden/);
 assert.match(liff, /setM2MMessageType/);
 assert.match(liff, /prepare-m2m-upload/);
 assert.match(liff, /delete payload\.imageFile/);
+assert.match(liff, /m2mImageCaption/);
+assert.match(liff, /m2m-rich-config\[hidden\]/);
 
 assert.match(api, /const M2M_CATEGORIES/);
 assert.match(api, /requireActiveLt/);

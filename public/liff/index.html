@@ -65,7 +65,7 @@
     .oto-growth-actions button,.p121-question-actions button{padding:10px 12px}.p121-head button,.g-head button{width:44px;height:44px}
     button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #1b75d0;outline-offset:3px}
     .network-state{position:fixed;z-index:120;left:12px;right:12px;top:calc(8px + env(safe-area-inset-top));max-width:496px;margin:auto;padding:11px 14px;border-radius:12px;background:#7d2f28;color:#fff;text-align:center;font-size:13px;font-weight:700;box-shadow:0 8px 28px #0004}.network-state[hidden]{display:none}
-    .m2m-recipient-tools{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;margin:8px 0}.m2m-recipient-tools input{margin:0;min-width:0}.m2m-filter-all{min-height:44px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--ink);padding:0 11px;font:800 11px inherit}.m2m-selection{min-height:20px;margin:0 2px 8px;color:var(--muted);font-size:11px;line-height:1.45}.m2m-members{display:grid;gap:7px;max-height:280px;overflow:auto;padding:5px;border:1px solid var(--line);border-radius:14px;background:#faf8f2}.m2m-member{display:flex;align-items:center;gap:9px;margin:0;padding:11px;border-radius:11px;background:#fff;font-size:13px;transition:background .15s ease,box-shadow .15s ease}.m2m-member:has(input:checked){background:#edf5f1;box-shadow:inset 0 0 0 1px #bad5c8}.m2m-member input{width:20px;height:20px;flex:0 0 auto;padding:0}.m2m-member span{min-width:0;overflow-wrap:anywhere}.m2m-member small{margin-left:auto;color:var(--muted);font-size:10px;text-align:right}.m2m-empty{padding:20px 12px;text-align:center;color:var(--muted);font-size:12px}.m2m-preview{margin-top:14px;padding:13px;border:1px solid #d5c08d;border-radius:14px;background:#fffaf0;font-size:13px;line-height:1.6}.m2m-preview b{display:block}.m2m-preview button{width:100%;min-height:46px;margin-top:10px;border:0;border-radius:11px;background:var(--ink);color:#fff;font:800 13px inherit}@media(max-width:390px){.m2m-recipient-tools{grid-template-columns:1fr}.m2m-filter-all{width:100%}.m2m-member small{display:none}}
+    .m2m-recipient-tools{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;margin:8px 0}.m2m-recipient-tools input{margin:0;min-width:0}.m2m-filter-all{min-height:44px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--ink);padding:0 11px;font:800 11px inherit}.m2m-selection{min-height:20px;margin:0 2px 8px;color:var(--muted);font-size:11px;line-height:1.45}.m2m-members{display:grid;gap:7px;max-height:280px;overflow:auto;padding:5px;border:1px solid var(--line);border-radius:14px;background:#faf8f2}.m2m-member{display:flex;align-items:center;gap:9px;margin:0;padding:11px;border-radius:11px;background:#fff;font-size:13px;transition:background .15s ease,box-shadow .15s ease}.m2m-member:has(input:checked){background:#edf5f1;box-shadow:inset 0 0 0 1px #bad5c8}.m2m-member input{width:20px;height:20px;flex:0 0 auto;padding:0}.m2m-member span{min-width:0;overflow-wrap:anywhere}.m2m-member small{margin-left:auto;color:var(--muted);font-size:10px;text-align:right}.m2m-empty{padding:20px 12px;text-align:center;color:var(--muted);font-size:12px}.m2m-preview{margin-top:14px;padding:13px;border:1px solid #d5c08d;border-radius:14px;background:#fffaf0;font-size:13px;line-height:1.6}.m2m-preview b{display:block}.m2m-preview button{width:100%;min-height:46px;margin-top:10px;border:0;border-radius:11px;background:var(--ink);color:#fff;font:800 13px inherit}.m2m-rich-config[hidden]{display:none!important}@media(max-width:390px){.m2m-recipient-tools{grid-template-columns:1fr}.m2m-filter-all{width:100%}.m2m-member small{display:none}}
     .my121-nav{grid-template-columns:repeat(6,minmax(0,1fr))}.my121-self-list{display:grid;gap:9px}.my121-self-item{padding:13px;border:1px solid var(--line);border-radius:15px;background:#fff}.my121-self-item b,.my121-self-item small{display:block}.my121-self-item small{margin-top:3px;color:var(--muted);font-size:11px;line-height:1.5}.my121-self-item-actions{display:flex;gap:7px;margin-top:10px}.my121-self-item-actions button{min-height:42px;flex:1;border-radius:10px;border:1px solid var(--ink);background:#fff;color:var(--ink);font:800 12px inherit}.my121-self-item-actions button.primary{background:var(--ink);color:#fff}.my121-self-guidance{padding:14px;border:1px dashed #bca46d;border-radius:15px;background:#fffaf0;color:#5e522f;font-size:12px;line-height:1.6}.my121-self-guidance button{width:100%;min-height:44px;margin-top:9px;border:0;border-radius:11px;background:#765d2e;color:#fff;font:800 12px inherit}
   </style>
 </head>
@@ -120,7 +120,7 @@
       <select id="m2mCategory" required><option value="">เลือกหมวดข้อความ</option><option value="meeting">นัดหมาย / การประชุม</option><option value="training">การอบรม</option><option value="visitor">Visitor</option><option value="renewal">ต่ออายุสมาชิก</option><option value="member_support">ช่วยเหลือสมาชิก</option><option value="announcement">ประกาศจาก LT</option><option value="other">อื่น ๆ</option></select>
       <label for="m2mMessageType">รูปแบบข้อความ</label>
       <select id="m2mMessageType" onchange="setM2MMessageType(this.value)"><option value="text">ข้อความธรรมดา</option><option value="flex">Flex Card</option><option value="image">รูปภาพ</option></select>
-      <div id="m2mFlexConfig" hidden style="display:grid;gap:8px;margin-top:8px">
+      <div id="m2mFlexConfig" class="m2m-rich-config" hidden style="display:grid;gap:8px;margin-top:8px">
         <input id="m2mFlexTitle" type="text" maxlength="160" placeholder="หัวข้อ (เช่น M2M Announcement)">
         <textarea id="m2mFlexBody" maxlength="5000" rows="4" placeholder="รายละเอียดข้อความสำหรับ Flex Card"></textarea>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -128,11 +128,13 @@
           <input id="m2mFlexButtonUri" type="url" placeholder="https://example.com">
         </div>
       </div>
-      <div id="m2mImageConfig" hidden style="display:grid;gap:8px;margin-top:8px">
+      <div id="m2mImageConfig" class="m2m-rich-config" hidden style="display:grid;gap:8px;margin-top:8px">
         <input id="m2mImageFile" type="file" accept="image/jpeg,image/png,image/webp">
         <small style="color:var(--muted)">รองรับ JPEG, PNG หรือ WebP ขนาดไม่เกิน 10 MB</small>
+        <label for="m2mImageCaption">ข้อความประกอบภาพ <small>(ไม่บังคับ)</small></label>
+        <textarea id="m2mImageCaption" maxlength="5000" rows="4" placeholder="ข้อความนี้จะส่งพร้อมภาพ"></textarea>
       </div>
-      <div id="m2mTextConfig">
+      <div id="m2mTextConfig" class="m2m-rich-config">
         <label for="m2mMessage">ข้อความ <span aria-hidden="true">*</span></label>
         <textarea id="m2mMessage" maxlength="5000" placeholder="พิมพ์ข้อความที่จะส่งถึงสมาชิก"></textarea>
       </div>
@@ -474,7 +476,9 @@ function m2mPayload() {
     senderRole: String($('#m2mSenderRole')?.value || ''),
     category: String($('#m2mCategory')?.value || ''),
     messageType,
-    message: String($('#m2mMessage')?.value || '').trim(),
+    message: messageType === 'image'
+      ? String($('#m2mImageCaption')?.value || '').trim()
+      : String($('#m2mMessage')?.value || '').trim(),
     title: String($('#m2mFlexTitle')?.value || '').trim(),
     body: String($('#m2mFlexBody')?.value || '').trim(),
     buttonLabel: String($('#m2mFlexButtonLabel')?.value || '').trim(),

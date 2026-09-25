@@ -53,13 +53,14 @@ Deno.test('M2M rich messages retain the LT sender role for every format', () => 
 
   const imageMessages = buildM2MLineMessages({
     messageType: 'image',
+    text: 'รายละเอียดประกอบภาพ',
     imageUrl: 'https://cdn.example.com/promo.jpg',
     altText: 'ภาพประชาสัมพันธ์',
     senderRole: 'President',
   });
   assertEquals(imageMessages.length, 2);
   assertEquals(imageMessages[0].type, 'image');
-  assertEquals(imageMessages[1].text, '📨 ข้อความจากทีม LT: President');
+  assertEquals(imageMessages[1].text, '📨 ข้อความจากทีม LT: President\n\nรายละเอียดประกอบภาพ');
   assertEquals(imageMessages[0].originalContentUrl, 'https://cdn.example.com/promo.jpg');
   assertEquals(imageMessages[0].altText, 'ภาพประชาสัมพันธ์');
 });
