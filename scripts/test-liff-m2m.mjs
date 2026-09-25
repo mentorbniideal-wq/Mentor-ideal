@@ -27,6 +27,10 @@ assert.match(liff, /prepare-m2m-upload/);
 assert.match(liff, /delete payload\.imageFile/);
 assert.match(liff, /m2mImageCaption/);
 assert.match(liff, /m2m-rich-config\[hidden\]/);
+assert.match(liff, /Flex Card \(ประกาศสำคัญเท่านั้น\)/);
+assert.match(liff, /m2mSubject/);
+assert.match(liff, /ตรวจรายชื่อผู้รับทั้งหมด/);
+assert.match(liff, /m2mRoleLabel/);
 
 assert.match(api, /const M2M_CATEGORIES/);
 assert.match(api, /requireActiveLt/);

@@ -118,10 +118,12 @@
       <div id="m2mMembers" class="m2m-members" aria-label="เลือกสมาชิก"><div class="loading" style="padding:16px">กำลังโหลดรายชื่อ…</div></div>
       <label for="m2mCategory">หมวด <span aria-hidden="true">*</span></label>
       <select id="m2mCategory" required><option value="">เลือกหมวดข้อความ</option><option value="meeting">นัดหมาย / การประชุม</option><option value="training">การอบรม</option><option value="visitor">Visitor</option><option value="renewal">ต่ออายุสมาชิก</option><option value="member_support">ช่วยเหลือสมาชิก</option><option value="announcement">ประกาศจาก LT</option><option value="other">อื่น ๆ</option></select>
+      <label for="m2mSubject">หัวข้อ <span aria-hidden="true">*</span></label>
+      <input id="m2mSubject" type="text" maxlength="160" placeholder="เช่น แจ้งกำหนดการประชุมประจำสัปดาห์" oninput="m2mInvalidatePreview()">
       <label for="m2mMessageType">รูปแบบข้อความ</label>
-      <select id="m2mMessageType" onchange="setM2MMessageType(this.value)"><option value="text">ข้อความธรรมดา</option><option value="flex">Flex Card</option><option value="image">รูปภาพ</option></select>
+      <select id="m2mMessageType" onchange="setM2MMessageType(this.value)"><option value="text">ข้อความธรรมดา</option><option value="flex">Flex Card (ประกาศสำคัญเท่านั้น)</option><option value="image">รูปภาพ</option></select>
       <div id="m2mFlexConfig" class="m2m-rich-config" hidden style="display:grid;gap:8px;margin-top:8px">
-        <input id="m2mFlexTitle" type="text" maxlength="160" placeholder="หัวข้อ (เช่น M2M Announcement)">
+        <input id="m2mFlexTitle" type="text" maxlength="160" placeholder="หัวข้อบน Flex Card (เว้นว่างเพื่อใช้หัวข้อหลัก)">
         <textarea id="m2mFlexBody" maxlength="5000" rows="4" placeholder="รายละเอียดข้อความสำหรับ Flex Card"></textarea>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
           <input id="m2mFlexButtonLabel" type="text" maxlength="80" placeholder="ป้ายบนปุ่ม">
@@ -427,8 +429,11 @@ function hydrateM2MSenderRoles(result = m2mAudience) {
   if (!senderRole || !result) return;
   const selected = senderRole.value;
   const roles = Array.isArray(result.roles) ? result.roles : [];
-  senderRole.innerHTML = `<option value="">เลือกตำแหน่ง LT</option>${roles.map(role => `<option value="${escHtml(role)}">${escHtml(role)}</option>`).join('')}`;
+  senderRole.innerHTML = `<option value="">เลือกตำแหน่ง LT</option>${roles.map(role => `<option value="${escHtml(role)}">${escHtml(m2mRoleLabel(role))}</option>`).join('')}`;
   senderRole.value = roles.includes(selected) ? selected : (roles.length === 1 ? roles[0] : '');
+}
+function m2mRoleLabel(role) {
+  return String(role || '').replace(/\s*(?:·|:)\s*.+$/, '').trim().toUpperCase();
 }
 async function loadM2M(force = false) {
   const status = $('#m2mStatus');
@@ -442,7 +447,7 @@ async function loadM2M(force = false) {
   m2mAudience = result;
   $('[data-view="m2m"]')?.classList.remove('hidden');
   hydrateM2MSenderRoles(result);
-  if (status) { status.className = 'status ok'; status.textContent = `LT: ${(result.roles || []).map(escHtml).join(', ')}`; }
+  if (status) { status.className = 'status ok'; status.textContent = `LT: ${(result.roles || []).map(m2mRoleLabel).map(escHtml).join(', ')}`; }
   renderM2MMembers();
 }
 function setM2MMessageType(mode) {
@@ -475,6 +480,7 @@ function m2mPayload() {
     memberIds: audienceMode === 'all' ? [] : [...m2mSelectedMemberIds],
     senderRole: String($('#m2mSenderRole')?.value || ''),
     category: String($('#m2mCategory')?.value || ''),
+    subject: String($('#m2mSubject')?.value || '').trim(),
     messageType,
     message: messageType === 'image'
       ? String($('#m2mImageCaption')?.value || '').trim()
@@ -492,8 +498,8 @@ async function m2mPreview() {
   const status = $('#m2mStatus');
   const missingContent = payload.messageType === 'text' ? !payload.message
     : payload.messageType === 'flex' ? !payload.body : !payload.imageFile;
-  if (!payload.senderRole || !payload.category || missingContent || (payload.audienceMode === 'selected' && !payload.memberIds.length)) {
-    if (status) { status.className = 'status err'; status.textContent = 'เลือกตำแหน่ง LT ผู้รับ หมวด และกรอกข้อมูลให้ครบก่อนตรวจ'; }
+  if (!payload.senderRole || !payload.category || !payload.subject || missingContent || (payload.audienceMode === 'selected' && !payload.memberIds.length)) {
+    if (status) { status.className = 'status err'; status.textContent = 'เลือกตำแหน่ง LT ผู้รับ หมวด หัวข้อ และกรอกข้อมูลให้ครบก่อนตรวจ'; }
     return;
   }
   if (status) { status.className = 'status'; status.textContent = 'กำลังตรวจข้อความและผู้รับ…'; }
@@ -516,7 +522,9 @@ async function m2mPreview() {
   m2mPreviewState = { ...payload, previewId: result.previewId };
   if (status) { status.className = 'status ok'; status.textContent = 'ตรวจสอบแล้ว — กดส่งเพื่อยืนยัน'; }
   preview.hidden = false;
-  preview.innerHTML = `<b>ส่งในฐานะทีม LT: ${escHtml(payload.senderRole)}</b><span>พร้อมส่ง ${Number(result.recipientCount || 0).toLocaleString('th-TH')} คน · ปิดรับข้อความ ${Number(result.mutedCount || 0).toLocaleString('th-TH')} คน · ยังไม่เชื่อม LINE ${Number(result.unavailableCount || 0).toLocaleString('th-TH')} คน</span><br><small>ระบบจะส่งเฉพาะเมื่อคุณยืนยัน และบันทึกผลการส่งไว้ในระบบ</small><button type="button" onclick="m2mSend()">ยืนยันส่งข้อความ</button>`;
+  const recipients = Array.isArray(result.recipients) ? result.recipients : [];
+  const recipientList = recipients.map(person => `<li>${escHtml(person.name || 'สมาชิก')}${person.deliveryEligible ? '' : ' <small>(ยังส่งไม่ได้)</small>'}</li>`).join('');
+  preview.innerHTML = `<b>ส่งในฐานะทีม LT: ${escHtml(m2mRoleLabel(payload.senderRole))}</b><span>หัวข้อ: ${escHtml(payload.subject)}</span><span>พร้อมส่ง ${Number(result.recipientCount || 0).toLocaleString('th-TH')} คน · ปิดรับข้อความ ${Number(result.mutedCount || 0).toLocaleString('th-TH')} คน · ยังไม่เชื่อม LINE ${Number(result.unavailableCount || 0).toLocaleString('th-TH')} คน</span><details><summary>ตรวจรายชื่อผู้รับทั้งหมด (${recipients.length.toLocaleString('th-TH')} คน)</summary><ul style="max-height:220px;overflow:auto;margin:8px 0;padding-left:20px">${recipientList || '<li>ไม่พบผู้รับ</li>'}</ul></details><small>ระบบจะส่งเฉพาะเมื่อคุณยืนยัน และบันทึกผลการส่งไว้ในระบบ</small><button type="button" onclick="m2mSend()">ยืนยันส่งข้อความ</button>`;
 }
 async function m2mSend() {
   if (!m2mPreviewState) return;

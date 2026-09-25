@@ -31,10 +31,10 @@ function assertEquals(actual: unknown, expected: unknown): void {
 }
 
 Deno.test('M2M rich messages retain the LT sender role for every format', () => {
-  const textMessages = buildM2MLineMessages({ messageType: 'text', text: 'สวัสดีครับ', senderRole: 'Growth Coordinator' });
+  const textMessages = buildM2MLineMessages({ messageType: 'text', text: 'สวัสดีครับ', senderRole: 'Growth Coordinator', subject: 'แจ้งข่าว', sentAt: '25 ก.ย. 2569 15:30' });
   assertEquals(textMessages.length, 1);
   assertEquals(textMessages[0].type, 'text');
-  assertEquals(textMessages[0].text, '📨 ข้อความจากทีม LT: Growth Coordinator\n\nสวัสดีครับ');
+  assertEquals(textMessages[0].text, '📨 ข้อความจากทีม LT: Growth Coordinator\nหัวข้อ: แจ้งข่าว\nส่งเมื่อ 25 ก.ย. 2569 15:30\n\nสวัสดีครับ');
 
   const flexMessages = buildM2MLineMessages({
     messageType: 'flex',
@@ -42,10 +42,10 @@ Deno.test('M2M rich messages retain the LT sender role for every format', () => 
     body: 'รายละเอียดข่าวสาร',
     buttonLabel: 'เปิดหน้า',
     buttonUri: 'https://example.com/announce',
-    senderRole: 'Mentor Coordinator',
+    senderRole: 'Mentor Coordinator', subject: 'ประกาศสำคัญ', sentAt: '25 ก.ย. 2569 15:30',
   });
   assertEquals(flexMessages.length, 2);
-  assertEquals(flexMessages[0].text, '📨 ข้อความจากทีม LT: Mentor Coordinator');
+  assertEquals(flexMessages[0].text, '📨 ข้อความจากทีม LT: Mentor Coordinator\nหัวข้อ: ประกาศสำคัญ\nส่งเมื่อ 25 ก.ย. 2569 15:30');
   assertEquals(flexMessages[1].type, 'flex');
   assert(String((flexMessages[1] as Record<string, unknown>).altText || '').includes('M2M Announcement'));
   const contents = (flexMessages[1] as Record<string, unknown>).contents as Record<string, unknown>;
@@ -56,11 +56,11 @@ Deno.test('M2M rich messages retain the LT sender role for every format', () => 
     text: 'รายละเอียดประกอบภาพ',
     imageUrl: 'https://cdn.example.com/promo.jpg',
     altText: 'ภาพประชาสัมพันธ์',
-    senderRole: 'President',
+    senderRole: 'President', subject: 'ภาพกิจกรรม', sentAt: '25 ก.ย. 2569 15:30',
   });
   assertEquals(imageMessages.length, 2);
   assertEquals(imageMessages[0].type, 'image');
-  assertEquals(imageMessages[1].text, '📨 ข้อความจากทีม LT: President\n\nรายละเอียดประกอบภาพ');
+  assertEquals(imageMessages[1].text, '📨 ข้อความจากทีม LT: President\nหัวข้อ: ภาพกิจกรรม\nส่งเมื่อ 25 ก.ย. 2569 15:30\n\nรายละเอียดประกอบภาพ');
   assertEquals(imageMessages[0].originalContentUrl, 'https://cdn.example.com/promo.jpg');
   assertEquals(imageMessages[0].altText, 'ภาพประชาสัมพันธ์');
 });
@@ -338,6 +338,8 @@ Deno.test('all documented LINE command aliases resolve to stable command contrac
     ['ปิด nudge', 'mute-notification', 'nudge'],
     ['เปิด nudge', 'unmute-notification', 'nudge'],
     ['ลบบัญชี', 'delete-account'],
+    ['M2M', 'm2m'],
+    ['ส่งข้อความ', 'm2m'],
   ];
   for (const [input, expectedName, expectedArgument = ''] of cases) {
     const parsed = parseLineCommand(input);

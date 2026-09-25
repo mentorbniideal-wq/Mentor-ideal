@@ -103,6 +103,8 @@ export interface M2MLineMessageInput {
   imageUrl?: string;
   altText?: string;
   senderRole?: string;
+  subject?: string;
+  sentAt?: string;
 }
 
 export function buildM2MLineMessages(input: M2MLineMessageInput): LineMessage[] {
@@ -110,9 +112,12 @@ export function buildM2MLineMessages(input: M2MLineMessageInput): LineMessage[] 
   const text = String(input.text || '').trim();
   const senderRole = String(input.senderRole || '').trim();
   const senderLabel = senderRole ? `📨 ข้อความจากทีม LT: ${senderRole}` : '📨 ข้อความจากทีม LT';
+  const subject = String(input.subject || 'ประกาศจากทีม LT').trim();
+  const stamp = String(input.sentAt || '').trim();
+  const formalHeader = [senderLabel, `หัวข้อ: ${subject}`, stamp ? `ส่งเมื่อ ${stamp}` : ''].filter(Boolean).join('\n');
 
   if (type === 'text') {
-    return [textMessage(`${senderLabel}\n\n${text || 'ข้อความจากระบบ'}`)];
+    return [textMessage(`${formalHeader}\n\n${text || 'ข้อความจากระบบ'}`)];
   }
 
   if (type === 'flex') {
@@ -122,7 +127,7 @@ export function buildM2MLineMessages(input: M2MLineMessageInput): LineMessage[] 
     const flex = commandCardFlex(title, body, {
       actions: input.buttonUri ? [{ label: buttonLabel, type: 'uri', uri: input.buttonUri, primary: true }] : [],
     });
-    return [textMessage(senderLabel), flex as LineMessage];
+    return [textMessage(formalHeader), flex as LineMessage];
   }
 
   if (type === 'image') {
@@ -134,7 +139,7 @@ export function buildM2MLineMessages(input: M2MLineMessageInput): LineMessage[] 
       originalContentUrl: url,
       previewImageUrl: url,
       altText: String(input.altText || `รูปภาพจากทีม LT ${senderRole}`.trim()),
-    }, textMessage(`${senderLabel}${caption}`)];
+    }, textMessage(`${formalHeader}${caption}`)];
   }
 
   return [textMessage(text || 'ข้อความจากระบบ')];

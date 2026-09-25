@@ -600,6 +600,35 @@ async function getChapterContext(db: ReturnType<typeof getServiceClient>) {
   };
 }
 
+async function activeLtM2MUrl(
+  db: ReturnType<typeof getServiceClient>,
+  userId: string,
+): Promise<string | null> {
+  const { data: linked } = await db.from('line_members')
+    .select('member_id, members!inner(chapter_id)')
+    .eq('line_user_id', userId)
+    .maybeSingle();
+  const memberId = String((linked as Record<string, unknown> | null)?.member_id || '');
+  const member = (linked as Record<string, unknown> | null)?.members as Record<string, unknown> | undefined;
+  const chapterId = String(member?.chapter_id || '');
+  if (!memberId || !chapterId) return null;
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+  const { data: assignments } = await db.from('passport_lt_assignments')
+    .select('term:lt_terms!left(status,starts_on,ends_on)')
+    .eq('chapter_id', chapterId)
+    .eq('assigned_member_id', memberId)
+    .eq('is_active', true);
+  const active = (assignments || []).some((row: Record<string, unknown>) => {
+    const term = row.term as Record<string, unknown> | null;
+    return !term || (String(term.status) === 'active' &&
+      String(term.starts_on || '') <= today && String(term.ends_on || '') >= today);
+  });
+  if (!active) return null;
+  return `${(Deno.env.get('LINE_LIFF_URL') || 'https://liff.line.me/2010463406-BiCHsS2X').replace(/\/$/, '')}?action=m2m`;
+}
+
 // ── Command processor ────────────────────────────────────────
 async function processCommand(
   db: ReturnType<typeof getServiceClient>,
@@ -703,6 +732,12 @@ async function processCommand(
       return await toggleNotif(db, memberName, command.argument, true);
     case 'unmute-notification':
       return await toggleNotif(db, memberName, command.argument, false);
+    case 'm2m': {
+      const url = await activeLtM2MUrl(db, userId);
+      return url
+        ? `📨 Message to Member\n\nเปิดหน้าส่งข้อความสำหรับตำแหน่ง LT:\n${url}`
+        : 'M2M เปิดใช้สำหรับผู้ดำรงตำแหน่ง LT ในวาระปัจจุบันเท่านั้นครับ';
+    }
     case 'help':
       return buildHelpMessage(memberName);
     case 'unknown':

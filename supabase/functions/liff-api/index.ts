@@ -150,7 +150,9 @@ Deno.serve(async (req: Request) => {
     const roles = await requireActiveLt();
     if (!roles) return response({ ok: false, error: 'M2M เปิดใช้เฉพาะผู้ดำรงตำแหน่ง LT ในวาระปัจจุบัน' }, 403);
     const senderRole = String(body.senderRole || '').trim();
+    const senderRoleLabel = senderRole.replace(/\s*(?:·|:)\s*.+$/, '').trim().toUpperCase();
     const category = String(body.category || '').trim();
+    const subject = String(body.subject || '').trim().slice(0, 160);
     const messageType = String(body.messageType || 'text').trim() as 'text' | 'flex' | 'image';
     const text = String(body.message || '').trim().slice(0, 5000);
     const title = String(body.title || 'M2M').trim().slice(0, 160);
@@ -160,8 +162,8 @@ Deno.serve(async (req: Request) => {
     const imagePath = String(body.imagePath || '').trim();
     const mode = body.audienceMode === 'all' ? 'all' : 'selected';
     if (!['text', 'flex', 'image'].includes(messageType)) return response({ ok: false, error: 'messageType ต้องเป็น text, flex หรือ image' }, 400);
-    if (!roles.includes(senderRole) || !M2M_CATEGORIES.has(category)) {
-      return response({ ok: false, error: 'กรุณาเลือกตำแหน่ง LT และหมวดข้อความให้ถูกต้อง' }, 400);
+    if (!roles.includes(senderRole) || !M2M_CATEGORIES.has(category) || !subject) {
+      return response({ ok: false, error: 'กรุณาเลือกตำแหน่ง LT หมวดข้อความ และหัวข้อให้ถูกต้อง' }, 400);
     }
     if ((messageType === 'text' && !text) || (messageType === 'flex' && !bodyText) || (messageType === 'image' && !imagePath)) {
       return response({ ok: false, error: 'กรุณากรอกข้อความให้ครบสำหรับรูปแบบที่เลือก' }, 400);
@@ -204,11 +206,14 @@ Deno.serve(async (req: Request) => {
       memberId: String(x.id), name: String(x.nickname || x.name || 'สมาชิก'),
       lineUserId: lineByMember.get(String(x.id)) || '',
     }));
+    const sentAt = new Intl.DateTimeFormat('th-TH', {
+      timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short',
+    }).format(new Date());
     const payloadMessages = buildM2MLineMessages({
-      messageType, text, title, body: bodyText || text, buttonLabel, buttonUri, imageUrl, senderRole,
+      messageType, text, title: title || subject, body: bodyText || text, buttonLabel, buttonUri, imageUrl, senderRole: senderRoleLabel, subject, sentAt,
     });
     const digest = await sha256Hex(JSON.stringify({
-      senderRole, category, messageType, text, title, body: bodyText, buttonLabel, buttonUri, imagePath,
+      senderRole, senderRoleLabel, category, subject, messageType, text, title, body: bodyText, buttonLabel, buttonUri, imagePath,
       recipients: recipients.map(r => r.memberId).sort().join('|'),
     }));
     const audienceDigest = await sha256Hex(ids.sort().join('|'));
@@ -217,13 +222,15 @@ Deno.serve(async (req: Request) => {
       await db.from('chapter_audit_events').insert({
         chapter_id: chapterId, event_type: 'lt_m2m_preview', actor_role: 'lt', actor_ref: memberId,
         subject_type: 'line_delivery_preview', subject_ref: previewId,
-        metadata: { roles, sender_role: senderRole, category, mode, recipient_count: recipients.length, message_digest: digest, audience_digest: audienceDigest, message_type: messageType },
+        metadata: { roles, sender_role: senderRole, sender_role_label: senderRoleLabel, category, subject, mode, recipient_count: recipients.length, message_digest: digest, audience_digest: audienceDigest, message_type: messageType },
       });
       return response({ ok: true, dryRun: true, previewId, roles,
         recipientCount: recipients.filter(x => x.lineUserId && !mutedMemberIds.has(x.memberId)).length,
         unavailableCount: recipients.filter(x => !x.lineUserId).length,
         mutedCount: recipients.filter(x => mutedMemberIds.has(x.memberId)).length,
-        recipients: recipients.map(({ lineUserId: _lineUserId, ...recipient }) => recipient),
+        recipients: recipients.map(({ lineUserId, ...recipient }) => ({
+          ...recipient, deliveryEligible: Boolean(lineUserId) && !mutedMemberIds.has(recipient.memberId),
+        })),
       });
     }
     const previewId = String(body.previewId || '');
@@ -261,7 +268,7 @@ Deno.serve(async (req: Request) => {
     await db.from('chapter_audit_events').insert({
       chapter_id: chapterId, event_type: 'lt_m2m_sent', actor_role: 'lt', actor_ref: memberId,
       subject_type: 'line_delivery_batch', subject_ref: batchId,
-      metadata: { roles, sender_role: senderRole, category, mode, requested: recipients.length, sent, skipped, muted, failed, message_type: messageType },
+      metadata: { roles, sender_role: senderRole, sender_role_label: senderRoleLabel, category, subject, mode, requested: recipients.length, sent, skipped, muted, failed, message_type: messageType },
     });
     return response({ ok: true, batchId, sent, skipped, muted, failed, total: recipients.length });
   }
