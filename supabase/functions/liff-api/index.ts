@@ -3,7 +3,6 @@ import { corsHeaders } from '../_shared/cors.ts';
 import { getServiceClient } from '../_shared/db.ts';
 import { trackLineEvent } from '../_shared/analytics.ts';
 import { buildIdempotencyKey, linePush } from '../_shared/line.ts';
-import { evaluateNotificationGuard, logSuppressedNotification } from '../_shared/notification-orchestrator.ts';
 import { notifyAbsenceStakeholders } from '../_shared/line-absence-notify.ts';
 import { notifyVisitorStakeholders } from '../_shared/line-visitor-notify.ts';
 import { notifyIssueStakeholders, type IssueNotifyResult } from '../_shared/line-issue-notify.ts';
@@ -125,11 +124,12 @@ Deno.serve(async (req: Request) => {
   if (action === 'preview-m2m' || action === 'send-m2m') {
     const roles = await requireActiveLt();
     if (!roles) return response({ ok: false, error: 'M2M เปิดใช้เฉพาะผู้ดำรงตำแหน่ง LT ในวาระปัจจุบัน' }, 403);
+    const senderRole = String(body.senderRole || '').trim();
     const category = String(body.category || '').trim();
     const message = String(body.message || '').trim().slice(0, 5000);
     const mode = body.audienceMode === 'all' ? 'all' : 'selected';
-    if (!M2M_CATEGORIES.has(category) || !message) {
-      return response({ ok: false, error: 'กรุณาเลือกหมวดและเขียนข้อความให้ครบ' }, 400);
+    if (!roles.includes(senderRole) || !M2M_CATEGORIES.has(category) || !message) {
+      return response({ ok: false, error: 'กรุณาเลือกตำแหน่ง LT หมวด และเขียนข้อความให้ครบ' }, 400);
     }
     const requested = new Set(Array.isArray(body.memberIds)
       ? body.memberIds.map(String).filter(Boolean).slice(0, 100) : []);
@@ -143,24 +143,31 @@ Deno.serve(async (req: Request) => {
     const { data: links } = ids.length
       ? await db.from('line_members').select('member_id,line_user_id').in('member_id', ids)
       : { data: [] };
+    const { data: muteRows } = ids.length
+      ? await db.from('line_notif_settings').select('member_id').in('member_id', ids)
+        .in('notif_type', ['lt_m2m', 'all']).eq('is_muted', true)
+      : { data: [] };
     const lineByMember = new Map(((links || []) as Record<string, unknown>[])
       .map(x => [String(x.member_id), String(x.line_user_id || '')]));
+    const mutedMemberIds = new Set(((muteRows || []) as Record<string, unknown>[]).map(x => String(x.member_id)));
     const recipients = audience.map(x => ({
       memberId: String(x.id), name: String(x.nickname || x.name || 'สมาชิก'),
       lineUserId: lineByMember.get(String(x.id)) || '',
     }));
-    const digest = await sha256Hex(message);
+    const deliveredMessage = `📨 ข้อความจากทีม LT: ${senderRole}\n\n${message}`;
+    const digest = await sha256Hex(deliveredMessage);
     const audienceDigest = await sha256Hex(ids.sort().join('|'));
     if (action === 'preview-m2m') {
       const previewId = crypto.randomUUID();
       await db.from('chapter_audit_events').insert({
         chapter_id: chapterId, event_type: 'lt_m2m_preview', actor_role: 'lt', actor_ref: memberId,
         subject_type: 'line_delivery_preview', subject_ref: previewId,
-        metadata: { roles, category, mode, recipient_count: recipients.length, message_digest: digest, audience_digest: audienceDigest },
+        metadata: { roles, sender_role: senderRole, category, mode, recipient_count: recipients.length, message_digest: digest, audience_digest: audienceDigest },
       });
       return response({ ok: true, dryRun: true, previewId, roles,
-        recipientCount: recipients.filter(x => x.lineUserId).length,
+        recipientCount: recipients.filter(x => x.lineUserId && !mutedMemberIds.has(x.memberId)).length,
         unavailableCount: recipients.filter(x => !x.lineUserId).length,
+        mutedCount: recipients.filter(x => mutedMemberIds.has(x.memberId)).length,
         recipients: recipients.map(({ lineUserId: _lineUserId, ...recipient }) => recipient),
       });
     }
@@ -173,22 +180,22 @@ Deno.serve(async (req: Request) => {
     if (!preview || String(meta.message_digest || '') !== digest || String(meta.audience_digest || '') !== audienceDigest) {
       return response({ ok: false, error: 'Preview หมดอายุหรือผู้รับ/ข้อความเปลี่ยน กรุณา Preview ใหม่' }, 409);
     }
-    let sent = 0, skipped = 0, failed = 0;
+    let sent = 0, skipped = 0, failed = 0, muted = 0;
     const batchId = String(body.clientBatchId || crypto.randomUUID()).slice(0, 100);
     for (const recipient of recipients) {
       if (!recipient.lineUserId) { failed++; continue; }
       // A preview can be confirmed more than once after a client retry; bind the
       // delivery ledger key to that immutable preview rather than a client batch.
       const key = `lt-m2m:${chapterId}:${previewId}:${recipient.memberId}`;
-      const guardInput = { memberId: recipient.memberId, module: 'lt_m2m', category: `lt_m2m:${category}`, priority: 'informational' as const };
-      const guard = await evaluateNotificationGuard(db, guardInput);
-      if (!guard.allowed) {
-        await logSuppressedNotification(db, guardInput, guard, key, recipient.lineUserId);
-        skipped++;
+      // This is a human-confirmed LT message, not an automatic reminder. Do not
+      // silently suppress it because of automatic-message cooldowns. Explicit
+      // member mutes still apply, and all sends remain ledgered and auditable.
+      if (mutedMemberIds.has(recipient.memberId)) {
+        muted++;
         continue;
       }
       try {
-        const result = await linePush(recipient.lineUserId, message, {
+        const result = await linePush(recipient.lineUserId, deliveredMessage, {
           db, idempotencyKey: key, memberId: recipient.memberId,
           notificationType: `lt_m2m_${category}`, source: 'liff/lt-m2m', module: 'lt_m2m',
           category: `lt_m2m:${category}`, priority: 'informational',
@@ -199,9 +206,9 @@ Deno.serve(async (req: Request) => {
     await db.from('chapter_audit_events').insert({
       chapter_id: chapterId, event_type: 'lt_m2m_sent', actor_role: 'lt', actor_ref: memberId,
       subject_type: 'line_delivery_batch', subject_ref: batchId,
-      metadata: { roles, category, mode, requested: recipients.length, sent, skipped, failed, message_digest: digest.slice(0, 24) },
+      metadata: { roles, sender_role: senderRole, category, mode, requested: recipients.length, sent, skipped, muted, failed, message_digest: digest.slice(0, 24) },
     });
-    return response({ ok: true, batchId, sent, skipped, failed, total: recipients.length });
+    return response({ ok: true, batchId, sent, skipped, muted, failed, total: recipients.length });
   }
 
   const oneToOneActions = new Set([

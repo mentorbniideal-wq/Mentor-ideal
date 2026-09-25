@@ -17,6 +17,8 @@ assert.match(liff, /<option value="all">ส่งสมาชิกทุกค�
 assert.match(liff, /id="m2mMemberSearch"/);
 assert.match(liff, /m2mToggleVisibleMembers/);
 assert.match(liff, /m2mSelectedMemberIds/);
+assert.match(liff, /id="m2mSenderRole"/);
+assert.match(liff, /senderRole:/);
 assert.match(liff, /confirmed: true/);
 assert.match(liff, /lt-m2m-tab hidden/);
 
@@ -28,8 +30,10 @@ assert.match(api, /action === 'preview-m2m' \|\| action === 'send-m2m'/);
 assert.match(api, /body\.confirmed !== true/);
 assert.match(api, /message_digest/);
 assert.match(api, /audience_digest/);
-assert.match(api, /evaluateNotificationGuard/);
-assert.match(api, /logSuppressedNotification/);
+assert.match(api, /senderRole/);
+assert.match(api, /roles\.includes\(senderRole\)/);
+assert.match(api, /ข้อความจากทีม LT/);
+assert.match(api, /line_notif_settings/);
 assert.match(api, /linePush\(recipient\.lineUserId/);
 assert.match(api, /event_type: 'lt_m2m_sent'/);
 

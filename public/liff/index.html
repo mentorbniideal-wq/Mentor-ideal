@@ -107,6 +107,8 @@
       <h2>📨 Message to Member</h2>
       <p class="hint" id="m2mRoleHint">ส่งข้อความถึงสมาชิกผ่าน MY IDEAL สำหรับ LT ที่ดำรงตำแหน่งอยู่เท่านั้น</p>
       <div id="m2mStatus" class="status" aria-live="polite"></div>
+      <label for="m2mSenderRole">ส่งในฐานะทีม LT <span aria-hidden="true">*</span></label>
+      <select id="m2mSenderRole" onchange="m2mInvalidatePreview()"><option value="">กำลังตรวจตำแหน่ง…</option></select>
       <label for="m2mMode">ผู้รับ</label>
       <select id="m2mMode" onchange="m2mModeChanged()"><option value="selected">ส่งเฉพาะคน</option><option value="all">ส่งสมาชิกทุกคน</option></select>
       <div id="m2mRecipientPicker">
@@ -373,10 +375,10 @@ function renderM2MMembers() {
 }
 function m2mSetMemberSelected(memberId, selected) {
   selected ? m2mSelectedMemberIds.add(String(memberId)) : m2mSelectedMemberIds.delete(String(memberId));
-  m2mPreviewState = null;
-  $('#m2mPreview').hidden = true;
+  m2mInvalidatePreview();
   m2mUpdateSelectionSummary();
 }
+function m2mInvalidatePreview() { m2mPreviewState = null; $('#m2mPreview').hidden = true; }
 function m2mUpdateSelectionSummary(visibleCount, totalCount) {
   const el = $('#m2mSelection');
   if (!el) return;
@@ -391,8 +393,7 @@ function m2mToggleVisibleMembers() {
   const visible = query ? members.filter(member => String(member.name || '').toLocaleLowerCase('th-TH').includes(query)) : members;
   const select = visible.some(member => !m2mSelectedMemberIds.has(String(member.id)));
   visible.forEach(member => select ? m2mSelectedMemberIds.add(String(member.id)) : m2mSelectedMemberIds.delete(String(member.id)));
-  m2mPreviewState = null;
-  $('#m2mPreview').hidden = true;
+  m2mInvalidatePreview();
   renderM2MMembers();
 }
 function m2mModeChanged() {
@@ -401,8 +402,7 @@ function m2mModeChanged() {
   if (!box) return;
   box.hidden = all;
   $('#m2mRecipientPicker').hidden = all;
-  m2mPreviewState = null;
-  $('#m2mPreview').hidden = true;
+  m2mInvalidatePreview();
 }
 async function loadM2M(force = false) {
   const status = $('#m2mStatus');
@@ -415,6 +415,12 @@ async function loadM2M(force = false) {
   }
   m2mAudience = result;
   $('[data-view="m2m"]')?.classList.remove('hidden');
+  const senderRole = $('#m2mSenderRole');
+  if (senderRole) {
+    const roles = Array.isArray(result.roles) ? result.roles : [];
+    senderRole.innerHTML = `<option value="">เลือกตำแหน่ง LT</option>${roles.map(role => `<option value="${escHtml(role)}">${escHtml(role)}</option>`).join('')}`;
+    if (roles.length === 1) senderRole.value = roles[0];
+  }
   if (status) { status.className = 'status ok'; status.textContent = `LT: ${(result.roles || []).map(escHtml).join(', ')}`; }
   renderM2MMembers();
 }
@@ -423,6 +429,7 @@ function m2mPayload() {
   return {
     audienceMode,
     memberIds: audienceMode === 'all' ? [] : [...m2mSelectedMemberIds],
+    senderRole: String($('#m2mSenderRole')?.value || ''),
     category: String($('#m2mCategory')?.value || ''),
     message: String($('#m2mMessage')?.value || '').trim(),
   };
@@ -431,8 +438,8 @@ async function m2mPreview() {
   const payload = m2mPayload();
   const preview = $('#m2mPreview');
   const status = $('#m2mStatus');
-  if (!payload.category || !payload.message || (payload.audienceMode === 'selected' && !payload.memberIds.length)) {
-    if (status) { status.className = 'status err'; status.textContent = 'เลือกผู้รับ หมวด และเขียนข้อความให้ครบก่อนตรวจ'; }
+  if (!payload.senderRole || !payload.category || !payload.message || (payload.audienceMode === 'selected' && !payload.memberIds.length)) {
+    if (status) { status.className = 'status err'; status.textContent = 'เลือกตำแหน่ง LT ผู้รับ หมวด และเขียนข้อความให้ครบก่อนตรวจ'; }
     return;
   }
   if (status) { status.className = 'status'; status.textContent = 'กำลังตรวจข้อความและผู้รับ…'; }
@@ -444,7 +451,7 @@ async function m2mPreview() {
   m2mPreviewState = { ...payload, previewId: result.previewId };
   if (status) { status.className = 'status ok'; status.textContent = 'ตรวจสอบแล้ว — กดส่งเพื่อยืนยัน'; }
   preview.hidden = false;
-  preview.innerHTML = `<b>พร้อมส่ง ${Number(result.recipientCount || 0).toLocaleString('th-TH')} คน</b><span>ยังส่งไม่ได้ ${Number(result.unavailableCount || 0).toLocaleString('th-TH')} คน (ยังไม่เชื่อม LINE)</span><br><small>ระบบจะส่งเฉพาะเมื่อคุณยืนยัน และบันทึกผลการส่งไว้ในระบบ</small><button type="button" onclick="m2mSend()">ยืนยันส่งข้อความ</button>`;
+  preview.innerHTML = `<b>ส่งในฐานะทีม LT: ${escHtml(payload.senderRole)}</b><span>พร้อมส่ง ${Number(result.recipientCount || 0).toLocaleString('th-TH')} คน · ปิดรับข้อความ ${Number(result.mutedCount || 0).toLocaleString('th-TH')} คน · ยังไม่เชื่อม LINE ${Number(result.unavailableCount || 0).toLocaleString('th-TH')} คน</span><br><small>ระบบจะส่งเฉพาะเมื่อคุณยืนยัน และบันทึกผลการส่งไว้ในระบบ</small><button type="button" onclick="m2mSend()">ยืนยันส่งข้อความ</button>`;
 }
 async function m2mSend() {
   if (!m2mPreviewState) return;
@@ -460,7 +467,7 @@ async function m2mSend() {
     return;
   }
   m2mPreviewState = null;
-  if (status) { status.className = 'status ok'; status.textContent = `ส่งแล้ว ${result.sent || 0} คน · ข้าม ${result.skipped || 0} คน · ส่งไม่สำเร็จ ${result.failed || 0} คน`; }
+  if (status) { status.className = 'status ok'; status.textContent = `ส่งแล้ว ${result.sent || 0} คน · ซ้ำ ${result.skipped || 0} คน · ปิดรับ ${result.muted || 0} คน · ส่งไม่สำเร็จ ${result.failed || 0} คน`; }
   if (preview) preview.hidden = true;
 }
 
