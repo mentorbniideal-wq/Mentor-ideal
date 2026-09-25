@@ -912,11 +912,12 @@ Deno.serve(async (req: Request) => {
   if (action === 'training-interest') {
     const eventId=String(body.eventId||''),intent=String(body.intent||''),allowed=new Set(['interested','need_details','registered','cancelled']);
     if(!eventId||!allowed.has(intent))return response({ok:false,error:'ข้อมูลหลักสูตรหรือสถานะไม่ถูกต้อง'},400);
-    const {data:event}=await db.from('bni_events').select('id,name,event_date').eq('id',eventId).maybeSingle();
+    const {data:event}=await db.from('bni_events').select('id,name,event_date,category').eq('id',eventId).maybeSingle();
     if(!event)return response({ok:false,error:'ไม่พบหลักสูตรนี้ กรุณารีเฟรชปฏิทิน'},404);
     const labels:Record<string,string>={interested:'สนใจเข้าร่วมอบรม',need_details:'ขอรายละเอียดหลักสูตร',registered:'ลงทะเบียนแล้ว',cancelled:'ยกเลิกความสนใจ'};
     const eventName=String((event as Record<string,unknown>).name||'หลักสูตร CEU').trim();
     const eventDate=String((event as Record<string,unknown>).event_date||'').trim();
+    const eventCategory=String((event as Record<string,unknown>).category||'หลักสูตร CEU').trim();
     const {data: signal,error}=await upsertMemberSignal(db,{memberId,signalType:'training',subjectType:'bni_event',subjectId:eventId,title:`${labels[intent]} · ${eventName}`,detail:eventDate,payload:{intent,eventId},priority:intent==='need_details'?'high':'normal',consent:intent!=='cancelled',idempotencyKey:`training:${memberId}:${eventId}`});
     if(error)return response({ok:false,error:'บันทึกความสนใจไม่สำเร็จ กรุณาลองใหม่'},400);
     if(intent==='cancelled'){
@@ -930,11 +931,13 @@ Deno.serve(async (req: Request) => {
       memberName:String(identity.member.name||''),
       nickname:String(identity.member.nickname||identity.member.name||''),
       mentorTeam:String(identity.member.mentor_team||''),
-      issueText:`${labels[intent]}: ${eventName}${eventDate?` (${eventDate})`:''}`,
+      issueText:`${labels[intent]} · ${eventName}${eventDate?` (${eventDate})`:''}`,
       signalType:'training',
       routeLabel:'ST / NEC',
+      memberLine:`Member : ${String(identity.member.nickname||identity.member.name||'สมาชิก').trim()}`,
+      categoryLabel:eventCategory,
       headline:'🎓 สมาชิกสนใจหลักสูตร',
-      actionHint:'เปิดดูและตอบกลับได้ใน Mobile / Desktop → งานจากสมาชิก',
+      actionHint:'ทีม ST หรือ NEC โปรดส่งข้อความส่วนตัวโดยตรงถึง Member รายนี้\nช่องทางนี้ใช้แจ้งให้ LT ทราบว่ามีผู้สนใจ',
       notificationType:'training_interest',
       idempotencyKey:`liff:training:${memberId}:${eventId}:${intent}`,
       source:'liff-api',

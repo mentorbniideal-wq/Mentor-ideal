@@ -20,6 +20,11 @@ export interface IssueNotice {
   issueText: string;
   signalType?: string;
   routeLabel?: string;
+  // Optional safe display fields for an operational notification. These never
+  // change recipient routing; they only prevent a generic help-request layout
+  // from obscuring the member's actual request.
+  memberLine?: string;
+  categoryLabel?: string;
   // Optional presentation overrides for operational routes that reuse this
   // delivery pipeline but are not a member-help request (for example CEU).
   headline?: string;
@@ -222,9 +227,9 @@ export async function notifyIssueStakeholders(db: Db, notice: IssueNotice): Prom
   const detail = notice.issueText.length > 180 ? `${notice.issueText.slice(0, 177)}...` : notice.issueText;
   const message = [
     notice.headline || '🆘 ขอความช่วยเหลือจากสมาชิก',
-    `${nickname} · ทีม ${notice.mentorTeam || 'ยังไม่ระบุ'}`,
-    `หมวด: ${notice.routeLabel || 'ทีมดูแลสมาชิก'}`,
-    `เรื่อง: ${detail}`,
+    notice.memberLine || `${nickname} · ทีม ${notice.mentorTeam || 'ยังไม่ระบุ'}`,
+    `หมวด : ${notice.categoryLabel || notice.routeLabel || 'ทีมดูแลสมาชิก'}`,
+    `เรื่อง : ${detail}`,
     '',
     notice.actionHint || 'เปิดดูและดำเนินการต่อได้ใน Mobile / Desktop → งานจากสมาชิก',
   ].join('\n');
