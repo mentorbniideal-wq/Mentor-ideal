@@ -404,9 +404,17 @@ function m2mModeChanged() {
   $('#m2mRecipientPicker').hidden = all;
   m2mInvalidatePreview();
 }
+function hydrateM2MSenderRoles(result = m2mAudience) {
+  const senderRole = $('#m2mSenderRole');
+  if (!senderRole || !result) return;
+  const selected = senderRole.value;
+  const roles = Array.isArray(result.roles) ? result.roles : [];
+  senderRole.innerHTML = `<option value="">เลือกตำแหน่ง LT</option>${roles.map(role => `<option value="${escHtml(role)}">${escHtml(role)}</option>`).join('')}`;
+  senderRole.value = roles.includes(selected) ? selected : (roles.length === 1 ? roles[0] : '');
+}
 async function loadM2M(force = false) {
   const status = $('#m2mStatus');
-  if (!force && m2mAudience) { renderM2MMembers(); return; }
+  if (!force && m2mAudience) { hydrateM2MSenderRoles(); renderM2MMembers(); return; }
   if (status) status.textContent = 'กำลังตรวจสิทธิ์ LT และโหลดรายชื่อ…';
   const result = await api({ action: 'm2m-audience' }, { latestKey: 'm2m-audience' });
   if (!result.ok) {
@@ -415,12 +423,7 @@ async function loadM2M(force = false) {
   }
   m2mAudience = result;
   $('[data-view="m2m"]')?.classList.remove('hidden');
-  const senderRole = $('#m2mSenderRole');
-  if (senderRole) {
-    const roles = Array.isArray(result.roles) ? result.roles : [];
-    senderRole.innerHTML = `<option value="">เลือกตำแหน่ง LT</option>${roles.map(role => `<option value="${escHtml(role)}">${escHtml(role)}</option>`).join('')}`;
-    if (roles.length === 1) senderRole.value = roles[0];
-  }
+  hydrateM2MSenderRoles(result);
   if (status) { status.className = 'status ok'; status.textContent = `LT: ${(result.roles || []).map(escHtml).join(', ')}`; }
   renderM2MMembers();
 }
@@ -998,6 +1001,7 @@ async function init() {
       if (m2m.ok) {
         m2mAudience = m2m;
         $('[data-view="m2m"]')?.classList.remove('hidden');
+        hydrateM2MSenderRoles(m2m);
       }
     }
     $('#loading').hidden = true;

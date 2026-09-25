@@ -19,6 +19,7 @@ assert.match(liff, /m2mToggleVisibleMembers/);
 assert.match(liff, /m2mSelectedMemberIds/);
 assert.match(liff, /id="m2mSenderRole"/);
 assert.match(liff, /senderRole:/);
+assert.match(liff, /hydrateM2MSenderRoles/);
 assert.match(liff, /confirmed: true/);
 assert.match(liff, /lt-m2m-tab hidden/);
 
