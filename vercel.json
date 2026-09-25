@@ -8,7 +8,7 @@
     { "src": "/dashboard.html", "dest": "/dashboard.html" },
     { "src": "/member-success-blueprint", "dest": "/member-success-blueprint.html" },
     { "src": "/member-success-blueprint/", "dest": "/member-success-blueprint.html" },
-    { "src": "/liff/(mentor-log|follow-up|issue|renewal|assignments|absence|121|goal|visitor)/?", "dest": "/liff/index.html?action=$1" },
+    { "src": "/liff/(mentor-log|follow-up|issue|renewal|assignments|absence|121|goal|visitor|m2m)/?", "dest": "/liff/index.html?action=$1" },
     { "src": "/liff$",       "dest": "/liff/index.html" },
     { "src": "/liff/$",      "dest": "/liff/index.html" },
     { "src": "/(.*)",        "dest": "/$1" }

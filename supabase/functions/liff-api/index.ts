@@ -2,7 +2,8 @@ import { verificationHelp } from '../_shared/verification-help.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { getServiceClient } from '../_shared/db.ts';
 import { trackLineEvent } from '../_shared/analytics.ts';
-import { buildIdempotencyKey } from '../_shared/line.ts';
+import { buildIdempotencyKey, linePush } from '../_shared/line.ts';
+import { evaluateNotificationGuard, logSuppressedNotification } from '../_shared/notification-orchestrator.ts';
 import { notifyAbsenceStakeholders } from '../_shared/line-absence-notify.ts';
 import { notifyVisitorStakeholders } from '../_shared/line-visitor-notify.ts';
 import { notifyIssueStakeholders, type IssueNotifyResult } from '../_shared/line-issue-notify.ts';
@@ -18,6 +19,10 @@ import { directoryMatchReasons, directoryProfileProjection, directoryResult, dir
 import { resolveMsbPlanningYear } from '../_shared/msb-planning-year.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
+
+const M2M_CATEGORIES = new Set([
+  'meeting', 'training', 'visitor', 'renewal', 'member_support', 'announcement', 'other',
+]);
 
 function randomUrlToken(byteLength = 24) {
   const bytes = crypto.getRandomValues(new Uint8Array(byteLength));
@@ -47,7 +52,7 @@ async function resolveLineMember(db: Db, accessToken: string) {
   const profile = await profileRes.json() as Record<string, unknown>;
   const userId = String(profile.userId || '');
   const { data } = await db.from('line_members')
-    .select('member_id, members(id, name, nickname, mentor_team, email)')
+    .select('member_id, members(id, chapter_id, name, nickname, mentor_team, email)')
     .eq('line_user_id', userId)
     .maybeSingle();
   if (!data) return { error: 'บัญชี LINE นี้ยังไม่ได้เชื่อมกับสมาชิก', userId, profile };
@@ -75,6 +80,129 @@ Deno.serve(async (req: Request) => {
   const action = String(body.action || 'bootstrap');
   const member = identity.member;
   const memberId = identity.memberId;
+  const chapterId = String(member.chapter_id || '');
+
+  async function activeLtRoles() {
+    if (!chapterId) return [];
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date());
+    const { data } = await db.from('passport_lt_assignments')
+      .select('lt_role,term:lt_terms!left(status,starts_on,ends_on)')
+      .eq('chapter_id', chapterId)
+      .eq('assigned_member_id', memberId)
+      .eq('is_active', true);
+    return ((data || []) as Record<string,unknown>[]).map(row => {
+      const term=row.term as Record<string,unknown>|null;
+      return !term || (String(term.status) === 'active' &&
+          String(term.starts_on || '') <= today && String(term.ends_on || '') >= today)
+        ? String(row.lt_role || '')
+        : '';
+    }).filter(Boolean);
+  }
+
+  async function requireActiveLt() {
+    const roles=await activeLtRoles();
+    return roles.length ? roles : null;
+  }
+
+  if (action === 'm2m-audience') {
+    const roles = await requireActiveLt();
+    if (!roles) return response({ ok: false, error: 'M2M เปิดใช้เฉพาะผู้ดำรงตำแหน่ง LT ในวาระปัจจุบัน' }, 403);
+    const { data: rows, error } = await db.from('members')
+      .select('id,name,nickname').eq('chapter_id', chapterId).eq('is_archived', false).order('name');
+    if (error) return response({ ok: false, error: 'โหลดรายชื่อสมาชิกไม่สำเร็จ' }, 500);
+    const ids=((rows||[]) as Record<string,unknown>[]).map(x=>String(x.id));
+    const { data: links } = ids.length
+      ? await db.from('line_members').select('member_id').in('member_id', ids)
+      : { data: [] };
+    const linked=new Set(((links||[]) as Record<string,unknown>[]).map(x=>String(x.member_id)));
+    return response({ ok: true, roles, members: ((rows || []) as Record<string, unknown>[]).map(x => ({
+      id: x.id, name: String(x.nickname || x.name || 'สมาชิก'), lineLinked: linked.has(String(x.id)),
+    })) });
+  }
+
+  if (action === 'preview-m2m' || action === 'send-m2m') {
+    const roles = await requireActiveLt();
+    if (!roles) return response({ ok: false, error: 'M2M เปิดใช้เฉพาะผู้ดำรงตำแหน่ง LT ในวาระปัจจุบัน' }, 403);
+    const category = String(body.category || '').trim();
+    const message = String(body.message || '').trim().slice(0, 5000);
+    const mode = body.audienceMode === 'all' ? 'all' : 'selected';
+    if (!M2M_CATEGORIES.has(category) || !message) {
+      return response({ ok: false, error: 'กรุณาเลือกหมวดและเขียนข้อความให้ครบ' }, 400);
+    }
+    const requested = new Set(Array.isArray(body.memberIds)
+      ? body.memberIds.map(String).filter(Boolean).slice(0, 100) : []);
+    if (mode === 'selected' && !requested.size) return response({ ok: false, error: 'กรุณาเลือกสมาชิกอย่างน้อย 1 คน' }, 400);
+    const { data: rows, error } = await db.from('members')
+      .select('id,name,nickname').eq('chapter_id', chapterId).eq('is_archived', false);
+    if (error) return response({ ok: false, error: 'ตรวจผู้รับไม่สำเร็จ' }, 500);
+    const audience = ((rows || []) as Record<string, unknown>[])
+      .filter(x => mode === 'all' || requested.has(String(x.id)));
+    const ids = audience.map(x => String(x.id));
+    const { data: links } = ids.length
+      ? await db.from('line_members').select('member_id,line_user_id').in('member_id', ids)
+      : { data: [] };
+    const lineByMember = new Map(((links || []) as Record<string, unknown>[])
+      .map(x => [String(x.member_id), String(x.line_user_id || '')]));
+    const recipients = audience.map(x => ({
+      memberId: String(x.id), name: String(x.nickname || x.name || 'สมาชิก'),
+      lineUserId: lineByMember.get(String(x.id)) || '',
+    }));
+    const digest = await sha256Hex(message);
+    const audienceDigest = await sha256Hex(ids.sort().join('|'));
+    if (action === 'preview-m2m') {
+      const previewId = crypto.randomUUID();
+      await db.from('chapter_audit_events').insert({
+        chapter_id: chapterId, event_type: 'lt_m2m_preview', actor_role: 'lt', actor_ref: memberId,
+        subject_type: 'line_delivery_preview', subject_ref: previewId,
+        metadata: { roles, category, mode, recipient_count: recipients.length, message_digest: digest, audience_digest: audienceDigest },
+      });
+      return response({ ok: true, dryRun: true, previewId, roles,
+        recipientCount: recipients.filter(x => x.lineUserId).length,
+        unavailableCount: recipients.filter(x => !x.lineUserId).length,
+        recipients: recipients.map(({ lineUserId: _lineUserId, ...recipient }) => recipient),
+      });
+    }
+    const previewId = String(body.previewId || '');
+    if (body.confirmed !== true || !previewId) return response({ ok: false, error: 'ต้อง Preview และยืนยันก่อนส่ง' }, 400);
+    const { data: preview } = await db.from('chapter_audit_events').select('metadata,created_at')
+      .eq('chapter_id', chapterId).eq('event_type', 'lt_m2m_preview').eq('subject_ref', previewId)
+      .gte('created_at', new Date(Date.now() - 30 * 60 * 1000).toISOString()).maybeSingle();
+    const meta = (preview?.metadata || {}) as Record<string, unknown>;
+    if (!preview || String(meta.message_digest || '') !== digest || String(meta.audience_digest || '') !== audienceDigest) {
+      return response({ ok: false, error: 'Preview หมดอายุหรือผู้รับ/ข้อความเปลี่ยน กรุณา Preview ใหม่' }, 409);
+    }
+    let sent = 0, skipped = 0, failed = 0;
+    const batchId = String(body.clientBatchId || crypto.randomUUID()).slice(0, 100);
+    for (const recipient of recipients) {
+      if (!recipient.lineUserId) { failed++; continue; }
+      // A preview can be confirmed more than once after a client retry; bind the
+      // delivery ledger key to that immutable preview rather than a client batch.
+      const key = `lt-m2m:${chapterId}:${previewId}:${recipient.memberId}`;
+      const guardInput = { memberId: recipient.memberId, module: 'lt_m2m', category: `lt_m2m:${category}`, priority: 'informational' as const };
+      const guard = await evaluateNotificationGuard(db, guardInput);
+      if (!guard.allowed) {
+        await logSuppressedNotification(db, guardInput, guard, key, recipient.lineUserId);
+        skipped++;
+        continue;
+      }
+      try {
+        const result = await linePush(recipient.lineUserId, message, {
+          db, idempotencyKey: key, memberId: recipient.memberId,
+          notificationType: `lt_m2m_${category}`, source: 'liff/lt-m2m', module: 'lt_m2m',
+          category: `lt_m2m:${category}`, priority: 'informational',
+        });
+        result.skipped ? skipped++ : sent++;
+      } catch { failed++; }
+    }
+    await db.from('chapter_audit_events').insert({
+      chapter_id: chapterId, event_type: 'lt_m2m_sent', actor_role: 'lt', actor_ref: memberId,
+      subject_type: 'line_delivery_batch', subject_ref: batchId,
+      metadata: { roles, category, mode, requested: recipients.length, sent, skipped, failed, message_digest: digest.slice(0, 24) },
+    });
+    return response({ ok: true, batchId, sent, skipped, failed, total: recipients.length });
+  }
 
   const oneToOneActions = new Set([
     'one-to-one-bootstrap','get-my-121-profile','save-my-121-profile','get-pair-121-profile','save-pair-121-question','answer-pair-121-question','archive-pair-121-question','get-my-one-to-one-history','update-my-one-to-one-follow-up','toggle-remembered-trigger','guided-session-bootstrap','save-guided-session','save-guided-private-note',
