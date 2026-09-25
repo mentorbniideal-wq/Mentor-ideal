@@ -359,6 +359,24 @@ function liffLoginRedirectUrl(){
   const q=new URLSearchParams({action});const section=getRequestedParam('section');if(action==='121'&&my121Pages?.has(section))q.set('section',section);return `${location.origin}/liff/?${q}`;
 }
 
+async function openBlueprintFromRichMenu(){
+  const loading=$('#loading');
+  if(loading)loading.innerHTML='<div class="loading" style="padding:32px 0">กำลังเปิด Blueprint ส่วนตัวของคุณ…</div>';
+  const result=await api({action:'member-blueprint-link'});
+  if(!result.ok||!result.openUrl){
+    if(loading)loading.innerHTML=`<div style="text-align:center;padding:24px 8px;color:var(--red)">${escHtml(result.error||'สร้างลิงก์ Blueprint ไม่สำเร็จ')}<br><button type="button" onclick="openBlueprintFromRichMenu()" style="margin-top:12px">ลองใหม่</button></div>`;
+    return false;
+  }
+  let target;
+  try{target=new URL(result.openUrl,location.origin);}catch{target=null;}
+  if(!target||target.origin!==location.origin||target.pathname!=='/member-success-blueprint'){
+    if(loading)loading.innerHTML='<div style="text-align:center;padding:24px 8px;color:var(--red)">ลิงก์ Blueprint ไม่ผ่านการตรวจสอบ กรุณาลองใหม่จาก Rich Menu</div>';
+    return false;
+  }
+  location.replace(target.href);
+  return true;
+}
+
 async function loadRenewal() {
   const box = $('#renewalContent');
   const r = await api({ action: 'renewal' });
@@ -805,6 +823,10 @@ async function init() {
             <div style="font-size:12px;color:var(--muted)">รหัสใช้ได้ครั้งเดียวและมีวันหมดอายุ</div>
           </div>`
         : `<div style="text-align:center;padding:24px 8px;color:var(--red)">${r.error}</div>`;
+      return;
+    }
+    if(getRequestedAction()==='blueprint'&&q.get('preview')!=='1'){
+      await openBlueprintFromRichMenu();
       return;
     }
     _role = r.role || 'member';

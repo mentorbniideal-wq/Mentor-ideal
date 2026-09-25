@@ -195,7 +195,7 @@ Deno.test('two-page rich menu covers the canvas and switches through stable alia
     assertEquals(menu.areas.reduce((sum, area) => sum + area.bounds.width * area.bounds.height, 0), 2500 * 1686);
   }
   assertEquals(today.areas[5].action.type, 'richmenuswitch');
-  assertEquals(today.areas[4].action, { type: 'message', text: 'Blueprint' });
+  assertEquals(today.areas[4].action, { type: 'uri', uri: 'https://liff.line.me/test?action=blueprint' });
   assertEquals(more.areas[5].action.type, 'richmenuswitch');
   assertEquals((today.areas[5].action as { richMenuAliasId: string }).richMenuAliasId, 'bni-ideal-more');
   assertEquals((more.areas[5].action as { richMenuAliasId: string }).richMenuAliasId, 'bni-ideal-today');
@@ -228,7 +228,7 @@ Deno.test('rich menu routes Member Goal Setting through the private Blueprint fl
   assertEquals(menu.areas[1].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=progress' });
   assertEquals(menu.areas[2].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=121' });
   assertEquals(menu.areas[3].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=ceu' });
-  assertEquals(menu.areas[4].action, { type: 'message', text: 'Blueprint' });
+  assertEquals(menu.areas[4].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=blueprint' });
   assertEquals(menu.areas[5].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=issue' });
   assertEquals(menu.areas[6].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=121' });
 });
