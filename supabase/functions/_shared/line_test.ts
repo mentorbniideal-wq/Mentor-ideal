@@ -1,6 +1,7 @@
 import {
   bangkokDateKey,
   bangkokWeekKey,
+  buildM2MLineMessages,
   eventIdFor,
   generateLinkToken,
   LINE_QR_MEMBER,
@@ -28,6 +29,41 @@ function assertEquals(actual: unknown, expected: unknown): void {
   const right = JSON.stringify(expected);
   if (left !== right) throw new Error(`Expected ${right}, received ${left}`);
 }
+
+Deno.test('M2M rich messages retain the LT sender role for every format', () => {
+  const textMessages = buildM2MLineMessages({ messageType: 'text', text: 'สวัสดีครับ', senderRole: 'Growth Coordinator', subject: 'แจ้งข่าว', sentAt: '25 ก.ย. 2569 15:30' });
+  assertEquals(textMessages.length, 1);
+  assertEquals(textMessages[0].type, 'text');
+  assertEquals(textMessages[0].text, '📨 ข้อความจากทีม LT: Growth Coordinator\nหัวข้อ: แจ้งข่าว\nส่งเมื่อ 25 ก.ย. 2569 15:30\n\nสวัสดีครับ');
+
+  const flexMessages = buildM2MLineMessages({
+    messageType: 'flex',
+    title: 'M2M Announcement',
+    body: 'รายละเอียดข่าวสาร',
+    buttonLabel: 'เปิดหน้า',
+    buttonUri: 'https://example.com/announce',
+    senderRole: 'Mentor Coordinator', subject: 'ประกาศสำคัญ', sentAt: '25 ก.ย. 2569 15:30',
+  });
+  assertEquals(flexMessages.length, 2);
+  assertEquals(flexMessages[0].text, '📨 ข้อความจากทีม LT: Mentor Coordinator\nหัวข้อ: ประกาศสำคัญ\nส่งเมื่อ 25 ก.ย. 2569 15:30');
+  assertEquals(flexMessages[1].type, 'flex');
+  assert(String((flexMessages[1] as Record<string, unknown>).altText || '').includes('M2M Announcement'));
+  const contents = (flexMessages[1] as Record<string, unknown>).contents as Record<string, unknown>;
+  assertEquals(contents.type, 'bubble');
+
+  const imageMessages = buildM2MLineMessages({
+    messageType: 'image',
+    text: 'รายละเอียดประกอบภาพ',
+    imageUrl: 'https://cdn.example.com/promo.jpg',
+    altText: 'ภาพประชาสัมพันธ์',
+    senderRole: 'President', subject: 'ภาพกิจกรรม', sentAt: '25 ก.ย. 2569 15:30',
+  });
+  assertEquals(imageMessages.length, 2);
+  assertEquals(imageMessages[0].type, 'image');
+  assertEquals(imageMessages[1].text, '📨 ข้อความจากทีม LT: President\nหัวข้อ: ภาพกิจกรรม\nส่งเมื่อ 25 ก.ย. 2569 15:30\n\nรายละเอียดประกอบภาพ');
+  assertEquals(imageMessages[0].originalContentUrl, 'https://cdn.example.com/promo.jpg');
+  assertEquals(imageMessages[0].altText, 'ภาพประชาสัมพันธ์');
+});
 
 Deno.test('secure link tokens normalize and avoid ambiguous characters', () => {
   assertEquals(normalizeLinkToken(' ab-cd 2345 '), 'ABCD2345');
@@ -195,7 +231,7 @@ Deno.test('two-page rich menu covers the canvas and switches through stable alia
     assertEquals(menu.areas.reduce((sum, area) => sum + area.bounds.width * area.bounds.height, 0), 2500 * 1686);
   }
   assertEquals(today.areas[5].action.type, 'richmenuswitch');
-  assertEquals(today.areas[4].action, { type: 'message', text: 'Blueprint' });
+  assertEquals(today.areas[4].action, { type: 'uri', uri: 'https://liff.line.me/test?action=blueprint' });
   assertEquals(more.areas[5].action.type, 'richmenuswitch');
   assertEquals((today.areas[5].action as { richMenuAliasId: string }).richMenuAliasId, 'bni-ideal-more');
   assertEquals((more.areas[5].action as { richMenuAliasId: string }).richMenuAliasId, 'bni-ideal-today');
@@ -228,7 +264,7 @@ Deno.test('rich menu routes Member Goal Setting through the private Blueprint fl
   assertEquals(menu.areas[1].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=progress' });
   assertEquals(menu.areas[2].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=121' });
   assertEquals(menu.areas[3].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=ceu' });
-  assertEquals(menu.areas[4].action, { type: 'message', text: 'Blueprint' });
+  assertEquals(menu.areas[4].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=blueprint' });
   assertEquals(menu.areas[5].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=issue' });
   assertEquals(menu.areas[6].action, { type: 'uri', uri: 'https://liff.line.me/test?source=rich-menu&action=121' });
 });
@@ -302,6 +338,8 @@ Deno.test('all documented LINE command aliases resolve to stable command contrac
     ['ปิด nudge', 'mute-notification', 'nudge'],
     ['เปิด nudge', 'unmute-notification', 'nudge'],
     ['ลบบัญชี', 'delete-account'],
+    ['M2M', 'm2m'],
+    ['ส่งข้อความ', 'm2m'],
   ];
   for (const [input, expectedName, expectedArgument = ''] of cases) {
     const parsed = parseLineCommand(input);

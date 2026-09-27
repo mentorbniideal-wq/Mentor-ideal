@@ -100,6 +100,8 @@
     function n(v){var x=Number(String(v||'').replace(/[,฿\\s]/g,''));return isFinite(x)?x:0;}
     function fmt(v){return n(v).toLocaleString('th-TH',{maximumFractionDigits:1});}
     function money(v){return '฿'+n(v).toLocaleString('th-TH',{maximumFractionDigits:0});}
+    function isMoneyField(k){return ['total_sales_target_year','existing_customer_revenue_from_bni','new_customer_revenue_from_bni','average_customer_value_year'].includes(k);}
+    function amountText(v){var raw=String(v==null?'':v).trim();return raw?Math.max(0,Math.round(n(raw))).toLocaleString('en-US'):'';}
     function toast(s){var t=document.getElementById('toast');t.textContent=s;t.classList.add('on');setTimeout(function(){t.classList.remove('on');},2600);}
     function call(action,p,cb){var controller=new AbortController(),timer=setTimeout(function(){controller.abort();},20000);fetch(API,{method:'POST',headers:HEADERS,body:JSON.stringify(Object.assign({action:action,token:formToken},p||{})),signal:controller.signal}).then(function(r){return r.json().catch(function(){return{ok:false,error:'ระบบตอบกลับไม่สมบูรณ์'};}).then(function(body){if(!r.ok&&body.ok!==false)body.ok=false;return body;});}).then(cb).catch(function(e){cb({ok:false,error:e.name==='AbortError'?'การเชื่อมต่อใช้เวลานานเกินไป กรุณาลองอีกครั้ง':e.message});}).finally(function(){clearTimeout(timer);});}
     function calc(){
@@ -154,7 +156,7 @@
       call('getMSBCategorySuggestions',{},function(r){
         if(!r||!r.ok)return;
         categorySuggestions=(r.suggestions||categorySuggestions);
-        if(step===3||step===4)render();
+        if(step===2||step===3)render();
       });
     }
     function showState(html){document.getElementById('app').innerHTML='<div class="state">'+html+'</div>';}
@@ -169,13 +171,13 @@
       data[k]=v;
       if(k==='average_customer_value_year' && n(v)>0){helperState.avgMonthly=String(Math.round(n(v)/12));}
       if(k==='conversion_rate_percent' && n(v)>0){
-        var ref = n(helperState.convReferrals) || 10;
-        helperState.convReferrals = String(ref);
-        helperState.convClosed = String(Math.round((n(v)/100)*ref));
+        helperState.convReferrals = '100';
+        helperState.convClosed = String(Math.min(100,n(v)));
       }
       persist();
       updateLive();
     }
+    function setMoneyInput(k,input){var raw=String(input&&input.value||'').replace(/[^0-9]/g,'');data[k]=raw?String(Number(raw)):'';if(k==='average_customer_value_year'&&n(data[k])>0)helperState.avgMonthly=String(Math.round(n(data[k])/12));if(input)input.value=amountText(data[k]);persist();updateLive();}
     function marketingPlanRows(){var source=Array.isArray(data.monthly_marketing_plan)?data.monthly_marketing_plan:[];return Array.from({length:12},function(_,i){var row=source.find(function(x){return Number(x&&x.month)===i+1;})||{};return {month:i+1,season_event:row.season_event||'',product_service:row.product_service||'',specific_looking_for:row.specific_looking_for||''};});}
     function setMarketingPlan(month,key,value){var rows=marketingPlanRows();rows[month-1][key]=value;data.monthly_marketing_plan=rows;persist();}
     function setMonthlyTotal(v){data.total_sales_target_year=String(n(v)*12);persist();render();}
@@ -184,7 +186,8 @@
     function syncConversionFromInputs(){var ref=n(helperState.convReferrals),closed=n(helperState.convClosed);if(ref>0 && closed>=0){data.conversion_rate_percent=String(Math.min(100,(closed/ref)*100).toFixed(1));}return data.conversion_rate_percent;}
     function setConversionCalc(k,v){helperState[k]=String(v||'');syncConversionFromInputs();if(!helperState.convReferrals && n(data.conversion_rate_percent)>0)helperState.convReferrals='10';persist();updateLive(true);}
     function toggleArr(k,v){var a=data[k]||[];data[k]=a.includes(v)?a.filter(function(x){return x!==v;}):a.concat([v]);persist();render();}
-    function addCustomCategory(type,value){var key=type==='looking_for'?'looking_for_categories':'power_team_categories';var val=String(value||'').trim();if(!val)return;var current=data[key]||[];var exists=current.some(function(x){return String(x).trim().toLowerCase()===val.toLowerCase();});if(!exists){data[key]=current.concat([val]);persist();render();}var input=document.getElementById('custom-'+type);if(input)input.value='';}
+    function addCategoryValue(current,value){var val=String(value||'').trim().slice(0,120);if(!val)return Array.isArray(current)?current:[];var list=Array.isArray(current)?current:[];var key=normCat(val);return list.some(function(x){return normCat(x)===key;})?list:list.concat([val]);}
+    function addCustomCategory(type,value){var key=type==='looking_for'?'looking_for_categories':'power_team_categories';var before=data[key]||[];var next=addCategoryValue(before,value);categoryDraft[key]='';if(next!==before){data[key]=next;persist();}render();}
     function setSingle(k,v){data[k]=v;persist();render();}
     function normCat(s){return String(s||'').toLowerCase().replace(/[’']/g,'').replace(/&/g,'and').replace(/[^a-z0-9\u0E00-\u0E7F]+/g,'').trim();}
     function uniqueCats(base,extra){
@@ -195,6 +198,7 @@
       });
       return out;
     }
+    function remainingCategoryChoices(list,type){var popular=(categorySuggestions[type]||[]).slice(0,10).map(function(x){return normCat(x&&x.name);});return (list||[]).filter(function(x){return popular.indexOf(normCat(x))<0;});}
     function chips(list,k,single){return '<div class="chips">'+list.map(function(x){var on=single?data[k]===x:(data[k]||[]).includes(x);return '<button type="button" class="chip '+(single?'single ':'')+(on?'on':'')+'" data-category-action="'+(single?'single':'toggle')+'" data-category-key="'+esc(k)+'" data-category-value="'+esc(x)+'">'+esc(x)+'</button>';}).join('')+'</div>';}
     function bindCategoryEvents(){
       if (window.__msbCategoryEventsBound) return;
@@ -209,13 +213,22 @@
         if (action === 'single') setSingle(key, value);
         if (action === 'add-custom') {
           var type = btn.getAttribute('data-category-type');
-          if (type) addCustomCategory(type, document.getElementById('custom-' + type).value);
+          var input = type ? document.getElementById('custom-' + type) : null;
+          if (type && input) addCustomCategory(type, input.value);
         }
+      });
+      document.addEventListener('input', function(event){
+        var input = event.target && event.target.closest ? event.target.closest('[data-category-input]') : null;
+        if (!input) return;
+        var type = input.getAttribute('data-category-type');
+        var key = type==='looking_for'?'looking_for_categories':'power_team_categories';
+        categoryDraft[key]=String(input.value||'');
       });
       document.addEventListener('keydown', function(event){
         var input = event.target && event.target.closest ? event.target.closest('[data-category-input]') : null;
         if (!input) return;
         if (event.key !== 'Enter') return;
+        event.preventDefault();
         var type = input.getAttribute('data-category-type');
         if (type) addCustomCategory(type, input.value);
       });
@@ -226,12 +239,12 @@
       var label=type==='looking_for'?'กลุ่มลูกค้าเป้าหมาย':'Power Team';
       var html='<div class="smartpick"><div class="sp-title">คำที่ Chapter ใช้บ่อย <span>เพิ่มคำเองได้ทันทีหรือเลือกคำที่ตรงกับความต้องการ</span></div>';
       html+=top.length?'<div class="chips">'+top.map(function(x){var on=(data[k]||[]).includes(x.name);return '<button type="button" class="chip '+(on?'on':'')+'" data-category-action="toggle" data-category-key="'+esc(k)+'" data-category-value="'+esc(x.name)+'">'+esc(x.name)+' · '+x.count+'</button>';}).join('')+'</div>':'<div class="hint" style="margin:0">ยังไม่มีคำยอดนิยมจาก Blueprint ก่อนหน้า</div>';
-      html+='<div class="sp-row"><input id="custom-'+type+'" data-category-input="true" data-category-type="'+esc(type)+'" placeholder="เพิ่มคำเอง เช่น '+esc(label)+' ที่ต้องการ" value=""><button type="button" class="add" data-category-action="add-custom" data-category-type="'+esc(type)+'">เพิ่มคำเอง</button></div>';
+      html+='<div class="sp-row"><input id="custom-'+type+'" data-category-input="true" data-category-type="'+esc(type)+'" placeholder="เพิ่มคำเอง เช่น '+esc(label)+' ที่ต้องการ" value="'+esc(categoryDraft[k]||'')+'"><button type="button" class="add" data-category-action="add-custom" data-category-type="'+esc(type)+'">เพิ่มคำเอง</button></div>';
       html+='<div class="near" style="margin-top:10px">สามารถใช้คำที่มีอยู่แล้ว หรือพิมพ์คำที่ใช้อธิบายธุรกิจของคุณเองได้ทันที</div>';
       html+='</div>';
       return html;
     }
-    function field(k,label,type,ph,helper){return '<label>'+label+'</label><input id="fld_'+esc(k)+'" inputmode="decimal" type="'+(type||'text')+'" value="'+esc(data[k])+'" placeholder="'+esc(ph||'')+'" oninput=\'setInput('+JSON.stringify(k)+',this.value)\'>'+(helper?'<details class="learn"><summary>วิธีการคำนวณ</summary><div class="coach" id="'+helper+'">'+coach(helper)+'</div></details>':'');}
+    function field(k,label,type,ph,helper){var monetary=isMoneyField(k);return '<label>'+label+'</label><input id="fld_'+esc(k)+'" inputmode="'+(monetary?'numeric':'decimal')+'" type="'+(monetary?'text':(type||'text'))+'" value="'+esc(monetary?amountText(data[k]):data[k])+'" placeholder="'+esc(ph||'')+'" oninput=\''+(monetary?'setMoneyInput('+JSON.stringify(k)+',this)':'setInput('+JSON.stringify(k)+',this.value)')+'\'>'+(helper?'<details class="learn"><summary>วิธีการคำนวณ</summary><div class="coach" id="'+helper+'">'+coach(helper)+'</div></details>':'');}
     function area(k,label,ph){return '<label>'+label+'</label><textarea placeholder="'+esc(ph||'')+'" oninput=\'setInput('+JSON.stringify(k)+',this.value)\'>'+esc(data[k])+'</textarea>';}
     function quickMonthly(){
       return '<div class="quick">'+[50000,80000,100000,150000,200000].map(function(v){return '<button type="button" class="qbtn" onclick="setMonthlyTotal('+v+')">'+fmt(v)+' / เดือน</button>';}).join('')+'</div>';
@@ -253,7 +266,7 @@
       }
       if(id==='h-avg'){
         var monthly=helperState.avgMonthly? n(helperState.avgMonthly) : (avg?Math.round(avg/12):2500);
-        return '<div class="title">มูลค่าลูกค้าเฉลี่ยต่อปี</div>ลูกค้า 1 ราย สร้างรายได้ให้คุณทั้งปีประมาณเท่าไร คิดจากยอดขายรวมของลูกค้าหนึ่งรายใน 1 ปี<br><br><b>ตัวอย่าง</b><br>ถ้าลูกค้าจ่ายเดือนละ '+money(monthly)+' ทั้งปีจะเป็น <b>'+money(monthly*12)+'</b><div class="mini"><b>ลองคิดจากรายเดือน <span style="color:var(--muted);font-weight:600">(ใช้ช่วยคำนวณ ไม่ใช่ช่องบันทึกหลัก)</span></b><div class="row"><input inputmode="decimal" value="'+esc(helperState.avgMonthly||'')+'" placeholder="เช่น 2500 / เดือน" oninput="setAvgMonthlySpend(this.value)"><span>× 12 =</span><b id="avgMiniResult">'+money(avg||monthly*12)+'</b></div></div>'+learn('เอายอดที่ลูกค้าหนึ่งรายใช้ต่อเดือน × 12 เดือน = มูลค่าลูกค้าเฉลี่ยต่อปี');
+        return '<div class="title">รายได้เฉลี่ยจากลูกค้า 1 คนต่อปี</div>ลูกค้า 1 คน สร้างรายได้ให้คุณทั้งปีประมาณเท่าไร คิดจากยอดขายรวมของลูกค้าคนนั้นใน 1 ปี<br><br><b>ตัวอย่าง</b><br>ถ้าลูกค้าจ่ายเดือนละ '+money(monthly)+' ทั้งปีจะเป็น <b>'+money(monthly*12)+'</b><div class="mini"><b>ลองคิดจากรายเดือน <span style="color:var(--muted);font-weight:600">(ใช้ช่วยคำนวณ ไม่ใช่ช่องบันทึกหลัก)</span></b><div class="row"><input inputmode="decimal" value="'+esc(helperState.avgMonthly||'')+'" placeholder="เช่น 2500 / เดือน" oninput="setAvgMonthlySpend(this.value)"><span>× 12 =</span><b id="avgMiniResult">'+money(avg||monthly*12)+'</b></div></div>'+learn('เอายอดที่ลูกค้า 1 คนใช้ต่อเดือน × 12 เดือน = รายได้เฉลี่ยจากลูกค้า 1 คนต่อปี');
       }
       if(id==='h-conv'){
         var ref=n(helperState.convReferrals)||10, closed=n(helperState.convClosed)||0, pct=ref>0?(closed/ref)*100:conv;
@@ -274,10 +287,11 @@
     }
     function previousGoalCard(){
       var actualNote=historicalActual&&historicalActual.exceeded?'<div class="mini"><b>คุณทำยอดปี '+esc(historicalActual.sourceYear)+' ได้ '+money(historicalActual.actual)+' ซึ่งสูงกว่าเป้า '+money(historicalActual.target)+' ('+fmt(historicalActual.progressPercent)+'%)</b><br>ปี '+year+' อาจพิจารณาเพิ่มเป้า โดยยังวาง Target Customer และ Referral ให้สอดคล้องกับกำลังทำได้จริง</div>':'';
-      if(!previousBlueprint)return '<div class="coach"><div class="title">Goal Setting ครั้งก่อน</div>ยังไม่มีข้อมูล Goal Setting ครั้งก่อน อาจเป็นสมาชิกใหม่ หรือข้อมูลเดิมยังไม่ครบ'+actualNote+'</div>';
+      var historic=historicalActual?'<div class="coach"><div class="title">เป้า Growth ปี '+esc(historicalActual.sourceYear||2026)+' (ข้อมูลอ้างอิงจาก Excel)</div>เป้าเดิม: <b>'+money(historicalActual.target)+'</b>'+(n(historicalActual.actual)?'<br>ยอดรับจริง: <b>'+money(historicalActual.actual)+'</b>':'')+'<div class="mini">ใช้เพื่อเปรียบเทียบเท่านั้น ไม่ต้องกรอกซ้ำใน MSB ปี '+year+'</div></div>':'';
+      if(!previousBlueprint)return historic+(actualNote?'<div class="coach">'+actualNote+'</div>':'');
       var p=previousBlueprint, pc={bni:n(p.expected_sales_from_bni_year),avg:n(p.average_customer_value_year),conv:n(p.conversion_rate_percent),cust:n(p.customer_needed),ref:n(p.referral_needed)};
       var higher=calc().bni>pc.bni&&pc.bni>0;
-      return '<div class="coach"><div class="title">Goal Setting ครั้งก่อน ('+esc(p.blueprint_year||year-1)+')</div>ยอดเป้าหมายจาก BNI: <b>'+money(pc.bni)+'</b><br>มูลค่าเฉลี่ยต่อลูกค้า: '+money(pc.avg)+'<br>Conversion Rate: '+fmt(pc.conv)+'%<br>จำนวนลูกค้าที่ต้องการ: '+fmt(pc.cust)+' ราย<br>จำนวน Referral ที่ต้องการ: '+fmt(pc.ref)+' ราย'+actualNote+(higher?'<div class="mini">เป้าหมายปีนี้สูงกว่าปีก่อน ควรวางแผน Target Customer และ Referral ให้สอดคล้องกับเป้าหมายใหม่</div>':'')+'</div>';
+      return historic+'<div class="coach"><div class="title">Blueprint ที่เคยกรอก ('+esc(p.blueprint_year||year-1)+')</div>ยอดเป้าหมายจาก BNI: <b>'+money(pc.bni)+'</b><br>มูลค่าเฉลี่ยต่อลูกค้า: '+money(pc.avg)+'<br>Conversion Rate: '+fmt(pc.conv)+'%<br>จำนวนลูกค้าที่ต้องการ: '+fmt(pc.cust)+' ราย<br>จำนวน Referral ที่ต้องการ: '+fmt(pc.ref)+' ราย'+actualNote+(higher?'<div class="mini">เป้าหมายปีนี้สูงกว่าปีก่อน ควรวางแผน Target Customer และ Referral ให้สอดคล้องกับเป้าหมายใหม่</div>':'')+'</div>';
     }
     function hasCat(words){
       var all=(data.looking_for_categories||[]).concat(data.power_team_categories||[]).join(' ').toLowerCase();
@@ -338,16 +352,15 @@
       if(kind==='reality')content='<div class="goalcoach light"><div class="gc-head"><div><div class="gc-title">Goal Coach · Reality Check</div><div>'+esc(r.note)+'</div></div><div class="gc-pill">'+esc(r.level)+'</div></div><div class="gc-grid"><div class="gc-box"><span>BNI Contribution</span><b>'+fmt(r.c.pct)+'%</b></div><div class="gc-box"><span>Referral / เดือน</span><b>'+fmt(r.c.month)+'</b></div></div><ul>'+tips.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul></div>';
       if(kind==='feasibility')content='<div class="goalcoach"><div class="gc-head"><div><div class="gc-title">Goal Coach · แผนนี้ต้องทำอะไรจริง ๆ</div><div>ถ้าต้องการ Referral '+fmt(r.c.ref)+' ใบ/ปี ระบบแนะนำให้ทำเป็นจังหวะเล็ก ๆ ที่วัดผลได้</div></div><div class="gc-pill">'+esc(r.level)+'</div></div><ul><li>ตั้งเป้าได้รับ Referral เฉลี่ย <b>'+fmt(r.c.week)+'</b> ใบ/สัปดาห์</li><li>นัด 1-2-1 กับกลุ่ม Power Team อย่างน้อยสัปดาห์ละ 1 ครั้ง</li><li>ใช้ประโยค Referral Trigger เดียวกันซ้ำ ๆ ให้คนใน Chapter จำได้</li></ul></div>';
       if(kind==='trigger')content='<div class="goalcoach light"><div class="gc-head"><div><div class="gc-title">Goal Coach · Referral Trigger</div><div>ยิ่งเล่าให้เพื่อนจำง่าย โอกาสได้ Referral ที่ตรงขึ้นจะสูงขึ้น</div></div><div class="gc-pill">ใช้พูดได้เลย</div></div><div class="gc-note">'+esc(referralTriggerDraft())+'</div><ul><li>ถ้าประโยคนี้ยาวเกินไป ให้ลดเหลือ “ใคร + กำลังเจอปัญหาอะไร”</li><li>หลีกเลี่ยงคำกว้าง ๆ เช่น ทุกคน / ใครก็ได้ / ธุรกิจทั่วไป</li></ul></div>';
-      if(kind==='power')content='<div class="goalcoach light"><div class="gc-head"><div><div class="gc-title">Goal Coach · Power Team Suggestion</div><div>จากกลุ่มที่คุณมองหา ระบบแนะนำให้เริ่มคุยกับอาชีพเหล่านี้ก่อน</div></div><div class="gc-pill">แนะนำ</div></div><div class="chips">'+powerCoachList().map(function(x){return '<button type="button" class="chip" onclick="toggleArr(&quot;power_team_categories&quot;,'+JSON.stringify(x)+')">'+esc(x)+'</button>';}).join('')+'</div><div class="gc-note">เลือกเฉพาะคนที่มีโอกาสเจอลูกค้ากลุ่มเดียวกันจริง ๆ จะทำให้ Growth ช่วยจับคู่ได้แม่นขึ้น</div></div>';
+      if(kind==='power')content='<div class="goalcoach light"><div class="gc-head"><div><div class="gc-title">Goal Coach · Power Team Suggestion</div><div>จากกลุ่มที่คุณมองหา ระบบแนะนำให้เริ่มคุยกับอาชีพเหล่านี้ก่อน</div></div><div class="gc-pill">แนะนำ</div></div><div class="chips">'+powerCoachList().map(function(x){var on=(data.power_team_categories||[]).includes(x);return '<button type="button" class="chip '+(on?'on':'')+'" data-category-action="toggle" data-category-key="power_team_categories" data-category-value="'+esc(x)+'">'+esc(x)+'</button>';}).join('')+'</div><div class="gc-note">เลือกเฉพาะคนที่มีโอกาสเจอลูกค้ากลุ่มเดียวกันจริง ๆ จะทำให้ Growth ช่วยจับคู่ได้แม่นขึ้น</div></div>';
       if(kind==='final')content='<div class="goalcoach"><div class="gc-head"><div><div class="gc-title">Goal Coach · Blueprint Quality</div><div>คะแนนนี้ไม่ได้ตัดสินธุรกิจ แต่ช่วยดูว่าแผนชัดพอให้ Mentor และ Growth ช่วยต่อได้ไหม</div></div><div><div class="gc-score">'+q.score+'</div><div class="gc-pill">'+esc(q.level)+'</div></div></div>'+(q.todo.length?'<div class="gc-note"><b>เติมอีกนิดจะดีมาก</b><ul>'+q.todo.slice(0,4).map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul></div>':'<div class="gc-note"><b>แผนนี้พร้อมใช้คุยกับ Mentor/Growth แล้วครับ</b></div>')+(q.warn.length?'<div class="gc-note"><b>จุดที่ควรระวัง</b><ul>'+q.warn.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul></div>':'')+'<div class="gc-note"><b>Referral Trigger</b><br>'+esc(referralTriggerDraft())+'</div></div>';
       return content ? '<details class="learn"><summary>วิธีการคำนวณ</summary><div>'+content+'</div></details>' : '';
     }
     function updateLive(skipCoach){
       ['pct','cust','ref','month','week','splitWarn','logicWarn'].forEach(function(id){var el=document.getElementById(id);if(!el)return;});
-      var c=calc();
       syncHelperStateFromData();
-      syncConversionFromInputs();
-      ['average_customer_value_year','conversion_rate_percent'].forEach(function(k){var el=document.getElementById('fld_'+k);if(el&&document.activeElement!==el)el.value=data[k]||'';});
+      var c=calc();
+      ['average_customer_value_year','conversion_rate_percent'].forEach(function(k){var el=document.getElementById('fld_'+k);if(el&&document.activeElement!==el)el.value=isMoneyField(k)?amountText(data[k]):(data[k]||'');});
       var pct=document.getElementById('pct');if(pct)pct.textContent=fmt(c.pct)+'%';
       var cust=document.getElementById('cust');if(cust)cust.textContent=fmt(c.cust);
       var ref=document.getElementById('ref');if(ref)ref.textContent=fmt(c.ref);
@@ -368,24 +381,24 @@
     }
     function validateStep(){
       if(step===0&&!n(data.total_sales_target_year))return 'กรุณากรอกเป้ายอดขายรวมทั้งปี';
-      if(step===2&&(n(data.existing_customer_revenue_from_bni)<0||n(data.new_customer_revenue_from_bni)<0))return 'รายได้จากลูกค้า BNI ต้องไม่ติดลบ';
-      if(step===2&&(!n(data.existing_customer_revenue_from_bni)&&!n(data.new_customer_revenue_from_bni)))return 'กรุณากรอกยอดจากลูกค้า BNI เดิมหรือใหม่';
-      if(step===2&&calc().bni>n(data.total_sales_target_year))return 'ยอดขายจาก BNI ไม่ควรเกินเป้ายอดขายรวม';
-      if(step===1&&(!n(data.average_customer_value_year)||!n(data.conversion_rate_percent)||n(data.conversion_rate_percent)>100))return 'กรุณากรอกมูลค่าลูกค้าเฉลี่ยและ Conversion 1–100%';
-      if(step===3){
+      if(step===1&&(n(data.existing_customer_revenue_from_bni)<0||n(data.new_customer_revenue_from_bni)<0))return 'รายได้จากลูกค้า BNI ต้องไม่ติดลบ';
+      if(step===1&&(!n(data.existing_customer_revenue_from_bni)&&!n(data.new_customer_revenue_from_bni)))return 'กรุณากรอกยอดจากลูกค้า BNI เดิมหรือใหม่';
+      if(step===1&&calc().bni>n(data.total_sales_target_year))return 'ยอดขายจาก BNI ไม่ควรเกินเป้ายอดขายรวม';
+      if(step===1&&(n(data.average_customer_value_year)<=0||n(data.conversion_rate_percent)<=0||n(data.conversion_rate_percent)>100))return 'กรุณากรอกมูลค่าลูกค้าเฉลี่ยและ Conversion 1–100%';
+      if(step===2){
         if(!categoriesAllowed(data.looking_for_categories, uniqueCats(LOOK, categorySuggestions.looking_for)) || !data.looking_for_detail.trim())return 'กรุณาเลือกหรือเพิ่มกลุ่มลูกค้าเป้าหมายแล้วอธิบายรายละเอียดให้ครบ';
       }
-      if(step===4){
+      if(step===3){
         if(!categoriesAllowed(data.power_team_categories, uniqueCats(POWER, categorySuggestions.power_team)) || !data.power_team_detail.trim())return 'กรุณาเลือกหรือเพิ่ม Power Team แล้วอธิบายรายละเอียดให้ครบ';
       }
-      if(step===5&&!data.personal_goal_category)return 'กรุณาเลือก Personal Goal';
+      if(step===4&&!data.personal_goal_category)return 'กรุณาเลือก Personal Goal';
       return '';
     }
-    function next(){var e=validateStep();if(e){toast(e);return;}step=Math.min(7,step+1);render();}
+    function next(){var e=validateStep();if(e){toast(e);return;}step=Math.min(6,step+1);render();}
     function back(){step=Math.max(0,step-1);render();}
     function saveFinal(){
-      var e;for(var i=0;i<6;i++){step=i;e=validateStep();if(e){render();toast(e);return;}}
-      step=7;render();
+      var e;for(var i=0;i<5;i++){step=i;e=validateStep();if(e){render();toast(e);return;}}
+      step=6;render();
       var btn=document.getElementById('saveBtn');if(btn){btn.disabled=true;btn.textContent='กำลังบันทึก...';}
       call('saveMemberSuccessBlueprintByToken',Object.assign({},data,{status:'submitted'}),function(r){
         if(btn){btn.disabled=false;btn.textContent='บันทึกแผนธุรกิจ';}
@@ -400,14 +413,13 @@
       document.getElementById('bar').style.width=((Math.min(step+1,7)/7)*100)+'%';
       var c=calc(), html='';
       var legend='<details class="learn" style="margin-top:0"><summary>วิธีดูช่องกรอก</summary><div class="coach"><b>วิธีดูช่องกรอก</b><br>ช่องที่มีคำว่า <b>ต้องกรอก/ต้องเลือก</b> คือข้อมูลที่ระบบจะบันทึก ส่วนช่องที่บอกว่า <b>ใช้ช่วยคำนวณ</b> เป็นตัวช่วยคิด ไม่ใช่ช่องบันทึกหลักครับ</div></details>';
-      if(step===0)html='<div class="step on"><h2>1. Business Goal</h2><div class="coach" style="margin-top:0"><b>MSB ปี 2027</b><br>ข้อมูลปี 2027 เป็นแผนปัจจุบันที่ใช้งานจริง ข้อมูลปี 2026 จะถูกเก็บไว้เป็นประวัติจาก Excel เพื่อเปรียบเทียบและอ้างอิงไม่ใช่แผนปัจจุบัน</div>'+previousGoalCard()+legend+'<div class="hint">เริ่มจากภาพใหญ่ก่อนครับ ปี 2027 ต้องการยอดขายรวมเท่าไร แล้วค่อยแยกยอดจาก BNI ในขั้นถัดไป</div>'+field('total_sales_target_year','ยอดขายรวมทั้งปี (ต้องกรอกตรงนี้)','number','เช่น 1200000','h-total')+nav(false)+'</div>';
-      if(step===1)html='<div class="step on"><h2>2. Customer & Referral Guide</h2>'+legend+'<div class="hint">หน้านี้ช่วยแปลงเป้ายอดขายให้เป็นภาษาง่าย ๆ ว่าต้องการลูกค้ากี่ราย และควรได้รับ Referral ประมาณเท่าไร</div>'+field('average_customer_value_year','มูลค่าลูกค้าเฉลี่ยต่อปี (ต้องกรอกตรงนี้)','number','เช่น 30000','h-avg')+field('conversion_rate_percent','Conversion rate จาก Referral เป็นลูกค้า (%) (ต้องกรอกตรงนี้)','number','เช่น 30','h-conv')+'<div id="resultExplain">'+resultExplain()+'</div><div class="metrics"><div class="metric"><span>ลูกค้าที่ต้องการ (ระบบคำนวณอัตโนมัติ)</span><b id="cust">'+fmt(c.cust)+'</b></div><div class="metric"><span>Referral/ปี (ระบบคำนวณอัตโนมัติ)</span><b id="ref">'+fmt(c.ref)+'</b></div><div class="metric"><span>Referral/เดือน (ระบบคำนวณอัตโนมัติ)</span><b id="month">'+fmt(c.month)+'</b></div><div class="metric"><span>Referral/สัปดาห์ (ระบบคำนวณอัตโนมัติ)</span><b id="week">'+fmt(c.week)+'</b></div></div>'+field('quality_121_target_per_week','Quality 1-2-1 ต่อสัปดาห์ (แนะนำจาก Referral/สัปดาห์)','number',String(Math.ceil(c.week||0)))+'<div class="hint">ถ้าเว้นว่าง ระบบจะใช้ค่าที่ปัดขึ้นจาก Good Referral ต่อสัปดาห์ตาม Worksheet</div><div id="goalCoach_feasibility">'+goalCoachHtml('feasibility')+'</div><div class="warn" id="logicWarn"></div>'+nav(false)+'</div>';
-      if(step===2)html='<div class="step on"><h2>3. Existing vs New BNI Revenue</h2><div class="hint">แยกยอดจากลูกค้า BNI เดิม กับยอดจากลูกค้าใหม่ที่ต้องหาใหม่ โดยเฉพาะยอดใหม่เท่านั้นที่จะนำไปคำนวณจำนวนลูกค้าและ Referral</div>'+field('existing_customer_revenue_from_bni','A. รายได้จากลูกค้า BNI เดิมในปีหน้า','number','เช่น 300000','h-existing')+field('new_customer_revenue_from_bni','B. รายได้จากลูกค้า BNI ใหม่ในปีหน้า','number','เช่น 600000','h-new')+'<div class="calc"><small>ยอดที่คาดหวังจาก BNI รวม (A + B)</small><b>'+money(c.bni)+'</b></div><div class="warn" id="splitWarn"></div>'+nav(false)+'</div>';
-      if(step===3){var lookList=uniqueCats((data.looking_for_categories||[]).concat(LOOK),categorySuggestions.looking_for);html='<div class="step on"><h2>4. Target Customer Groups</h2><div class="hint">กรุณาเลือกจากกลุ่มที่มีอยู่เท่านั้นในระบบ เพื่อให้ Growth/MC และ Mentor เห็นความต้องการตรงกันก่อนไปข้อถัดไป</div><label>กลุ่มลูกค้าเป้าหมาย (ต้องเลือกอย่างน้อย 1 กลุ่ม)</label>'+categorySmartPick('looking_for','looking_for_categories')+chips(lookList,'looking_for_categories')+area('looking_for_detail','รายละเอียดกลุ่มลูกค้าเป้าหมาย (ต้องกรอกตรงนี้)','เช่น เจ้าของโรงงาน 50–300 คน ที่กำลังทำประกันกลุ่ม / วางระบบ HR')+'<div id="goalCoach_trigger">'+goalCoachHtml('trigger')+'</div>'+nav(false)+'</div>';} 
-      if(step===4){var powerList=uniqueCats((data.power_team_categories||[]).concat(POWER),categorySuggestions.power_team);html='<div class="step on"><h2>5. Power Team</h2><div class="hint">เลือกจากรายการที่มีอยู่เท่านั้นสำหรับ Power Team เพื่อให้สามารถจับคู่และส่งต่อได้ตรงจุดมากขึ้น</div><label>หมวด Power Team (ต้องเลือกอย่างน้อย 1 ข้อ)</label>'+categorySmartPick('power_team','power_team_categories')+chips(powerList,'power_team_categories')+area('power_team_detail','รายละเอียด Power Team ที่อยากสร้าง (ต้องกรอกตรงนี้)','เช่น Real estate + loan + insurance + interior สำหรับลูกค้าซื้อบ้านใหม่')+'<div id="goalCoach_power">'+goalCoachHtml('power')+'</div>'+nav(false)+'</div>';} 
-      if(step===5)html='<div class="step on"><h2>6. Personal Goal</h2><div class="hint">เลือกเป้าหมายส่วนตัวหนึ่งเรื่องที่อยากให้ Mentor ช่วยติดตาม</div><label>Personal Goal (ต้องเลือกตรงนี้)</label>'+chips(PERSONAL,'personal_goal_category',true)+area('personal_goal_detail','รายละเอียดเพิ่มเติม (ไม่บังคับ)','เช่น อยากนัด 1-2-1 อย่างน้อยสัปดาห์ละ 2 ครั้ง')+nav(false)+'</div>';
-      if(step===6){var months=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];html='<div class="step on"><h2>7. Monthly Marketing Plan</h2><div class="hint">เลือกเฉพาะเดือนที่มีแผนชัด เพื่อให้ Growth เห็น Specific Looking For ของ Chapter โดยยังไม่สร้าง Power Team อัตโนมัติ</div><div style="overflow-x:auto"><table style="width:100%;min-width:620px;border-collapse:collapse;font-size:12px"><thead><tr><th>เดือน</th><th>Season / Event</th><th>Product / Service</th><th>Specific Looking For</th></tr></thead><tbody>'+marketingPlanRows().map(function(row){return '<tr><td>'+months[row.month-1]+'</td><td><input value="'+esc(row.season_event)+'" oninput="setMarketingPlan('+row.month+',\'season_event\',this.value)"></td><td><input value="'+esc(row.product_service)+'" oninput="setMarketingPlan('+row.month+',\'product_service\',this.value)"></td><td><input value="'+esc(row.specific_looking_for)+'" oninput="setMarketingPlan('+row.month+',\'specific_looking_for\',this.value)"></td></tr>';}).join('')+'</tbody></table></div>'+nav(false)+'</div>';}
-      if(step===7)html='<div class="step on"><h2>Final Summary</h2><div class="summary"><h3>เป้าหมาย BNI ปี '+year+'</h3><div>รายได้จากลูกค้า BNI เดิม: '+money(data.existing_customer_revenue_from_bni)+'</div><div>รายได้จากลูกค้า BNI ใหม่: '+money(data.new_customer_revenue_from_bni)+'</div><div><b>เป้าหมายรวมจาก BNI: '+money(c.bni)+'</b> ('+fmt(c.pct)+'%)</div><hr style="border:0;border-top:1px solid var(--line);margin:12px 0"><div><b>Target Customer:</b> '+esc((data.looking_for_categories||[]).join(', '))+'</div><div>มูลค่าเฉลี่ย / ลูกค้า / ปี: '+money(data.average_customer_value_year)+'</div><div>Conversion Rate: '+fmt(data.conversion_rate_percent)+'%</div><div><b>ต้องการลูกค้าใหม่ '+fmt(c.cust)+' ราย · Referral '+fmt(c.ref)+' ราย/ปี · ≈ '+fmt(c.month)+' ราย/เดือน</b></div><br><div><b>Power Team:</b> '+esc((data.power_team_categories||[]).join(', '))+'</div><div>'+esc(data.power_team_detail)+'</div></div><div id="goalCoach_final">'+goalCoachHtml('final')+'</div><div class="warn on" id="logicWarn"></div>'+nav(true)+'</div>';
+      if(step===0)html='<div class="step on"><h2>1. Business Goal</h2><div class="coach" style="margin-top:0"><b>MSB ปี '+year+'</b><br>ข้อมูลปี '+year+' เป็นแผนปัจจุบันที่ใช้งานจริง ข้อมูลปี 2026 จะถูกเก็บไว้เป็นประวัติจาก Excel เพื่อเปรียบเทียบและอ้างอิง ไม่ใช่แผนปัจจุบัน</div>'+previousGoalCard()+legend+'<div class="hint">เริ่มจากภาพใหญ่ก่อนครับ ปี '+year+' ต้องการยอดขายรวมเท่าไร แล้วค่อยแยกยอดจาก BNI ในขั้นถัดไป</div>'+field('total_sales_target_year','ยอดขายรวมทั้งปี (ต้องกรอกตรงนี้)','number','เช่น 1200000','h-total')+nav(false)+'</div>';
+      if(step===1)html='<div class="step on"><h2>2. BNI Revenue & Referral Plan</h2>'+legend+'<div class="hint">กรอกยอดลูกค้า BNI เดิมและลูกค้า BNI ใหม่ในหน้านี้ครั้งเดียว โดยยอด <b>ลูกค้าใหม่</b> จะนำไปคำนวณจำนวนลูกค้าและ Referral ทันที</div>'+field('existing_customer_revenue_from_bni','A. รายได้จากลูกค้า BNI เดิมในปี '+year,'number','เช่น 300000','h-existing')+field('new_customer_revenue_from_bni','B. รายได้จากลูกค้า BNI ใหม่ในปี '+year+' (ใช้คำนวณ Referral)','number','เช่น 600000','h-new')+'<div class="calc"><small>ยอดที่คาดหวังจาก BNI รวม (A + B)</small><b>'+money(c.bni)+'</b></div>'+field('average_customer_value_year','รายได้เฉลี่ยที่เกิดจากลูกค้า 1 คนต่อปี (ต้องกรอกตรงนี้)','number','เช่น 30000','h-avg')+field('conversion_rate_percent','Conversion rate จาก Referral เป็นลูกค้า (%) (ต้องกรอกตรงนี้)','number','เช่น 30','h-conv')+'<div id="resultExplain">'+resultExplain()+'</div><div class="metrics"><div class="metric"><span>ลูกค้าที่ต้องการ (ระบบคำนวณอัตโนมัติ)</span><b id="cust">'+fmt(c.cust)+'</b></div><div class="metric"><span>Referral/ปี (ระบบคำนวณอัตโนมัติ)</span><b id="ref">'+fmt(c.ref)+'</b></div><div class="metric"><span>Referral/เดือน (ระบบคำนวณอัตโนมัติ)</span><b id="month">'+fmt(c.month)+'</b></div><div class="metric"><span>Referral/สัปดาห์ (ระบบคำนวณอัตโนมัติ)</span><b id="week">'+fmt(c.week)+'</b></div></div>'+field('quality_121_target_per_week','Quality 1-2-1 ต่อสัปดาห์ (แนะนำจาก Referral/สัปดาห์)','number',String(Math.ceil(c.week||0)))+'<div class="hint">ถ้าเว้นว่าง ระบบจะใช้ค่าที่ปัดขึ้นจาก Good Referral ต่อสัปดาห์ตาม Worksheet</div><div id="goalCoach_feasibility">'+goalCoachHtml('feasibility')+'</div><div class="warn" id="logicWarn"></div><div class="warn" id="splitWarn"></div>'+nav(false)+'</div>';
+      if(step===2){var lookList=uniqueCats((data.looking_for_categories||[]).concat(LOOK),categorySuggestions.looking_for);html='<div class="step on"><h2>3. Target Customer Groups</h2><div class="hint">กรุณาเลือกจากกลุ่มที่มีอยู่เท่านั้นในระบบ เพื่อให้ Growth/MC และ Mentor เห็นความต้องการตรงกันก่อนไปข้อถัดไป</div><label>กลุ่มลูกค้าเป้าหมาย (ต้องเลือกอย่างน้อย 1 กลุ่ม)</label>'+categorySmartPick('looking_for','looking_for_categories')+chips(remainingCategoryChoices(lookList,'looking_for'),'looking_for_categories')+area('looking_for_detail','รายละเอียดกลุ่มลูกค้าเป้าหมาย (ต้องกรอกตรงนี้)','เช่น เจ้าของโรงงาน 50–300 คน ที่กำลังทำประกันกลุ่ม / วางระบบ HR')+'<div id="goalCoach_trigger">'+goalCoachHtml('trigger')+'</div>'+nav(false)+'</div>';}
+      if(step===3){var powerList=uniqueCats((data.power_team_categories||[]).concat(POWER),categorySuggestions.power_team);html='<div class="step on"><h2>4. Power Team</h2><div class="hint">เลือกจากรายการที่มีอยู่เท่านั้นสำหรับ Power Team เพื่อให้สามารถจับคู่และส่งต่อได้ตรงจุดมากขึ้น</div><label>หมวด Power Team (ต้องเลือกอย่างน้อย 1 ข้อ)</label>'+categorySmartPick('power_team','power_team_categories')+chips(remainingCategoryChoices(powerList,'power_team'),'power_team_categories')+area('power_team_detail','รายละเอียด Power Team ที่อยากสร้าง (ต้องกรอกตรงนี้)','เช่น Real estate + loan + insurance + interior สำหรับลูกค้าซื้อบ้านใหม่')+'<div id="goalCoach_power">'+goalCoachHtml('power')+'</div>'+nav(false)+'</div>';}
+      if(step===4)html='<div class="step on"><h2>5. Personal Goal</h2><div class="hint">เลือกเป้าหมายส่วนตัวหนึ่งเรื่องที่อยากให้ Mentor ช่วยติดตาม</div><label>Personal Goal (ต้องเลือกตรงนี้)</label>'+chips(PERSONAL,'personal_goal_category',true)+area('personal_goal_detail','รายละเอียดเพิ่มเติม (ไม่บังคับ)','เช่น อยากนัด 1-2-1 อย่างน้อยสัปดาห์ละ 2 ครั้ง')+nav(false)+'</div>';
+      if(step===5){var months=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];html='<div class="step on"><h2>6. Monthly Marketing Plan</h2><div class="hint">เลือกเฉพาะเดือนที่มีแผนชัด เพื่อให้ Growth เห็น Specific Looking For ของ Chapter โดยยังไม่สร้าง Power Team อัตโนมัติ</div><div style="overflow-x:auto"><table style="width:100%;min-width:620px;border-collapse:collapse;font-size:12px"><thead><tr><th>เดือน</th><th>Season / Event</th><th>Product / Service</th><th>Specific Looking For</th></tr></thead><tbody>'+marketingPlanRows().map(function(row){return '<tr><td>'+months[row.month-1]+'</td><td><input value="'+esc(row.season_event)+'" oninput="setMarketingPlan('+row.month+',\'season_event\',this.value)"></td><td><input value="'+esc(row.product_service)+'" oninput="setMarketingPlan('+row.month+',\'product_service\',this.value)"></td><td><input value="'+esc(row.specific_looking_for)+'" oninput="setMarketingPlan('+row.month+',\'specific_looking_for\',this.value)"></td></tr>';}).join('')+'</tbody></table></div>'+nav(false)+'</div>';}
+      if(step===6)html='<div class="step on"><h2>Final Summary</h2><div class="summary"><h3>เป้าหมาย BNI ปี '+year+'</h3><div>รายได้จากลูกค้า BNI เดิม: '+money(data.existing_customer_revenue_from_bni)+'</div><div>รายได้จากลูกค้า BNI ใหม่: '+money(data.new_customer_revenue_from_bni)+'</div><div><b>เป้าหมายรวมจาก BNI: '+money(c.bni)+'</b> ('+fmt(c.pct)+'%)</div><hr style="border:0;border-top:1px solid var(--line);margin:12px 0"><div><b>Target Customer:</b> '+esc((data.looking_for_categories||[]).join(', '))+'</div><div>มูลค่าเฉลี่ย / ลูกค้า / ปี: '+money(data.average_customer_value_year)+'</div><div>Conversion Rate: '+fmt(data.conversion_rate_percent)+'%</div><div><b>ต้องการลูกค้าใหม่ '+fmt(c.cust)+' ราย · Referral '+fmt(c.ref)+' ราย/ปี · ≈ '+fmt(c.month)+' ราย/เดือน</b></div><br><div><b>Power Team:</b> '+esc((data.power_team_categories||[]).join(', '))+'</div><div>'+esc(data.power_team_detail)+'</div></div><div id="goalCoach_final">'+goalCoachHtml('final')+'</div><div class="warn on" id="logicWarn"></div>'+nav(true)+'</div>';
       document.getElementById('app').innerHTML=html;updateLive();
     }
     init();

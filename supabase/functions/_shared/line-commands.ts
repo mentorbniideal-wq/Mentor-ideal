@@ -25,6 +25,7 @@ export type LineCommand =
   | 'set-goal'
   | 'mute-notification'
   | 'unmute-notification'
+  | 'm2m'
   | 'help'
   | 'unknown';
 
@@ -54,6 +55,7 @@ export function parseLineCommand(input: string): ParsedLineCommand {
   if (['เจอแล้ว', 'met'].includes(normalized)) return command('met');
   if (normalized === 'ยกเลิกลา' || normalized === 'cancel absence') return command('cancel-absence');
   if (['ลบบัญชี', 'delete account', 'unlink'].includes(normalized)) return command('delete-account');
+  if (['m2m', 'ส่งข้อความ'].includes(normalized)) return command('m2m');
 
   if (normalized === 'แนะนำ' || normalized.startsWith('แนะนำ ')) {
     return command('match', text.slice('แนะนำ'.length).trim());

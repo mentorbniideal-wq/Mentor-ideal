@@ -2,10 +2,10 @@ import { verificationHelp } from '../_shared/verification-help.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { getServiceClient } from '../_shared/db.ts';
 import { trackLineEvent } from '../_shared/analytics.ts';
-import { buildIdempotencyKey } from '../_shared/line.ts';
+import { buildIdempotencyKey, buildM2MLineMessages, linePushMessages } from '../_shared/line.ts';
 import { notifyAbsenceStakeholders } from '../_shared/line-absence-notify.ts';
 import { notifyVisitorStakeholders } from '../_shared/line-visitor-notify.ts';
-import { notifyIssueStakeholders } from '../_shared/line-issue-notify.ts';
+import { notifyIssueStakeholders, type IssueNotifyResult } from '../_shared/line-issue-notify.ts';
 import { notifyOneToOneMentorAndMc, notifyOneToOnePartner } from '../_shared/one-to-one-notify.ts';
 import { handshakeCodeHash, oneToOneGoogleCalendarUrl, oneToOneIcs, pairStatusFromVerification, recoverableHandshakeCode, safeHashEqual } from '../_shared/one-to-one.ts';
 import { GUIDED_MODES, canEditOwnedGuidedData, cleanGuidedText, normalizeGuidedContent, recommendedGuidedMode, validGuidedStep } from '../_shared/guided-one-to-one.ts';
@@ -16,8 +16,13 @@ import { upsertMemberSignal } from '../_shared/member-signals.ts';
 import { helpRequestRoute } from '../_shared/help-request.ts';
 import { directoryMatchReasons, directoryProfileProjection, directoryResult, directorySearchScore, normalizeDirectoryQuery } from '../_shared/chapter-directory.ts';
 import { serverEnvironment } from '../_shared/environment.ts';
+import { resolveMsbPlanningYear } from '../_shared/msb-planning-year.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
+
+const M2M_CATEGORIES = new Set([
+  'meeting', 'training', 'visitor', 'renewal', 'member_support', 'announcement', 'other',
+]);
 
 function randomUrlToken(byteLength = 24) {
   const bytes = crypto.getRandomValues(new Uint8Array(byteLength));
@@ -47,7 +52,7 @@ async function resolveLineMember(db: Db, accessToken: string) {
   const profile = await profileRes.json() as Record<string, unknown>;
   const userId = String(profile.userId || '');
   const { data } = await db.from('line_members')
-    .select('member_id, members(id, name, nickname, mentor_team, email)')
+    .select('member_id, members(id, chapter_id, name, nickname, mentor_team, email)')
     .eq('line_user_id', userId)
     .maybeSingle();
   if (!data) return { error: 'บัญชี LINE นี้ยังไม่ได้เชื่อมกับสมาชิก', userId, profile };
@@ -75,6 +80,199 @@ Deno.serve(async (req: Request) => {
   const action = String(body.action || 'bootstrap');
   const member = identity.member;
   const memberId = identity.memberId;
+  const chapterId = String(member.chapter_id || '');
+
+  async function activeLtRoles() {
+    if (!chapterId) return [];
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date());
+    const { data } = await db.from('passport_lt_assignments')
+      .select('lt_role,term:lt_terms!left(status,starts_on,ends_on)')
+      .eq('chapter_id', chapterId)
+      .eq('assigned_member_id', memberId)
+      .eq('is_active', true);
+    return ((data || []) as Record<string,unknown>[]).map(row => {
+      const term=row.term as Record<string,unknown>|null;
+      return !term || (String(term.status) === 'active' &&
+          String(term.starts_on || '') <= today && String(term.ends_on || '') >= today)
+        ? String(row.lt_role || '')
+        : '';
+    }).filter(Boolean);
+  }
+
+  async function requireActiveLt() {
+    const roles=await activeLtRoles();
+    return roles.length ? roles : null;
+  }
+
+  const M2M_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+  if (action === 'prepare-m2m-upload') {
+    const roles = await requireActiveLt();
+    if (!roles) return response({ ok: false, error: 'M2M เปิดใช้เฉพาะผู้ดำรงตำแหน่ง LT ในวาระปัจจุบัน' }, 403);
+    const contentType = String(body.contentType || '').trim().toLowerCase();
+    if (!M2M_IMAGE_TYPES.has(contentType)) return response({ ok: false, error: 'รองรับเฉพาะ JPEG, PNG หรือ WebP' }, 400);
+    const safeName = String(body.fileName || 'm2m-image').replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 80) || 'm2m-image';
+    const path = `lt-m2m/${chapterId}/${memberId}/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}-${safeName}`;
+    const { data, error } = await db.storage.from('line-broadcast-media').createSignedUploadUrl(path);
+    if (error || !data) return response({ ok: false, error: error?.message || 'เตรียมอัปโหลดรูปไม่สำเร็จ' }, 500);
+    return response({ ok: true, path, uploadUrl: data.signedUrl });
+  }
+  if (action === 'complete-m2m-upload') {
+    const roles = await requireActiveLt();
+    if (!roles) return response({ ok: false, error: 'M2M เปิดใช้เฉพาะผู้ดำรงตำแหน่ง LT ในวาระปัจจุบัน' }, 403);
+    const path = String(body.path || '').trim();
+    const contentType = String(body.contentType || '').trim().toLowerCase();
+    if (!path.startsWith(`lt-m2m/${chapterId}/${memberId}/`) || !M2M_IMAGE_TYPES.has(contentType)) {
+      return response({ ok: false, error: 'ไฟล์รูปไม่ถูกต้อง' }, 400);
+    }
+    const { data, error } = await db.storage.from('line-broadcast-media').createSignedUrl(path, 60 * 60 * 24);
+    if (error || !data?.signedUrl) return response({ ok: false, error: error?.message || 'สร้างลิงก์รูปไม่สำเร็จ' }, 500);
+    return response({ ok: true, imageUrl: data.signedUrl, path });
+  }
+
+  if (action === 'm2m-audience') {
+    const roles = await requireActiveLt();
+    if (!roles) return response({ ok: false, error: 'M2M เปิดใช้เฉพาะผู้ดำรงตำแหน่ง LT ในวาระปัจจุบัน' }, 403);
+    const { data: rows, error } = await db.from('members')
+      .select('id,name,nickname').eq('chapter_id', chapterId).eq('is_archived', false).order('name');
+    if (error) return response({ ok: false, error: 'โหลดรายชื่อสมาชิกไม่สำเร็จ' }, 500);
+    const ids=((rows||[]) as Record<string,unknown>[]).map(x=>String(x.id));
+    const { data: links } = ids.length
+      ? await db.from('line_members').select('member_id').in('member_id', ids)
+      : { data: [] };
+    const linked=new Set(((links||[]) as Record<string,unknown>[]).map(x=>String(x.member_id)));
+    return response({ ok: true, roles, members: ((rows || []) as Record<string, unknown>[]).map(x => ({
+      id: x.id, name: String(x.nickname || x.name || 'สมาชิก'), lineLinked: linked.has(String(x.id)),
+    })) });
+  }
+
+  if (action === 'preview-m2m' || action === 'send-m2m') {
+    const roles = await requireActiveLt();
+    if (!roles) return response({ ok: false, error: 'M2M เปิดใช้เฉพาะผู้ดำรงตำแหน่ง LT ในวาระปัจจุบัน' }, 403);
+    const senderRole = String(body.senderRole || '').trim();
+    const senderRoleLabel = senderRole.replace(/\s*(?:·|:)\s*.+$/, '').trim().toUpperCase();
+    const category = String(body.category || '').trim();
+    const subject = String(body.subject || '').trim().slice(0, 160);
+    const messageType = String(body.messageType || 'text').trim() as 'text' | 'flex' | 'image';
+    const text = String(body.message || '').trim().slice(0, 5000);
+    const title = String(body.title || 'M2M').trim().slice(0, 160);
+    const bodyText = String(body.body || body.message || '').trim().slice(0, 5000);
+    const buttonLabel = String(body.buttonLabel || 'เปิด').trim().slice(0, 80);
+    const buttonUri = String(body.buttonUri || '').trim();
+    const imagePath = String(body.imagePath || '').trim();
+    const mode = body.audienceMode === 'all' ? 'all' : 'selected';
+    if (!['text', 'flex', 'image'].includes(messageType)) return response({ ok: false, error: 'messageType ต้องเป็น text, flex หรือ image' }, 400);
+    if (!roles.includes(senderRole) || !M2M_CATEGORIES.has(category) || !subject) {
+      return response({ ok: false, error: 'กรุณาเลือกตำแหน่ง LT หมวดข้อความ และหัวข้อให้ถูกต้อง' }, 400);
+    }
+    if ((messageType === 'text' && !text) || (messageType === 'flex' && !bodyText) || (messageType === 'image' && !imagePath)) {
+      return response({ ok: false, error: 'กรุณากรอกข้อความให้ครบสำหรับรูปแบบที่เลือก' }, 400);
+    }
+    if (buttonUri) {
+      try {
+        if (new URL(buttonUri).protocol !== 'https:') throw new Error('HTTPS required');
+      } catch {
+        return response({ ok: false, error: 'ลิงก์ปุ่มต้องเป็น HTTPS URL ที่ถูกต้อง' }, 400);
+      }
+    }
+    let imageUrl = '';
+    if (messageType === 'image') {
+      const ownedPrefix = `lt-m2m/${chapterId}/${memberId}/`;
+      if (!imagePath.startsWith(ownedPrefix)) return response({ ok: false, error: 'ไฟล์รูปไม่ถูกต้อง' }, 400);
+      const { data, error } = await db.storage.from('line-broadcast-media').createSignedUrl(imagePath, 60 * 60 * 24);
+      if (error || !data?.signedUrl) return response({ ok: false, error: error?.message || 'สร้างลิงก์รูปไม่สำเร็จ' }, 500);
+      imageUrl = data.signedUrl;
+    }
+    const requested = new Set(Array.isArray(body.memberIds)
+      ? body.memberIds.map(String).filter(Boolean).slice(0, 100) : []);
+    if (mode === 'selected' && !requested.size) return response({ ok: false, error: 'กรุณาเลือกสมาชิกอย่างน้อย 1 คน' }, 400);
+    const { data: rows, error } = await db.from('members')
+      .select('id,name,nickname').eq('chapter_id', chapterId).eq('is_archived', false);
+    if (error) return response({ ok: false, error: 'ตรวจผู้รับไม่สำเร็จ' }, 500);
+    const audience = ((rows || []) as Record<string, unknown>[])
+      .filter(x => mode === 'all' || requested.has(String(x.id)));
+    const ids = audience.map(x => String(x.id));
+    const { data: links } = ids.length
+      ? await db.from('line_members').select('member_id,line_user_id').in('member_id', ids)
+      : { data: [] };
+    const { data: muteRows } = ids.length
+      ? await db.from('line_notif_settings').select('member_id').in('member_id', ids)
+        .in('notif_type', ['lt_m2m', 'all']).eq('is_muted', true)
+      : { data: [] };
+    const lineByMember = new Map(((links || []) as Record<string, unknown>[])
+      .map(x => [String(x.member_id), String(x.line_user_id || '')]));
+    const mutedMemberIds = new Set(((muteRows || []) as Record<string, unknown>[]).map(x => String(x.member_id)));
+    const recipients = audience.map(x => ({
+      memberId: String(x.id), name: String(x.nickname || x.name || 'สมาชิก'),
+      lineUserId: lineByMember.get(String(x.id)) || '',
+    }));
+    const sentAt = new Intl.DateTimeFormat('th-TH', {
+      timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short',
+    }).format(new Date());
+    const payloadMessages = buildM2MLineMessages({
+      messageType, text, title: title || subject, body: bodyText || text, buttonLabel, buttonUri, imageUrl, senderRole: senderRoleLabel, subject, sentAt,
+    });
+    const digest = await sha256Hex(JSON.stringify({
+      senderRole, senderRoleLabel, category, subject, messageType, text, title, body: bodyText, buttonLabel, buttonUri, imagePath,
+      recipients: recipients.map(r => r.memberId).sort().join('|'),
+    }));
+    const audienceDigest = await sha256Hex(ids.sort().join('|'));
+    if (action === 'preview-m2m') {
+      const previewId = crypto.randomUUID();
+      await db.from('chapter_audit_events').insert({
+        chapter_id: chapterId, event_type: 'lt_m2m_preview', actor_role: 'lt', actor_ref: memberId,
+        subject_type: 'line_delivery_preview', subject_ref: previewId,
+        metadata: { roles, sender_role: senderRole, sender_role_label: senderRoleLabel, category, subject, mode, recipient_count: recipients.length, message_digest: digest, audience_digest: audienceDigest, message_type: messageType },
+      });
+      return response({ ok: true, dryRun: true, previewId, roles,
+        recipientCount: recipients.filter(x => x.lineUserId && !mutedMemberIds.has(x.memberId)).length,
+        unavailableCount: recipients.filter(x => !x.lineUserId).length,
+        mutedCount: recipients.filter(x => mutedMemberIds.has(x.memberId)).length,
+        recipients: recipients.map(({ lineUserId, ...recipient }) => ({
+          ...recipient, deliveryEligible: Boolean(lineUserId) && !mutedMemberIds.has(recipient.memberId),
+        })),
+      });
+    }
+    const previewId = String(body.previewId || '');
+    if (body.confirmed !== true || !previewId) return response({ ok: false, error: 'ต้อง Preview และยืนยันก่อนส่ง' }, 400);
+    const { data: preview } = await db.from('chapter_audit_events').select('metadata,created_at')
+      .eq('chapter_id', chapterId).eq('event_type', 'lt_m2m_preview').eq('subject_ref', previewId)
+      .gte('created_at', new Date(Date.now() - 30 * 60 * 1000).toISOString()).maybeSingle();
+    const meta = (preview?.metadata || {}) as Record<string, unknown>;
+    if (!preview || String(meta.message_digest || '') !== digest || String(meta.audience_digest || '') !== audienceDigest) {
+      return response({ ok: false, error: 'Preview หมดอายุหรือผู้รับ/ข้อความเปลี่ยน กรุณา Preview ใหม่' }, 409);
+    }
+    let sent = 0, skipped = 0, failed = 0, muted = 0;
+    const batchId = String(body.clientBatchId || crypto.randomUUID()).slice(0, 100);
+    for (const recipient of recipients) {
+      if (!recipient.lineUserId) { failed++; continue; }
+      // A preview can be confirmed more than once after a client retry; bind the
+      // delivery ledger key to that immutable preview rather than a client batch.
+      const key = `lt-m2m:${chapterId}:${previewId}:${recipient.memberId}`;
+      // This is a human-confirmed LT message, not an automatic reminder. Do not
+      // silently suppress it because of automatic-message cooldowns. Explicit
+      // member mutes still apply, and all sends remain ledgered and auditable.
+      if (mutedMemberIds.has(recipient.memberId)) {
+        muted++;
+        continue;
+      }
+      try {
+        const result = await linePushMessages(recipient.lineUserId, payloadMessages, {
+          db, idempotencyKey: key, memberId: recipient.memberId,
+          notificationType: `lt_m2m_${category}`, source: 'liff/lt-m2m', module: 'lt_m2m',
+          category: `lt_m2m:${category}`, priority: 'informational',
+        });
+        if (result.skipped) skipped++; else sent++;
+      } catch { failed++; }
+    }
+    await db.from('chapter_audit_events').insert({
+      chapter_id: chapterId, event_type: 'lt_m2m_sent', actor_role: 'lt', actor_ref: memberId,
+      subject_type: 'line_delivery_batch', subject_ref: batchId,
+      metadata: { roles, sender_role: senderRole, sender_role_label: senderRoleLabel, category, subject, mode, requested: recipients.length, sent, skipped, muted, failed, message_type: messageType },
+    });
+    return response({ ok: true, batchId, sent, skipped, muted, failed, total: recipients.length });
+  }
 
   const oneToOneActions = new Set([
     'one-to-one-bootstrap','get-my-121-profile','save-my-121-profile','get-pair-121-profile','save-pair-121-question','answer-pair-121-question','archive-pair-121-question','get-my-one-to-one-history','update-my-one-to-one-follow-up','toggle-remembered-trigger','guided-session-bootstrap','save-guided-session','save-guided-private-note',
@@ -590,7 +788,9 @@ Deno.serve(async (req: Request) => {
   if (action === 'member-home') {
     const today = new Date().toISOString().slice(0, 10);
     const trainingUntil = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
-    const blueprintYear = new Date().getFullYear();
+    // MSB is an annual planning cycle, not the browser/calendar year. This
+    // keeps LINE and Dashboard links on the Chapter-configured planning year.
+    const blueprintYear = await resolveMsbPlanningYear(db, { memberId });
     const [{ data: profile }, { data: pairRows }, { count: visitorCount }, { count: requestCount }, { count: trainingCount }, { count: followUpCount }, { data: renewal }, { data: blueprint }, { data: existingBlueprintToken }] = await Promise.all([
       db.from('member_one_to_one_profiles').select('*').eq('member_id', memberId).maybeSingle(),
       db.from('matching_pairs').select('id,member_a_id,member_b_id,status,created_at').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId}`).is('archived_at', null).order('created_at', { ascending: false }).limit(1),
@@ -633,7 +833,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if (action === 'member-blueprint-link') {
-    const blueprintYear = new Date().getFullYear();
+    const blueprintYear = await resolveMsbPlanningYear(db, { memberId });
     const { data: tokenRow } = await db.from('msb_access_tokens').select('token,expires_at').eq('member_id', memberId).eq('blueprint_year', blueprintYear).maybeSingle();
     const existing = tokenRow as Record<string, unknown> | null;
     const expiry = existing?.expires_at ? new Date(String(existing.expires_at)).getTime() : 0;
@@ -810,16 +1010,51 @@ Deno.serve(async (req: Request) => {
     if (!['ref', 'visitor', 'oto', 'ceu', 'tyfb'].includes(goalType) || !Number.isFinite(target) || target <= 0 || target>maxTarget) {
       return response({ ok: false, error: 'เป้าหมายไม่ถูกต้อง' }, 400);
     }
+    const { data: currentGoal } = await db.from('line_goals')
+      .select('target').eq('member_id', memberId).eq('goal_type', goalType).maybeSingle();
+    const goalChanged = Number((currentGoal as Record<string, unknown> | null)?.target) !== target;
     const { error } = await db.from('line_goals').upsert({
       member_id: memberId, goal_type: goalType, target, set_at: new Date().toISOString(),
     }, { onConflict: 'member_id,goal_type' });
     if (error) return response({ ok: false, error: error.message }, 400);
     const month = new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit'}).format(new Date());
-    await upsertMemberSignal(db,{memberId,signalType:'goal',subjectType:'line_goal',subjectId:goalType,title:'สมาชิกตั้งเป้าหมายใหม่',detail:`${goalType}: ${target}`,payload:{goalType,target},priority:'low',idempotencyKey:`goal:${memberId}:${goalType}:${month}`});
+    const { data: signal } = await upsertMemberSignal(db,{memberId,signalType:'goal',subjectType:'line_goal',subjectId:goalType,title:'สมาชิกตั้งเป้าหมายใหม่',detail:`${goalType}: ${target}`,payload:{goalType,target},priority:'low',idempotencyKey:`goal:${memberId}:${goalType}:${month}`});
+    let delivery: IssueNotifyResult | null = null;
+    if (goalChanged) {
+      const deliveryResult = await notifyIssueStakeholders(db, {
+        issueId: String((signal as Record<string, unknown> | null)?.id || `goal:${memberId}:${goalType}:${month}`),
+        memberId,
+        memberName: String(identity.member.name || ''),
+        nickname: String(identity.member.nickname || identity.member.name || ''),
+        mentorTeam: String(identity.member.mentor_team || ''),
+        issueText: `สมาชิกตั้งเป้าหมาย ${goalType}: ${target}`,
+        signalType: 'goal',
+        routeLabel: 'Growth Team',
+        headline: '🎯 สมาชิกตั้งเป้าหมายใหม่',
+        actionHint: 'เปิดดูและติดตามได้ใน Growth Mobile / Desktop → งานจากสมาชิก',
+        notificationType: 'goal_updated',
+        idempotencyKey: `liff:goal:${memberId}:${goalType}:${month}:${target}`,
+        source: 'liff-api',
+      });
+      delivery = deliveryResult;
+      await trackLineEvent(db, 'liff_goal_delivery_result', {
+        lineUserId: identity.userId, memberId, source: 'liff',
+        properties: { goalType, target, attempted: deliveryResult.attempted, sent: deliveryResult.sent, failed: deliveryResult.failed, skipped: deliveryResult.skipped, skippedReason: deliveryResult.skippedReason || null },
+      });
+    }
     await trackLineEvent(db, 'liff_goal_saved', {
       lineUserId: identity.userId, memberId, source: 'liff', properties: { goalType },
     });
-    return response({ ok: true, message: 'บันทึกเป้าหมายแล้ว' });
+    const sent = Number(delivery?.sent || 0);
+    const skippedReason = String(delivery?.skippedReason || '');
+    const message = !goalChanged
+      ? 'บันทึกเป้าหมายเดิมแล้ว · ไม่ส่ง LINE ซ้ำ'
+      : sent > 0
+      ? `บันทึกเป้าหมายแล้ว · แจ้ง Growth Team ${sent} คน`
+      : skippedReason === 'no_recipient'
+      ? 'บันทึกเป้าหมายแล้ว แต่ยังส่ง LINE ไม่ได้ เพราะยังไม่ได้ตั้งผู้รับ Growth Team'
+      : 'บันทึกเป้าหมายแล้ว แต่ส่ง LINE ไม่สำเร็จ ทีม MC ได้รับแจ้งใน Dashboard';
+    return response({ ok: true, message, delivery });
   }
 
   if (action === 'renewal') {
@@ -842,21 +1077,79 @@ Deno.serve(async (req: Request) => {
     const intent=String(body.intent||''),allowed=new Set(['renew_now','need_details','talk_mentor','unsure','not_now']);
     if(!allowed.has(intent))return response({ok:false,error:'กรุณาเลือกสิ่งที่ต้องการ'},400);
     const labels:Record<string,string>={renew_now:'พร้อมต่ออายุ',need_details:'ขอรายละเอียดการต่ออายุ',talk_mentor:'อยากคุยกับ Mentor ก่อน',unsure:'ยังไม่แน่ใจและอยากให้ช่วย',not_now:'ยังไม่ดำเนินการตอนนี้'};
-    const {error}=await upsertMemberSignal(db,{memberId,signalType:'renewal',subjectType:'renewal_intent',subjectId:intent,title:labels[intent],detail:'สมาชิกแจ้งความต้องการผ่าน MY IDEAL',payload:{intent},priority:intent==='talk_mentor'||intent==='unsure'?'high':'normal',consent:intent!=='not_now',idempotencyKey:`renewal:${memberId}:${intent}`});
+    const {data: signal,error}=await upsertMemberSignal(db,{memberId,signalType:'renewal',subjectType:'renewal_intent',subjectId:intent,title:labels[intent],detail:'สมาชิกแจ้งความต้องการผ่าน MY IDEAL',payload:{intent},priority:intent==='talk_mentor'||intent==='unsure'?'high':'normal',consent:intent!=='not_now',idempotencyKey:`renewal:${memberId}:${intent}`});
     if(error)return response({ok:false,error:'บันทึกความต้องการไม่สำเร็จ กรุณาลองใหม่'},400);
-    return response({ok:true,message:intent==='not_now'?'บันทึกไว้แล้ว คุณกลับมาแจ้งใหม่ได้ทุกเมื่อ':'ส่งความต้องการให้ทีมที่รับผิดชอบแล้ว'});
+    if(intent==='not_now')return response({ok:true,message:'บันทึกไว้แล้ว คุณกลับมาแจ้งใหม่ได้ทุกเมื่อ'});
+    const delivery=await notifyIssueStakeholders(db,{
+      issueId:String((signal as Record<string,unknown>|null)?.id||`renewal:${memberId}:${intent}`),
+      memberId,
+      memberName:String(identity.member.name||''),
+      nickname:String(identity.member.nickname||identity.member.name||''),
+      mentorTeam:String(identity.member.mentor_team||''),
+      issueText:labels[intent],
+      signalType:'renewal',
+      routeLabel:'Membership Committee / Secretary-Treasurer',
+      headline:'🔄 สมาชิกแจ้งความต้องการต่ออายุ',
+      actionHint:'เปิดดูและตอบกลับได้ใน Mobile / Desktop → งานจากสมาชิก',
+      notificationType:'renewal_intent',
+      idempotencyKey:`liff:renewal:${memberId}:${intent}`,
+      source:'liff-api',
+    });
+    await trackLineEvent(db,'liff_renewal_intent_delivery_result',{
+      lineUserId:identity.userId,memberId,source:'liff',
+      properties:{intent,attempted:delivery.attempted,sent:delivery.sent,failed:delivery.failed,skipped:delivery.skipped,skippedReason:delivery.skippedReason||null},
+    });
+    const deliveryMessage=delivery.sent>0
+      ? `ส่งให้ทีมต่ออายุแล้ว ${delivery.sent} คน`
+      : delivery.skippedReason==='no_recipient'
+      ? 'บันทึกความต้องการแล้ว แต่ยังส่ง LINE ไม่ได้ เพราะยังไม่ได้ตั้งผู้รับทีมต่ออายุ'
+      : 'บันทึกความต้องการแล้ว แต่ส่ง LINE ไม่สำเร็จ ทีม MC ได้รับแจ้งใน Dashboard';
+    return response({ok:true,message:deliveryMessage,delivery});
   }
 
   if (action === 'training-interest') {
     const eventId=String(body.eventId||''),intent=String(body.intent||''),allowed=new Set(['interested','need_details','registered','cancelled']);
     if(!eventId||!allowed.has(intent))return response({ok:false,error:'ข้อมูลหลักสูตรหรือสถานะไม่ถูกต้อง'},400);
-    const {data:event}=await db.from('bni_events').select('id,name,event_date').eq('id',eventId).maybeSingle();
+    const {data:event}=await db.from('bni_events').select('id,name,event_date,category').eq('id',eventId).maybeSingle();
     if(!event)return response({ok:false,error:'ไม่พบหลักสูตรนี้ กรุณารีเฟรชปฏิทิน'},404);
     const labels:Record<string,string>={interested:'สนใจเข้าร่วมอบรม',need_details:'ขอรายละเอียดหลักสูตร',registered:'ลงทะเบียนแล้ว',cancelled:'ยกเลิกความสนใจ'};
-    const {error}=await upsertMemberSignal(db,{memberId,signalType:'training',subjectType:'bni_event',subjectId:eventId,title:`${labels[intent]} · ${String((event as Record<string,unknown>).name||'')}`,detail:String((event as Record<string,unknown>).event_date||''),payload:{intent,eventId},priority:intent==='need_details'?'high':'normal',consent:intent!=='cancelled',idempotencyKey:`training:${memberId}:${eventId}`});
+    const eventName=String((event as Record<string,unknown>).name||'หลักสูตร CEU').trim();
+    const eventDate=String((event as Record<string,unknown>).event_date||'').trim();
+    const eventCategory=String((event as Record<string,unknown>).category||'หลักสูตร CEU').trim();
+    const {data: signal,error}=await upsertMemberSignal(db,{memberId,signalType:'training',subjectType:'bni_event',subjectId:eventId,title:`${labels[intent]} · ${eventName}`,detail:eventDate,payload:{intent,eventId},priority:intent==='need_details'?'high':'normal',consent:intent!=='cancelled',idempotencyKey:`training:${memberId}:${eventId}`});
     if(error)return response({ok:false,error:'บันทึกความสนใจไม่สำเร็จ กรุณาลองใหม่'},400);
-    if(intent==='cancelled')await db.from('member_signals').update({status:'cancelled',resolved_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('idempotency_key',`training:${memberId}:${eventId}`);
-    return response({ok:true,message:intent==='cancelled'?'ยกเลิกความสนใจแล้ว':'ส่งข้อมูลให้ทีม ST / NEC แล้ว'});
+    if(intent==='cancelled'){
+      await db.from('member_signals').update({status:'cancelled',resolved_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('idempotency_key',`training:${memberId}:${eventId}`);
+      return response({ok:true,message:'ยกเลิกความสนใจแล้ว'});
+    }
+    const signalId=String((signal as Record<string,unknown>|null)?.id||`training:${memberId}:${eventId}`);
+    const delivery=await notifyIssueStakeholders(db,{
+      issueId:signalId,
+      memberId,
+      memberName:String(identity.member.name||''),
+      nickname:String(identity.member.nickname||identity.member.name||''),
+      mentorTeam:String(identity.member.mentor_team||''),
+      issueText:`${labels[intent]} · ${eventName}${eventDate?` (${eventDate})`:''}`,
+      signalType:'training',
+      routeLabel:'ST / NEC',
+      memberLine:`Member : ${String(identity.member.nickname||identity.member.name||'สมาชิก').trim()}`,
+      categoryLabel:eventCategory,
+      headline:'🎓 สมาชิกสนใจหลักสูตร',
+      actionHint:'ทีม ST หรือ NEC โปรดส่งข้อความส่วนตัวโดยตรงถึง Member รายนี้\nช่องทางนี้ใช้แจ้งให้ LT ทราบว่ามีผู้สนใจ',
+      notificationType:'training_interest',
+      idempotencyKey:`liff:training:${memberId}:${eventId}:${intent}`,
+      source:'liff-api',
+    });
+    await trackLineEvent(db,'liff_training_interest_delivery_result',{
+      lineUserId:identity.userId,memberId,source:'liff',
+      properties:{eventId,intent,attempted:delivery.attempted,sent:delivery.sent,failed:delivery.failed,skipped:delivery.skipped,skippedReason:delivery.skippedReason||null},
+    });
+    const deliveryMessage=delivery.sent>0
+      ? `ส่งให้ทีม ST / NEC แล้ว ${delivery.sent} คน`
+      : delivery.skippedReason==='no_recipient'
+      ? 'บันทึกคำขอแล้ว แต่ยังส่ง LINE ไม่ได้ เพราะยังไม่ได้ตั้งผู้รับ ST / NEC'
+      : 'บันทึกคำขอแล้ว แต่ส่ง LINE ไม่สำเร็จ ทีม MC ได้รับแจ้งใน Dashboard';
+    return response({ok:true,message:deliveryMessage,delivery});
   }
 
   if (action === 'visitor') {

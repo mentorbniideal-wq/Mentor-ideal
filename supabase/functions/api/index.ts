@@ -140,6 +140,7 @@ const ROUTES: Record<string, string> = {
   // Growth System
   'getGrowthData': 'growth', 'getGrowthSheetData': 'growth',
   'getGrowthPriorities': 'growth',
+  'getGrowthLineCenter': 'growth', 'previewGrowthLineMessage': 'growth', 'sendGrowthLineMessage': 'growth',
   'getMSBCategoryLibrary': 'growth', 'saveMSBCategoryAlias': 'growth',
   'saveGrowthGoalReview': 'growth',
   'updateGrowthMember': 'growth', 'addGrowthMember': 'growth',
@@ -198,7 +199,8 @@ const ROUTES: Record<string, string> = {
   'createLineLinkToken': 'line-admin', 'revokeLineLinkTokens': 'line-admin', 'unlinkLineMember': 'line-admin',
   'getLineMembers': 'line-admin', 'getLineMembersDetail': 'line-admin',
   'getLineActivityTimeline': 'line-admin', 'getUnifiedFollowUpInbox': 'line-admin',
-  'previewManualLineSend': 'line-admin', 'testManualLineMessage': 'line-admin', 'sendLineMessage': 'line-admin', 'sendLineBroadcast': 'line-admin', 'logLineDeliveryClientError': 'line-admin',
+  'previewManualLineSend': 'line-admin', 'testManualLineMessage': 'line-admin', 'sendLineMessage': 'line-admin', 'sendLineBroadcast': 'line-admin',
+  'prepareLineBroadcastUpload': 'line-admin', 'completeLineBroadcastUpload': 'line-admin', 'logLineDeliveryClientError': 'line-admin',
   'sendLineIntro': 'line-admin', 'setMCLineId': 'line-admin',
   'getAbsenceLog': 'line-admin', 'getLineIssues': 'line-admin',
   'replyLineIssue': 'line-admin', 'updateLineIssueStatus': 'line-admin',
@@ -217,6 +219,7 @@ const ROUTES: Record<string, string> = {
   'getLineHealth': 'line-admin', 'testLineCommand': 'line-admin',
   'getLineCommandGuide': 'line-admin', 'getLineAutomationLibrary': 'line-admin',
   'getLineAutoControlCenter': 'line-admin', 'setLineAutomationControl': 'line-admin', 'setLineAutomationMessage': 'line-admin', 'applyLineAutomationPreset': 'line-admin',
+  'saveLineCustomAutomation': 'line-admin', 'setLineCustomAutomationEnabled': 'line-admin', 'archiveLineCustomAutomation': 'line-admin', 'runCustomLineAutomations': 'line-admin',
   'getLineMemberJourney': 'line-admin',
 
   // AI Copilot (read-only recommendations; write actions require separate confirmation)

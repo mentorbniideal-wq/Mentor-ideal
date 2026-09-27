@@ -6984,7 +6984,7 @@ function loadIMDMSB(m){
   });
 }
 function renderIMDMSB(box,r,suggestions){
-  var ps=r.planSummary||{}, as=r.actualSummary||{}, gs=r.gapSummary||{}, member=r.member||{};
+  var ps=r.planSummary||{}, as=r.actualSummary||{}, gs=r.gapSummary||{}, yc=r.yearComparison||{}, member=r.member||{};
   var revPct=Number(gs.revenueProgressPercent)||0, refPct=Number(gs.referralProgressPercent)||0;
   function pctColor(p){return p>=70?'var(--gr)':p>=40?'var(--ye)':'var(--re)';}
   function mini(label,val,sub,color){
@@ -7001,13 +7001,21 @@ function renderIMDMSB(box,r,suggestions){
     +'<span style="font-size:10px;color:'+pctColor(Math.max(revPct,refPct))+';font-weight:900;border:1px solid var(--bd);border-radius:999px;padding:5px 9px">'+esc(statusText)+'</span>'
     +'</div>'
     +'<div class="m360g" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:12px">'
-    +mini('MSB Goal',msbMoney(ps.msbGoal||0),'เป้ารายได้จาก BNI','var(--ye)')
+    +(yc.previousGoal===null||yc.previousGoal===undefined?'':mini('เป้า '+yc.previousYear,msbMoney(yc.previousGoal),'Growth เป้าเดิม','var(--sub)'))
+    +mini('MSB Goal '+(yc.currentYear||''),msbMoney(ps.msbGoal||0),'เป้ารายได้จาก BNI','var(--ye)')
     +mini('Actual Received',msbMoney(as.actualReceived||0),'ยอดรับจริง','var(--gr)')
     +mini('Revenue Gap',msbMoney(gs.revenueGap||0),'ส่วนที่ยังต้องปิด',gs.revenueGap>0?'var(--re)':'var(--gr)')
     +mini('Referral',msbNum(as.rr||0,0)+' / '+msbNum(ps.referralNeeded||0,0),'received / needed',pctColor(refPct))
     +'</div>'
     +bar('Revenue Progress',revPct,pctColor(revPct))
     +bar('Referral Progress',refPct,pctColor(refPct))
+    +'<details style="margin-top:12px;background:var(--sf2);border:1px solid var(--bd);border-radius:12px;padding:10px"><summary style="cursor:pointer;font-size:11px;font-weight:900">ดูรายละเอียด Blueprint ปี '+esc(yc.currentYear||r.blueprintYear||'ปัจจุบัน')+'</summary><div class="m360g" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-top:10px">'
+    +mini('เป้ายอดขายรวม',msbMoney(ps.totalSalesTargetYear||0),'ต่อปี')
+    +mini('ลูกค้าที่ต้องการ',msbNum(ps.customerNeeded||0,0)+' ราย','ตาม Blueprint')
+    +mini('Referral/สัปดาห์',msbNum(ps.referralPerWeek||0,1),'ตาม Blueprint')
+    +mini('Conversion',msbNum(ps.conversionRatePercent||0,1)+'%','ตาม Blueprint')
+    +mini('BNI Contribution',msbNum(ps.bniContributionPercent||0,1)+'%','ของเป้ายอดขายรวม')
+    +'</div>'+(yc.delta===null||yc.delta===undefined?'':'<div style="font-size:11px;color:var(--sub);margin-top:8px">เทียบเป้า '+esc(yc.previousYear)+' → '+esc(yc.currentYear)+': '+(Number(yc.delta)>0?'เพิ่ม ':'ลด ')+msbMoney(Math.abs(Number(yc.delta)))+(yc.deltaPercent===null||yc.deltaPercent===undefined?'':' ('+(Number(yc.deltaPercent)>0?'+':'')+msbNum(yc.deltaPercent,1)+'%)')+'</div>')+'</details>'
     +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:12px">'
     +'<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:12px;padding:11px"><div style="font-size:11px;font-weight:900;color:var(--ac)">Looking For</div><div style="font-size:12px;color:var(--tx);line-height:1.55;margin-top:5px">'+esc((lf.categories||[]).join(', ')||'—')+'</div><div style="font-size:10px;color:var(--sub);line-height:1.5;margin-top:4px">'+esc(lf.detail||'')+'</div></div>'
     +'<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:12px;padding:11px"><div style="font-size:11px;font-weight:900;color:var(--ac)">Power Team</div><div style="font-size:12px;color:var(--tx);line-height:1.55;margin-top:5px">'+esc((pt.categories||[]).join(', ')||'—')+'</div><div style="font-size:10px;color:var(--sub);line-height:1.5;margin-top:4px">'+esc(pt.detail||'')+'</div></div>'

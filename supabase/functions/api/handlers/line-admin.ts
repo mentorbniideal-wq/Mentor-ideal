@@ -3,9 +3,11 @@
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import {
+  buildM2MLineMessages,
   generateLinkToken,
   linePush,
   linePushMessages,
+  lineMulticastMessages,
   normalizeLinkToken,
   sha256Hex,
   type LineSendOptions,
@@ -19,6 +21,9 @@ import { provisionLineExperience } from '../../_shared/line-provision.ts';
 import { trackLineEvent } from '../../_shared/analytics.ts';
 import { lineAutomationDefaultPreview } from '../../_shared/line-automation-preview.ts';
 import { serverEnvironment } from '../../_shared/environment.ts';
+import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
+import { evaluateNotificationGuard, logSuppressedNotification } from '../../_shared/notification-orchestrator.ts';
+import { nextCustomLineRun, type CustomLineRecurrence } from '../../_shared/custom-line-automation.ts';
 
 // ── Unified LINE Push helper — no-op when token is absent (dev mode) ──
 const LINE_TOKEN = serverEnvironment().lineDeliveryEnabled ? (Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || '') : '';
@@ -921,17 +926,36 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       if (!auth.ok) return errResponse(auth.error!);
 
       const memberName = String(p.memberName || '').trim();
-      const message    = String(p.message || '').trim();
-      if (!memberName || !message) return errResponse('memberName and message required');
+      const messageType = String(p.messageType || 'text').trim() as 'text' | 'flex' | 'image';
+      const text = String(p.message || p.text || '').trim();
+      const title = String(p.title || 'M2M').trim();
+      const body = String(p.body || p.message || '').trim();
+      const buttonLabel = String(p.buttonLabel || 'เปิด').trim();
+      const buttonUri = String(p.buttonUri || '').trim();
+      const imageUrl = String(p.imageUrl || '').trim();
+      if (!memberName) return errResponse('memberName required');
+      if (!['text', 'flex', 'image'].includes(messageType)) return errResponse('messageType ต้องเป็น text, flex หรือ image');
+      if (messageType === 'text' && !text) return errResponse('message required');
+      if (messageType === 'flex' && !body) return errResponse('body required');
+      if (messageType === 'image' && !imageUrl) return errResponse('imageUrl required');
       if (!Boolean(p.confirmed)) return errResponse('ต้องตรวจข้อความและยืนยันก่อนส่ง LINE');
 
       const userId = await findLineUserId(db, memberName);
-      if (!userId) return jsonResponse({ ok: true, sent: false });
+      if (!userId) return jsonResponse({ ok: true, sent: false, messageType });
 
+      const payloadMessages = buildM2MLineMessages({
+        messageType,
+        text,
+        title,
+        body,
+        buttonLabel,
+        buttonUri,
+        imageUrl,
+      });
       const memberId = await findMemberId(db, memberName);
-      const messageDigest = await sha256Hex(message);
+      const messageDigest = await sha256Hex(`${messageType}|${body || text || imageUrl}`);
       const windowKey = Math.floor(Date.now() / 300000);
-      const sent = await sendLineMsg(userId, message, {
+      const result = await linePushMessages(userId, payloadMessages, {
         db,
         idempotencyKey: `manual-member:${memberId || userId}:${messageDigest.slice(0,24)}:${windowKey}`,
         memberId,
@@ -943,24 +967,74 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       });
       await db.from('member_admin_events').insert({
         member_id: memberId,
-        event_type: sent ? 'manual_line_sent' : 'manual_line_failed',
+        event_type: result.sent || result.skipped ? 'manual_line_sent' : 'manual_line_failed',
         actor_role: String(auth.role || 'mc'),
         actor_ref: String(auth.role || 'mc'),
-        metadata: { source: 'desktop/member-360', message_length: message.length },
+        metadata: {
+          source: 'desktop/member-360',
+          message_type: messageType,
+          message_length: String(body || text || imageUrl).length,
+        },
       });
-      return jsonResponse({ ok: true, sent });
+      return jsonResponse({ ok: true, sent: Boolean(result.sent || result.skipped), messageType, deliveryId: result.deliveryId || null });
     }
 
     // ── BROADCAST: push message to all (or filtered) members (MC) ──
+    case 'prepareLineBroadcastUpload': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const fileName = String(p.fileName || 'm2m-broadcast-image').trim() || 'm2m-broadcast-image';
+      const contentType = String(p.contentType || 'image/jpeg').trim() || 'image/jpeg';
+      const allowed = new Set(['image/jpeg', 'image/png', 'image/webp']);
+      if (!allowed.has(contentType)) return errResponse('รองรับเฉพาะ JPEG, PNG หรือ WebP');
+      const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 80) || 'm2m-broadcast-image';
+      const bucket = 'line-broadcast-media';
+      const path = `broadcasts/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}-${safeName}`;
+      const { data, error } = await db.storage.from(bucket).createSignedUploadUrl(path);
+      if (error || !data) return errResponse(error?.message || 'เตรียมอัปโหลดรูปไม่สำเร็จ');
+      return jsonResponse({ ok: true, path, uploadUrl: data.signedUrl, token: data.token });
+    }
+
+    case 'completeLineBroadcastUpload': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+
+      const path = String(p.path || '').trim();
+      const contentType = String(p.contentType || '').trim();
+      if (!path || !contentType) return errResponse('path และ contentType required');
+      const { data, error } = await db.storage.from('line-broadcast-media').createSignedUrl(path, 60 * 60 * 24);
+      if (error || !data?.signedUrl) return errResponse(error?.message || 'สร้างลิงก์รูปไม่สำเร็จ');
+      return jsonResponse({ ok: true, imageUrl: data.signedUrl, path });
+    }
+
     case 'sendLineBroadcast': {
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
 
-      const message    = String(p.message || '').trim();
-      // Accept teamName (from LINE activity panel) or targetRole (legacy)
+      const messageType = String(p.messageType || 'text').trim() as 'text' | 'flex' | 'image';
+      const text = String(p.message || p.text || '').trim();
+      const title = String(p.title || 'M2M').trim();
+      const body = String(p.body || p.message || '').trim();
+      const buttonLabel = String(p.buttonLabel || 'เปิด').trim();
+      const buttonUri = String(p.buttonUri || '').trim();
+      const imageUrl = String(p.imageUrl || '').trim();
       const targetRole = (p.teamName ? String(p.teamName) : p.targetRole ? String(p.targetRole) : '').trim() || null;
-      if (!message) return errResponse('message required');
+      if (!['text', 'flex', 'image'].includes(messageType)) return errResponse('messageType ต้องเป็น text, flex หรือ image');
+      if (messageType === 'text' && !text) return errResponse('message required');
+      if (messageType === 'flex' && !body) return errResponse('body required');
+      if (messageType === 'image' && !imageUrl) return errResponse('imageUrl required');
       if (!Boolean(p.confirmed)) return errResponse('ต้องตรวจข้อความและยืนยันก่อนส่ง LINE');
+
+      const payloadMessages = buildM2MLineMessages({
+        messageType,
+        text,
+        title,
+        body,
+        buttonLabel,
+        buttonUri,
+        imageUrl,
+      });
 
       const { data, error } = await db
         .from('line_members')
@@ -979,7 +1053,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
 
       const results: Record<string, unknown>[] = [];
       const windowKey = Math.floor(Date.now() / 300000);
-      const digest = await sha256Hex(`${targetRole || 'all'}|${message}`);
+      const digest = await sha256Hex(`${targetRole || 'all'}|${messageType}|${body || text || imageUrl}`);
       for (let offset = 0; offset < rows.length; offset += 10) {
         const chunk = await Promise.all(rows.slice(offset, offset + 10).map(async (row) => {
           const uid = String(row.line_user_id || '');
@@ -988,7 +1062,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
           const name = String(member.nickname || member.name || 'สมาชิก');
           if (!uid) return { memberId, name, status: 'failed', reason: 'no_line', error: 'สมาชิกยังไม่เชื่อม LINE' };
           try {
-            const result = await linePush(uid, message, {
+            const result = await lineMulticastMessages([uid], payloadMessages, {
               db,
               idempotencyKey: `desktop-broadcast:${digest.slice(0,24)}:${windowKey}:${memberId || uid}`,
               memberId: memberId || null,
@@ -997,7 +1071,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
               module: 'manual',
               category: 'manual_team_broadcast',
               priority: 'informational',
-            });
+            }).then(r => r[0]);
             return { memberId, name, status: result.skipped ? 'skipped' : 'sent', reason: result.skipped ? 'duplicate' : null, deliveryId: result.deliveryId || null, error: null };
           } catch (e) {
             const deliveryError = e instanceof Error ? e.message.slice(0, 500) : 'LINE delivery failed';
@@ -1019,6 +1093,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
         subject_ref: batchId,
         metadata: {
           target_team: targetRole,
+          message_type: messageType,
           requested_member_count: requestedMemberIds?.size || null,
           sent: sentCount,
           failed,
@@ -1026,7 +1101,7 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
           total: results.length,
         },
       });
-      return jsonResponse({ ok: true, batchId, sent: sentCount, sentCount, failed, skipped, total: results.length, results });
+      return jsonResponse({ ok: true, batchId, sent: sentCount, sentCount, failed, skipped, total: results.length, results, messageType });
     }
 
     // ── INTRO: send 1-2-1 introduction between 2 members ─────
@@ -2629,6 +2704,8 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
     case 'getLineAutoControlCenter': {
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const days = Math.min(90, Math.max(7, Number(p.days) || 30));
       const since = new Date(Date.now() - days * 86400000).toISOString();
       const monthStart = new Date();
@@ -2732,9 +2809,26 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
       }
       const monthRows = deliveries.filter(row => txt(row.created_at) >= monthStart.toISOString());
       const monthSent = monthRows.reduce((sum, row) => sum + (txt(row.status) === 'sent' ? Math.max(1, num(row.estimated_count, 1)) : 0), 0);
+      const [customRes, memberRes] = await Promise.all([
+        db.from('line_custom_automations').select('*').eq('chapter_id', scope.chapterId).is('archived_at', null).order('created_at', { ascending: false }),
+        db.from('members').select('id,name,nickname').eq('chapter_id', scope.chapterId).eq('is_archived', false).order('name'),
+      ]);
+      if (customRes.error) return errResponse(customRes.error.message);
+      if (memberRes.error) return errResponse(memberRes.error.message);
+      const customRows = (customRes.data || []) as Record<string, unknown>[];
+      const customIds = customRows.map(row => txt(row.id));
+      const recipientRes = customIds.length
+        ? await db.from('line_custom_automation_recipients').select('automation_id,member_id').eq('chapter_id', scope.chapterId).in('automation_id', customIds)
+        : { data: [], error: null };
+      if (recipientRes.error) return errResponse(recipientRes.error.message);
+      const recipientMap = new Map<string, string[]>();
+      for (const row of (recipientRes.data || []) as Record<string, unknown>[]) {
+        const id = txt(row.automation_id); const values = recipientMap.get(id) || [];
+        values.push(txt(row.member_id)); recipientMap.set(id, values);
+      }
       return jsonResponse({
         ok: true,
-        canEdit: Boolean(auth.isAdmin),
+        canEdit: Boolean(auth.isAdmin && !auth.isReadOnly && !auth.isViewer),
         days,
         quota,
         quotaGuard: lineQuotaMode(quota),
@@ -2746,8 +2840,122 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
           monthSent,
         },
         controls,
+        customAutomations: customRows.map(row => ({ ...row, recipientIds: recipientMap.get(txt(row.id)) || [] })),
+        memberOptions: ((memberRes.data || []) as Record<string, unknown>[]).map(row => ({ id: row.id, name: txt(row.nickname || row.name) })),
         recent: recentRes.data || [],
       });
+    }
+
+    case 'saveLineCustomAutomation': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.isAdmin) return errResponse('เฉพาะ Chapter Admin เท่านั้นที่สร้าง Auto Message ได้', 403);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const id = txt(p.id);
+      const name = txt(p.name).slice(0, 120);
+      const message = txt(p.message).slice(0, 5000);
+      const recurrence = txt(p.recurrence);
+      const nextRun = new Date(txt(p.nextRunAt));
+      const recipientIds = [...new Set(Array.isArray(p.recipientIds) ? p.recipientIds.map(txt).filter(Boolean) : [])].slice(0, 100);
+      if (!name || !message) return errResponse('กรุณากรอกชื่อและข้อความ');
+      if (!['once', 'daily', 'weekly', 'monthly'].includes(recurrence)) return errResponse('รูปแบบการส่งไม่ถูกต้อง');
+      if (!Number.isFinite(nextRun.getTime()) || nextRun.getTime() <= Date.now() + 60_000) return errResponse('เวลาส่งต้องอยู่ในอนาคตอย่างน้อย 1 นาที');
+      if (!recipientIds.length) return errResponse('กรุณาเลือกผู้รับอย่างน้อย 1 คน');
+      const { data: scopedMembers, error: memberError } = await db.from('members').select('id').eq('chapter_id', scope.chapterId).eq('is_archived', false).in('id', recipientIds);
+      if (memberError) return errResponse(memberError.message);
+      if ((scopedMembers || []).length !== recipientIds.length) return errResponse('พบผู้รับที่ไม่อยู่ใน Chapter หรือไม่ได้ใช้งาน', 403);
+      const actorEmail = txt(auth.email).toLowerCase();
+      let automationId = id;
+      if (id) {
+        const { data: current } = await db.from('line_custom_automations').select('id').eq('id', id).eq('chapter_id', scope.chapterId).is('archived_at', null).maybeSingle();
+        if (!current) return errResponse('ไม่พบ Auto Message ใน Chapter นี้', 404);
+        const { error } = await db.from('line_custom_automations').update({ name, message, recurrence, next_run_at: nextRun.toISOString(), enabled: false, updated_at: new Date().toISOString(), updated_by_email: actorEmail, locked_at: null }).eq('id', id).eq('chapter_id', scope.chapterId);
+        if (error) return errResponse(error.message);
+      } else {
+        const { data: created, error } = await db.from('line_custom_automations').insert({ chapter_id: scope.chapterId, name, message, recurrence, next_run_at: nextRun.toISOString(), enabled: false, created_by_email: actorEmail, updated_by_email: actorEmail }).select('id').single();
+        if (error || !created) return errResponse(error?.message || 'สร้าง Auto Message ไม่สำเร็จ');
+        automationId = txt((created as Record<string, unknown>).id);
+      }
+      const { error: deleteError } = await db.from('line_custom_automation_recipients').delete().eq('automation_id', automationId).eq('chapter_id', scope.chapterId);
+      if (deleteError) return errResponse(deleteError.message);
+      const { error: recipientError } = await db.from('line_custom_automation_recipients').insert(recipientIds.map(memberId => ({ automation_id: automationId, member_id: memberId, chapter_id: scope.chapterId })));
+      if (recipientError) return errResponse(recipientError.message);
+      await db.from('chapter_audit_events').insert({ chapter_id: scope.chapterId, event_type: id ? 'line_custom_automation_updated' : 'line_custom_automation_created', actor_role: auth.role || 'admin', actor_ref: actorEmail, subject_type: 'line_custom_automation', subject_ref: automationId, metadata: { recurrence, next_run_at: nextRun.toISOString(), recipient_count: recipientIds.length, message_length: message.length } });
+      return jsonResponse({ ok: true, id: automationId, enabled: false, note: 'บันทึกเป็นฉบับปิด กรุณาตรวจและเปิดใช้งานเมื่อพร้อม' });
+    }
+
+    case 'setLineCustomAutomationEnabled': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.isAdmin) return errResponse('เฉพาะ Chapter Admin เท่านั้นที่เปิดหรือปิด Auto Message ได้', 403);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const id = txt(p.id); const enabled = p.enabled === true;
+      const { data: current } = await db.from('line_custom_automations').select('id,next_run_at').eq('id', id).eq('chapter_id', scope.chapterId).is('archived_at', null).maybeSingle();
+      if (!current) return errResponse('ไม่พบ Auto Message ใน Chapter นี้', 404);
+      if (enabled && new Date(txt((current as Record<string, unknown>).next_run_at)).getTime() <= Date.now()) return errResponse('กำหนดเวลานี้ผ่านไปแล้ว กรุณาแก้วันเวลาก่อนเปิด');
+      const actorEmail = txt(auth.email).toLowerCase();
+      const { error } = await db.from('line_custom_automations').update({ enabled, updated_at: new Date().toISOString(), updated_by_email: actorEmail, locked_at: null }).eq('id', id).eq('chapter_id', scope.chapterId);
+      if (error) return errResponse(error.message);
+      await db.from('chapter_audit_events').insert({ chapter_id: scope.chapterId, event_type: enabled ? 'line_custom_automation_enabled' : 'line_custom_automation_disabled', actor_role: auth.role || 'admin', actor_ref: actorEmail, subject_type: 'line_custom_automation', subject_ref: id, metadata: {} });
+      return jsonResponse({ ok: true, id, enabled });
+    }
+
+    case 'archiveLineCustomAutomation': {
+      const auth = await requireAuth(db, p, ['mc']);
+      if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.isAdmin) return errResponse('เฉพาะ Chapter Admin เท่านั้นที่เก็บ Auto Message ได้', 403);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const id = txt(p.id); const actorEmail = txt(auth.email).toLowerCase(); const now = new Date().toISOString();
+      const { data, error } = await db.from('line_custom_automations').update({ archived_at: now, enabled: false, locked_at: null, updated_at: now, updated_by_email: actorEmail }).eq('id', id).eq('chapter_id', scope.chapterId).is('archived_at', null).select('id').maybeSingle();
+      if (error) return errResponse(error.message);
+      if (!data) return errResponse('ไม่พบ Auto Message ใน Chapter นี้', 404);
+      await db.from('chapter_audit_events').insert({ chapter_id: scope.chapterId, event_type: 'line_custom_automation_archived', actor_role: auth.role || 'admin', actor_ref: actorEmail, subject_type: 'line_custom_automation', subject_ref: id, metadata: {} });
+      return jsonResponse({ ok: true, id });
+    }
+
+    case 'runCustomLineAutomations': {
+      const cronSecret = txt(p.cron_secret);
+      const { data: cfg } = await db.from('cron_config').select('value').eq('key', 'cron_secret').maybeSingle();
+      if (!cronSecret || !cfg || txt((cfg as Record<string, unknown>).value) !== cronSecret) return errResponse('Invalid cron_secret', 403);
+      const now = new Date();
+      const { data: claimed, error: claimError } = await db.rpc('fn_claim_due_line_custom_automations', { p_now: now.toISOString() });
+      if (claimError) return errResponse(claimError.message);
+      const summaries: Record<string, unknown>[] = [];
+      for (const raw of (claimed || []) as Record<string, unknown>[]) {
+        const automationId = txt(raw.id); const chapterId = txt(raw.chapter_id); const scheduledFor = txt(raw.next_run_at);
+        const { data: recipientRows } = await db.from('line_custom_automation_recipients').select('member_id').eq('automation_id', automationId).eq('chapter_id', chapterId);
+        const memberIds = ((recipientRows || []) as Record<string, unknown>[]).map(row => txt(row.member_id)).filter(Boolean);
+        const [{ data: members }, { data: links }] = memberIds.length ? await Promise.all([
+          db.from('members').select('id').eq('chapter_id', chapterId).eq('is_archived', false).in('id', memberIds),
+          db.from('line_members').select('member_id,line_user_id').in('member_id', memberIds),
+        ]) : [{ data: [] }, { data: [] }];
+        const active = new Set(((members || []) as Record<string, unknown>[]).map(row => txt(row.id)));
+        const lineByMember = new Map(((links || []) as Record<string, unknown>[]).map(row => [txt(row.member_id), txt(row.line_user_id)]));
+        let sent = 0, skipped = 0, failed = 0;
+        for (const memberId of memberIds.filter(id => active.has(id))) {
+          const lineUserId = lineByMember.get(memberId) || '';
+          if (!lineUserId) { failed++; continue; }
+          const category = `custom_line_auto:${automationId}`;
+          const guardInput = { memberId, module: 'operational', category, priority: 'informational' as const };
+          const guard = await evaluateNotificationGuard(db, guardInput);
+          const key = `custom-line:${chapterId}:${automationId}:${scheduledFor}:${memberId}`;
+          if (!guard.allowed) { await logSuppressedNotification(db, guardInput, guard, key, lineUserId); skipped++; continue; }
+          try {
+            const result = await linePush(lineUserId, txt(raw.message), { db, idempotencyKey: key, memberId, notificationType: category, source: 'api/custom-line-automation', module: 'operational', category, priority: 'informational' });
+            result.skipped ? skipped++ : sent++;
+          } catch (error) { console.error('[custom-line-automation]', automationId, memberId, error); failed++; }
+        }
+        const status = failed ? (sent || skipped ? 'partial' : 'failed') : 'completed';
+        const { nextRunAt, enabled } = nextCustomLineRun(txt(raw.recurrence) as CustomLineRecurrence, scheduledFor, now);
+        const summary = { recipient_count: memberIds.length, sent, skipped, failed, scheduled_for: scheduledFor };
+        await db.from('line_custom_automations').update({ enabled, next_run_at: nextRunAt, last_run_at: now.toISOString(), last_run_status: status, last_run_summary: summary, locked_at: null, updated_at: now.toISOString() }).eq('id', automationId).eq('chapter_id', chapterId).eq('locked_at', now.toISOString());
+        await db.from('chapter_audit_events').insert({ chapter_id: chapterId, event_type: 'line_custom_automation_run', actor_role: 'system', actor_ref: 'cron', subject_type: 'line_custom_automation', subject_ref: automationId, metadata: summary });
+        summaries.push({ id: automationId, status, ...summary });
+      }
+      return jsonResponse({ ok: true, processed: summaries.length, summaries });
     }
 
     case 'setLineAutomationControl': {

@@ -25,11 +25,40 @@ function deskLineUseTpl(i, nick) {
   document.getElementById('desk-line-txt').value = DESK_LINE_TMPLS[i].t.replace(/\{nick\}/g, nick);
 }
 
+function setDeskLineMessageType(mode) {
+  var textWrap = document.getElementById('desk-line-text-config');
+  var flexWrap = document.getElementById('desk-line-flex-config');
+  var imageWrap = document.getElementById('desk-line-image-config');
+  if (textWrap) textWrap.style.display = mode === 'text' ? 'block' : 'none';
+  if (flexWrap) flexWrap.style.display = mode === 'flex' ? 'flex' : 'none';
+  if (imageWrap) imageWrap.style.display = mode === 'image' ? 'flex' : 'none';
+}
+
+function resetDeskLineComposeForm() {
+  var modeSelect = document.getElementById('desk-line-message-type');
+  if (modeSelect) modeSelect.value = 'text';
+  setDeskLineMessageType('text');
+  var txt = document.getElementById('desk-line-txt');
+  if (txt) txt.value = '';
+  var flexTitle = document.getElementById('desk-line-flex-title');
+  var flexBody = document.getElementById('desk-line-flex-body');
+  var flexButtonLabel = document.getElementById('desk-line-flex-button-label');
+  var flexButtonUri = document.getElementById('desk-line-flex-button-uri');
+  if (flexTitle) flexTitle.value = '';
+  if (flexBody) flexBody.value = '';
+  if (flexButtonLabel) flexButtonLabel.value = '';
+  if (flexButtonUri) flexButtonUri.value = '';
+  var imageInput = document.getElementById('desk-line-image-file');
+  if (imageInput) imageInput.value = '';
+  var imageStatus = document.getElementById('desk-line-image-status');
+  if (imageStatus) imageStatus.textContent = 'เลือกรูปเพื่อแนบกับ LINE message';
+}
+
 function openDeskLineCompose(name, nick) {
   _dLineTarget = {name:name, nick:nick, broadcast:false};
   document.getElementById('desk-line-title').textContent = '📲 ส่ง LINE — '+(nick||name.split(' ')[0]);
   document.getElementById('desk-line-bcast-info').style.display = 'none';
-  document.getElementById('desk-line-txt').value = '';
+  resetDeskLineComposeForm();
   _renderDeskLineTpls(nick||name.split(' ')[0]);
   document.getElementById('desk-line-modal').style.display = 'flex';
 }
@@ -38,7 +67,7 @@ function openDeskLineBroadcast(teamName) {
   _dLineTarget = {broadcast:true, teamName:teamName};
   document.getElementById('desk-line-title').textContent = '📢 Broadcast — ทีม '+teamName;
   document.getElementById('desk-line-bcast-info').style.display = 'block';
-  document.getElementById('desk-line-txt').value = '';
+  resetDeskLineComposeForm();
   _renderDeskLineTpls('ทีม');
   document.getElementById('desk-line-modal').style.display = 'flex';
 }
@@ -83,11 +112,160 @@ function previewManualLineSend(options){
   });
 }
 
-function doDeskSendLine() {
-  var text = (document.getElementById('desk-line-txt').value||'').trim();
-  if (!text) { toast('กรุณาพิมพ์ข้อความครับ','err'); return; }
+function gsrAsync(action, payload) {
+  return new Promise(function(resolve) {
+    gsr(action, payload, function(result) {
+      resolve(result || { ok: false, error: 'request failed' });
+    });
+  });
+}
+
+async function uploadDeskLineImageFile(file) {
+  if (!file) return null;
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    throw new Error('รองรับเฉพาะ JPEG, PNG หรือ WebP');
+  }
+  var prepared = await gsrAsync('prepareLineBroadcastUpload', {
+    fileName: file.name,
+    contentType: file.type,
+    role: S.role,
+  });
+  if (!prepared || !prepared.ok) {
+    throw new Error(prepared && prepared.error ? prepared.error : 'เตรียมอัปโหลดรูปไม่สำเร็จ');
+  }
+  var uploadRes = await fetch(prepared.uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type },
+    body: file,
+  });
+  if (!uploadRes.ok) {
+    throw new Error('อัปโหลดรูปไม่สำเร็จ');
+  }
+  var finalized = await gsrAsync('completeLineBroadcastUpload', {
+    role: S.role,
+    path: prepared.path,
+    contentType: file.type,
+  });
+  if (!finalized || !finalized.ok || !finalized.imageUrl) {
+    throw new Error(finalized && finalized.error ? finalized.error : 'สร้างลิงก์รูปไม่สำเร็จ');
+  }
+  return finalized.imageUrl;
+}
+
+async function doDeskSendLine() {
   var t = _dLineTarget; if (!t) return;
-  previewManualLineSend({scope:t.broadcast?'team':'member',memberName:t.name,teamName:t.teamName,title:t.broadcast?'ตรวจ Broadcast ก่อนส่ง':'ตรวจข้อความก่อนส่ง',audience:t.broadcast?'ทีม '+t.teamName:(t.nick||t.name),message:text,onConfirm:function(edited,finish,pre){var btn=document.getElementById('desk-line-send-btn');btn.disabled=true;btn.textContent='⏳ กำลังส่ง...';var action=t.broadcast?'sendLineBroadcast':'sendLineMessage',payload=t.broadcast?{role:S.role,teamName:t.teamName,message:edited,confirmed:true}:{role:S.role,memberName:t.name,message:edited,confirmed:true};if(t.broadcast&&Number(pre.recipientCount||0)>1){finish();var process=openLineBulkProcess({title:'Broadcast · ทีม '+t.teamName,recipients:pre.recipients||[],retry:function(failedIds,batchId){updateLineBulkRows(failedIds,'sending',[]);gsr('sendLineBroadcast',{role:S.role,teamName:t.teamName,memberIds:failedIds,message:edited,confirmed:true,clientBatchId:batchId},function(retryResult){if(!retryResult||!retryResult.ok)logLineBulkClientError('manual_team_broadcast_retry',batchId,failedIds,(retryResult&&retryResult.error)||'ติดต่อระบบไม่สำเร็จ');updateLineBulkRows(failedIds,'failed',retryResult&&retryResult.results||failedIds.map(function(id){return{memberId:id,status:'failed',reason:'request_error',error:(retryResult&&retryResult.error)||'ติดต่อระบบไม่สำเร็จ'};}));});}});var ids=process.rows.map(function(row){return row.memberId;});payload.clientBatchId=process.batchId;updateLineBulkRows(ids,'sending',[]);gsr(action,payload,function(r){btn.disabled=false;btn.textContent='📤 ส่ง LINE';if(!r||!r.ok)logLineBulkClientError('manual_team_broadcast',process.batchId,ids,(r&&r.error)||'ติดต่อระบบไม่สำเร็จ');updateLineBulkRows(ids,'failed',r&&r.results||ids.map(function(id){return{memberId:id,status:'failed',reason:'request_error',error:(r&&r.error)||'ติดต่อระบบไม่สำเร็จ'};}));if(r&&r.ok)closeDeskLine();});return;}gsr(action,payload,function(r){btn.disabled=false;btn.textContent='📤 ส่ง LINE';finish(r||{ok:false,error:'ส่งไม่สำเร็จ'});if(!r||!r.ok){toast((r&&r.error)||'ส่งไม่สำเร็จ','err');return;}if(!t.broadcast&&!r.sent){toast('⚠️ '+t.name+' ยังไม่ได้ลงทะเบียน LINE Bot ครับ','err');return;}toast('📲 ส่งสำเร็จ ✅','ok');closeDeskLine();});}});
+  var mode = document.getElementById('desk-line-message-type') ? document.getElementById('desk-line-message-type').value : 'text';
+  var text = (document.getElementById('desk-line-txt').value||'').trim();
+  var body = (document.getElementById('desk-line-flex-body').value||'').trim();
+  var title = (document.getElementById('desk-line-flex-title').value||'').trim();
+  var buttonLabel = (document.getElementById('desk-line-flex-button-label').value||'').trim();
+  var buttonUri = (document.getElementById('desk-line-flex-button-uri').value||'').trim();
+  var imageInput = document.getElementById('desk-line-image-file');
+  var imageFile = imageInput && imageInput.files ? imageInput.files[0] : null;
+
+  if (mode === 'text' && !text) { toast('กรุณาพิมพ์ข้อความครับ','err'); return; }
+  if (mode === 'flex' && !body) { toast('กรุณาพิมพ์รายละเอียด Flex Card','err'); return; }
+  if (mode === 'image' && !imageFile) { toast('กรุณาเลือกรูปก่อนส่ง','err'); return; }
+
+  try {
+    var btn = document.getElementById('desk-line-send-btn');
+    btn.disabled = true;
+    btn.textContent = '⏳ กำลังเตรียม...';
+
+    var payload = {
+      role: S.role,
+      teamName: t.teamName || null,
+      confirmed: true,
+      messageType: mode,
+      message: text,
+      title: title || 'M2M Announcement',
+      body: body || text,
+      buttonLabel: buttonLabel || 'เปิด',
+      buttonUri: buttonUri || '',
+      imageUrl: '',
+    };
+
+    if (mode === 'image') {
+      payload.imageUrl = await uploadDeskLineImageFile(imageFile) || '';
+    }
+
+    if (t.broadcast) {
+      previewManualLineSend({
+        scope: 'team',
+        memberName: t.name || '',
+        teamName: t.teamName || '',
+        title: 'ตรวจ Broadcast ก่อนส่ง',
+        audience: 'ทีม ' + (t.teamName || 'ทั้งหมด'),
+        message: mode === 'text' ? text : mode === 'flex' ? (body || text) : 'ส่งรูปภาพประกอบ',
+        onConfirm: function(edited, finish, pre) {
+          var finalPayload = Object.assign({}, payload, {
+            message: mode === 'text' ? edited : text,
+            body: mode === 'flex' ? (edited || body || text) : body || text,
+            imageUrl: payload.imageUrl,
+            confirmed: true,
+          });
+          if (mode === 'image') finalPayload.message = 'ภาพประกอบ';
+          var actionPayload = Object.assign({ clientBatchId: (pre && pre.batchId) || null }, finalPayload, { role: S.role });
+          if (Number(pre && pre.recipientCount || 0) > 1) {
+            finish();
+            var process = openLineBulkProcess({ title: 'Broadcast · ทีม ' + (t.teamName || 'ทั้งหมด'), recipients: pre && pre.recipients ? pre.recipients : [], retry: function(failedIds, batchId) {
+              updateLineBulkRows(failedIds, 'sending', []);
+              gsr('sendLineBroadcast', Object.assign({}, actionPayload, { memberIds: failedIds, clientBatchId: batchId }), function(retryResult) {
+                if (!retryResult || !retryResult.ok) logLineBulkClientError('manual_team_broadcast_retry', batchId, failedIds, (retryResult && retryResult.error) || 'ติดต่อระบบไม่สำเร็จ');
+                updateLineBulkRows(failedIds, 'failed', retryResult && retryResult.results || failedIds.map(function(id) { return { memberId: id, status: 'failed', reason: 'request_error', error: (retryResult && retryResult.error) || 'ติดต่อระบบไม่สำเร็จ' }; }));
+              });
+            }});
+            var ids = process.rows.map(function(row) { return row.memberId; });
+            updateLineBulkRows(ids, 'sending', []);
+            gsr('sendLineBroadcast', Object.assign({}, actionPayload, { clientBatchId: process.batchId }), function(r) {
+              btn.disabled = false;
+              btn.textContent = '📤 ส่ง LINE';
+              if (!r || !r.ok) logLineBulkClientError('manual_team_broadcast', process.batchId, ids, (r && r.error) || 'ติดต่อระบบไม่สำเร็จ');
+              updateLineBulkRows(ids, 'failed', r && r.results || ids.map(function(id) { return { memberId: id, status: 'failed', reason: 'request_error', error: (r && r.error) || 'ติดต่อระบบไม่สำเร็จ' }; }));
+              if (r && r.ok) closeDeskLine();
+            });
+            return;
+          }
+          gsr('sendLineBroadcast', actionPayload, function(r) {
+            btn.disabled = false;
+            btn.textContent = '📤 ส่ง LINE';
+            finish(r || { ok: false, error: 'ส่งไม่สำเร็จ' });
+            if (!r || !r.ok) { toast((r && r.error) || 'ส่งไม่สำเร็จ', 'err'); return; }
+            toast('ส่งสำเร็จ', 'ok');
+            closeDeskLine();
+          });
+        }
+      });
+      return;
+    }
+
+    var sendPayload = {
+      role: S.role,
+      memberName: t.name,
+      messageType: mode,
+      message: text,
+      title: title || 'M2M Announcement',
+      body: body || text,
+      buttonLabel: buttonLabel || 'เปิด',
+      buttonUri: buttonUri || '',
+      imageUrl: payload.imageUrl,
+      confirmed: true,
+    };
+    gsr('sendLineMessage', sendPayload, function(r) {
+      btn.disabled = false;
+      btn.textContent = '📤 ส่ง LINE';
+      if (!r || !r.ok) { toast((r && r.error) || 'ส่งไม่สำเร็จ', 'err'); return; }
+      toast('ส่งสำเร็จ', 'ok');
+      closeDeskLine();
+    });
+  } catch (error) {
+    var btn = document.getElementById('desk-line-send-btn');
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '📤 ส่ง LINE';
+    }
+    toast(error && error.message ? error.message : 'เกิดข้อผิดพลาดในการเตรียมส่ง', 'err');
+  }
 }
 
 function loadDeskLineMembers() {

@@ -65,6 +65,7 @@
     .oto-growth-actions button,.p121-question-actions button{padding:10px 12px}.p121-head button,.g-head button{width:44px;height:44px}
     button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #1b75d0;outline-offset:3px}
     .network-state{position:fixed;z-index:120;left:12px;right:12px;top:calc(8px + env(safe-area-inset-top));max-width:496px;margin:auto;padding:11px 14px;border-radius:12px;background:#7d2f28;color:#fff;text-align:center;font-size:13px;font-weight:700;box-shadow:0 8px 28px #0004}.network-state[hidden]{display:none}
+    .m2m-recipient-tools{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;margin:8px 0}.m2m-recipient-tools input{margin:0;min-width:0}.m2m-filter-all{min-height:44px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--ink);padding:0 11px;font:800 11px inherit}.m2m-selection{min-height:20px;margin:0 2px 8px;color:var(--muted);font-size:11px;line-height:1.45}.m2m-members{display:grid;gap:7px;max-height:280px;overflow:auto;padding:5px;border:1px solid var(--line);border-radius:14px;background:#faf8f2}.m2m-member{display:flex;align-items:center;gap:9px;margin:0;padding:11px;border-radius:11px;background:#fff;font-size:13px;transition:background .15s ease,box-shadow .15s ease}.m2m-member:has(input:checked){background:#edf5f1;box-shadow:inset 0 0 0 1px #bad5c8}.m2m-member input{width:20px;height:20px;flex:0 0 auto;padding:0}.m2m-member span{min-width:0;overflow-wrap:anywhere}.m2m-member small{margin-left:auto;color:var(--muted);font-size:10px;text-align:right}.m2m-empty{padding:20px 12px;text-align:center;color:var(--muted);font-size:12px}.m2m-preview{margin-top:14px;padding:13px;border:1px solid #d5c08d;border-radius:14px;background:#fffaf0;font-size:13px;line-height:1.6}.m2m-preview b{display:block}.m2m-preview button{width:100%;min-height:46px;margin-top:10px;border:0;border-radius:11px;background:var(--ink);color:#fff;font:800 13px inherit}.m2m-rich-config[hidden]{display:none!important}@media(max-width:390px){.m2m-recipient-tools{grid-template-columns:1fr}.m2m-filter-all{width:100%}.m2m-member small{display:none}}
     .my121-nav{grid-template-columns:repeat(6,minmax(0,1fr))}.my121-self-list{display:grid;gap:9px}.my121-self-item{padding:13px;border:1px solid var(--line);border-radius:15px;background:#fff}.my121-self-item b,.my121-self-item small{display:block}.my121-self-item small{margin-top:3px;color:var(--muted);font-size:11px;line-height:1.5}.my121-self-item-actions{display:flex;gap:7px;margin-top:10px}.my121-self-item-actions button{min-height:42px;flex:1;border-radius:10px;border:1px solid var(--ink);background:#fff;color:var(--ink);font:800 12px inherit}.my121-self-item-actions button.primary{background:var(--ink);color:#fff}.my121-self-guidance{padding:14px;border:1px dashed #bca46d;border-radius:15px;background:#fffaf0;color:#5e522f;font-size:12px;line-height:1.6}.my121-self-guidance button{width:100%;min-height:44px;margin-top:9px;border:0;border-radius:11px;background:#765d2e;color:#fff;font:800 12px inherit}
   </style>
 </head>
@@ -92,6 +93,7 @@
       <button class="tab member-tab" data-view="absence">ลา / ส่งแทน</button>
       <button class="tab member-tab" data-view="notifications">🔔 แจ้งเตือน</button>
       <button class="tab assign-tab hidden" data-view="assignments">📎 งาน</button>
+      <button class="tab lt-m2m-tab hidden" data-view="m2m">📨 M2M</button>
       <button class="tab member-tab" data-view="ceu">🎓 ปฏิทิน / การอบรม</button>
       <button class="tab member-tab" data-view="renewal">🔄 ต่ออายุ</button>
     </nav>
@@ -99,6 +101,47 @@
     <section class="card chapter-home" data-card="home">
       <div class="chapter-home-hero"><small>MY CHAPTER HOME</small><h2>วันนี้ควรทำอะไรต่อ?</h2><p>รวมเฉพาะเรื่องที่เกี่ยวกับคุณ เรียงจากสิ่งที่ควรทำก่อน</p></div>
       <div id="chapterHomeContent"><div class="loading" style="padding:28px 0">กำลังเตรียมหน้าของคุณ…</div></div>
+    </section>
+
+    <section class="card" data-card="m2m">
+      <h2>📨 Message to Member</h2>
+      <p class="hint" id="m2mRoleHint">ส่งข้อความถึงสมาชิกผ่าน MY IDEAL สำหรับ LT ที่ดำรงตำแหน่งอยู่เท่านั้น</p>
+      <div id="m2mStatus" class="status" aria-live="polite"></div>
+      <label for="m2mSenderRole">ส่งในฐานะทีม LT <span aria-hidden="true">*</span></label>
+      <select id="m2mSenderRole" onchange="m2mInvalidatePreview()"><option value="">กำลังตรวจตำแหน่ง…</option></select>
+      <label for="m2mMode">ผู้รับ</label>
+      <select id="m2mMode" onchange="m2mModeChanged()"><option value="selected">ส่งเฉพาะคน</option><option value="all">ส่งสมาชิกทุกคน</option></select>
+      <div id="m2mRecipientPicker">
+        <div class="m2m-recipient-tools"><input id="m2mMemberSearch" type="search" autocomplete="off" placeholder="ค้นหาชื่อสมาชิก…" oninput="renderM2MMembers()"><button type="button" class="m2m-filter-all" onclick="m2mToggleVisibleMembers()">เลือกทั้งหมดที่พบ</button></div>
+        <div id="m2mSelection" class="m2m-selection" aria-live="polite"></div>
+      </div>
+      <div id="m2mMembers" class="m2m-members" aria-label="เลือกสมาชิก"><div class="loading" style="padding:16px">กำลังโหลดรายชื่อ…</div></div>
+      <label for="m2mCategory">หมวด <span aria-hidden="true">*</span></label>
+      <select id="m2mCategory" required><option value="">เลือกหมวดข้อความ</option><option value="meeting">นัดหมาย / การประชุม</option><option value="training">การอบรม</option><option value="visitor">Visitor</option><option value="renewal">ต่ออายุสมาชิก</option><option value="member_support">ช่วยเหลือสมาชิก</option><option value="announcement">ประกาศจาก LT</option><option value="other">อื่น ๆ</option></select>
+      <label for="m2mSubject">หัวข้อ <span aria-hidden="true">*</span></label>
+      <input id="m2mSubject" type="text" maxlength="160" placeholder="เช่น แจ้งกำหนดการประชุมประจำสัปดาห์" oninput="m2mInvalidatePreview()">
+      <label for="m2mMessageType">รูปแบบข้อความ</label>
+      <select id="m2mMessageType" onchange="setM2MMessageType(this.value)"><option value="text">ข้อความธรรมดา</option><option value="flex">Flex Card (ประกาศสำคัญเท่านั้น)</option><option value="image">รูปภาพ</option></select>
+      <div id="m2mFlexConfig" class="m2m-rich-config" hidden style="display:grid;gap:8px;margin-top:8px">
+        <input id="m2mFlexTitle" type="text" maxlength="160" placeholder="หัวข้อบน Flex Card (เว้นว่างเพื่อใช้หัวข้อหลัก)">
+        <textarea id="m2mFlexBody" maxlength="5000" rows="4" placeholder="รายละเอียดข้อความสำหรับ Flex Card"></textarea>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <input id="m2mFlexButtonLabel" type="text" maxlength="80" placeholder="ป้ายบนปุ่ม">
+          <input id="m2mFlexButtonUri" type="url" placeholder="https://example.com">
+        </div>
+      </div>
+      <div id="m2mImageConfig" class="m2m-rich-config" hidden style="display:grid;gap:8px;margin-top:8px">
+        <input id="m2mImageFile" type="file" accept="image/jpeg,image/png,image/webp">
+        <small style="color:var(--muted)">รองรับ JPEG, PNG หรือ WebP ขนาดไม่เกิน 10 MB</small>
+        <label for="m2mImageCaption">ข้อความประกอบภาพ <small>(ไม่บังคับ)</small></label>
+        <textarea id="m2mImageCaption" maxlength="5000" rows="4" placeholder="ข้อความนี้จะส่งพร้อมภาพ"></textarea>
+      </div>
+      <div id="m2mTextConfig" class="m2m-rich-config">
+        <label for="m2mMessage">ข้อความ <span aria-hidden="true">*</span></label>
+        <textarea id="m2mMessage" maxlength="5000" placeholder="พิมพ์ข้อความที่จะส่งถึงสมาชิก"></textarea>
+      </div>
+      <button type="button" class="submit" onclick="m2mPreview()">ตรวจข้อความและผู้รับ</button>
+      <div id="m2mPreview" class="m2m-preview" hidden></div>
     </section>
 
     <section class="card chapter-directory" data-card="directory">
@@ -270,7 +313,8 @@
 <script src="/assets/js/notification-preferences.js?v=20260906.1"></script>
 <script>
 const cfg = window.BNI_LIFF_CONFIG || {};
-let accessToken = '', _role = 'member';
+let accessToken = '', _role = 'member', m2mAudience = null, m2mPreviewState = null;
+const m2mSelectedMemberIds = new Set();
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const escHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -279,7 +323,7 @@ function getRequestedAction() {
   const q = new URLSearchParams(location.search);
   if (q.get('action')) return q.get('action');
   const pathAction = location.pathname.match(
-    /\/liff\/(mentor-log|follow-up|issue|renewal|assignments|absence|ceu|121|goal|visitor|progress|directory)\/?$/,
+    /\/liff\/(mentor-log|follow-up|issue|renewal|assignments|absence|ceu|121|goal|visitor|progress|directory|m2m)\/?$/,
   );
   if (pathAction) return pathAction[1];
   const liffState = q.get('liff.state');
@@ -310,9 +354,10 @@ function show(view) {
   if (view === 'issue')       loadIssueHistory();
   if (view === 'visitor')     loadPendingVisitors();
   if (view === 'notifications') { const body=$('#notification-preferences-body'); if(body&&body.hidden) toggleNotificationPreferences(); }
+  if (view === 'm2m')         loadM2M();
 }
 
-const apiReadActions=new Set(['member-home','renewal','training-calendar','chapter-directory','chapter-directory-profile','get-my-one-to-one-system','get-my-one-to-one-history','get-my-one-to-one-profile','get-pair-121-profile','get-guided-session','get-pending-visitors','get-issues','get-issue-detail','notification-preferences','get-member-self-121']);
+const apiReadActions=new Set(['member-home','renewal','training-calendar','chapter-directory','chapter-directory-profile','get-my-one-to-one-system','get-my-one-to-one-history','get-my-one-to-one-profile','get-pair-121-profile','get-guided-session','get-pending-visitors','get-issues','get-issue-detail','notification-preferences','get-member-self-121','m2m-audience']);
 const apiLatest=new Map();
 async function api(payload,options={}) {
   const key=options.latestKey||'',requestId=crypto.randomUUID();if(key)apiLatest.set(key,requestId);
@@ -334,6 +379,171 @@ async function api(payload,options={}) {
 function updateNetworkState(){const el=$('#networkState');if(!el)return;el.hidden=navigator.onLine;if(navigator.onLine)flushOffline121();}
 addEventListener('online',updateNetworkState);addEventListener('offline',updateNetworkState);
 
+function renderM2MMembers() {
+  const box = $('#m2mMembers');
+  if (!box || !m2mAudience) return;
+  const members = Array.isArray(m2mAudience.members) ? m2mAudience.members : [];
+  const query = String($('#m2mMemberSearch')?.value || '').trim().toLocaleLowerCase('th-TH');
+  const visible = query ? members.filter(member => String(member.name || '').toLocaleLowerCase('th-TH').includes(query)) : members;
+  box.innerHTML = visible.length
+    ? visible.map(member => `<label class="m2m-member"><input type="checkbox" value="${escHtml(member.id)}" ${m2mSelectedMemberIds.has(String(member.id)) ? 'checked' : ''} onchange="m2mSetMemberSelected(this.value,this.checked)"><span>${escHtml(member.name)}</span><small>${member.lineLinked ? 'เชื่อม LINE แล้ว' : 'ยังไม่เชื่อม LINE'}</small></label>`).join('')
+    : '<div class="m2m-empty">ไม่พบชื่อสมาชิกที่ค้นหา</div>';
+  m2mUpdateSelectionSummary(visible.length, members.length);
+  const all = $('#m2mMode')?.value === 'all';
+  box.hidden = all;
+  $('#m2mRecipientPicker').hidden = all;
+}
+function m2mSetMemberSelected(memberId, selected) {
+  selected ? m2mSelectedMemberIds.add(String(memberId)) : m2mSelectedMemberIds.delete(String(memberId));
+  m2mInvalidatePreview();
+  m2mUpdateSelectionSummary();
+}
+function m2mInvalidatePreview() { m2mPreviewState = null; $('#m2mPreview').hidden = true; }
+function m2mUpdateSelectionSummary(visibleCount, totalCount) {
+  const el = $('#m2mSelection');
+  if (!el) return;
+  const allMembers = Array.isArray(m2mAudience?.members) ? m2mAudience.members : [];
+  const visible = visibleCount ?? allMembers.length;
+  const total = totalCount ?? allMembers.length;
+  el.textContent = `เลือกแล้ว ${m2mSelectedMemberIds.size.toLocaleString('th-TH')} คน · แสดง ${visible.toLocaleString('th-TH')}/${total.toLocaleString('th-TH')} คน`;
+}
+function m2mToggleVisibleMembers() {
+  const members = Array.isArray(m2mAudience?.members) ? m2mAudience.members : [];
+  const query = String($('#m2mMemberSearch')?.value || '').trim().toLocaleLowerCase('th-TH');
+  const visible = query ? members.filter(member => String(member.name || '').toLocaleLowerCase('th-TH').includes(query)) : members;
+  const select = visible.some(member => !m2mSelectedMemberIds.has(String(member.id)));
+  visible.forEach(member => select ? m2mSelectedMemberIds.add(String(member.id)) : m2mSelectedMemberIds.delete(String(member.id)));
+  m2mInvalidatePreview();
+  renderM2MMembers();
+}
+function m2mModeChanged() {
+  const all = $('#m2mMode')?.value === 'all';
+  const box = $('#m2mMembers');
+  if (!box) return;
+  box.hidden = all;
+  $('#m2mRecipientPicker').hidden = all;
+  m2mInvalidatePreview();
+}
+function hydrateM2MSenderRoles(result = m2mAudience) {
+  const senderRole = $('#m2mSenderRole');
+  if (!senderRole || !result) return;
+  const selected = senderRole.value;
+  const roles = Array.isArray(result.roles) ? result.roles : [];
+  senderRole.innerHTML = `<option value="">เลือกตำแหน่ง LT</option>${roles.map(role => `<option value="${escHtml(role)}">${escHtml(m2mRoleLabel(role))}</option>`).join('')}`;
+  senderRole.value = roles.includes(selected) ? selected : (roles.length === 1 ? roles[0] : '');
+}
+function m2mRoleLabel(role) {
+  return String(role || '').replace(/\s*(?:·|:)\s*.+$/, '').trim().toUpperCase();
+}
+async function loadM2M(force = false) {
+  const status = $('#m2mStatus');
+  if (!force && m2mAudience) { hydrateM2MSenderRoles(); renderM2MMembers(); return; }
+  if (status) status.textContent = 'กำลังตรวจสิทธิ์ LT และโหลดรายชื่อ…';
+  const result = await api({ action: 'm2m-audience' }, { latestKey: 'm2m-audience' });
+  if (!result.ok) {
+    if (status) { status.className = 'status err'; status.textContent = result.error || 'ไม่สามารถเปิด M2M ได้'; }
+    return;
+  }
+  m2mAudience = result;
+  $('[data-view="m2m"]')?.classList.remove('hidden');
+  hydrateM2MSenderRoles(result);
+  if (status) { status.className = 'status ok'; status.textContent = `LT: ${(result.roles || []).map(m2mRoleLabel).map(escHtml).join(', ')}`; }
+  renderM2MMembers();
+}
+function setM2MMessageType(mode) {
+  const textConfig = $('#m2mTextConfig');
+  const flexConfig = $('#m2mFlexConfig');
+  const imageConfig = $('#m2mImageConfig');
+  if (textConfig) textConfig.hidden = mode !== 'text';
+  if (flexConfig) flexConfig.hidden = mode !== 'flex';
+  if (imageConfig) imageConfig.hidden = mode !== 'image';
+  m2mInvalidatePreview();
+}
+async function uploadM2MImageFile(file) {
+  const allowed = new Set(['image/jpeg', 'image/png', 'image/webp']);
+  if (!file || !allowed.has(file.type)) throw new Error('รองรับเฉพาะ JPEG, PNG หรือ WebP');
+  if (file.size > 10 * 1024 * 1024) throw new Error('รูปต้องมีขนาดไม่เกิน 10 MB');
+  const prepared = await api({ action: 'prepare-m2m-upload', fileName: file.name, contentType: file.type });
+  if (!prepared.ok) throw new Error(prepared.error || 'เตรียมอัปโหลดรูปไม่สำเร็จ');
+  const upload = await fetch(prepared.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+  if (!upload.ok) throw new Error('อัปโหลดรูปไม่สำเร็จ');
+  const completed = await api({ action: 'complete-m2m-upload', path: prepared.path, contentType: file.type });
+  if (!completed.ok || !completed.imageUrl || !completed.path) throw new Error(completed.error || 'สร้างลิงก์รูปไม่สำเร็จ');
+  return { imageUrl: completed.imageUrl, imagePath: completed.path };
+}
+function m2mPayload() {
+  const audienceMode = $('#m2mMode')?.value === 'all' ? 'all' : 'selected';
+  const messageType = String($('#m2mMessageType')?.value || 'text');
+  const imageFile = $('#m2mImageFile')?.files?.[0] || null;
+  return {
+    audienceMode,
+    memberIds: audienceMode === 'all' ? [] : [...m2mSelectedMemberIds],
+    senderRole: String($('#m2mSenderRole')?.value || ''),
+    category: String($('#m2mCategory')?.value || ''),
+    subject: String($('#m2mSubject')?.value || '').trim(),
+    messageType,
+    message: messageType === 'image'
+      ? String($('#m2mImageCaption')?.value || '').trim()
+      : String($('#m2mMessage')?.value || '').trim(),
+    title: String($('#m2mFlexTitle')?.value || '').trim(),
+    body: String($('#m2mFlexBody')?.value || '').trim(),
+    buttonLabel: String($('#m2mFlexButtonLabel')?.value || '').trim(),
+    buttonUri: String($('#m2mFlexButtonUri')?.value || '').trim(),
+    imageFile,
+  };
+}
+async function m2mPreview() {
+  const payload = m2mPayload();
+  const preview = $('#m2mPreview');
+  const status = $('#m2mStatus');
+  const missingContent = payload.messageType === 'text' ? !payload.message
+    : payload.messageType === 'flex' ? !payload.body : !payload.imageFile;
+  if (!payload.senderRole || !payload.category || !payload.subject || missingContent || (payload.audienceMode === 'selected' && !payload.memberIds.length)) {
+    if (status) { status.className = 'status err'; status.textContent = 'เลือกตำแหน่ง LT ผู้รับ หมวด หัวข้อ และกรอกข้อมูลให้ครบก่อนตรวจ'; }
+    return;
+  }
+  if (status) { status.className = 'status'; status.textContent = 'กำลังตรวจข้อความและผู้รับ…'; }
+  if (payload.messageType === 'image') {
+    try {
+      const uploaded = await uploadM2MImageFile(payload.imageFile);
+      payload.imageUrl = uploaded.imageUrl;
+      payload.imagePath = uploaded.imagePath;
+      delete payload.imageFile;
+    } catch (error) {
+      if (status) { status.className = 'status err'; status.textContent = error instanceof Error ? error.message : 'อัปโหลดรูปไม่สำเร็จ'; }
+      return;
+    }
+  }
+  const result = await api({ action: 'preview-m2m', ...payload });
+  if (!result.ok) {
+    if (status) { status.className = 'status err'; status.textContent = result.error || 'ตรวจข้อความไม่สำเร็จ'; }
+    return;
+  }
+  m2mPreviewState = { ...payload, previewId: result.previewId };
+  if (status) { status.className = 'status ok'; status.textContent = 'ตรวจสอบแล้ว — กดส่งเพื่อยืนยัน'; }
+  preview.hidden = false;
+  const recipients = Array.isArray(result.recipients) ? result.recipients : [];
+  const recipientList = recipients.map(person => `<li>${escHtml(person.name || 'สมาชิก')}${person.deliveryEligible ? '' : ' <small>(ยังส่งไม่ได้)</small>'}</li>`).join('');
+  preview.innerHTML = `<b>ส่งในฐานะทีม LT: ${escHtml(m2mRoleLabel(payload.senderRole))}</b><span>หัวข้อ: ${escHtml(payload.subject)}</span><span>พร้อมส่ง ${Number(result.recipientCount || 0).toLocaleString('th-TH')} คน · ปิดรับข้อความ ${Number(result.mutedCount || 0).toLocaleString('th-TH')} คน · ยังไม่เชื่อม LINE ${Number(result.unavailableCount || 0).toLocaleString('th-TH')} คน</span><details><summary>ตรวจรายชื่อผู้รับทั้งหมด (${recipients.length.toLocaleString('th-TH')} คน)</summary><ul style="max-height:220px;overflow:auto;margin:8px 0;padding-left:20px">${recipientList || '<li>ไม่พบผู้รับ</li>'}</ul></details><small>ระบบจะส่งเฉพาะเมื่อคุณยืนยัน และบันทึกผลการส่งไว้ในระบบ</small><button type="button" onclick="m2mSend()">ยืนยันส่งข้อความ</button>`;
+}
+async function m2mSend() {
+  if (!m2mPreviewState) return;
+  if (!confirm('ยืนยันส่งข้อความตาม Preview นี้?')) return;
+  const preview = $('#m2mPreview');
+  const status = $('#m2mStatus');
+  const button = preview?.querySelector('button');
+  if (button) { button.disabled = true; button.textContent = 'กำลังส่ง…'; }
+  const result = await api({ action: 'send-m2m', ...m2mPreviewState, confirmed: true, clientBatchId: crypto.randomUUID() });
+  if (!result.ok) {
+    if (status) { status.className = 'status err'; status.textContent = result.error || 'ส่งข้อความไม่สำเร็จ'; }
+    if (button) { button.disabled = false; button.textContent = 'ยืนยันส่งข้อความ'; }
+    return;
+  }
+  m2mPreviewState = null;
+  if (status) { status.className = 'status ok'; status.textContent = `ส่งแล้ว ${result.sent || 0} คน · ซ้ำ ${result.skipped || 0} คน · ปิดรับ ${result.muted || 0} คน · ส่งไม่สำเร็จ ${result.failed || 0} คน`; }
+  if (preview) preview.hidden = true;
+}
+
 let ceuCalendarLoaded=false;
 async function loadCeuCalendar(force=false){
   const box=$('#ceuCalendar');if(!box||ceuCalendarLoaded&&!force)return;
@@ -343,10 +553,10 @@ async function loadCeuCalendar(force=false){
   if(!r.ok){box.innerHTML=`<div class="oto-history-empty">${escHtml(r.error||'โหลดปฏิทินไม่สำเร็จ')}<br><button type="button" class="oto-history-refresh" style="margin-top:10px" onclick="loadCeuCalendar(true)">ลองใหม่</button></div>`;return;}
   ceuCalendarLoaded=true;const events=r.events||[];
   if(!events.length){box.innerHTML='<div class="oto-history-empty">ยังไม่มีรอบเรียน CEU ที่ประกาศในขณะนี้<br><small>กลับมาตรวจสอบใหม่ได้จาก Rich Menu</small></div>';return;}
-  box.innerHTML='<div style="display:grid;gap:10px;min-width:0">'+events.map(e=>{const date=new Date(`${e.eventDate}T00:00:00`),dateText=Number.isNaN(date.getTime())?e.eventDate:date.toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short',year:'numeric'}),time=[e.timeStart,e.timeEnd].filter(Boolean).join('–'),details=[e.isOnline?'ออนไลน์':'เรียนที่สถานที่',e.location,time,e.priceThb?`${Number(e.priceThb).toLocaleString('th-TH')} บาท`:'' ].filter(Boolean),start=String(e.eventDate||'').replaceAll('-','')+'T'+String(e.timeStart||'09:00').replace(':','')+'00',end=String(e.eventDate||'').replaceAll('-','')+'T'+String(e.timeEnd||e.timeStart||'17:00').replace(':','')+'00',calendar=`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(e.name||'CEU Training')}&dates=${start}/${end}&details=${encodeURIComponent(e.note||'BNI CEU Training')}&location=${encodeURIComponent(e.location||'')}`;return `<article style="min-width:0;overflow:hidden;border:1px solid var(--line);border-radius:15px;background:#fff;padding:14px"><div style="display:flex;justify-content:space-between;gap:10px;min-width:0"><div style="min-width:0;overflow-wrap:anywhere"><small style="color:var(--gold);font-weight:800">${escHtml(dateText)}</small><h3 style="font-size:15px;margin:4px 0;overflow-wrap:anywhere">${escHtml(e.name||'CEU Training')}</h3></div>${Number(e.ceu||0)>0?`<b style="white-space:nowrap;color:#1f5c50">+${Number(e.ceu)} CEU</b>`:''}</div><p style="font-size:12px;color:var(--muted);margin:5px 0;overflow-wrap:anywhere">${details.map(escHtml).join(' · ')}</p>${e.note?`<p style="font-size:12px;line-height:1.55;margin:8px 0;overflow-wrap:anywhere">${escHtml(e.note)}</p>`:''}<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px"><button type="button" onclick="saveTrainingInterest('${escHtml(e.id)}','interested',this)" style="border:0;border-radius:10px;background:#e8f5ef;color:#175d4e;padding:11px;font-weight:800">สนใจหลักสูตรนี้</button><button type="button" onclick="saveTrainingInterest('${escHtml(e.id)}','need_details',this)" style="border:1px solid var(--line);border-radius:10px;background:#fff;padding:11px;font-weight:800">ขอรายละเอียด</button></div><a href="${calendar}" target="_blank" rel="noopener" style="display:block;margin-top:7px;border-radius:10px;background:var(--ink);color:#fff;padding:11px;text-align:center;text-decoration:none;font-size:12px;font-weight:800">เพิ่มลง Google Calendar</a><small style="display:block;margin-top:7px;color:var(--muted)">ระบบจะส่งข้อมูลให้ ST / NEC เมื่อคุณกดเลือกเท่านั้น</small></article>`;}).join('')+'</div>';
+  box.innerHTML='<div style="display:grid;gap:10px;min-width:0">'+events.map(e=>{const date=new Date(`${e.eventDate}T00:00:00`),dateText=Number.isNaN(date.getTime())?e.eventDate:date.toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short',year:'numeric'}),time=[e.timeStart,e.timeEnd].filter(Boolean).join('–'),details=[e.isOnline?'ออนไลน์':'เรียนที่สถานที่',e.location,time,e.priceThb?`${Number(e.priceThb).toLocaleString('th-TH')} บาท`:'' ].filter(Boolean),start=String(e.eventDate||'').replaceAll('-','')+'T'+String(e.timeStart||'09:00').replace(':','')+'00',end=String(e.eventDate||'').replaceAll('-','')+'T'+String(e.timeEnd||e.timeStart||'17:00').replace(':','')+'00',calendar=`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(e.name||'CEU Training')}&dates=${start}/${end}&details=${encodeURIComponent(e.note||'BNI CEU Training')}&location=${encodeURIComponent(e.location||'')}`;return `<article style="min-width:0;overflow:hidden;border:1px solid var(--line);border-radius:15px;background:#fff;padding:14px"><div style="display:flex;justify-content:space-between;gap:10px;min-width:0"><div style="min-width:0;overflow-wrap:anywhere"><small style="color:var(--gold);font-weight:800">${escHtml(dateText)}</small><h3 style="font-size:15px;margin:4px 0;overflow-wrap:anywhere">${escHtml(e.name||'CEU Training')}</h3></div>${Number(e.ceu||0)>0?`<b style="white-space:nowrap;color:#1f5c50">+${Number(e.ceu)} CEU</b>`:''}</div><p style="font-size:12px;color:var(--muted);margin:5px 0;overflow-wrap:anywhere">${details.map(escHtml).join(' · ')}</p>${e.note?`<p style="font-size:12px;line-height:1.55;margin:8px 0;overflow-wrap:anywhere">${escHtml(e.note)}</p>`:''}<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px"><button type="button" onclick="saveTrainingInterest('${escHtml(e.id)}','interested',this)" style="border:0;border-radius:10px;background:#e8f5ef;color:#175d4e;padding:11px;font-weight:800">สนใจหลักสูตรนี้</button><button type="button" onclick="saveTrainingInterest('${escHtml(e.id)}','need_details',this)" style="border:1px solid var(--line);border-radius:10px;background:#fff;padding:11px;font-weight:800">ขอรายละเอียด</button></div><a href="${calendar}" target="_blank" rel="noopener" style="display:block;margin-top:7px;border-radius:10px;background:var(--ink);color:#fff;padding:11px;text-align:center;text-decoration:none;font-size:12px;font-weight:800">เพิ่มลง Google Calendar</a><small style="display:block;margin-top:7px;color:var(--muted)">เมื่อกดเลือก ระบบจะบันทึกคำขอและแจ้ง ST / NEC ตามการตั้งค่าผู้รับ</small></article>`;}).join('')+'</div>';
 }
 
-async function saveTrainingInterest(eventId,intent,btn){if(!eventId)return alert('ไม่พบรหัสหลักสูตร กรุณารีเฟรช');const old=btn.textContent;btn.disabled=true;btn.textContent='กำลังส่ง…';const r=await api({action:'training-interest',eventId,intent});btn.disabled=false;btn.textContent=r.ok?'ส่งแล้ว ✓':old;if(!r.ok)alert(r.error||'บันทึกไม่สำเร็จ');else alert(r.message);}
+async function saveTrainingInterest(eventId,intent,btn){if(!eventId)return alert('ไม่พบรหัสหลักสูตร กรุณารีเฟรช');const old=btn.textContent;btn.disabled=true;btn.textContent='กำลังส่ง…';const r=await api({action:'training-interest',eventId,intent});btn.disabled=false;btn.textContent=r.ok?(Number(r.delivery?.sent||0)>0?'แจ้งแล้ว ✓':'บันทึกแล้ว ✓'):old;if(!r.ok)alert(r.error||'บันทึกไม่สำเร็จ');else alert(r.message);}
 
 const offline121Key='bni:121:offline-actions';
 function offline121Actions(){try{return JSON.parse(localStorage.getItem(offline121Key)||'[]');}catch{return[];}}
@@ -357,6 +567,24 @@ updateNetworkState();
 function liffLoginRedirectUrl(){
   const action=getRequestedAction()||'121';
   const q=new URLSearchParams({action});const section=getRequestedParam('section');if(action==='121'&&my121Pages?.has(section))q.set('section',section);return `${location.origin}/liff/?${q}`;
+}
+
+async function openBlueprintFromRichMenu(){
+  const loading=$('#loading');
+  if(loading)loading.innerHTML='<div class="loading" style="padding:32px 0">กำลังเปิด Blueprint ส่วนตัวของคุณ…</div>';
+  const result=await api({action:'member-blueprint-link'});
+  if(!result.ok||!result.openUrl){
+    if(loading)loading.innerHTML=`<div style="text-align:center;padding:24px 8px;color:var(--red)">${escHtml(result.error||'สร้างลิงก์ Blueprint ไม่สำเร็จ')}<br><button type="button" onclick="openBlueprintFromRichMenu()" style="margin-top:12px">ลองใหม่</button></div>`;
+    return false;
+  }
+  let target;
+  try{target=new URL(result.openUrl,location.origin);}catch{target=null;}
+  if(!target||target.origin!==location.origin||target.pathname!=='/member-success-blueprint'){
+    if(loading)loading.innerHTML='<div style="text-align:center;padding:24px 8px;color:var(--red)">ลิงก์ Blueprint ไม่ผ่านการตรวจสอบ กรุณาลองใหม่จาก Rich Menu</div>';
+    return false;
+  }
+  location.replace(target.href);
+  return true;
 }
 
 async function loadRenewal() {
@@ -807,6 +1035,10 @@ async function init() {
         : `<div style="text-align:center;padding:24px 8px;color:var(--red)">${r.error}</div>`;
       return;
     }
+    if(getRequestedAction()==='blueprint'&&q.get('preview')!=='1'){
+      await openBlueprintFromRichMenu();
+      return;
+    }
     _role = r.role || 'member';
     $('#welcome').textContent = `สวัสดี คุณ${r.member.nickname || r.member.name}`;
     $('#score').textContent = Math.round(r.dashboard?.display_score || 0);
@@ -832,10 +1064,21 @@ async function init() {
     if (window._cachedAssignments?.length) {
       $('[data-view="assignments"]')?.classList.remove('hidden');
     }
+    // M2M is separately authorized on the server. A failed probe only leaves the
+    // LT-only entry point hidden; it must never block the normal member workspace.
+    if (q.get('preview') !== '1') {
+      const m2m = await api({ action: 'm2m-audience' }, { latestKey: 'm2m-audience' });
+      if (m2m.ok) {
+        m2mAudience = m2m;
+        $('[data-view="m2m"]')?.classList.remove('hidden');
+        hydrateM2MSenderRoles(m2m);
+      }
+    }
     $('#loading').hidden = true;
     $('#app').hidden = false;
     if(q.get('preview')!=='1'){checkLineFriendship();flushOffline121();window.addEventListener('online',flushOffline121);}
-    const defaultView = getRequestedAction() || 'home';
+    const requestedView = getRequestedAction() || 'home';
+    const defaultView = requestedView === 'm2m' && !m2mAudience ? 'home' : requestedView;
     show(defaultView);
     if(defaultView==='121')setTimeout(()=>openMy121Tour(false),180);
     if(q.get('preview')!=='1'&&q.get('visitor_token'))setTimeout(()=>consumeVisitorToken(q.get('visitor_token')),120);
