@@ -648,12 +648,18 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       const denied = memberAccessError(auth, access.member, { allowGrowth: true });
       if (denied) return errResponse(denied, 403);
       const year = Number(p.blueprintYear || new Date().getFullYear());
-      const [profileQ, planQ, tasksQ] = await Promise.all([
+      // Growth may compare the member's planning years, but this remains a
+      // deliberately small DTO: no Mentor record, MY121 prose, or free-text
+      // history is added to the Mobile member view.
+      const blueprintYears = Array.from(new Set([2026, 2027, year]));
+      const [profileQ, planQ, tasksQ, blueprintPlansQ, annualGoalsQ] = await Promise.all([
         db.from('member_one_to_one_profiles').select('business_summary,looking_for,ideal_client,referral_trigger,good_referral,updated_at,share_business,share_referral_focus').eq('member_id', memberId).maybeSingle(),
         db.from('member_success_blueprints').select('looking_for_categories,looking_for_detail,power_team_categories,power_team_detail,updated_at,status').eq('member_id', memberId).eq('blueprint_year', year).maybeSingle(),
         db.from('growth_tasks').select('id,task_text,task_type,status,due_date,created_at,assigned_owner_name,assigned_owner_email').eq('chapter_id', scope.chapterId).eq('member_id', memberId).in('status', ['new','accepted','in_progress','waiting_member']).order('created_at', { ascending: false }).limit(5),
+        db.from('member_success_blueprints').select('blueprint_year,status,expected_sales_from_bni_year,referral_needed,referral_per_month,referral_per_week,quality_121_target_per_week,updated_at').eq('member_id', memberId).in('blueprint_year', blueprintYears).order('blueprint_year', { ascending: true }),
+        db.from('member_annual_growth_goals').select('goal_year,goal_thb,goal_type,source_file').eq('member_id', memberId).in('goal_year', blueprintYears).eq('goal_type', 'bni_revenue').order('goal_year', { ascending: true }),
       ]);
-      const errors = [profileQ, planQ, tasksQ].filter(q => q.error).map(q => q.error?.message).filter(Boolean);
+      const errors = [profileQ, planQ, tasksQ, blueprintPlansQ, annualGoalsQ].filter(q => q.error).map(q => q.error?.message).filter(Boolean);
       const profile = (profileQ.data || {}) as Record<string, unknown>;
       const plan = (planQ.data || {}) as Record<string, unknown>;
       const consentBusiness = profile.share_business !== false;
@@ -664,6 +670,32 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       const categoryAllowed = (category: string, type: string) => consentReferral || ((explicitCategoryRows || []) as Record<string, unknown>[]).some(row => String(row.category_type) === type && String(row.category).toLowerCase() === category.toLowerCase());
       const profileUpdatedAt = String(profile.updated_at || plan.updated_at || '');
       const stale = profileUpdatedAt ? Date.now() - new Date(profileUpdatedAt).getTime() > 180 * 86400000 : true;
+      const historicalGoals = new Map(((annualGoalsQ.data || []) as Record<string, unknown>[]).map(row => [Number(row.goal_year), row]));
+      const planByYear = new Map(((blueprintPlansQ.data || []) as Record<string, unknown>[]).map(row => [Number(row.blueprint_year), row]));
+      // 2026 was imported from the approved historical goal file, so it may
+      // have no member-authored Blueprint row.  Preserve that distinction in
+      // the DTO rather than falsely reporting it as a draft submission.
+      const blueprints = Array.from(new Set([...planByYear.keys(), ...historicalGoals.keys()])).sort().map((blueprintYear) => {
+        const row = planByYear.get(blueprintYear) || {} as Record<string, unknown>;
+        const historical = historicalGoals.get(blueprintYear) as Record<string, unknown> | undefined;
+        const target = blueprintYear === 2026 && historical
+          ? historical.goal_thb
+          : row.expected_sales_from_bni_year;
+        return {
+          year: blueprintYear,
+          status: row.status ? String(row.status) : 'historical',
+          // Financial targets are business data.  Return nothing when the
+          // member has not granted business sharing; status remains safe
+          // operational metadata for a Growth follow-up.
+          businessTargetThb: consentBusiness && target != null ? Number(target) : null,
+          referralNeeded: consentBusiness && consentReferral && row.referral_needed != null ? Number(row.referral_needed) : null,
+          referralPerMonth: consentBusiness && consentReferral && row.referral_per_month != null ? Number(row.referral_per_month) : null,
+          referralPerWeek: consentBusiness && consentReferral && row.referral_per_week != null ? Number(row.referral_per_week) : null,
+          quality121TargetPerWeek: consentBusiness && row.quality_121_target_per_week != null ? Number(row.quality_121_target_per_week) : null,
+          updatedAt: row.updated_at || null,
+          source: blueprintYear === 2026 && historical ? String(historical.source_file || 'historical_goal') : 'blueprint',
+        };
+      });
       return jsonResponse({
         ok: true,
         member: { id: String((member as Record<string, unknown>).id), name: String((member as Record<string, unknown>).name || ''), nickname: String((member as Record<string, unknown>).nickname || ''), profession: String((member as Record<string, unknown>).profession || ''), company: String((member as Record<string, unknown>).company_name || '') },
@@ -684,6 +716,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         // Same rule as getGrowthTasks: retain workflow metadata, hide
         // historical prose once full referral sharing is not currently active.
         followUps: (tasksQ.data || []).map((task: Record<string, unknown>) => ({ id: String(task.id), text: Boolean(profileQ.data) && profile.share_referral_focus === true ? String(task.task_text || '') : '', type: String(task.task_type || ''), status: String(task.status || ''), dueDate: task.due_date || null, owner: task.assigned_owner_name || null })),
+        blueprints,
         partial: errors.length > 0,
         unavailable: errors,
         privacy: 'Growth context excludes Mentor logs, reviews, notes, contact details, GAINS, and private coaching data.',

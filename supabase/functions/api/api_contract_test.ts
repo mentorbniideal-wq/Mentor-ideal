@@ -208,8 +208,11 @@ Deno.test('Growth Mobile uses the shared, privacy-minimised member context contr
   assert(contract.includes('resolveChapterScope') && contract.includes("eq('chapter_id', scope.chapterId)"), 'Growth context must derive and enforce Chapter scope');
   assert(contract.includes('Growth context excludes Mentor logs, reviews, notes'), 'Growth context must document private-field exclusion');
   assert(!contract.includes('mentor_logs') && !contract.includes('member_notes') && !contract.includes('ninety_day_reviews'), 'Growth context must not query Mentor-private records');
+  assert(contract.includes('member_annual_growth_goals') && contract.includes('blueprintYears'), 'Growth context must support the historical 2026 goal and current Blueprint comparison without using Member Detail');
+  assert(contract.includes('businessTargetThb') && contract.includes('consentBusiness'), 'Growth 360 financial targets must remain consent-aware');
+  assert(contract.includes("status: row.status ? String(row.status) : 'historical'"), 'historical goals without a Blueprint submission must not be mislabelled as drafts');
   assert(page.includes('/assets/js/growth-mobile-ops.js'), 'the privacy-safe operational layer must be loaded by Growth Mobile');
-  assert(mobile.includes("api('getGrowthMemberContext'") && !baseMobile.includes("api('getMemberDetail'"), 'every loaded Growth Mobile member-card path must use the privacy-minimised contract');
+  assert(mobile.includes("api('getGrowthMemberContext'") && mobile.includes("api('getSharedMemberSupportContext'") && !baseMobile.includes("api('getMemberDetail'"), 'every loaded Growth Mobile member-card path must use only privacy-minimised contracts');
   assert(mobile.includes('window.growthMobileState') && mobile.includes('window.growthMobileApi') && mobile.includes("replace(/[&<>\"']/g"), 'Growth extension must use the explicit base-Mobile interface rather than private helpers');
 });
 
