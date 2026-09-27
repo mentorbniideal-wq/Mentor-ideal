@@ -38,10 +38,13 @@ Deno.test('Growth Mobile derives controls from server-returned capabilities', as
   const mobile = await source('public/assets/js/growth-mobile.js');
   const ops = await source('public/assets/js/growth-mobile-ops.js');
   const mobile2 = await source('public/assets/js/growth-mobile2.js');
+  const growth = await source('supabase/functions/api/handlers/growth.ts');
   assert(mobile.includes('function applyAccess(r)') && mobile.includes("function canCoordinate(){return hasCap('growth.coordinate');}"));
-  assert(mobile.includes('canManageAssigned()?') && mobile.includes('data-accept-handoff'));
+  assert(mobile.includes('canManageAssigned()&&t.isAssignedOwner===true') && mobile.includes('data-accept-handoff'));
   assert(ops.includes('window.growthMobileCanCoordinate') && ops.includes('button.remove()'));
   assert(mobile2.includes('เฉพาะ Growth Coordinator เท่านั้นที่สร้างและมอบหมาย Task'));
+  assert(mobile.includes('t.isAssignedOwner===true'));
+  assert(growth.includes('isAssignedOwner: String(t.assigned_owner_email'));
 });
 
 Deno.test('matching uses active explicit categories after referral sharing is disabled', async () => {

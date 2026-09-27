@@ -1569,6 +1569,9 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         dueDate:     t.due_date || null,
         assignedOwnerEmail: t.assigned_owner_email || '',
         assignedOwnerName: t.assigned_owner_name || '',
+        // UI hint only: mutations still re-check capability, OAuth owner and
+        // server-derived Chapter scope in respondGrowthTask.
+        isAssignedOwner: String(t.assigned_owner_email || '').toLowerCase() === String(auth.email || '').toLowerCase(),
         memberId: t.member_id || null,
         response:    allowText ? t.response || '' : '',
         respondedAt: t.responded_at ? String(t.responded_at).split('T')[0] : '',
