@@ -1,0 +1,29 @@
+-- Phase 0 fixture cleanup. STAGING ONLY. Review with SELECTs before execution.
+BEGIN;
+
+DELETE FROM public.growth_task_stage_events
+WHERE chapter_id IN ('00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000b1');
+DELETE FROM public.growth_tasks
+WHERE chapter_id IN ('00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000b1');
+DELETE FROM public.member_signals
+WHERE idempotency_key LIKE 'TEST_phase0_%';
+DELETE FROM public.mentor_logs
+WHERE notes LIKE 'TEST_PRIVATE_MENTOR_NOTE%';
+DELETE FROM public.role_assignments
+WHERE email LIKE 'test.%@synthetic.invalid';
+DELETE FROM public.chapter_memberships
+WHERE email LIKE 'test.%@synthetic.invalid';
+DELETE FROM public.members
+WHERE id IN (
+  '00000000-0000-4000-8000-00000000a101', '00000000-0000-4000-8000-00000000a102',
+  '00000000-0000-4000-8000-00000000a103', '00000000-0000-4000-8000-00000000a104',
+  '00000000-0000-4000-8000-00000000a105', '00000000-0000-4000-8000-00000000a106',
+  '00000000-0000-4000-8000-00000000b101'
+);
+DELETE FROM public.mentor_teams
+WHERE name IN ('TEST_MENTOR_TEAM_A', 'TEST_MENTOR_TEAM_B');
+DELETE FROM public.chapter_profiles
+WHERE id IN ('00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000b1')
+  AND chapter_key IN ('test-chapter-a', 'test-chapter-b');
+
+COMMIT;
