@@ -32,10 +32,14 @@ export function growthMilestone(month: number, isNew: boolean): { label: string;
   return null;
 }
 
+export function canReadGrowthCycle(subject: { email?: string }): boolean {
+  return Boolean(subject.email);
+}
+
 export function canManageGrowthCycle(subject: { email?: string; isAdmin?: boolean; isReadOnly?: boolean; isViewer?: boolean; capabilities?: string[] }): boolean {
   if (!subject.email || subject.isReadOnly || subject.isViewer) return false;
   return Boolean(subject.isAdmin || (subject.capabilities || []).some(capability =>
-    capability === '*' || capability === 'growth.coordinate' || capability === 'growth.cycle.manage'));
+    capability === '*' || capability === 'growth.coordinate'));
 }
 
 export function achievementPercent(actual: unknown, target: unknown): number | null {

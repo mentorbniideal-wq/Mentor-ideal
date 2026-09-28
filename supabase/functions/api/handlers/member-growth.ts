@@ -2,7 +2,7 @@ import { requireAuth } from '../../_shared/auth.ts';
 import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
 import { CAPABILITY, hasCapability } from '../../_shared/capabilities.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
-import { canManageGrowthCycle, cycleMonth, growthMilestone, monthDueDate, parseDateOnly, renewalCycleStatus, todayInZone } from '../../_shared/member-growth-cycle.ts';
+import { canManageGrowthCycle, canReadGrowthCycle, cycleMonth, growthMilestone, monthDueDate, parseDateOnly, renewalCycleStatus, todayInZone } from '../../_shared/member-growth-cycle.ts';
 
 type Row = Record<string, unknown>;
 const uuid = (value: unknown) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ''));
@@ -28,6 +28,7 @@ export async function handleMemberGrowth(p: Record<string, unknown>): Promise<Re
   const db = getServiceClient();
   const auth = await requireAuth(db, p, ['growth', 'mc']);
   if (!auth.ok) return errResponse(auth.error!);
+  if (!canReadGrowthCycle(auth)) return errResponse('Member Growth ต้องเข้าสู่ระบบด้วย OAuth email ที่ตั้งค่าไว้ใน Access', 403);
   const scope = await resolveChapterScope(db, auth);
   if (!scope.ok) return errResponse(scope.error, 403);
   const chapterId = scope.chapterId;

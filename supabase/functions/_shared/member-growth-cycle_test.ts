@@ -1,5 +1,5 @@
 import { assertEquals } from 'jsr:@std/assert';
-import { achievementPercent, canManageGrowthCycle, cycleMonth, growthMilestone, monthDueDate, parseDateOnly, renewalCycleStatus, todayInZone } from './member-growth-cycle.ts';
+import { achievementPercent, canManageGrowthCycle, canReadGrowthCycle, cycleMonth, growthMilestone, monthDueDate, parseDateOnly, renewalCycleStatus, todayInZone } from './member-growth-cycle.ts';
 
 Deno.test('Growth Cycle always has exactly twelve stable month labels', () => {
   const dates = Array.from({ length: 12 }, (_, index) => monthDueDate('2027-01-31', index + 1));
@@ -30,11 +30,13 @@ Deno.test('Month 3 is Mentor-only for new members; core milestones keep owners',
 });
 
 Deno.test('Growth Cycle writes require a signed-in named actor and explicit capability', () => {
+  assertEquals(canReadGrowthCycle({}), false);
+  assertEquals(canReadGrowthCycle({ email: 'growth@example.test' }), true);
   assertEquals(canManageGrowthCycle({ email: 'growth@example.test', capabilities: [] }), false);
   assertEquals(canManageGrowthCycle({ email: 'growth@example.test', capabilities: ['growth.task.manage_assigned'] }), false);
-  assertEquals(canManageGrowthCycle({ email: 'growth@example.test', capabilities: ['growth.cycle.manage'] }), true);
+  assertEquals(canManageGrowthCycle({ email: 'growth@example.test', capabilities: ['growth.cycle.manage'] }), false);
   assertEquals(canManageGrowthCycle({ email: 'coordinator@example.test', capabilities: ['growth.coordinate'] }), true);
-  assertEquals(canManageGrowthCycle({ email: 'growth@example.test', capabilities: ['growth.cycle.manage'], isReadOnly: true }), false);
+  assertEquals(canManageGrowthCycle({ email: 'coordinator@example.test', capabilities: ['growth.coordinate'], isReadOnly: true }), false);
   assertEquals(canManageGrowthCycle({ capabilities: ['growth.coordinate'] }), false);
 });
 
