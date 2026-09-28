@@ -1,11 +1,28 @@
 // Handler: growth — getRiskMembers, getWeeklyActions, getGrowthData, etc.
-import { requireAuth } from '../../_shared/auth.ts';
+import { requireAuth, type AuthResult } from '../../_shared/auth.ts';
 import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { findEvolutionAverageColumn } from '../../_shared/traffic-evolution.ts';
 import { calcPalmsScore } from '../../_shared/palms.ts';
 import { getMentorActivityData } from './dashboard.ts';
 import { buildGrowthIntelligence } from '../../_shared/growth-intelligence.ts';
+import { linePush, sha256Hex } from '../../_shared/line.ts';
+import { evaluateNotificationGuard, logSuppressedNotification } from '../../_shared/notification-orchestrator.ts';
+import { resolveMsbPlanningYear } from '../../_shared/msb-planning-year.ts';
+
+// A shared Growth PIN or a generic Growth role cannot identify a current LT
+// sender. Resolve the OAuth member against the Chapter's active LT roster.
+async function authorizeGrowthLineSender(db: ReturnType<typeof getServiceClient>, auth: AuthResult, chapterId: string): Promise<string | null> {
+  if (auth.role !== 'growth' || !auth.email || !auth.memberId || auth.isReadOnly || auth.isViewer) return 'เฉพาะ Growth Lead/Co-Lead ที่เข้าสู่ระบบด้วย Google เท่านั้น';
+  const dateKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const { data: terms, error: termError } = await db.from('lt_terms').select('id').eq('chapter_id', chapterId).eq('status', 'active').lte('starts_on', dateKey).gte('ends_on', dateKey);
+  if (termError) return 'ตรวจสอบวาระ LT ไม่สำเร็จ';
+  const termIds = ((terms || []) as Record<string, unknown>[]).map(row => String(row.id));
+  if (!termIds.length) return 'ยังไม่มีวาระ LT ที่ใช้งานอยู่';
+  const { data: assignment, error } = await db.from('lt_growth_team_members').select('position').eq('chapter_id', chapterId).eq('member_id', auth.memberId).in('term_id', termIds).in('position', ['lead', 'co_lead']).maybeSingle();
+  if (error) return 'ตรวจสอบตำแหน่ง Growth ไม่สำเร็จ';
+  return assignment ? null : 'บัญชีนี้ไม่ได้เป็น Growth Lead/Co-Lead ในวาระปัจจุบัน';
+}
 
 const TEAM_ROLE: Record<string, string> = {
   toomtam: 'TOOMTAM', aof: 'Aof', draft: 'Draft', phai: 'PHAI', amp: 'AMP',
@@ -823,6 +840,114 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
   const action = String(p.action || '');
 
   switch (action) {
+
+    case 'getGrowthLineCenter': {
+      const auth = await requireAuth(db, p, ['growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const senderError = await authorizeGrowthLineSender(db, auth, scope.chapterId);
+      if (senderError) return errResponse(senderError, 403);
+      const blueprintYear = await resolveMsbPlanningYear(db, { chapterId: scope.chapterId });
+      const { data: members, error: memberError } = await db.from('members')
+        .select('id,name,nickname').eq('chapter_id', scope.chapterId).eq('is_archived', false).order('name');
+      if (memberError) return errResponse(memberError.message);
+      const memberIds = ((members || []) as Record<string, unknown>[]).map(row => String(row.id));
+      const [blueprintsResult, linksResult, profilesResult] = memberIds.length ? await Promise.all([
+        db.from('member_success_blueprints').select('member_id,status,updated_at,power_team_categories').eq('blueprint_year', blueprintYear).in('member_id', memberIds),
+        db.from('line_members').select('member_id').in('member_id', memberIds),
+        db.from('member_one_to_one_profiles').select('member_id,share_referral_focus').in('member_id', memberIds),
+      ]) : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
+      const lookupError = blueprintsResult.error || linksResult.error || profilesResult.error;
+      if (lookupError) return errResponse(lookupError.message);
+      const blueprintByMember = new Map(((blueprintsResult.data || []) as Record<string, unknown>[]).map(row => [String(row.member_id), row]));
+      const linkedIds = new Set(((linksResult.data || []) as Record<string, unknown>[]).map(row => String(row.member_id)));
+      const sharingIds = new Set(((profilesResult.data || []) as Record<string, unknown>[]).filter(row => row.share_referral_focus === true).map(row => String(row.member_id)));
+      const audience = ((members || []) as Record<string, unknown>[]).map(member => {
+        const memberId = String(member.id);
+        const blueprint = blueprintByMember.get(memberId);
+        const submitted = String(blueprint?.status || '') === 'submitted';
+        const powerTeamDraft = submitted && sharingIds.has(memberId) && Array.isArray(blueprint?.power_team_categories)
+          ? (blueprint.power_team_categories as unknown[]).map(value => String(value).trim()).filter(Boolean).slice(0, 10) : [];
+        return { memberId, name: String(member.nickname || member.name || 'สมาชิก'), fullName: String(member.name || ''), powerTeamDraft, lineLinked: linkedIds.has(memberId), blueprintStatus: blueprint ? String(blueprint.status || 'draft') : 'missing', blueprintUpdatedAt: blueprint?.updated_at || null };
+      });
+      return jsonResponse({ ok: true, blueprintYear, audience });
+    }
+
+    case 'previewGrowthLineMessage':
+    case 'sendGrowthLineMessage': {
+      const auth = await requireAuth(db, p, ['growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const senderError = await authorizeGrowthLineSender(db, auth, scope.chapterId);
+      if (senderError) return errResponse(senderError, 403);
+      const blueprintYear = await resolveMsbPlanningYear(db, { chapterId: scope.chapterId });
+      const template = String(p.template || 'msb_reminder') === 'custom' ? 'custom' : 'msb_reminder';
+      const audienceMode = String(p.audienceMode || 'selected') === 'msb_incomplete' ? 'msb_incomplete' : 'selected';
+      const requestedIds = new Set(Array.isArray(p.memberIds) ? (p.memberIds as unknown[]).map(String).filter(Boolean) : []);
+      if (requestedIds.size > 100) return errResponse('เลือกผู้รับได้ไม่เกิน 100 คนต่อครั้ง', 400);
+      if (audienceMode === 'selected' && !requestedIds.size) return errResponse('กรุณาเลือกสมาชิกอย่างน้อย 1 คน');
+      const defaultMessage = `📋 MYIDEAL · Growth Team\n\nขอชวนคุณกรอก Member Success Blueprint (MSB) ปี ${blueprintYear} ให้เรียบร้อยครับ เพื่อให้ทีม Growth เข้าใจเป้าหมาย Looking For และช่วยเชื่อมต่อโอกาสได้ตรงขึ้น\n\nพิมพ์ “Blueprint” ในแชตนี้เพื่อเปิดแบบฟอร์มส่วนตัวของคุณ\n\nหากต้องการความช่วยเหลือ สามารถตอบกลับ MYIDEAL ได้เลยครับ`;
+      const message = String(p.message || '').trim().slice(0, 5000) || defaultMessage;
+      if (template === 'custom' && !String(p.message || '').trim()) return errResponse('กรุณากรอกข้อความ');
+      const { data: members, error: memberError } = await db.from('members').select('id,name,nickname').eq('chapter_id', scope.chapterId).eq('is_archived', false);
+      if (memberError) return errResponse(memberError.message);
+      const allMembers = (members || []) as Record<string, unknown>[];
+      const allIds = allMembers.map(row => String(row.id));
+      const [blueprintsResult, linksResult] = allIds.length ? await Promise.all([
+        db.from('member_success_blueprints').select('member_id,status').eq('blueprint_year', blueprintYear).in('member_id', allIds),
+        db.from('line_members').select('member_id,line_user_id').in('member_id', allIds),
+      ]) : [{ data: [], error: null }, { data: [], error: null }];
+      const lookupError = blueprintsResult.error || linksResult.error;
+      if (lookupError) return errResponse(lookupError.message);
+      const submitted = new Set(((blueprintsResult.data || []) as Record<string, unknown>[]).filter(row => String(row.status) === 'submitted').map(row => String(row.member_id)));
+      const lineByMember = new Map(((linksResult.data || []) as Record<string, unknown>[]).map(row => [String(row.member_id), String(row.line_user_id || '')]));
+      const eligible = allMembers.filter(member => { const id = String(member.id); return audienceMode === 'msb_incomplete' ? !submitted.has(id) : requestedIds.has(id); });
+      if (eligible.length > 100) return errResponse('ผู้รับเกิน 100 คน กรุณาเลือกเป็นรายคน', 400);
+      const recipients = eligible.map(member => ({ memberId: String(member.id), name: String(member.nickname || member.name || 'สมาชิก'), lineUserId: lineByMember.get(String(member.id)) || '' }));
+      if (!recipients.length) return errResponse('ไม่พบสมาชิกในกลุ่มที่เลือก');
+      const linkedRecipients = recipients.filter(row => row.lineUserId);
+      const digest = await sha256Hex(message);
+      const audienceDigest = await sha256Hex(recipients.map(row => row.memberId).sort().join('|'));
+      const senderDigest = await sha256Hex(String(auth.email).toLowerCase());
+      const notificationType = template === 'msb_reminder' ? 'growth_msb_reminder' : `growth_member_message_${digest.slice(0, 12)}`;
+      const now = new Date();
+      const bangkokHour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Bangkok', hour: '2-digit', hourCycle: 'h23' }).format(now));
+      if (action === 'previewGrowthLineMessage') {
+        const previewId = crypto.randomUUID();
+        const { error: previewError } = await db.from('chapter_audit_events').insert({ chapter_id: scope.chapterId, event_type: 'growth_line_preview', actor_role: String(auth.role || 'growth'), actor_ref: String(auth.displayName || auth.role || 'Growth'), subject_type: 'line_delivery_preview', subject_ref: previewId, metadata: { template, audience_mode: audienceMode, blueprint_year: blueprintYear, recipient_count: recipients.length, message_digest: digest, audience_digest: audienceDigest, sender_digest: senderDigest } });
+        if (previewError) return errResponse(previewError.message);
+        return jsonResponse({ ok: true, dryRun: true, previewId, blueprintYear, audienceMode, message, recipients: recipients.map(({ lineUserId: _lineUserId, ...row }) => row), recipientCount: linkedRecipients.length, unavailableCount: recipients.length - linkedRecipients.length, estimatedMessages: linkedRecipients.length, quietHoursWarning: bangkokHour >= 20 || bangkokHour < 8 });
+      }
+      if (p.confirmed !== true) return errResponse('ต้อง Preview และยืนยันก่อนส่ง LINE');
+      const previewId = String(p.previewId || '').trim();
+      if (!previewId) return errResponse('ไม่พบหลักฐาน Preview กรุณา Preview ใหม่');
+      const previewCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      const { data: preview } = await db.from('chapter_audit_events').select('metadata,created_at').eq('chapter_id', scope.chapterId).eq('event_type', 'growth_line_preview').eq('subject_ref', previewId).gte('created_at', previewCutoff).maybeSingle();
+      const previewMeta = (preview?.metadata || {}) as Record<string, unknown>;
+      if (!preview || String(previewMeta.message_digest || '') !== digest || String(previewMeta.audience_digest || '') !== audienceDigest || String(previewMeta.sender_digest || '') !== senderDigest || String(previewMeta.template || '') !== template || String(previewMeta.audience_mode || '') !== audienceMode) return errResponse('Preview หมดอายุหรือข้อมูลเปลี่ยน กรุณา Preview ใหม่');
+
+      const batchId = String(p.clientBatchId || crypto.randomUUID()).replace(/[^a-zA-Z0-9:_-]/g, '').slice(0, 100);
+      const dateKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+      const results: Record<string, unknown>[] = [];
+      for (const recipient of recipients) {
+        if (!recipient.lineUserId) { results.push({ memberId: recipient.memberId, name: recipient.name, status: 'failed', reason: 'no_line', error: 'สมาชิกยังไม่เชื่อม LINE' }); continue; }
+        const guardInput = { memberId: recipient.memberId, module: 'growth', category: notificationType, priority: 'reminder' as const };
+        const guard = await evaluateNotificationGuard(db, guardInput);
+        const idempotencyKey = `growth:${scope.chapterId}:${notificationType}:${dateKey}:${recipient.memberId}`;
+        if (!guard.allowed) { await logSuppressedNotification(db, guardInput, guard, idempotencyKey, recipient.lineUserId); results.push({ memberId: recipient.memberId, name: recipient.name, status: 'skipped', reason: guard.reason, error: null }); continue; }
+        try {
+          const delivery = await linePush(recipient.lineUserId, message, { db, idempotencyKey, memberId: recipient.memberId, notificationType, source: 'desktop/growth-line-center', module: 'growth', category: notificationType, priority: 'reminder' });
+          results.push({ memberId: recipient.memberId, name: recipient.name, status: delivery.skipped ? 'skipped' : 'sent', reason: delivery.skipped ? 'duplicate' : null, deliveryId: delivery.deliveryId || null, error: null });
+        } catch (error) { results.push({ memberId: recipient.memberId, name: recipient.name, status: 'failed', reason: 'provider_error', error: error instanceof Error ? error.message.slice(0, 500) : 'LINE delivery failed' }); }
+      }
+      const sentCount = results.filter(row => row.status === 'sent').length;
+      const skipped = results.filter(row => row.status === 'skipped').length;
+      const failed = results.filter(row => row.status === 'failed').length;
+      await db.from('chapter_audit_events').insert({ chapter_id: scope.chapterId, event_type: 'growth_line_batch', actor_role: String(auth.role || 'growth'), actor_ref: String(auth.displayName || auth.role || 'Growth'), subject_type: 'line_delivery_batch', subject_ref: batchId, metadata: { preview_id: previewId, template, audience_mode: audienceMode, blueprint_year: blueprintYear, requested: recipients.length, sent: sentCount, skipped, failed, message_digest: digest.slice(0, 24) } });
+      return jsonResponse({ ok: true, batchId, sentCount, skipped, failed, total: results.length, results });
+    }
 
     // Read-only, explainable Growth Intelligence. It composes existing sources
     // and never changes PALMS, Traffic Light, RGI/RR, or TYFCB definitions.
