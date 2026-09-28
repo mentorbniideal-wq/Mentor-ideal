@@ -37,6 +37,7 @@ import { handleCopilot } from './handlers/copilot.ts';
 import { handleMemberSuccessBlueprints } from './handlers/member-success-blueprints.ts';
 import { handleWeekly121 } from './handlers/weekly-121.ts';
 import { handleMentor121 } from './handlers/mentor-121.ts';
+import { handleMemberGrowth } from './handlers/member-growth.ts';
 
 // ── Public actions that require NO PIN ────────────────────────
 const PUBLIC_ACTIONS = new Set([
@@ -64,6 +65,10 @@ const AUTH_ACTIONS = new Set([
 // ── Action → handler routing table ───────────────────────────
 // Mirrors dispatch() in WEBAPP.js lines 3400-3551
 const ROUTES: Record<string, string> = {
+  'getMemberGrowthBoard': 'member-growth', 'getMemberGrowthTimeline': 'member-growth',
+  'saveMemberGrowthEntry': 'member-growth', 'appendMemberGrowthNote': 'member-growth',
+  'linkMemberGrowthTask': 'member-growth', 'createMemberGrowthRenewalHandoff': 'member-growth',
+  'linkMemberGrowthMy121': 'member-growth',
   // Auth
   'login':      'auth',
   'verifyPin':  'auth',
@@ -278,6 +283,7 @@ const ROUTES: Record<string, string> = {
 };
 
 const HANDLERS: Record<string, (p: Record<string, unknown>) => Promise<Response>> = {
+  'member-growth': handleMemberGrowth,
   'auth':        handleAuth,
   'dashboard':   handleDashboard,
   'public':      handlePublic,

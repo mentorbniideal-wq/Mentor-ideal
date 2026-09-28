@@ -1,5 +1,6 @@
 // Handler: dashboard — getDashboard, getMemberDetail, getMentorActivity, getMyTeam, etc.
 import { requireAuth } from '../../_shared/auth.ts';
+import { achievementPercent } from '../../_shared/member-growth-cycle.ts';
 import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { memberAccessError, resolveMemberAccess } from '../../_shared/authorization.ts';
@@ -652,18 +653,19 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       // deliberately small DTO: no Mentor record, MY121 prose, or free-text
       // history is added to the Mobile member view.
       const blueprintYears = Array.from(new Set([2026, 2027, year]));
-      const [profileQ, planQ, tasksQ, blueprintPlansQ, annualGoalsQ] = await Promise.all([
+      const [profileQ, planQ, tasksQ, blueprintPlansQ, annualGoalsQ, actualQ] = await Promise.all([
         db.from('member_one_to_one_profiles').select('business_summary,looking_for,ideal_client,referral_trigger,good_referral,updated_at,share_business,share_referral_focus').eq('member_id', memberId).maybeSingle(),
         db.from('member_success_blueprints').select('looking_for_categories,looking_for_detail,power_team_categories,power_team_detail,updated_at,status').eq('member_id', memberId).eq('blueprint_year', year).maybeSingle(),
         db.from('growth_tasks').select('id,task_text,task_type,status,due_date,created_at,assigned_owner_name,assigned_owner_email').eq('chapter_id', scope.chapterId).eq('member_id', memberId).in('status', ['new','accepted','in_progress','waiting_member']).order('created_at', { ascending: false }).limit(5),
         db.from('member_success_blueprints').select('blueprint_year,status,expected_sales_from_bni_year,referral_needed,referral_per_month,referral_per_week,quality_121_target_per_week,updated_at').eq('member_id', memberId).in('blueprint_year', blueprintYears).order('blueprint_year', { ascending: true }),
         db.from('member_annual_growth_goals').select('goal_year,goal_thb,goal_type,source_file').eq('member_id', memberId).in('goal_year', blueprintYears).eq('goal_type', 'bni_revenue').order('goal_year', { ascending: true }),
+        db.from('v_msb_plan_vs_actual').select('blueprint_year,actual_received_thb,rr').eq('member_id', memberId).in('blueprint_year', blueprintYears),
       ]);
-      const errors = [profileQ, planQ, tasksQ, blueprintPlansQ, annualGoalsQ].filter(q => q.error).map(q => q.error?.message).filter(Boolean);
+      const errors = [profileQ, planQ, tasksQ, blueprintPlansQ, annualGoalsQ, actualQ].filter(q => q.error).map(q => q.error?.message).filter(Boolean);
       const profile = (profileQ.data || {}) as Record<string, unknown>;
       const plan = (planQ.data || {}) as Record<string, unknown>;
-      const consentBusiness = profile.share_business !== false;
-      const consentReferral = profile.share_referral_focus !== false;
+      const consentBusiness = profile.share_business === true;
+      const consentReferral = profile.share_referral_focus === true;
       const { data: explicitCategoryRows } = !consentReferral
         ? await db.from('member_growth_category_consents').select('category_type,category').eq('member_id', memberId).is('revoked_at', null)
         : { data: [] };
@@ -672,6 +674,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       const stale = profileUpdatedAt ? Date.now() - new Date(profileUpdatedAt).getTime() > 180 * 86400000 : true;
       const historicalGoals = new Map(((annualGoalsQ.data || []) as Record<string, unknown>[]).map(row => [Number(row.goal_year), row]));
       const planByYear = new Map(((blueprintPlansQ.data || []) as Record<string, unknown>[]).map(row => [Number(row.blueprint_year), row]));
+      const actualByYear = new Map(((actualQ.data || []) as Record<string, unknown>[]).map(row => [Number(row.blueprint_year), row]));
       // 2026 was imported from the approved historical goal file, so it may
       // have no member-authored Blueprint row.  Preserve that distinction in
       // the DTO rather than falsely reporting it as a draft submission.
@@ -681,6 +684,9 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         const target = blueprintYear === 2026 && historical
           ? historical.goal_thb
           : row.expected_sales_from_bni_year;
+        const actual = actualByYear.get(blueprintYear);
+        const targetNumber = Number(target);
+        const actualNumber = Number(actual?.actual_received_thb);
         return {
           year: blueprintYear,
           status: row.status ? String(row.status) : 'historical',
@@ -688,6 +694,9 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
           // member has not granted business sharing; status remains safe
           // operational metadata for a Growth follow-up.
           businessTargetThb: consentBusiness && target != null ? Number(target) : null,
+          actualReceivedThb: consentBusiness && actual?.actual_received_thb != null ? actualNumber : null,
+          achievementPercent: consentBusiness && target != null && actual?.actual_received_thb != null ? achievementPercent(actualNumber, targetNumber) : null,
+          referralReceived: consentReferral && actual?.rr != null ? Number(actual.rr) : null,
           referralNeeded: consentBusiness && consentReferral && row.referral_needed != null ? Number(row.referral_needed) : null,
           referralPerMonth: consentBusiness && consentReferral && row.referral_per_month != null ? Number(row.referral_per_month) : null,
           referralPerWeek: consentBusiness && consentReferral && row.referral_per_week != null ? Number(row.referral_per_week) : null,
@@ -698,7 +707,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       });
       return jsonResponse({
         ok: true,
-        member: { id: String((member as Record<string, unknown>).id), name: String((member as Record<string, unknown>).name || ''), nickname: String((member as Record<string, unknown>).nickname || ''), profession: String((member as Record<string, unknown>).profession || ''), company: String((member as Record<string, unknown>).company_name || '') },
+        member: { id: String((member as Record<string, unknown>).id), name: String((member as Record<string, unknown>).name || ''), nickname: String((member as Record<string, unknown>).nickname || ''), profession: consentBusiness ? String((member as Record<string, unknown>).profession || '') : '', company: consentBusiness ? String((member as Record<string, unknown>).company_name || '') : '' },
         business: {
           lookingFor: consentReferral ? String(profile.looking_for || plan.looking_for_detail || '') : '',
           idealClient: consentReferral ? String(profile.ideal_client || '') : '',

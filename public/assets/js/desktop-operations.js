@@ -509,6 +509,7 @@ function loadMC(forceRefresh){
 
 function loadGrowth(){
   ld(true);
+  if(typeof window.memberGrowthOverview==='function')window.memberGrowthOverview();
   var done=0;
   var guard=setTimeout(function(){
     if(done<4){

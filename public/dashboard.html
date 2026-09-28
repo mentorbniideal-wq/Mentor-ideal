@@ -18,6 +18,7 @@
 <link rel="stylesheet" href="/assets/css/desktop-operations.css?v=20260919-blueprint-workspace.1">
 <link rel="stylesheet" href="/assets/css/desktop-blueprint-workspace.css?v=20260919.1">
 <link rel="stylesheet" href="/assets/css/desktop-growth-workspace.css?v=20260919.1">
+<link rel="stylesheet" href="/assets/css/member-growth-cycle.css?v=20260928.1">
 <link rel="stylesheet" href="/assets/css/desktop-member-360.css">
 <link rel="stylesheet" href="/assets/css/desktop-mobile-access.css">
 <link rel="stylesheet" href="/assets/css/chapter-operations-center.css">
@@ -157,10 +158,11 @@
     <button class="tb" onclick="sw('gr-nm',this,'gr')">🆕 New Member Success<span class="nb" id="badge-nm"></span></button>
     <div class="nav-group-label">วิเคราะห์และวางแผน</div>
     <button class="tb" onclick="sw('gr-rev',this,'gr');rvLoad()">💰 Growth Plan</button>
+    <button class="tb" onclick="sw('gr-cycle',this,'gr');memberGrowthLoad()">🗓️ Member Growth</button>
     <button class="tb" onclick="sw('gr-pt',this,'gr');ptLoad()">⚡ Power Team</button>
     <button class="tb" onclick="sw('gr-cross',this,'gr');growth121Load()">🤝 MY121</button>
     <div class="nav-group-label">ข้อมูลประกอบการตัดสินใจ</div>
-    <button class="tb on" aria-current="page" onclick="sw('gr-ov',this,'gr')">📊 Chapter Growth Health</button>
+    <button class="tb on" aria-current="page" onclick="sw('gr-ov',this,'gr');memberGrowthOverview()">📊 Chapter Growth Health</button>
     <button class="tb" onclick="sw('gr-bal',this,'gr')">👥 Member 360 & Balance</button>
     <button class="tb" onclick="sw('gr-msb',this,'gr');msbLoad('gr')">🎯 Blueprint Intelligence</button>
     <button class="tb" onclick="sw('gr-sheet',this,'gr');gshLoad()" style="display:none">📄 Sheet</button>
@@ -955,8 +957,14 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       </div>
     </div>
 
+    <div id="gr-cycle" class="sec">
+      <div class="sh"><div><h2>🗓️ Member Growth Cycle</h2><p class="mg-muted">รอบสมาชิก 12 เดือน · งานร่วมของ Chapter ไม่ใช่งานประจำตัว Growth คนใดคนหนึ่ง</p></div><button class="bsm" type="button" onclick="memberGrowthLoad(true)">↻ รีเฟรช</button></div>
+      <div id="member-growth-root" aria-live="polite"><p role="status">เลือก Member Growth เพื่อโหลดข้อมูล</p></div>
+    </div>
+
     <!-- Growth Overview -->
     <div id="gr-ov" class="sec">
+      <div id="member-growth-overview" aria-live="polite"></div>
       <div id="growth-health-shell"></div>
       <div class="growth-health-panel" data-growth-health-view="today">
       <section class="cc" style="border-color:rgba(167,139,250,.36);margin-bottom:16px">
@@ -2229,6 +2237,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 <script src="/assets/js/desktop-operations.js?v=20260924-blueprint-summary.1" defer></script>
 <script src="/assets/js/desktop-power-team-hub.js?v=20260928.1" defer></script>
 <script src="/assets/js/desktop-growth-my121.js?v=20260928.1" defer></script>
+<script src="/assets/js/member-growth-cycle.js?v=20260928.1" defer></script>
 <script src="/assets/js/desktop-line-compose.js?v=20260909-audit.1" defer></script>
 <script src="/assets/js/desktop-navigation.js?v=20260909-audit.1" defer></script>
 <script src="/assets/js/desktop-member-360.js" defer></script>
