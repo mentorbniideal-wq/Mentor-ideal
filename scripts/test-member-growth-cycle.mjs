@@ -26,6 +26,13 @@ assert.match(root.innerHTML, /จังหวะงานที่ควรท�
 window.memberGrowthOpen('member-1');
 await new Promise(resolve => setImmediate(resolve));
 assert.equal((root.innerHTML.match(/data-mg-select=/g) || []).length, 12);
-assert.match(root.innerHTML, /aria-label="Month 3 New Member Review"/);
+assert.match(root.innerHTML, /aria-label="เดือน 3 New Member Review/);
+assert.match(root.innerHTML, /mg-cycle-hero|เส้นทาง 12 เดือน/);
 assert.doesNotMatch(root.innerHTML, /SECRET_HISTORICAL_TEXT|SECRET_NOTE|<img/);
+detail.canManage = true;
+detail.entries[0].detailRestricted = false;
+window.memberGrowthOpen('member-1');
+await new Promise(resolve => setImmediate(resolve));
+assert.match(root.innerHTML, /<details class="mg-editor"><summary>✎ บันทึกความคืบหน้า<\/summary>/);
+assert.match(root.innerHTML, /id="mg-entry-form"/);
 console.log('Member Growth Desktop timeline, 12 nodes, and restricted-detail rendering: PASS');
