@@ -26,7 +26,12 @@ import { evaluateNotificationGuard, logSuppressedNotification } from '../../_sha
 import { nextCustomLineRun, type CustomLineRecurrence } from '../../_shared/custom-line-automation.ts';
 
 // ── Unified LINE Push helper — no-op when token is absent (dev mode) ──
-const LINE_TOKEN = serverEnvironment().lineDeliveryEnabled ? (Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || '') : '';
+// Invalid LINE configuration must fail closed without preventing unrelated
+// API routes, including OAuth and PIN login, from starting.
+const LINE_TOKEN = (() => {
+  try { return serverEnvironment().lineDeliveryEnabled ? (Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || '') : ''; }
+  catch { return ''; }
+})();
 
 async function sendLineMsg(
   userId: string,

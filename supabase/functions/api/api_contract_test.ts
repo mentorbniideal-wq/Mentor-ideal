@@ -305,6 +305,28 @@ Deno.test('Chapter Growth Health separates decisions and links MSB insights to a
   assert(workspace.includes("window.GROWTH_HEALTH_VIEW='today'"), 'Growth Health must begin with actionable work today');
 });
 
+Deno.test('Growth LINE Center is Chapter-scoped, preview-first and delivery-governed', async () => {
+  const page = await read('public/dashboard.html');
+  const ui = await read('public/assets/js/desktop-growth-line.js');
+  const handler = await read('supabase/functions/api/handlers/growth.ts');
+  const router = await read('supabase/functions/api/index.ts');
+  assert(page.includes("sw('gr-line',this,'gr');growthLineLoad()") && page.includes('id="gr-line"'), 'Growth Desktop must expose the LINE Center as its own workflow');
+  for (const action of ['getGrowthLineCenter', 'previewGrowthLineMessage', 'sendGrowthLineMessage']) {
+    assert(router.includes(`'${action}': 'growth'`), `${action} must be routed through the unified API`);
+  }
+  assert(handler.includes("requireAuth(db, p, ['growth'])") && handler.includes('resolveChapterScope(db, auth)') && handler.includes('authorizeGrowthLineSender(db, auth, scope.chapterId)'), 'Growth messaging must derive current Lead/Co-Lead and Chapter scope on the server');
+  assert(handler.includes(".from('lt_growth_team_members')") && handler.includes(".from('lt_terms')") && handler.includes('auth.memberId') && handler.includes('auth.email'), 'shared PIN and generic Growth role must not grant sending rights');
+  assert(handler.includes('share_referral_focus === true') && handler.includes('powerTeamDraft') && !ui.includes('m.team'), 'Power Team draft must be MSB-derived and consent-gated, never Mentor Team');
+  assert(handler.includes('sender_digest') && handler.includes("String(previewMeta.template || '') !== template"), 'Preview must remain bound to the same sender and intent');
+  assert(handler.includes("if (p.confirmed !== true) return errResponse('ต้อง Preview และยืนยันก่อนส่ง LINE')"), 'A real send must require explicit confirmation');
+  assert(handler.includes("event_type: 'growth_line_preview'") && handler.includes("eq('subject_ref', previewId)") && handler.includes('previewCutoff'), 'A real send must match a recent server-recorded preview');
+  assert(handler.includes('evaluateNotificationGuard(db, guardInput)') && handler.includes('logSuppressedNotification'), 'Every recipient must pass the shared notification guard');
+  assert(handler.includes('linePush(recipient.lineUserId, message') && handler.includes('idempotencyKey'), 'Delivery must use the shared idempotent LINE ledger');
+  assert(handler.includes("event_type: 'growth_line_batch'") && handler.includes('message_digest'), 'Bulk sends must leave an audit event without storing message content');
+  assert(ui.includes("gsr('previewGrowthLineMessage'") && ui.includes("gsr('sendGrowthLineMessage'"), 'UI must preview before invoking the send action');
+  assert(!ui.includes('line_user_id'), 'Growth browser code must never receive LINE user identifiers');
+});
+
 Deno.test('Growth Mobile onboarding is Chapter-scoped and exposes readiness for all three team members', async () => {
   const settings = await read('supabase/functions/admin-api/handlers/settings.ts');
   const members = await read('supabase/functions/api/handlers/members.ts');
