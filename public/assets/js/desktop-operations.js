@@ -5195,7 +5195,7 @@ function growthIntelCard(item,compact){
   var actions='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px"><button class="bsm" onclick="growthIntelOpen(\''+esc(item.id)+'\')">ดูสมาชิก</button>';
   if(item.type!=='GROWTH_FOLLOW_UP'&&!item.existingTask)actions+='<button class="bsm" onclick="growthIntelTask(\''+esc(item.id)+'\')">สร้าง Growth Task</button>';
   if(item.type==='MISSING_CATEGORY'&&!item.covered&&!item.existingProposal&&(item.memberIds||[]).length>=2)actions+='<button class="bsm" onclick="growthIntelProposal(\''+esc(item.id)+'\')">Draft Power Team</button>';
-  if(item.type==='CONNECTION_OPPORTUNITY')actions+='<button class="bsm" onclick="sw(\'gr-flow\',null,\'gr\');flowLoad()">เปิด MY121</button>';
+  if(item.type==='CONNECTION_OPPORTUNITY')actions+='<button class="bsm" onclick="sw(\'gr-cross\',null,\'gr\');growth121Load()">ดูสถานะ MY121</button>';
   return'<article style="padding:'+(compact?'9px 0':'11px')+';border-bottom:1px solid var(--bd)"><div style="font-size:10px;font-weight:900;letter-spacing:.07em;color:'+tone+'">'+type+'</div><div style="font-size:13px;font-weight:800;margin-top:3px">'+esc(item.title||item.category||'โอกาสของ Chapter')+'</div><div style="font-size:11px;color:var(--sub);line-height:1.55;margin-top:3px">'+esc(item.why||'')+'</div><div style="font-size:10px;color:var(--tx);margin-top:5px">'+growthIntelMembers(item)+'</div><div style="font-size:10px;color:var(--sub);margin-top:4px">'+(item.evidence||[]).map(esc).join(' · ')+'</div>'+actions+'</article>';
 }
 function renderGrowthIntelligence(){
@@ -6997,7 +6997,7 @@ function renderIMDMSB(box,r,suggestions){
   var lf=r.lookingFor||{}, pt=r.powerTeam||{};
   var statusText=(gs.statusLabel||gs.status||'—');
   box.innerHTML='<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
-    +'<div><div style="font-size:14px;font-weight:900">🎯 MSB Goal Intelligence</div><div style="font-size:11px;color:var(--sub);margin-top:3px">'+esc(member.nickname||member.name||'สมาชิก')+' · '+esc(member.mentorTeam||'—')+' · '+esc(statusText)+'</div></div>'
+    +'<div><div style="font-size:14px;font-weight:900">🎯 MSB Goal Intelligence</div><div style="font-size:11px;color:var(--sub);margin-top:3px">'+esc(member.nickname||member.name||'สมาชิก')+' · '+esc(statusText)+'</div></div>'
     +'<span style="font-size:10px;color:'+pctColor(Math.max(revPct,refPct))+';font-weight:900;border:1px solid var(--bd);border-radius:999px;padding:5px 9px">'+esc(statusText)+'</span>'
     +'</div>'
     +'<div class="m360g" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:12px">'
@@ -7021,7 +7021,7 @@ function renderIMDMSB(box,r,suggestions){
     +'<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:12px;padding:11px"><div style="font-size:11px;font-weight:900;color:var(--ac)">Power Team</div><div style="font-size:12px;color:var(--tx);line-height:1.55;margin-top:5px">'+esc((pt.categories||[]).join(', ')||'—')+'</div><div style="font-size:10px;color:var(--sub);line-height:1.5;margin-top:4px">'+esc(pt.detail||'')+'</div></div>'
     +'</div>'
     +(insights.length?'<div style="margin-top:12px;background:rgba(199,167,106,.10);border:1px solid rgba(199,167,106,.25);border-radius:12px;padding:11px"><div style="font-size:11px;font-weight:900;color:var(--ye);margin-bottom:5px">Suggested Support</div>'+insights.slice(0,3).map(function(x){return '<div style="font-size:11px;color:var(--tx);line-height:1.55">• '+esc(x)+'</div>';}).join('')+'</div>':'')
-    +(suggestions.length?'<div style="margin-top:12px"><div style="font-size:11px;font-weight:900;color:var(--gr);margin-bottom:6px">🤝 Suggested Matching</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">'+suggestions.slice(0,3).map(function(s){var reason=(s.matchedCategories&&s.matchedCategories.length)?('Matched: '+s.matchedCategories.join(', ')):(s.label||'น่าคุย 1-2-1');return '<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:10px;padding:9px"><div style="font-size:12px;font-weight:900">'+esc(s.nickname||s.name||'—')+'</div><div style="font-size:10px;color:var(--sub);margin-top:2px">'+esc([s.mentorTeam,s.profession].filter(Boolean).join(' · ')||'—')+'</div><div style="font-size:10px;color:var(--ac);margin-top:5px">'+esc(reason.slice(0,90))+'</div></div>';}).join('')+'</div></div>':'')
+    +(suggestions.length?'<div style="margin-top:12px"><div style="font-size:11px;font-weight:900;color:var(--gr);margin-bottom:6px">🤝 Suggested Matching</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">'+suggestions.slice(0,3).map(function(s){var reason=(s.matchedCategories&&s.matchedCategories.length)?('Matched: '+s.matchedCategories.join(', ')):(s.label||'น่าคุย 1-2-1');return '<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:10px;padding:9px"><div style="font-size:12px;font-weight:900">'+esc(s.nickname||s.name||'—')+'</div><div style="font-size:10px;color:var(--sub);margin-top:2px">'+esc(s.profession||'—')+'</div><div style="font-size:10px;color:var(--ac);margin-top:5px">'+esc(reason.slice(0,90))+'</div></div>';}).join('')+'</div></div>':'<div style="font-size:11px;color:var(--sub);margin-top:12px">ยังไม่พบหมวดที่สมาชิกทั้งสองฝ่ายเปิดเผยและตรงกันใน Blueprint ที่ส่งแล้ว · ไม่มีการจับคู่จากอาชีพหรือคะแนนเพียงอย่างเดียว</div>')
     +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px">'
     +msbActionBtn('⚡ สร้าง Task','msbCreateTask('+JSON.stringify(member.mentorTeam||'')+','+JSON.stringify(member.name||'')+','+JSON.stringify('MSB Member 360')+','+JSON.stringify((insights[0]||'ติดตาม MSB Goal / Actual gap'))+','+JSON.stringify(gs.status==='critical'?'🚨':'🎯')+')','var(--ye)')
     +msbActionBtn('📋 Copy Summary','msbCopyText('+JSON.stringify('MSB Goal: '+msbMoney(ps.msbGoal||0)+'\\nActual Received: '+msbMoney(as.actualReceived||0)+'\\nRevenue Gap: '+msbMoney(gs.revenueGap||0)+'\\nReferral: '+msbNum(as.rr||0,0)+'/'+msbNum(ps.referralNeeded||0,0)+'\\nSupport: '+(insights[0]||''))+','+JSON.stringify('MSB Summary')+')','var(--ac)')
@@ -8679,7 +8679,7 @@ function msbPairsRender(group){
     return '<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:12px;padding:10px;min-width:0">'
       +'<div style="font-size:9px;color:var(--sub);font-weight:900;text-transform:uppercase;letter-spacing:.05em">'+esc(label)+'</div>'
       +'<div style="font-size:13px;font-weight:900;margin-top:3px">'+esc(m.nickname||m.name||'—')+'</div>'
-      +'<div style="font-size:10px;color:var(--sub);margin-top:2px">'+esc([m.mentorTeam,m.profession,m.companyName].filter(Boolean).join(' · ')||'—')+'</div>'
+      +(group==='gr'?'':'<div style="font-size:10px;color:var(--sub);margin-top:2px">'+esc([m.mentorTeam,m.profession,m.companyName].filter(Boolean).join(' · ')||'—')+'</div>')
       +(m.lookingForCategories&&m.lookingForCategories.length?'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:7px">'+m.lookingForCategories.slice(0,2).map(function(c){return '<span style="font-size:9px;border:1px solid var(--bd);border-radius:999px;padding:2px 6px;color:var(--sub)">'+esc(c)+'</span>';}).join('')+'</div>':'')
       +'</div>';
   }
@@ -8688,7 +8688,7 @@ function msbPairsRender(group){
     return '<div class="cc" style="overflow:hidden">'
       +'<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:10px">'
       +'<div class="cct">🤝 Suggested 1-2-1</div>'
-      +'<span style="font-size:10px;color:'+c[1]+';font-weight:900;border:1px solid var(--bd);border-radius:999px;padding:3px 8px">'+c[2]+' '+c[0]+' · '+msbNum(p.score,0)+'</span>'
+      +'<span style="font-size:10px;color:'+c[1]+';font-weight:900;border:1px solid var(--bd);border-radius:999px;padding:3px 8px">'+(group==='gr'?'หมวดที่เปิดเผยตรงกัน':c[2]+' '+c[0]+' · '+msbNum(p.score,0))+'</span>'
       +'</div>'
       +'<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:stretch">'
       +memberBox(p.source||{},'คนที่ต้องการโอกาส')
@@ -8699,20 +8699,21 @@ function msbPairsRender(group){
       +(terms.length?'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px">'+terms.map(function(t){return '<span style="font-size:9px;background:rgba(199,167,106,.12);border:1px solid rgba(199,167,106,.28);border-radius:999px;padding:2px 6px;color:var(--ye)">'+esc(t)+'</span>';}).join('')+'</div>':'')
       +'<details style="margin-top:9px;font-size:11px;color:var(--sub);line-height:1.55"><summary style="cursor:pointer;color:var(--ye);font-weight:900">หัวข้อคุย 1-2-1</summary><ol style="margin:7px 0 0 18px;padding:0">'+(p.suggestedAgenda||[]).map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ol></details>'
       +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">'
-      +msbActionBtn('⚡ สร้าง Task','msbCreateTask('+JSON.stringify((p.source&&p.source.mentorTeam)||'')+','+JSON.stringify((p.source&&p.source.name)||'')+','+JSON.stringify('1-2-1 Matching')+','+JSON.stringify('แนะนำ 1-2-1 กับ '+((p.target&&p.target.nickname)||(p.target&&p.target.name)||'สมาชิกที่ match')+' · '+(p.reasons||[]).join(' / '))+','+JSON.stringify('🤝')+')','var(--ye)')
-      +msbActionBtn('📋 Copy Agenda','msbCopyText('+JSON.stringify((p.suggestedAgenda||[]).join('\\n'))+','+JSON.stringify('Agenda')+')','var(--ac)')
+      +(group==='gr'?msbActionBtn('ดูสถานะ MY121',"sw('gr-cross',null,'gr');growth121Load(true)",'var(--ye)'):
+        msbActionBtn('⚡ สร้าง Task','msbCreateTask('+JSON.stringify((p.source&&p.source.mentorTeam)||'')+','+JSON.stringify((p.source&&p.source.name)||'')+','+JSON.stringify('1-2-1 Matching')+','+JSON.stringify('แนะนำ 1-2-1 กับ '+((p.target&&p.target.nickname)||(p.target&&p.target.name)||'สมาชิกที่ match')+' · '+(p.reasons||[]).join(' / '))+','+JSON.stringify('🤝')+')','var(--ye)')
+        +msbActionBtn('📋 Copy Agenda','msbCopyText('+JSON.stringify((p.suggestedAgenda||[]).join('\\n'))+','+JSON.stringify('Agenda')+')','var(--ac)'))
       +'</div>'
       +'</div>';
   }
   wrap.innerHTML='<div style="background:var(--sf);border:1px solid var(--bd);border-radius:14px;padding:14px">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
-    +'<div><h3 style="font-size:14px;font-weight:900;margin:0">🤝 Pair Matching Engine</h3><div style="font-size:11px;color:var(--sub);margin-top:3px">แนะนำคู่ 1-2-1 จาก MSB Looking For / Power Team + อาชีพและบริษัทใน roster</div></div>'
+    +'<div><h3 style="font-size:14px;font-weight:900;margin:0">🤝 '+(group==='gr'?'คู่ที่อาจคุย MY121':'Pair Matching Engine')+'</h3><div style="font-size:11px;color:var(--sub);margin-top:3px">'+(group==='gr'?'หมวดที่ทั้งสองฝ่ายเปิดเผยใน Blueprint ที่ส่งแล้ว · ต้องขอความยินยอมและนัดใน MY121 ก่อน':'แนะนำคู่ 1-2-1 จาก MSB Looking For / Power Team + อาชีพและบริษัทใน roster')+'</div></div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
-    +'<span style="font-size:11px;background:rgba(0,212,170,.12);color:var(--gr);border:1px solid rgba(0,212,170,.28);border-radius:999px;padding:5px 9px;font-weight:800">High '+msbNum(sm.highConfidence||0,0)+'</span>'
-    +'<span style="font-size:11px;background:rgba(199,167,106,.12);color:var(--ye);border:1px solid rgba(199,167,106,.28);border-radius:999px;padding:5px 9px;font-weight:800">Medium '+msbNum(sm.mediumConfidence||0,0)+'</span>'
+    +(group==='gr'?'':'<span style="font-size:11px;background:rgba(0,212,170,.12);color:var(--gr);border:1px solid rgba(0,212,170,.28);border-radius:999px;padding:5px 9px;font-weight:800">High '+msbNum(sm.highConfidence||0,0)+'</span>'
+    +'<span style="font-size:11px;background:rgba(199,167,106,.12);color:var(--ye);border:1px solid rgba(199,167,106,.28);border-radius:999px;padding:5px 9px;font-weight:800">Medium '+msbNum(sm.mediumConfidence||0,0)+'</span>')
     +'<span style="font-size:11px;background:rgba(96,165,250,.12);color:var(--bl);border:1px solid rgba(96,165,250,.28);border-radius:999px;padding:5px 9px;font-weight:800">Pairs '+msbNum(sm.pairCount||0,0)+'</span>'
     +'</div></div>'
-    +(pairs.length?'<div class="row2">'+pairs.slice(0,6).map(pairCard).join('')+'</div>':'<div style="font-size:12px;color:var(--sub);padding:18px;border-top:1px solid var(--bd)">ยังไม่มีคู่ที่ระบบมั่นใจพอ ลองเติม profession / company / Looking For / Power Team ให้ครบขึ้น</div>')
+    +(pairs.length?'<div class="row2">'+pairs.slice(0,6).map(pairCard).join('')+'</div>':'<div style="font-size:12px;color:var(--sub);padding:18px;border-top:1px solid var(--bd)">'+(group==='gr'?'ยังไม่พบหมวดที่ทั้งสองฝ่ายอนุญาตและส่ง Blueprint แล้ว':'ยังไม่มีคู่ที่ระบบมั่นใจพอ ลองเติม profession / company / Looking For / Power Team ให้ครบขึ้น')+'</div>')
     +'</div>';
 }
 function msbPopulateGrowthTeamFilter(rows){
@@ -9228,160 +9229,9 @@ function renderCMD(r){
     +'</div>';
 }
 
-// ── 🔗 Cross-Team ─────────────────────────────────────────────
-var _crossData=null,_crossLoaded=false;
-function crossLoad(force){
-  if(_crossLoaded&&!force)return; _crossLoaded=true;
-  document.getElementById('cross-content').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div>';
-  gsr('getCrossTeamSynergy',{role:S.role},function(r){
-    if(!r.ok){document.getElementById('cross-content').innerHTML='<div style="color:var(--re);padding:20px">❌ '+(r.error||'')+'</div>';return;}
-    _crossData=r; renderCross(r);
-  });
-}
-function renderCross(r){
-  var el=document.getElementById('cross-content');
-  var stClr={pending:'var(--ye)',done:'var(--gr)','in-progress':'var(--ac)',cancelled:'var(--sub)'};
-  var stLabel={pending:'รอ 1-2-1',done:'✅ เสร็จแล้ว','in-progress':'🔄 กำลังดำเนินการ',cancelled:'ยกเลิก'};
-  var tlC3={G:'var(--gr)',Y:'var(--ye)',R:'var(--re)','':"var(--sub)"};
+// Growth MY121 reads now live in desktop-growth-my121.js.
 
-  // Saved pairs
-  var savedHTML=(r.savedPairs||[]).length?'<div style="margin-bottom:20px"><div style="font-size:12px;font-weight:700;margin-bottom:10px">📌 คู่ที่ Assign แล้ว ('+r.savedPairs.length+')</div>'
-    +(r.savedPairs||[]).map(function(p){
-      var sc=stClr[p.status]||'var(--sub)';
-      return '<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
-        +'<span style="font-weight:600">'+esc(p.nick1)+'</span><span style="color:var(--sub)">'+esc(p.team1)+'</span>'
-        +'<span style="color:var(--sub)">↔️</span>'
-        +'<span style="font-weight:600">'+esc(p.nick2)+'</span><span style="color:var(--sub)">'+esc(p.team2)+'</span>'
-        +'<select onchange="crossUpdateStatus('+p.row+',this.value)" style="margin-left:auto;background:transparent;border:1px solid '+sc+';color:'+sc+';border-radius:6px;padding:2px 6px;font-size:11px;outline:none">'
-        +['pending','in-progress','done','cancelled'].map(function(s){return '<option value="'+s+'"'+(p.status===s?' selected':'')+'>'+stLabel[s]+'</option>';}).join('')
-        +'</select>'
-        +'<button onclick="crossDelete('+p.row+')" style="background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);color:var(--re);border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer">🗑️</button>'
-        +'</div>';
-    }).join('')+'</div>':'' ;
-
-  // Recommendations
-  var recHTML=(r.recommendations||[]).filter(function(x){return !x.isSaved;}).slice(0,15).map(function(rec){
-    var scoreC=rec.score>=60?'var(--gr)':rec.score>=40?'var(--ye)':'var(--sub)';
-    var reasons=rec.reasons||[];
-    var safeN1=String(rec.nick1||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    var safeN2=String(rec.nick2||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    var safeT1=String(rec.team1||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    var safeT2=String(rec.team2||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    return '<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;margin-bottom:8px">'
-      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">'
-      +'<div style="flex:1"><span style="font-weight:600">'+esc(rec.nick1)+'</span> <span style="font-size:10px;color:var(--sub)">'+esc(rec.team1)+'</span></div>'
-      +'<span style="color:var(--sub);font-size:12px">↔️</span>'
-      +'<div style="flex:1;text-align:right"><span style="font-weight:600">'+esc(rec.nick2)+'</span> <span style="font-size:10px;color:var(--sub)">'+esc(rec.team2)+'</span></div>'
-      +'<span style="font-size:11px;font-weight:700;color:'+scoreC+'">Score: '+rec.score+'</span>'
-      +'</div>'
-      +(reasons.length?'<div style="font-size:10px;color:var(--ac);margin-bottom:8px">💡 '+reasons.join(' · ')+'</div>':'')
-      +'<div style="display:flex;gap:6px">'
-      +'<button onclick="crossAssign(\''+safeN1+'\',\''+safeN2+'\',\''+safeT1+'\',\''+safeT2+'\')" style="background:var(--ac-dim);border:1px solid var(--bd-hover);color:var(--ac);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-weight:600">📌 Assign 1-2-1</button>'
-      +'</div></div>';
-  }).join('');
-
-  el.innerHTML=savedHTML
-    +'<div><div style="font-size:12px;font-weight:700;margin-bottom:10px">🤖 AI แนะนำ '+((r.recommendations||[]).filter(function(x){return !x.isSaved;}).length)+' คู่</div>'
-    +recHTML+'</div>';
-}
-function crossAssign(n1,n2,t1,t2){
-  gsr('saveCrossTeamPair',{role:S.role,nick1:n1,nick2:n2,team1:t1,team2:t2},function(r){
-    if(!r.ok){toast('❌ '+(r.error||''),'err');return;}
-    toast('✅ Assign '+n1+' ↔ '+n2+' แล้ว','ok');
-    _crossLoaded=false;crossLoad();
-  });
-}
-function crossUpdateStatus(row,val){
-  gsr('saveCrossTeamPair',{role:S.role,row:row,field:'status',value:val},function(r){
-    if(!r.ok){toast('❌ '+(r.error||''),'err');return;}
-    _crossLoaded=false;crossLoad();
-  });
-}
-function crossDelete(row){
-  gsr('saveCrossTeamPair',{role:S.role,row:row,field:'delete'},function(r){
-    if(!r.ok){toast('❌ '+(r.error||''),'err');return;}
-    toast('✅ ลบแล้ว','ok'); _crossLoaded=false;crossLoad();
-  });
-}
-
-// ── 🗓️ Sprint Board ───────────────────────────────────────────
-var _sprintData=null,_sprintLoaded=false;
-function sprintLoad(force){
-  if(_sprintLoaded&&!force)return; _sprintLoaded=true;
-  document.getElementById('sprint-content').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div>';
-  gsr('getSprintBoard',{role:S.role},function(r){
-    if(!r.ok){document.getElementById('sprint-content').innerHTML='<div style="color:var(--re);padding:20px">❌ '+(r.error||'')+'</div>';return;}
-    _sprintData=r; renderSprint(r);
-  });
-}
-function renderSprint(r){
-  var el=document.getElementById('sprint-content');
-  var now=new Date(); var TH_MONTHS=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-  var stClr2={pending:'var(--ye)',done:'var(--gr)','in-progress':'var(--ac)'};
-  var stLbl2={pending:'รอดำเนินการ',done:'✅ สำเร็จ','in-progress':'🔄 กำลังทำ'};
-
-  // Current sprint highlight
-  var curHTML='';
-  if((r.currentSprint||[]).length){
-    var cur=r.currentSprint[0];
-    curHTML='<div style="background:linear-gradient(135deg,rgba(60,120,80,.15),rgba(52,211,153,.08));border:1px solid rgba(60,120,80,.3);border-radius:12px;padding:16px;margin-bottom:20px">'
-      +'<div style="font-size:11px;color:var(--ac);font-weight:700;margin-bottom:6px">📅 Sprint เดือนนี้ — '+TH_MONTHS[cur.month-1]+' '+cur.year+'</div>'
-      +'<div style="font-size:13px;font-weight:700;margin-bottom:6px">ทีม: '+esc(cur.team||'ทุกทีม')+'</div>'
-      +(cur.target>0?'<div style="font-size:12px;margin-bottom:4px">🎯 เป้า: <b>฿'+fmtBig(cur.target)+'</b></div>':'')
-      +(cur.focus?'<div style="font-size:11px;color:var(--sub);margin-bottom:4px">👤 Focus: '+esc(cur.focus)+'</div>':'')
-      +(cur.pairs?'<div style="font-size:11px;color:var(--sub);margin-bottom:8px">🔗 1-2-1: '+esc(cur.pairs)+'</div>':'')
-      +'<select onchange="sprintUpdateStatus(\''+cur.row+'\',this.value)" style="background:transparent;border:1px solid '+(stClr2[cur.status]||'var(--bd)')+';color:'+(stClr2[cur.status]||'var(--tx)')+';border-radius:6px;padding:4px 8px;font-size:11px;outline:none">'
-      +['pending','in-progress','done'].map(function(s){return '<option value="'+s+'"'+(cur.status===s?' selected':'')+'>'+stLbl2[s]+'</option>';}).join('')
-      +'</select></div>';
-  } else {
-    curHTML='<div style="background:var(--sf2);border:1px dashed var(--bd);border-radius:12px;padding:20px;text-align:center;margin-bottom:20px;color:var(--sub)">'
-      +'ยังไม่มี Sprint เดือนนี้ — กด <b>➕ สร้าง Sprint</b> เพื่อเริ่ม</div>';
-  }
-
-  var histHTML=(r.sprints||[]).filter(function(s){
-    return !(s.year===now.getFullYear()&&s.month===now.getMonth()+1);
-  }).reverse().slice(0,12).map(function(s){
-    var sc=stClr2[s.status]||'var(--sub)';
-    return '<div style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:10px 14px;margin-bottom:6px">'
-      +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
-      +'<span style="font-size:11px;font-weight:700;color:var(--sub)">'+TH_MONTHS[(s.month||1)-1]+' '+s.year+'</span>'
-      +'<span style="font-size:11px;color:var(--tx)">'+esc(s.team||'ทุกทีม')+'</span>'
-      +(s.target>0?'<span style="font-size:11px;color:var(--ac)">฿'+fmtBig(s.target)+'</span>':'')
-      +'<span style="font-size:10px;font-weight:700;color:'+sc+';margin-left:auto">'+stLbl2[s.status||'pending']+'</span>'
-      +'<button onclick="sprintDelete(\''+s.row+'\')" style="background:none;border:none;color:var(--sub);cursor:pointer;font-size:13px;padding:0 4px">🗑️</button>'
-      +'</div>'
-      +(s.focus?'<div style="font-size:10px;color:var(--sub);margin-top:4px">👤 '+esc(s.focus)+'</div>':'')
-      +'</div>';
-  }).join('');
-
-  el.innerHTML=curHTML
-    +'<div style="font-size:12px;font-weight:700;margin-bottom:10px">📚 ประวัติ Sprint</div>'
-    +(histHTML||'<div style="color:var(--sub);font-size:12px">ยังไม่มีประวัติ</div>');
-}
-function sprintOpenAdd(){
-  var teams=(_sprintData&&_sprintData.sprints||[]);
-  var now=new Date(); var m=now.getMonth()+1; var y=now.getFullYear();
-  var name=prompt('ชื่อทีม (ว่าง = ทุกทีม):','ทุกทีม');if(name===null)return;
-  var target=parseFloat(prompt('เป้ารายเดือน (฿):','0')||'0');
-  var focus=prompt('สมาชิก Focus (ชื่อ, คั่นด้วย ,):','')||'';
-  var pairs=prompt('คู่ 1-2-1 (เช่น นุ่น↔ไผ่):','')||'';
-  gsr('saveSprintPlan',{role:S.role,year:y,month:m,team:name||'ทุกทีม',target:target,focus:focus,pairs:pairs},function(r){
-    if(!r.ok){toast('❌ '+(r.error||''),'err');return;}
-    toast('✅ สร้าง Sprint แล้ว','ok'); _sprintLoaded=false;sprintLoad();
-  });
-}
-function sprintUpdateStatus(row,val){
-  gsr('saveSprintPlan',{role:S.role,row:row,field:'status',value:val},function(r){
-    if(!r.ok){toast('❌ '+(r.error||''),'err');return;}
-    _sprintLoaded=false;sprintLoad();
-  });
-}
-function sprintDelete(row){
-  gsr('saveSprintPlan',{role:S.role,row:row,field:'delete'},function(r){
-    if(!r.ok){toast('❌ '+(r.error||''),'err');return;}
-    toast('✅ ลบแล้ว','ok'); _sprintLoaded=false;sprintLoad();
-  });
-}
+// Legacy Sprint data and API remain untouched; Growth Desktop no longer presents Sprint.
 
 // ── 🌊 Referral Flow ──────────────────────────────────────────
 var _flowData=null,_flowLoaded=false;
@@ -9394,67 +9244,15 @@ function flowLoad(force){
   });
 }
 function renderFlow(r){
-  var el=document.getElementById('flow-content');
-  var maxFlow=(r.flow||[]).reduce(function(m,f){return Math.max(m,f.refCount);},1);
-
-  // Team stats table
-  var tsHTML='<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:20px">'
-    +'<thead><tr style="background:var(--sf2)"><th style="padding:8px;text-align:left">ทีม</th><th style="padding:8px;text-align:right">สมาชิก</th><th style="padding:8px;text-align:right">ให้ Ref</th><th style="padding:8px;text-align:right">รับ Ref</th><th style="padding:8px;text-align:right">รับจริง</th></tr></thead><tbody>'
-    +(r.teamStats||[]).map(function(t){
-      var balance=t.refIn-t.refOut; var bc=balance>0?'var(--gr)':balance<0?'var(--re)':'var(--sub)';
-      return '<tr style="border-bottom:1px solid var(--bd)">'
-        +'<td style="padding:8px;font-weight:600">'+esc(t.team)+'</td>'
-        +'<td style="padding:8px;text-align:right;color:var(--sub)">'+t.memberCount+'</td>'
-        +'<td style="padding:8px;text-align:right;color:var(--re)">'+t.refOut+'</td>'
-        +'<td style="padding:8px;text-align:right;color:var(--gr)">'+t.refIn+'</td>'
-        +'<td style="padding:8px;text-align:right;color:var(--ac)">฿'+fmtMon(t.recv||0)+'</td>'
-        +'</tr>';
-    }).join('')+'</tbody></table>';
-
-  // Top flow
-  var flowHTML=(r.flow||[]).slice(0,10).map(function(f){
-    var w=Math.round(f.refCount/maxFlow*100);
-    return '<div style="margin-bottom:8px">'
-      +'<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">'
-      +'<span><b>'+esc(f.fromTeam)+'</b> → <b>'+esc(f.toTeam)+'</b></span>'
-      +'<span style="color:var(--ac)">~'+f.refCount+' Ref</span></div>'
-      +'<div style="background:var(--bg3);border-radius:3px;height:5px"><div style="height:100%;width:'+w+'%;background:var(--ac);border-radius:3px"></div></div>'
-      +'</div>';
-  }).join('');
-
-  // Imbalanced
-  var imbHTML=(r.imbalanced||[]).length?'<div style="margin-top:20px"><div style="font-size:12px;font-weight:700;margin-bottom:8px">⚠️ Taker (รับเยอะ ให้น้อย — ควร Coach)</div>'
-    +(r.imbalanced||[]).map(function(m){
-      return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd)">'
-        +'<span style="font-size:12px;font-weight:600;flex:1">'+esc(m.nick||m.firstName||'')+'</span>'
-        +'<span style="font-size:10px;color:var(--sub)">'+esc(m.team||'')+'</span>'
-        +'<span style="font-size:11px;color:var(--gr)">รับ '+m.refIn+'</span>'
-        +'<span style="font-size:11px;color:var(--re)">ให้ '+(m.refOut||0)+'</span>'
-        +'</div>';
-    }).join('')+'</div>':'';
-
-  el.innerHTML=tsHTML
-    +'<div style="font-size:12px;font-weight:700;margin-bottom:10px">🌊 Estimated Referral Flow (top 10)</div>'
-    +flowHTML+imbHTML;
+  var el=document.getElementById('flow-content');if(!el)return;
+  var s=r.summary||{},given=Math.max(0,Number(s.given)||0),received=Math.max(0,Number(s.received)||0),members=Math.max(0,Number(s.memberCount)||0);
+  function metric(label,value){return '<div style="border:1px solid var(--bd);border-radius:12px;padding:16px;background:var(--sf2)"><div style="color:var(--sub);font-size:12px">'+label+'</div><strong style="font-size:22px">'+value.toLocaleString('th-TH')+'</strong></div>';}
+  el.innerHTML='<p style="font-size:12px;color:var(--sub)">ข้อมูลรายงานสะสมของสมาชิก Chapter '+members.toLocaleString('th-TH')+' คน · ยังไม่มีข้อมูลผู้ให้→ผู้รับที่ยืนยันได้ จึงไม่วาดเส้นทางหรือประมาณจำนวน Ref ระหว่างทีม</p>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">'+metric('Ref ที่รายงานว่าให้',given)+metric('Ref ที่รายงานว่าได้รับ',received)+'</div>'
+    +'<p style="font-size:12px;color:var(--sub);margin-top:16px">MY121, Referral และ Business Outcome เป็นคนละขั้นตอน ยอดนี้ไม่พิสูจน์ผลลัพธ์ทางธุรกิจ</p>';
 }
 
-// ── ⚡ Power Team Proposals ───────────────────────────────────
-var _ptMgrData=null,_ptMgrLoaded=false;
-function ptLoad(force){
-  if(_ptMgrLoaded&&!force)return; _ptMgrLoaded=true;
-  document.getElementById('pt-mgr-content').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div>';
-  gsr('getPowerTeamProposals',{role:S.role},function(r){
-    if(!r.ok){document.getElementById('pt-mgr-content').innerHTML='<div style="color:var(--re);padding:20px">❌ '+(r.error||'')+'</div>';return;}
-    _ptMgrData=r; renderPTMgr(r);
-  });
-}
-function renderPTMgr(r){
-  var el=document.getElementById('pt-mgr-content');
-  var saved=(r.proposals||[]).map(function(p){var ms=(p.power_team_proposal_members||[]).map(function(x){var m=x.members||{};return esc(m.nickname||m.name||'สมาชิก');}).join(' · ');return '<article style="border:1px solid var(--bd);border-radius:10px;padding:13px;margin-bottom:10px;background:var(--sf2)"><b>'+esc(p.title)+'</b><span style="margin-left:8px;font-size:10px;color:var(--ac)">ข้อเสนอ '+esc(p.status||'proposed')+'</span><div style="font-size:11px;margin-top:7px"><b>กลุ่มลูกค้า:</b> '+esc(p.target_customer_group)+'</div><div style="font-size:11px;color:var(--sub);margin-top:4px">'+esc(p.rationale)+'</div><div style="font-size:10px;color:var(--sub);margin-top:7px">สมาชิก: '+ms+'</div></article>';}).join('');
-  var candidates=(r.candidates||[]).map(function(c,i){var people=(c.members||[]).map(function(m){return esc(m.nickname||m.name||'สมาชิก')+(m.profession?' <small style="color:var(--sub)">('+esc(m.profession)+')</small>':'');}).join(' · ');return '<article style="border:1px solid var(--bd-hover);border-radius:10px;padding:14px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:10px;align-items:start"><div><b>'+esc(c.category)+'</b><div style="font-size:11px;color:var(--sub);margin-top:5px"><b>กลุ่มลูกค้าที่คาดร่วมกัน:</b> '+esc(c.targetCustomerGroup)+'</div></div><button onclick="ptCreateProposal('+i+')" style="white-space:nowrap;background:var(--ac-dim);border:1px solid var(--bd-hover);color:var(--ac);border-radius:7px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer">สร้างข้อเสนอ</button></div><div style="font-size:11px;margin-top:8px">'+people+'</div><div style="font-size:10px;color:var(--sub);margin-top:7px">เหตุผล: '+esc(c.rationale)+'</div></article>';}).join('');
-  el.innerHTML='<div style="font-size:11px;color:var(--sub);margin-bottom:16px;padding:9px 12px;background:var(--sf2);border-radius:8px;border-left:3px solid var(--ac)">ใช้ข้อมูล Blueprint ที่สมาชิกระบุเองเพื่อเสนอวงทดลอง ไม่ย้าย Mentor Team และไม่ประกาศเป็น Power Team โดยอัตโนมัติ</div>'+(saved?'<h3 style="font-size:12px;margin:0 0 8px">ข้อเสนอที่บันทึกแล้ว</h3>'+saved:'')+'<h3 style="font-size:12px;margin:16px 0 8px">กลุ่มที่น่าลองสร้าง</h3>'+(candidates||'<div style="padding:18px;color:var(--sub);border:1px dashed var(--bd);border-radius:8px">ยังไม่พบอย่างน้อย 2 คนที่ระบุกลุ่มลูกค้าเดียวกันใน Blueprint</div>');
-}
-function ptCreateProposal(index){var c=(_ptMgrData&&_ptMgrData.candidates||[])[index];if(!c)return;var title=prompt('ชื่อข้อเสนอ Power Team:',c.category);if(title===null)return;var target=prompt('กลุ่มลูกค้าที่คาดว่าต้องการร่วมกัน:',c.targetCustomerGroup||'');if(target===null)return;var rationale=prompt('เหตุผลที่ควรทดลองรวมกลุ่ม:',c.rationale||'');if(rationale===null)return;gsr('savePowerTeamProposal',{role:S.role,title:title,targetCustomerGroup:target,rationale:rationale,sourceCategory:c.category,memberIds:c.memberIds},function(r){if(!r||!r.ok){toast('❌ '+(r&&r.error||'บันทึกไม่สำเร็จ'),'err');return;}toast('✅ บันทึกข้อเสนอแล้ว ยังไม่ใช่การประกาศทีม','ok');_ptMgrLoaded=false;ptLoad(true);});}
+// Power Team Hub moved to desktop-power-team-hub.js.
 
 // ── Growth Sheet Tab ──────────────────────────────────────────
 var _gshData=null,_gshLoaded=false;

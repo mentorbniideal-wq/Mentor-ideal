@@ -6,6 +6,7 @@ import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
 import { CAPABILITY, hasCapability } from '../../_shared/capabilities.ts';
+import { resolveMsbPlanningYear } from '../../_shared/msb-planning-year.ts';
 
 const TEAM_MAP: Record<string, string> = {
   toomtam: 'TOOMTAM', aof: 'Aof', draft: 'Draft', phai: 'PHAI', amp: 'AMP',
@@ -22,7 +23,7 @@ async function powerTeamCandidates(
   chapterId: string,
   respectReferralConsent = false,
 ) {
-  const year = new Date().getFullYear();
+  const year = await resolveMsbPlanningYear(db, { chapterId });
   const { data: scopedMembers, error: scopeError } = await db.from('members').select('id')
     .eq('chapter_id', chapterId).eq('is_archived', false);
   if (scopeError) throw new Error(scopeError.message);
@@ -30,7 +31,7 @@ async function powerTeamCandidates(
   if (!scopedIds.length) return [];
   const { data: plans, error: planError } = await db.from('member_success_blueprints')
     .select('member_id,blueprint_year,power_team_categories,power_team_detail,updated_at')
-    .in('member_id', scopedIds).gte('blueprint_year', year - 1).lte('blueprint_year', year + 1)
+    .in('member_id', scopedIds).eq('blueprint_year', year).eq('status', 'submitted')
     .order('blueprint_year', { ascending: false }).order('updated_at', { ascending: false });
   if (planError) throw new Error(planError.message);
   const newestByMember = new Map<string, Record<string, unknown>>();
@@ -58,20 +59,20 @@ async function powerTeamCandidates(
     }
   }
   const { data: members, error: memberError } = await db.from('members')
-    .select('id,name,nickname,profession,company_name,mentor_team,is_archived').in('id', ids).eq('chapter_id', chapterId).eq('is_archived', false);
+    .select('id,name,nickname,profession,company_name,is_archived').in('id', ids).eq('chapter_id', chapterId).eq('is_archived', false);
   if (memberError) throw new Error(memberError.message);
   const groups = new Map<string, { memberIds: string[]; members: Record<string, unknown>[]; details: string[] }>();
   for (const member of (members || []) as Record<string, unknown>[]) {
     const plan = newestByMember.get(String(member.id));
     const consent = consentByMember.get(String(member.id));
     const rawCategories = Array.isArray(plan?.power_team_categories) ? plan.power_team_categories : [];
-    const categories = respectReferralConsent && consent?.share_referral_focus === false
+    const categories = respectReferralConsent && consent?.share_referral_focus !== true
       ? rawCategories.filter(category => explicitCategories.get(String(member.id))?.has(cleanText(category, 120).toLowerCase()))
       : rawCategories;
     // Blueprint detail is free text. An explicit category grant does not prove
     // that every phrase in the detail is shareable, so hide it when the member
     // has disabled full referral sharing.
-    const detail = !respectReferralConsent || consent?.share_referral_focus !== false
+    const detail = !respectReferralConsent || consent?.share_referral_focus === true
       ? cleanText(plan?.power_team_detail, 500) : '';
     for (const rawCategory of categories) {
       const category = cleanText(rawCategory, 120);
@@ -86,7 +87,12 @@ async function powerTeamCandidates(
     .map(([category, group]) => ({
       category,
       memberIds: group.memberIds,
-      members: group.members.map(member => ({ id: member.id, name: member.name, nickname: member.nickname, profession: member.profession, companyName: member.company_name, mentorTeam: member.mentor_team })),
+      members: group.members.map(member => {
+        const profile = consentByMember.get(String(member.id));
+        const showBusiness = !respectReferralConsent || profile?.share_business === true;
+        return { id: member.id, name: member.name, nickname: member.nickname,
+          profession: showBusiness ? member.profession : '', companyName: showBusiness ? member.company_name : '' };
+      }),
       targetCustomerGroup: group.details.slice(0, 3).join(' · ') || `กลุ่มลูกค้าที่เกี่ยวข้องกับ ${category}`,
       rationale: `สมาชิก ${group.memberIds.length} คนระบุ ${category} ใน Blueprint จึงควรทดลอง 1-2-1 เพื่อพิสูจน์ว่ามีกลุ่มลูกค้าและ referral trigger ร่วมกัน`,
     })).sort((a, b) => b.memberIds.length - a.memberIds.length || a.category.localeCompare(b.category, 'th'));
@@ -285,26 +291,36 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
         const scope = await resolveChapterScope(db, auth);
         if (!scope.ok) return errResponse(scope.error, 403);
         const chapterId = scope.chapterId;
-        const [candidates, saved] = await Promise.all([
+        const [candidates, saved, published] = await Promise.all([
           powerTeamCandidates(db, chapterId, String(auth.role || '').toLowerCase() === 'growth'),
-          db.from('power_team_proposals').select('id,title,target_customer_group,rationale,source_category,status,created_by,assigned_owner_email,assigned_owner_name,assigned_at,created_at,updated_at,power_team_proposal_members(member_id,members(id,name,nickname,profession,company_name,mentor_team))')
-            .eq('chapter_id', chapterId).neq('status', 'archived').order('updated_at', { ascending: false }),
+          db.from('power_team_proposals').select('id,title,target_customer_group,rationale,source_category,status,created_by,assigned_owner_email,assigned_owner_name,assigned_at,created_at,updated_at,power_team_proposal_members(member_id,members(id,name,nickname,profession,company_name))')
+            .eq('chapter_id', chapterId).order('updated_at', { ascending: false }),
+          db.from('growth_power_team_publications').select('id,proposal_id,status,published_at,archived_at').eq('chapter_id', chapterId).order('published_at', { ascending: false }),
         ]);
-        if (saved.error) throw new Error(saved.error.message);
+        if (saved.error || published.error) throw new Error(saved.error?.message || published.error?.message);
         const coordinator = auth.isMC || auth.isAdmin || hasCapability(auth, CAPABILITY.GROWTH_COORDINATE);
         const rawProposals = coordinator ? (saved.data || []) : (saved.data || []).filter((row: Record<string, unknown>) => String(row.assigned_owner_email || '').toLowerCase() === String(auth.email || '').toLowerCase());
-        const proposalMemberIds = [...new Set(rawProposals.flatMap((row: Record<string, unknown>) => (Array.isArray(row.power_team_proposal_members) ? row.power_team_proposal_members : []).map((member: Record<string, unknown>) => String(member.member_id || '')).filter(Boolean)))];
+        const proposalMemberIds = [...new Set((saved.data || []).flatMap((row: Record<string, unknown>) => (Array.isArray(row.power_team_proposal_members) ? row.power_team_proposal_members : []).map((member: Record<string, unknown>) => String(member.member_id || '')).filter(Boolean)))];
         const { data: profileRows, error: profileError } = proposalMemberIds.length ? await db.from('member_one_to_one_profiles').select('member_id,share_referral_focus').in('member_id', proposalMemberIds) : { data: [], error: null };
         if (profileError) throw new Error(profileError.message);
         const referralByMember = new Map(((profileRows || []) as Record<string, unknown>[]).map(row => [String(row.member_id), row.share_referral_focus === true]));
-        const proposals = rawProposals.map((row: Record<string, unknown>) => {
+        const projectProposal = (row: Record<string, unknown>) => {
           const memberIds = (Array.isArray(row.power_team_proposal_members) ? row.power_team_proposal_members : []).map((member: Record<string, unknown>) => String(member.member_id || '')).filter(Boolean);
           // For a legacy/unassociated or mixed-consent proposal, conceal the
           // complete historical category/referral fields as one unit.
           const revealHistorical = memberIds.length > 0 && memberIds.every(memberId => referralByMember.get(memberId) === true);
-          return revealHistorical ? row : { ...row, source_category: null, target_customer_group: '', rationale: '' };
+          return String(auth.role || '').toLowerCase() !== 'growth' || revealHistorical
+            ? row : { ...row, title: '', source_category: null, target_customer_group: '', rationale: '', power_team_proposal_members: [], member_count: memberIds.length, detailRestricted: true };
+        };
+        const publicationByProposal = new Map(((published.data || []) as Record<string, unknown>[]).map(row => [String(row.proposal_id), row]));
+        const proposals = rawProposals.map(projectProposal).map(row => ({ ...row, officialStatus: publicationByProposal.get(String(row.id))?.status || null }));
+        const proposalById = new Map(((saved.data || []) as Record<string, unknown>[]).map(row => [String(row.id), row]));
+        const officialTeams = ((published.data || []) as Record<string, unknown>[]).map(publication => {
+          const proposal = proposalById.get(String(publication.proposal_id));
+          const safe = proposal ? projectProposal(proposal) : null;
+          return { id: publication.id, proposalId: publication.proposal_id, status: publication.status, publishedAt: publication.published_at, archivedAt: publication.archived_at, title: safe?.title || '', memberCount: safe?.member_count || (Array.isArray(safe?.power_team_proposal_members) ? safe.power_team_proposal_members.length : 0), members: safe?.power_team_proposal_members || [], detailRestricted: !safe || Boolean(safe.detailRestricted), targetCustomerGroup: safe?.target_customer_group || '' };
         });
-        return jsonResponse({ ok: true, candidates: coordinator ? candidates : [], proposals });
+        return jsonResponse({ ok: true, candidates: coordinator ? candidates : [], proposals, officialTeams, canCoordinate: coordinator, canApprove: Boolean(auth.isAdmin), canManageAssigned: hasCapability(auth, CAPABILITY.GROWTH_TASK_MANAGE_ASSIGNED), viewerEmail: String(auth.email || '') });
       } catch (error) { return errResponse(error instanceof Error ? error.message : String(error)); }
     }
 
@@ -344,14 +360,21 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
       const scope = await resolveChapterScope(db, auth); if (!scope.ok) return errResponse(scope.error, 403);
       const proposalId = cleanText(p.proposalId, 80), status = cleanText(p.status, 30);
       if (!proposalId || !['draft','assigned','exploring','active','closed','archived'].includes(status)) return errResponse('proposalId หรือ status ไม่ถูกต้อง', 400);
-      const { data: proposal } = await db.from('power_team_proposals').select('id,assigned_owner_email,status').eq('id', proposalId).eq('chapter_id', scope.chapterId).maybeSingle();
+      const { data: proposal } = await db.from('power_team_proposals').select('id,assigned_owner_email,status,rationale').eq('id', proposalId).eq('chapter_id', scope.chapterId).maybeSingle();
       const current = proposal as Record<string, unknown> | null; if (!current) return errResponse('ไม่พบ Proposal ใน Chapter นี้', 404);
+      const { data: publication, error: publicationError } = await db.from('growth_power_team_publications').select('id').eq('proposal_id', proposalId).eq('chapter_id', scope.chapterId).maybeSingle();
+      if (publicationError) return errResponse(publicationError.message);
+      if (publication) return errResponse('Proposal ที่เผยแพร่เป็น Power Team แล้วแก้ไขไม่ได้', 409);
       const coordinator = auth.isMC || auth.isAdmin || hasCapability(auth, CAPABILITY.GROWTH_COORDINATE);
       const owns = String(current.assigned_owner_email || '').toLowerCase() === String(auth.email || '').toLowerCase();
       if (!coordinator && !(owns && hasCapability(auth, CAPABILITY.GROWTH_TASK_MANAGE_ASSIGNED))) return errResponse('Proposal ต้องมอบหมายให้บัญชีของคุณก่อนจึงจะแก้ไขได้', 403);
       if (!coordinator && !['exploring','closed'].includes(status)) return errResponse('Growth owner เปลี่ยนได้เฉพาะ exploring หรือเสนอปิดงาน', 403);
       const patch: Record<string, unknown> = { status, updated_at:new Date().toISOString() };
-      if (status === 'closed') patch.rationale = cleanText(p.closeReason, 1500) || String(current.rationale || '');
+      if (status === 'closed') {
+        const closeReason = cleanText(p.closeReason, 1500);
+        if (closeReason.length < 5) return errResponse('ต้องระบุเหตุผลหรือผลลัพธ์อย่างน้อย 5 ตัวอักษร', 400);
+        patch.rationale = closeReason;
+      }
       const { error } = await db.from('power_team_proposals').update(patch).eq('id', proposalId).eq('chapter_id', scope.chapterId); if (error) return errResponse(error.message);
       return jsonResponse({ ok:true });
     }
@@ -362,10 +385,60 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
       if (!auth.isMC && !auth.isAdmin && !hasCapability(auth, CAPABILITY.GROWTH_COORDINATE)) return errResponse('เฉพาะ Growth Coordinator เท่านั้นที่มอบหมาย Proposal', 403);
       const scope = await resolveChapterScope(db, auth); if (!scope.ok) return errResponse(scope.error, 403);
       const proposalId = cleanText(p.proposalId, 80), ownerEmail = cleanText(p.ownerEmail, 255).toLowerCase(); if (!proposalId || !ownerEmail) return errResponse('proposalId และ ownerEmail required', 400);
+      const { data: proposal, error: proposalError } = await db.from('power_team_proposals').select('id').eq('id', proposalId).eq('chapter_id', scope.chapterId).maybeSingle();
+      if (proposalError) return errResponse(proposalError.message);
+      if (!proposal) return errResponse('ไม่พบ Proposal ใน Chapter นี้', 404);
+      const { data: publication, error: publicationError } = await db.from('growth_power_team_publications').select('id').eq('proposal_id', proposalId).eq('chapter_id', scope.chapterId).maybeSingle();
+      if (publicationError) return errResponse(publicationError.message);
+      if (publication) return errResponse('Proposal ที่เผยแพร่เป็น Power Team แล้วเปลี่ยนเจ้าของไม่ได้', 409);
       const { data: owner } = await db.from('role_assignments').select('email,display_name,role').eq('chapter_id', scope.chapterId).ilike('email', ownerEmail).eq('access_status','active').maybeSingle();
       if (!owner || String((owner as Record<string, unknown>).role) !== 'growth') return errResponse('ผู้รับผิดชอบต้องเป็น Growth ที่ active ใน Chapter นี้', 400);
       const { error } = await db.from('power_team_proposals').update({ assigned_owner_email:ownerEmail, assigned_owner_name:String((owner as Record<string,unknown>).display_name || ownerEmail), assigned_at:new Date().toISOString(), status:'assigned', updated_at:new Date().toISOString() }).eq('id', proposalId).eq('chapter_id', scope.chapterId); if (error) return errResponse(error.message);
       return jsonResponse({ ok:true });
+    }
+
+    case 'publishGrowthPowerTeam': {
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.isAdmin || !auth.email) return errResponse('เฉพาะ Chapter Admin ที่เข้าสู่ระบบด้วย OAuth เท่านั้น', 403);
+      if (p.confirmed !== true) return errResponse('ต้องยืนยันการเผยแพร่ Power Team', 400);
+      const scope = await resolveChapterScope(db, auth); if (!scope.ok) return errResponse(scope.error, 403);
+      const proposalId = cleanText(p.proposalId, 80);
+      if (!proposalId) return errResponse('proposalId required', 400);
+      const { data: proposal, error: proposalError } = await db.from('power_team_proposals').select('id,status').eq('id', proposalId).eq('chapter_id', scope.chapterId).maybeSingle();
+      if (proposalError) return errResponse(proposalError.message);
+      if (!proposal) return errResponse('ไม่พบ Proposal ใน Chapter นี้', 404);
+      if (proposal.status !== 'active') return errResponse('ต้องให้ Proposal อยู่สถานะ active ก่อนเผยแพร่', 409);
+      const { data: existing, error: existingError } = await db.from('growth_power_team_publications').select('id,status').eq('proposal_id', proposalId).eq('chapter_id', scope.chapterId).maybeSingle();
+      if (existingError) return errResponse(existingError.message);
+      if (existing) return jsonResponse({ ok: true, publicationId: existing.id, status: existing.status, alreadyPublished: true });
+      const { data: members, error: memberError } = await db.from('power_team_proposal_members').select('member_id').eq('proposal_id', proposalId);
+      if (memberError) return errResponse(memberError.message);
+      const memberIds = [...new Set((members || []).map((row: Record<string, unknown>) => String(row.member_id)))];
+      if (memberIds.length < 2) return errResponse('ต้องมีสมาชิกอย่างน้อย 2 คน', 409);
+      const { data: scopedMembers, error: scopedError } = await db.from('members').select('id').in('id', memberIds).eq('chapter_id', scope.chapterId).eq('is_archived', false);
+      if (scopedError) return errResponse(scopedError.message);
+      if ((scopedMembers || []).length !== memberIds.length) return errResponse('สมาชิกไม่อยู่ใน Chapter หรือไม่ active', 409);
+      const { data: publication, error } = await db.from('growth_power_team_publications').insert({ chapter_id: scope.chapterId, proposal_id: proposalId, published_by_email: auth.email }).select('id').single();
+      if (error) return errResponse(error.message, error.code === '23505' ? 409 : 400);
+      return jsonResponse({ ok: true, publicationId: publication.id, status: 'active' });
+    }
+
+    case 'archiveGrowthPowerTeam': {
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.isAdmin || !auth.email) return errResponse('เฉพาะ Chapter Admin ที่เข้าสู่ระบบด้วย OAuth เท่านั้น', 403);
+      if (p.confirmed !== true) return errResponse('ต้องยืนยันการเก็บทีมเข้าประวัติ', 400);
+      const scope = await resolveChapterScope(db, auth); if (!scope.ok) return errResponse(scope.error, 403);
+      const publicationId = cleanText(p.publicationId, 80);
+      if (!publicationId) return errResponse('publicationId required', 400);
+      const { data: publication, error: lookupError } = await db.from('growth_power_team_publications').select('id,status').eq('id', publicationId).eq('chapter_id', scope.chapterId).maybeSingle();
+      if (lookupError) return errResponse(lookupError.message);
+      if (!publication) return errResponse('ไม่พบ Power Team ใน Chapter นี้', 404);
+      if (publication.status === 'archived') return jsonResponse({ ok: true, alreadyArchived: true });
+      const { error } = await db.from('growth_power_team_publications').update({ status: 'archived', archived_by_email: auth.email, archived_at: new Date().toISOString() }).eq('id', publicationId).eq('chapter_id', scope.chapterId).eq('status', 'active');
+      if (error) return errResponse(error.message);
+      return jsonResponse({ ok: true });
     }
 
     // ── Get Power Teams ──────────────────────────────────────────
@@ -554,172 +627,13 @@ export async function handlePowerTeams(p: Record<string, unknown>): Promise<Resp
       return jsonResponse({ ok: true });
     }
 
-    // ── Get Cross-Team Synergy ───────────────────────────────────
-    case 'getCrossTeamSynergy': {
+    // Retired: this legacy pairing store had no trustworthy Chapter scope and
+    // inferred 1-2-1 suggestions from Mentor teams. Historical rows are kept.
+    case 'getCrossTeamSynergy':
+    case 'saveCrossTeamPair': {
       const auth = await requireAuth(db, p);
       if (!auth.ok) return errResponse(auth.error!);
-
-      // Saved pairs from cross_team_synergy
-      const { data: savedRows, error } = await db
-        .from('cross_team_synergy')
-        .select('id, member_a_id, member_b_id, status, notes, created_at')
-        .order('created_at', { ascending: false });
-      if (error) return errResponse(error.message);
-
-      const pairRows = (savedRows || []) as Record<string, unknown>[];
-
-      // Collect all member IDs for enrichment
-      const allIds = [
-        ...new Set([
-          ...pairRows.map(r => r.member_a_id),
-          ...pairRows.map(r => r.member_b_id),
-        ].filter(Boolean)),
-      ] as string[];
-
-      let memberDataMap: Record<string, { name: string; nick: string; team: string; score: number }> = {};
-      if (allIds.length) {
-        const { data: mems } = await db
-          .from('v_member_dashboard')
-          .select('id, name, nickname, mentor_team, display_score')
-          .in('id', allIds);
-        for (const m of (mems || []) as Record<string, unknown>[]) {
-          memberDataMap[String(m.id)] = {
-            name:  String(m.name),
-            nick:  String(m.nickname || ''),
-            team:  String(m.mentor_team || ''),
-            score: Number(m.display_score) || 0,
-          };
-        }
-      }
-
-      // Build savedPairs in flat format expected by both frontends
-      const savedPairs = pairRows.map(r => {
-        const a = memberDataMap[String(r.member_a_id)] || { name: '', nick: '', team: '', score: 0 };
-        const b = memberDataMap[String(r.member_b_id)] || { name: '', nick: '', team: '', score: 0 };
-        return {
-          row:    r.id,                                        // UUID used as row key for update/delete
-          id:     r.id,
-          nick1:  a.nick || a.name,
-          nick2:  b.nick || b.name,
-          team1:  a.team,
-          team2:  b.team,
-          status: r.status ? String(r.status) : 'pending',   // requires status column in DB
-          notes:  r.notes,
-        };
-      });
-
-      // Build a set of already-saved nick pairs for isSaved check
-      const savedSet = new Set(savedPairs.map(p => [p.nick1, p.nick2].sort().join('||')));
-
-      // Suggested cross-team pairs: members from different teams with complementary scores
-      const { data: allMems } = await db
-        .from('v_member_dashboard')
-        .select('id, name, nickname, mentor_team, display_score, traffic_light')
-        .eq('is_archived', false);
-
-      const recommendations: {
-        nick1: string; nick2: string; team1: string; team2: string;
-        score: number; reasons: string[]; isSaved: boolean;
-      }[] = [];
-
-      const allMArr = ((allMems || []) as Record<string, unknown>[]).filter(
-        m => Number(m.display_score) > 0
-      );
-
-      for (let i = 0; i < allMArr.length && recommendations.length < 20; i++) {
-        const ma    = allMArr[i];
-        const teamA = String(ma.mentor_team || '');
-        const scoreA = Number(ma.display_score) || 0;
-        if (!teamA) continue;
-
-        for (let j = i + 1; j < allMArr.length && recommendations.length < 20; j++) {
-          const mb    = allMArr[j];
-          const teamB = String(mb.mentor_team || '');
-          const scoreB = Number(mb.display_score) || 0;
-          if (!teamB || teamA === teamB) continue;
-
-          const scoreDiff = Math.abs(scoreA - scoreB);
-          if (scoreDiff < 20 || scoreDiff > 50) continue;
-
-          const n1 = String(ma.nickname || ma.name);
-          const n2 = String(mb.nickname || mb.name);
-          const reasons: string[] = [];
-          if (scoreA >= 70 && scoreB < 50) reasons.push(`${n1} (${teamA}) สามารถช่วย ${n2} (${teamB}) เพิ่มคะแนน`);
-          else if (scoreB >= 70 && scoreA < 50) reasons.push(`${n2} (${teamB}) สามารถช่วย ${n1} (${teamA}) เพิ่มคะแนน`);
-          else reasons.push('คะแนนต่างกัน — โอกาสเรียนรู้จากกัน');
-
-          const isSaved = savedSet.has([n1, n2].sort().join('||'));
-          recommendations.push({ nick1: n1, nick2: n2, team1: teamA, team2: teamB, score: scoreA + scoreB, reasons, isSaved });
-        }
-      }
-
-      recommendations.sort((a, b) => b.score - a.score);
-
-      return jsonResponse({ ok: true, savedPairs, recommendations: recommendations.slice(0, 15) });
-    }
-
-    // ── Save / Update / Delete Cross-Team Pair ───────────────────
-    case 'saveCrossTeamPair': {
-      const auth = await requireAuth(db, p, ['mc', 'growth']);
-      if (!auth.ok) return errResponse(auth.error!);
-
-      const rowId = p.row ? String(p.row).trim() : null;
-
-      // Handle status update
-      if (p.field === 'status' && rowId) {
-        const validStatuses = ['pending', 'in-progress', 'done', 'cancelled'];
-        const newStatus = validStatuses.includes(String(p.value)) ? String(p.value) : 'pending';
-        const { error } = await db.from('cross_team_synergy')
-          .update({ status: newStatus })
-          .eq('id', rowId);
-        if (error) return errResponse(error.message);
-        return jsonResponse({ ok: true });
-      }
-
-      // Handle delete
-      if (p.field === 'delete' && rowId) {
-        const { error } = await db.from('cross_team_synergy').delete().eq('id', rowId);
-        if (error) return errResponse(error.message);
-        return jsonResponse({ ok: true });
-      }
-
-      // Handle creation: accept nick1/nick2, name1/name2, or memberAName/memberBName
-      const rawA = String(p.memberAName || p.name1 || p.nick1 || '').trim();
-      const rawB = String(p.memberBName || p.name2 || p.nick2 || '').trim();
-      const notes = p.notes ? String(p.notes).trim() : null;
-
-      if (!rawA || !rawB) return errResponse('member names required');
-      if (rawA === rawB) return errResponse('Cannot pair a member with themselves');
-
-      // Look up by exact name first, then by nickname
-      const lookupMember = async (nameOrNick: string) => {
-        const { data: byName } = await db.from('members').select('id').eq('name', nameOrNick).maybeSingle();
-        if (byName) return byName;
-        const { data: byNick } = await db.from('members').select('id').ilike('nickname', nameOrNick).maybeSingle();
-        return byNick;
-      };
-
-      const memA = await lookupMember(rawA);
-      const memB = await lookupMember(rawB);
-
-      if (!memA) return errResponse(`ไม่พบสมาชิก: ${rawA}`);
-      if (!memB) return errResponse(`ไม่พบสมาชิก: ${rawB}`);
-
-      const idA = String((memA as Record<string, unknown>).id);
-      const idB = String((memB as Record<string, unknown>).id);
-
-      if (idA === idB) return errResponse('Cannot pair a member with themselves');
-
-      const [aId, bId] = idA < idB ? [idA, idB] : [idB, idA];
-
-      const { error } = await db.from('cross_team_synergy').upsert({
-        member_a_id: aId,
-        member_b_id: bId,
-        notes,
-      }, { onConflict: 'member_a_id,member_b_id' });
-      if (error) return errResponse(error.message);
-
-      return jsonResponse({ ok: true });
+      return errResponse('Legacy Connection Map is retired; use MY121', 410);
     }
 
     // ── Growth Power Teams overview ──────────────────────────────

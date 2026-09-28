@@ -152,14 +152,13 @@
     <span class="tb-fold-label" id="gr-fold-label" style="display:none"></span>
     <div class="nav-group-label">งานที่ต้องทำ</div>
     <button class="tb" onclick="sw('gr-task',this,'gr')">📥 Growth Inbox<span class="nb" id="badge-task"></span></button>
-    <button class="tb" onclick="sw('gr-flow',this,'gr');flowLoad()">🌊 Referral Flow</button>
+    <button class="tb" onclick="sw('gr-flow',this,'gr');flowLoad()">🌊 Referral Outcomes</button>
     <button class="tb" onclick="sw('gr-gw',this,'gr');renderGrowthWatchGR()">🔵 Growth Watch<span class="nb" id="badge-gw-gr"></span></button>
     <button class="tb" onclick="sw('gr-nm',this,'gr')">🆕 New Member Success<span class="nb" id="badge-nm"></span></button>
     <div class="nav-group-label">วิเคราะห์และวางแผน</div>
     <button class="tb" onclick="sw('gr-rev',this,'gr');rvLoad()">💰 Growth Plan</button>
-    <button class="tb" onclick="sw('gr-pt',this,'gr');ptLoad()">⚡ Opportunity Matching</button>
-    <button class="tb" onclick="sw('gr-cross',this,'gr');crossLoad()">🔀 Connection Map</button>
-    <button class="tb" onclick="sw('gr-sprint',this,'gr');sprintLoad()">🏃 Growth Sprint</button>
+    <button class="tb" onclick="sw('gr-pt',this,'gr');ptLoad()">⚡ Power Team</button>
+    <button class="tb" onclick="sw('gr-cross',this,'gr');growth121Load()">🤝 MY121</button>
     <div class="nav-group-label">ข้อมูลประกอบการตัดสินใจ</div>
     <button class="tb on" aria-current="page" onclick="sw('gr-ov',this,'gr')">📊 Chapter Growth Health</button>
     <button class="tb" onclick="sw('gr-bal',this,'gr')">👥 Member 360 & Balance</button>
@@ -1756,41 +1755,32 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       <div id="cmd-content"><div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div></div>
     </div>
 
-    <!-- 🔗 Cross-Team 1-2-1 Intelligence -->
+    <!-- MY121 care: read-only, backed by the existing MY121 system -->
     <div id="gr-cross" class="sec">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-        <div><h2 style="font-size:15px;font-weight:800;margin:0">🔗 Connection Map</h2>
-          <div style="font-size:11px;color:var(--sub);margin-top:3px">โอกาสเชื่อมต่อข้ามทีมจากความต้องการธุรกิจ — ตรวจและขออนุญาตก่อนแนะนำเสมอ</div></div>
-        <button class="bsm" onclick="crossLoad(true)">🔄 รีเฟรช</button>
+        <div><h2 style="font-size:15px;font-weight:800;margin:0">🤝 MY121 ที่บันทึกแล้ว</h2>
+          <div style="font-size:11px;color:var(--sub);margin-top:3px">อ่านสถานะจาก MY121 โดยตรง ไม่สร้างคู่หรือสรุป Referral แทนระบบหลัก</div></div>
+        <button class="bsm" onclick="growth121Load(true)">🔄 รีเฟรช</button>
       </div>
       <div id="cross-content"><div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div></div>
     </div>
 
-    <!-- 🗓️ Monthly Sprint Board -->
-    <div id="gr-sprint" class="sec">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-        <div><h2 style="font-size:15px;font-weight:800;margin:0">🗓️ Growth Sprint</h2>
-          <div style="font-size:11px;color:var(--sub);margin-top:3px">ใช้เฉพาะ campaign 30/60/90 วัน เพื่อวางแผน Growth + Mentor ร่วมกัน</div></div>
-        <button onclick="sprintOpenAdd()" style="background:var(--ac-dim);border:1px solid var(--bd-hover);color:var(--ac);border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">➕ สร้าง Sprint</button>
-      </div>
-      <div id="sprint-content"><div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div></div>
-    </div>
-
-    <!-- 🌊 Referral Flow -->
+    <!-- Chapter referral outcomes: reported totals, not inferred directions -->
     <div id="gr-flow" class="sec">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-        <div><h2 style="font-size:15px;font-weight:800;margin:0">🌊 Referral Flow</h2>
-          <div style="font-size:11px;color:var(--sub);margin-top:3px">ติดตาม Need → Match → Introduce → Follow-up → Outcome โดยไม่ส่งข้อมูลส่วนตัวเกินจำเป็น</div></div>
+        <div><h2 style="font-size:15px;font-weight:800;margin:0">🌊 Referral Outcomes</h2>
+          <div style="font-size:11px;color:var(--sub);margin-top:3px">ยอดรายงานของ Chapter · ไม่ประมาณทิศทาง Ref และไม่ถือว่า MY121 เท่ากับ Referral</div></div>
         <button class="bsm" onclick="flowLoad(true)">🔄</button>
       </div>
       <div id="flow-content"><div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div></div>
     </div>
 
-    <!-- ⚡ Power Team Proposals -->
+    <!-- ⚡ Power Team Hub -->
     <div id="gr-pt" class="sec">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-        <div><h2 style="font-size:15px;font-weight:800;margin:0">⚡ Opportunity Matching</h2>
-          <div style="font-size:11px;color:var(--sub);margin-top:3px">จับคู่จากลูกค้าเป้าหมายและ Referral Trigger ร่วมกัน — ยังไม่ใช่ทีมที่ประกาศแล้ว</div></div>
+        <div><h2 style="font-size:15px;font-weight:800;margin:0">⚡ Power Team</h2>
+          <div style="font-size:11px;color:var(--sub);margin-top:3px">จากทีมร่างใน Blueprint → Proposal ที่ Growth ดูแล → ทีมจริงที่ Admin อนุมัติ</div></div>
+        <button class="bsm" onclick="ptLoad(true)">🔄 รีเฟรช</button>
       </div>
       <div id="pt-mgr-content"><div style="text-align:center;padding:40px;color:var(--sub)">⏳ กำลังโหลด...</div></div>
     </div>
@@ -2237,6 +2227,8 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 <script src="/assets/js/desktop-blueprint-summary.js?v=20260924.3" defer></script>
 <script src="/assets/js/desktop-growth-workspace.js?v=20260919.1" defer></script>
 <script src="/assets/js/desktop-operations.js?v=20260924-blueprint-summary.1" defer></script>
+<script src="/assets/js/desktop-power-team-hub.js?v=20260928.1" defer></script>
+<script src="/assets/js/desktop-growth-my121.js?v=20260928.1" defer></script>
 <script src="/assets/js/desktop-line-compose.js?v=20260909-audit.1" defer></script>
 <script src="/assets/js/desktop-navigation.js?v=20260909-audit.1" defer></script>
 <script src="/assets/js/desktop-member-360.js" defer></script>

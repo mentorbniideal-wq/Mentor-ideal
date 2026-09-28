@@ -743,53 +743,21 @@ function mobCmdLoad(force){
   });
 }
 
-// ── Mobile: Cross-Team ─────────────────────────────────────────
+// The legacy Cross-Team pairing store is retired. This tab reads MY121 only.
 function mobCrossLoad(force){
-  if(_mobCrossLoaded&&!force)return; _mobCrossLoaded=true;
+  if(_mobCrossLoaded&&!force)return;
+  _mobCrossLoaded=true;
   var el=document.getElementById('mob-cross-content');
-  el.innerHTML='<div class="lt">⏳ กำลังโหลด...</div>';
-  gsr('getCrossTeamSynergy',{role:S.role},function(r){
-    if(!r.ok){el.innerHTML='<div style="color:var(--red);padding:1rem">❌ '+(r.error||'')+'</div>';return;}
-    var recs=(r.recommendations||[]).slice(0,10);
-    var saved=r.savedPairs||[];
-    var html='';
-    if(saved.length){
-      html+='<div style="font-size:12px;font-weight:700;margin-bottom:8px">📌 Assigned ('+saved.length+')</div>';
-      saved.forEach(function(p){
-        var sc=p.status==='done'?'var(--green)':p.status==='in-progress'?'#A78BFA':'var(--yellow)';
-        html+='<div style="background:var(--bg3,#1E2D40);border-radius:8px;padding:10px 12px;margin-bottom:6px">'
-          +'<div style="display:flex;align-items:center;gap:6px;font-size:12px">'
-          +'<b>'+escHtml(p.nick1||'')+'</b><span style="color:var(--gray2)">'+escHtml(p.team1||'')+'</span>'
-          +'<span>↔️</span>'
-          +'<b>'+escHtml(p.nick2||'')+'</b><span style="color:var(--gray2)">'+escHtml(p.team2||'')+'</span>'
-          +'<span style="margin-left:auto;font-size:10px;font-weight:700;color:'+sc+'">'+p.status+'</span>'
-          +'</div></div>';
-      });
-    }
-    html+='<div style="font-size:12px;font-weight:700;margin:12px 0 8px">🤖 AI แนะนำ ('+recs.length+')</div>';
-    recs.forEach(function(rec){
-      if(rec.isSaved) return;
-      var reasons=rec.reasons||[];
-      var sN1=String(rec.nick1||'').replace(/'/g,"\\'"); var sN2=String(rec.nick2||'').replace(/'/g,"\\'");
-      var sT1=String(rec.team1||'').replace(/'/g,"\\'"); var sT2=String(rec.team2||'').replace(/'/g,"\\'");
-      html+='<div style="background:var(--bg3,#1E2D40);border-radius:8px;padding:10px 12px;margin-bottom:8px">'
-        +'<div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:4px">'
-        +'<b>'+escHtml(rec.nick1)+'</b><span style="color:var(--gray2);font-size:10px">'+escHtml(rec.team1)+'</span>'
-        +'<span>↔️</span>'
-        +'<b>'+escHtml(rec.nick2)+'</b><span style="color:var(--gray2);font-size:10px">'+escHtml(rec.team2)+'</span>'
-        +'</div>'
-        +(reasons.length?'<div style="font-size:10px;color:#A78BFA;margin-bottom:6px">💡 '+escHtml(reasons.join(' · '))+'</div>':'')
-        +'<button onclick="mobAssignPair(\''+sN1+'\',\''+sN2+'\',\''+sT1+'\',\''+sT2+'\')" style="background:rgba(60,120,80,.15);border:1px solid rgba(60,120,80,.4);color:#A78BFA;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;font-family:Sarabun,sans-serif;cursor:pointer">📌 Assign</button>'
-        +'</div>';
-    });
-    el.innerHTML=html||'<div style="color:var(--gray2);text-align:center;padding:2rem">ยังไม่มีคำแนะนำ</div>';
-  });
-}
-function mobAssignPair(n1,n2,t1,t2){
-  gsr('saveCrossTeamPair',{role:S.role,nick1:n1,nick2:n2,team1:t1,team2:t2},function(r){
-    if(!r.ok){showToast('❌ '+(r.error||''));return;}
-    showToast('✅ Assign '+n1+' ↔ '+n2);
-    _mobCrossLoaded=false;mobCrossLoad();
+  if(!el)return;
+  el.innerHTML='<div class="lt">⏳ กำลังโหลด MY121…</div>';
+  gsr('getAll121Logs',{},function(r){
+    if(!r||!r.ok){_mobCrossLoaded=false;el.innerHTML='<div role="alert" style="color:var(--red);padding:1rem">โหลด MY121 ไม่สำเร็จ: '+escHtml(r&&r.error||'กรุณาลองใหม่')+'</div><button type="button" onclick="mobCrossLoad(true)">ลองใหม่</button>';return;}
+    var recent=(r.recent||[]).map(function(row){
+      return '<div style="background:var(--bg3,#1E2D40);border-radius:8px;padding:10px 12px;margin-bottom:6px"><b>'+escHtml(row.member||'สมาชิก')+'</b><div style="font-size:11px;color:var(--gray2)">บันทึกเมื่อ '+escHtml(row.loggedAt||'ไม่ระบุวัน')+'</div></div>';
+    }).join('');
+    el.innerHTML='<div style="padding:12px;background:var(--bg3,#1E2D40);border-radius:10px"><b>บันทึก MY121 ใน Chapter: '+Math.max(0,Number(r.total)||0).toLocaleString('th-TH')+'</b><div style="font-size:11px;color:var(--gray2);margin-top:6px">เป็นจำนวน log ไม่ใช่คู่ที่ยืนยันแล้ว และไม่ใช่ Referral หรือรายได้ · การนัดและการยืนยันผลทำใน MY121</div></div>'
+      +'<div style="font-size:12px;font-weight:700;margin:12px 0 8px">บันทึกล่าสุด</div>'
+      +(recent||'<div style="color:var(--gray2);padding:12px">ยังไม่มีบันทึก MY121 ที่แสดงได้</div>');
   });
 }
 

@@ -162,7 +162,7 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
       const recent = rows.slice(0, 8).map((row) => {
         const initiator = row.initiator as Record<string, unknown> | null;
         return {
-          team:      String(initiator?.mentor_team || ''),
+          team:      auth.role === 'growth' ? '' : String(initiator?.mentor_team || ''),
           member:    String(initiator?.name        || ''),
           // Growth can monitor Chapter-level activity, but the free-text
           // 1-2-1 discussion belongs to the Mentor workflow.
@@ -171,7 +171,7 @@ export async function handle121(p: Record<string, unknown>): Promise<Response> {
         };
       });
 
-      return jsonResponse({ ok: true, total, byTeam, recent });
+      return jsonResponse({ ok: true, total, byTeam: auth.role === 'growth' ? {} : byTeam, recent });
     }
 
     // ── get121Tracker ──────────────────────────────────────────

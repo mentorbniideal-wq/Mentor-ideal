@@ -5,6 +5,7 @@
 import { requireAuth } from '../../_shared/auth.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { canAccessTeam, isGrowth } from '../../_shared/authorization.ts';
+import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
 
 const TEAM_MAP: Record<string, string> = {
   toomtam: 'TOOMTAM', aof: 'Aof', draft: 'Draft', phai: 'PHAI', amp: 'AMP',
@@ -681,59 +682,27 @@ export async function handleMeetings(p: Record<string, unknown>): Promise<Respon
       return jsonResponse({ ok: true, actions, total: actions.length });
     }
 
-    // ── Referral Flow ────────────────────────────────────────────
+    // Chapter-level reported referrals only. The source has no verified
+    // sender-to-recipient edges, so never infer directional flow or rank people.
     case 'getReferralFlow': {
-      const auth = await requireAuth(db, p);
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
-
-      const { data: members, error } = await db
-        .from('v_member_dashboard')
-        .select('name, nickname, mentor_team, rg, rr, received_thb, given_thb')
-        .eq('is_archived', false);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const { data: members, error: memberError } = await db.from('members')
+        .select('id').eq('chapter_id', scope.chapterId).eq('is_archived', false);
+      if (memberError) return errResponse(memberError.message);
+      const ids = (members || []).map((member: Record<string, unknown>) => String(member.id));
+      if (!ids.length) return jsonResponse({ ok: true, summary: { memberCount: 0, given: 0, received: 0 }, source: 'reported_member_dashboard', directionalFlowAvailable: false });
+      const { data: rows, error } = await db.from('v_member_dashboard')
+        .select('id,rg,rr').in('id', ids).eq('is_archived', false);
       if (error) return errResponse(error.message);
-
-      const tData: Record<string, { rg: number; rr: number; recv: number; memberCount: number }> = {};
-      for (const team of ALL_TEAMS) tData[team] = { rg: 0, rr: 0, recv: 0, memberCount: 0 };
-
-      const imbalanced: { nick: string; firstName: string; team: string; refIn: number; refOut: number }[] = [];
-
-      for (const m of (members || []) as Record<string, unknown>[]) {
-        const team = String(m.mentor_team || '');
-        const rg   = Number(m.rg) || 0;
-        const rr   = Number(m.rr) || 0;
-        const recv = Number(m.received_thb) || 0;
-        if (team && tData[team]) {
-          tData[team].rg          += rg;
-          tData[team].rr          += rr;
-          tData[team].recv        += recv;
-          tData[team].memberCount += 1;
-        }
-        if (rg > 0 && rr > rg * 2) {
-          imbalanced.push({ nick: String(m.nickname || ''), firstName: String(m.name || ''), team, refIn: rr, refOut: rg });
-        }
+      const summary = { memberCount: ids.length, given: 0, received: 0 };
+      for (const row of (rows || []) as Record<string, unknown>[]) {
+        summary.given += Math.max(0, Number(row.rg) || 0);
+        summary.received += Math.max(0, Number(row.rr) || 0);
       }
-
-      const teamStats = ALL_TEAMS.map(team => ({
-        team, memberCount: tData[team].memberCount,
-        refOut: tData[team].rg, refIn: tData[team].rr, recv: tData[team].recv,
-      }));
-
-      // Estimate cross-team flow: each team's RG distributed proportionally to other teams' sizes
-      const chapterRG  = teamStats.reduce((s, t) => s + t.refOut, 0);
-      const flow: { fromTeam: string; toTeam: string; refCount: number }[] = [];
-      if (chapterRG > 0) {
-        for (const from of teamStats) {
-          for (const to of teamStats) {
-            if (from.team === to.team) continue;
-            const est = Math.round(from.refOut * (to.memberCount / (members?.length || 1)));
-            if (est > 0) flow.push({ fromTeam: from.team, toTeam: to.team, refCount: est });
-          }
-        }
-        flow.sort((a, b) => b.refCount - a.refCount);
-      }
-
-      imbalanced.sort((a, b) => (b.refIn - b.refOut) - (a.refIn - a.refOut));
-      return jsonResponse({ ok: true, teamStats, flow, imbalanced: imbalanced.slice(0, 10) });
+      return jsonResponse({ ok: true, summary, source: 'reported_member_dashboard', directionalFlowAvailable: false });
     }
 
     default:

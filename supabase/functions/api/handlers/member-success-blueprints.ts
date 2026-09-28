@@ -240,11 +240,12 @@ async function fetchPlanRows(
   }
   return mapped.map(row => {
     const flags = consent.get(String(row.memberId)) || {};
-    const shareBusiness = flags.share_business !== false;
-    const shareReferral = flags.share_referral_focus !== false;
+    const shareBusiness = flags.share_business === true;
+    const shareReferral = flags.share_referral_focus === true;
     return {
       ...row,
       companyName: shareBusiness ? row.companyName : '',
+      profession: shareBusiness ? row.profession : '',
       lookingForCategories: shareReferral ? row.lookingForCategories : row.lookingForCategories.filter(category => allowedCategories.get(`${String(row.memberId)}:looking_for`)?.has(String(category).toLowerCase())),
       lookingForDetail: shareReferral ? row.lookingForDetail : '',
       powerTeamCategories: shareReferral ? row.powerTeamCategories : row.powerTeamCategories.filter(category => allowedCategories.get(`${String(row.memberId)}:power_team`)?.has(String(category).toLowerCase())),
@@ -521,6 +522,35 @@ function buildPairMatching(rows: ReturnType<typeof mapPlanRow>[]) {
     },
     pairs: deduped,
   };
+}
+
+// Growth suggestions are review prompts, not an AI score or a MY121 booking.
+// fetchPlanRows has already applied the current category consent projection.
+export function buildGrowthCategoryPairs(rows: ReturnType<typeof mapPlanRow>[]) {
+  const eligible = rows.filter(row => row.blueprintStatus === 'submitted');
+  const pairs: Record<string, unknown>[] = [];
+  for (let i = 0; i < eligible.length; i++) {
+    const source = eligible[i];
+    const sourceCategories = new Map([...source.lookingForCategories, ...source.powerTeamCategories]
+      .map(category => [normalizeCategoryKey(category), category] as const).filter(([key]) => Boolean(key)));
+    if (!sourceCategories.size) continue;
+    for (let j = i + 1; j < eligible.length; j++) {
+      const target = eligible[j];
+      const targetKeys = new Set([...target.lookingForCategories, ...target.powerTeamCategories].map(normalizeCategoryKey));
+      const matchedTerms = [...sourceCategories.entries()].filter(([key]) => targetKeys.has(key)).map(([, label]) => label);
+      if (!matchedTerms.length) continue;
+      const member = (row: ReturnType<typeof mapPlanRow>) => ({
+        memberId: row.memberId, name: row.name, nickname: row.nickname,
+        mentorTeam: '', profession: '', companyName: '',
+        lookingForCategories: row.lookingForCategories, powerTeamCategories: row.powerTeamCategories,
+      });
+      pairs.push({ source: member(source), target: member(target), score: null, confidence: 'review',
+        matchedTerms, reasons: [`สมาชิกทั้งสองฝ่ายเปิดเผยหมวด ${matchedTerms.join(', ')} ใน Blueprint ปีเดียวกัน`],
+        suggestedAgenda: ['ตรวจความต้องการและขอความยินยอมก่อนแนะนำตัว', 'หากตกลงนัด ให้ดำเนินการและยืนยันผลใน MY121'],
+      });
+    }
+  }
+  return { summary: { pairCount: pairs.length, highConfidence: 0, mediumConfidence: 0, membersWithPlan: eligible.length }, pairs: pairs.slice(0, 24) };
 }
 
 async function buildFollowUpQueue(db: Db, auth: Awaited<ReturnType<typeof requireAuth>>, chapterId: string) {
@@ -1506,7 +1536,7 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       const scope = await resolveChapterScope(db, auth);
       if (!scope.ok) return errResponse(scope.error, 403);
       const rows = await fetchPlanRows(db, auth, year, scope.chapterId);
-      return jsonResponse({ ok: true, blueprintYear: year, matching: buildPairMatching(rows) });
+      return jsonResponse({ ok: true, blueprintYear: year, matching: String(auth.role || '').toLowerCase() === 'growth' ? buildGrowthCategoryPairs(rows) : buildPairMatching(rows) });
     }
 
     case 'getMSBFollowUpQueue': {
@@ -1620,7 +1650,7 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       const [{ data: profiles, error: profileError }, { data: candidatePlans, error: planError }, { data: categoryConsents, error: consentError }] = candidateIds.length
         ? await Promise.all([
           db.from('member_one_to_one_profiles').select('member_id,share_business,share_referral_focus').in('member_id', candidateIds),
-          db.from('member_success_blueprints').select('member_id,looking_for_categories,power_team_categories').eq('blueprint_year', year).in('member_id', candidateIds),
+          db.from('member_success_blueprints').select('member_id,looking_for_categories,power_team_categories').eq('blueprint_year', year).eq('status', 'submitted').in('member_id', candidateIds),
           db.from('member_growth_category_consents').select('member_id,category_type,category').in('member_id', candidateIds).is('revoked_at', null),
         ])
         : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
@@ -1636,9 +1666,13 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       const suggestions = ((data || []) as Record<string, unknown>[])
         .map(m => {
           const flags = consent.get(String(m.id)) || {};
-          const shareBusiness = flags.share_business !== false;
-          const shareReferral = flags.share_referral_focus !== false;
+          const growthReader = String(auth.role || '').toLowerCase() === 'growth';
+          const shareBusiness = growthReader ? flags.share_business === true : flags.share_business !== false;
+          const shareReferral = growthReader ? flags.share_referral_focus === true : flags.share_referral_focus !== false;
           const plan = plansByMember.get(String(m.id)) || {};
+          const declared = [...(Array.isArray(plan.looking_for_categories) ? plan.looking_for_categories : []),
+            ...(Array.isArray(plan.power_team_categories) ? plan.power_team_categories : [])]
+            .map(category => txt(category).toLowerCase()).filter(Boolean);
           const explicitlyAllowed = !shareReferral
             ? ['looking_for', 'power_team'].flatMap(type => {
               const values = allowedCategories.get(`${String(m.id)}:${type}`) || new Set<string>();
@@ -1646,17 +1680,15 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
               return Array.isArray(source) ? source.map(txt).filter(category => values.has(category.toLowerCase())) : [];
             }).map(category => category.toLowerCase())
             : [];
-          const profession = txt(m.profession).toLowerCase();
-          const company = shareBusiness ? txt(m.company_name).toLowerCase() : '';
           const matched = shareReferral
-            ? desired.filter(cat => cat && (profession.includes(cat) || company.includes(cat) || cat.includes(profession)))
+            ? desired.filter(cat => declared.includes(cat))
             : desired.filter(cat => explicitlyAllowed.includes(cat));
           return {
             memberId: m.id,
             name: m.name,
             nickname: m.nickname,
-            mentorTeam: m.mentor_team,
-            profession: m.profession,
+            mentorTeam: growthReader ? '' : m.mentor_team,
+            profession: shareBusiness ? m.profession : '',
             companyName: shareBusiness ? m.company_name : '',
             matchedCategories: Array.from(new Set(matched)),
             confidence: matched.length >= 2 ? 'medium' : matched.length === 1 ? 'low' : '',
