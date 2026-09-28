@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
-const root = { innerHTML: '' };
-const document = { getElementById(id) { return id === 'member-growth-root' ? root : null; }, addEventListener() {} };
+const root = { innerHTML: '', contains: () => true };
+const handlers = new Map();
+const document = { getElementById(id) { return id === 'member-growth-root' ? root : null; }, addEventListener(type, handler) { handlers.set(type, handler); } };
 const nodes = Array.from({ length: 12 }, (_, index) => ({ month: index + 1, dueDate: `2027-${String(index + 1).padStart(2, '0')}-28`,
   milestone: index === 0 ? { label: 'เริ่มรอบ / ตั้งเป้า', owner: 'Growth' } : index === 2 ? { label: 'New Member Review', owner: 'Mentor' } : null,
   status: 'not_recorded' }));
@@ -19,6 +20,9 @@ vm.runInNewContext(readFileSync(new URL('../public/assets/js/member-growth-cycle
 window.memberGrowthLoad();
 await new Promise(resolve => setImmediate(resolve));
 assert.match(root.innerHTML, /งานถึงกำหนด/);
+assert.match(root.innerHTML, /ภาพรวม Chapter/);
+handlers.get('click')({ target: { closest: selector => selector === '[data-mg-open-board]' ? null : ({ dataset: { mgTab: 'overview' }, hasAttribute: () => false }) } });
+assert.match(root.innerHTML, /จังหวะงานที่ควรทบทวน/);
 window.memberGrowthOpen('member-1');
 await new Promise(resolve => setImmediate(resolve));
 assert.equal((root.innerHTML.match(/data-mg-select=/g) || []).length, 12);
