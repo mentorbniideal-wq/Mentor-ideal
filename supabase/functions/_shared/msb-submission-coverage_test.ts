@@ -1,5 +1,5 @@
 import { assertEquals } from 'jsr:@std/assert';
-import { buildBlueprintSubmissionCoverage, preferPlanningBlueprint } from './msb-submission-coverage.ts';
+import { buildBlueprintSubmissionCoverage, isActiveMsbPlan, preferPlanningBlueprint } from './msb-submission-coverage.ts';
 
 Deno.test('Blueprint coverage reports every scoped member and year without Blueprint content', () => {
   const coverage = buildBlueprintSubmissionCoverage(
@@ -44,6 +44,12 @@ Deno.test('submitted legacy form wins over new draft; submitted 2027 wins over s
   const newSubmitted = { blueprint_year: 2027, status: 'submitted' };
   assertEquals(preferPlanningBlueprint(newDraft, legacy), legacy);
   assertEquals(preferPlanningBlueprint(legacy, newSubmitted), newSubmitted);
+});
+
+Deno.test('Member 360 excludes only the superseded form, not the 2026 Growth baseline', () => {
+  assertEquals(isActiveMsbPlan({ blueprint_year: 2026, source: 'member_form_2026_superseded' }), false);
+  assertEquals(isActiveMsbPlan({ blueprint_year: 2027, source: 'member_form_2026_reclassified' }), true);
+  assertEquals(isActiveMsbPlan({ blueprint_year: 2026, source: 'member_form' }), true);
 });
 
 Deno.test('Blueprint coverage keeps the selected year visible when no submissions exist', () => {

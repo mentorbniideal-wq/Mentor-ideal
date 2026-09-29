@@ -12,6 +12,10 @@ function text(value: unknown): string {
   return String(value ?? '').trim();
 }
 
+export function isActiveMsbPlan(row: BlueprintRow): boolean {
+  return text(row.source) !== 'member_form_2026_superseded';
+}
+
 export function preferPlanningBlueprint<T extends BlueprintRow>(current: T | undefined, candidate: T): T {
   if (!current) return candidate;
   const score = (row: T) => (text(row.status) === 'submitted' ? 2 : 0) + (Number(row.blueprint_year) === 2027 ? 1 : 0);

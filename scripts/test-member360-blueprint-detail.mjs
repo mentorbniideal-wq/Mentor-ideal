@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 const member360 = readFileSync('public/assets/js/desktop-member-360.js', 'utf8');
 const operations = readFileSync('public/assets/js/desktop-operations.js', 'utf8');
 const handler = readFileSync('supabase/functions/api/handlers/member-success-blueprints.ts', 'utf8');
+const dashboardHandler = readFileSync('supabase/functions/api/handlers/dashboard.ts', 'utf8');
 
 assert.match(member360, /function blueprintDetail\(rows\)/, 'Member 360 has a dedicated annual Blueprint detail renderer');
 assert.match(member360, /เป้ายอดขายรวม\/ปี/, 'Member 360 exposes the annual sales target');
@@ -23,5 +24,7 @@ assert.match(handler, /const historicalGoals = await loadHistoricalGrowthGoals\(
 assert.match(operations, /var ps=r\.planSummary\|\|\{\}, as=r\.actualSummary\|\|\{\}, gs=r\.gapSummary\|\|\{\}, yc=r\.yearComparison\|\|\{\}/, 'Growth detail reads the explicit year-comparison DTO');
 assert.match(operations, /ดูรายละเอียด Blueprint ปี/, 'Growth detail offers a progressively disclosed Blueprint summary');
 assert.match(operations, /yc\.previousGoal===null/, 'Growth UI handles a missing historical target honestly');
+assert.match(dashboardHandler, /resolveMsbPlanningYear\(db, \{ chapterId: scope\.chapterId \}\)/, 'Mobile member context uses the configured planning year');
+assert.match(dashboardHandler, /\.filter\(isActiveMsbPlan\)/, 'Member 360 hides superseded member forms while retaining Growth baseline records');
 
 console.log('PASS Member 360 Blueprint detail: separate annual targets, safe detail rendering, and scoped Growth comparison');

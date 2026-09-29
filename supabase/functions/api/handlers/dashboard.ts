@@ -7,6 +7,8 @@ import { memberAccessError, resolveMemberAccess } from '../../_shared/authorizat
 import { canViewMemberSignal } from '../../_shared/member-signal-access.ts';
 import { calcPalmsScore, trafficLight } from '../../_shared/palms.ts';
 import { sortMember360Timeline, summarizeMember360Health } from '../../_shared/member-360.ts';
+import { resolveMsbPlanningYear } from '../../_shared/msb-planning-year.ts';
+import { isActiveMsbPlan } from '../../_shared/msb-submission-coverage.ts';
 
 // ── PALMS gap computation (mirrors WEBAPP.js gapXxx functions) ────────────────
 type GapEntry = { cat: string; icon: string; cur: number; max: number; next: number; gain: number; action: string; curVal: string; tgtVal: string; altAction?: string; altTgtVal?: string };
@@ -599,16 +601,16 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       const role = String(auth.role || '').toLowerCase();
       const isGrowthLens = auth.isMC || role === 'growth';
       const isMentorLens = auth.isMC || auth.isMentor || ['toomtam','aof','draft','phai','amp','mentor_support'].includes(role);
-      const year = Number(p.blueprintYear || new Date().getFullYear());
+      const year = Number(p.blueprintYear || await resolveMsbPlanningYear(db, { chapterId: scope.chapterId }));
       const [profileQ, planQ, signalsQ, taskQ, pairsQ, journeyQ] = await Promise.all([
         db.from('member_one_to_one_profiles').select('business_summary,looking_for,ideal_client,updated_at,share_business,share_referral_focus').eq('member_id', memberId).maybeSingle(),
-        db.from('member_success_blueprints').select('looking_for_categories,power_team_categories,updated_at,status').eq('member_id', memberId).eq('blueprint_year', year).maybeSingle(),
+        db.from('member_success_blueprints').select('source,looking_for_categories,power_team_categories,updated_at,status').eq('member_id', memberId).eq('blueprint_year', year).maybeSingle(),
         db.from('member_signals').select('id,signal_type,title,detail,status,priority,target_roles,assigned_role,assigned_member_id,created_at,updated_at,payload').eq('member_id', memberId).in('status',['new','acknowledged','in_progress']).order('created_at',{ascending:false}).limit(12),
         isGrowthLens ? db.from('growth_tasks').select('id,task_type,status,due_date,assigned_owner_name,created_at').eq('chapter_id', scope.chapterId).eq('member_id', memberId).in('status',['new','accepted','in_progress','waiting_member']).order('created_at',{ascending:false}).limit(6) : Promise.resolve({data:[],error:null}),
         db.from('matching_pairs').select('id,status,created_at').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId}`).is('archived_at',null).order('created_at',{ascending:false}).limit(4),
         db.from('member_journey_events').select('event_type,role_title,occurred_on,note,created_at').eq('chapter_id', scope.chapterId).eq('member_id', memberId).order('occurred_on',{ascending:false}).limit(4),
       ]);
-      const profile = (profileQ.data || {}) as Record<string, unknown>, plan = (planQ.data || {}) as Record<string, unknown>;
+      const profile = (profileQ.data || {}) as Record<string, unknown>, plan = planQ.data && isActiveMsbPlan(planQ.data as Record<string, unknown>) ? planQ.data as Record<string, unknown> : {};
       const { data: explicitCategoryRows } = isGrowthLens && profile.share_referral_focus === false
         ? await db.from('member_growth_category_consents').select('category_type,category').eq('member_id', memberId).is('revoked_at', null)
         : { data: [] };
@@ -627,7 +629,7 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         ...((journeyQ.data || []) as Record<string,unknown>[]).map(row => ({ kind:'journey', title:String(row.role_title||row.event_type||''), status:'recorded', at:row.occurred_on||row.created_at, detail:'' })),
       ].filter(row => row.at).sort((a,b) => String(b.at).localeCompare(String(a.at))).slice(0,8);
       const m = member as Record<string, unknown>;
-      return jsonResponse({ ok:true, member:{ id:String(m.id), name:String(m.name||''), nickname:String(m.nickname||''), profession:String(m.profession||''), company:String(m.company_name||''), mentorTeam:String(m.mentor_team||'') }, sharedBusinessContext:{ businessSummary:profile.share_business===false?'':String(profile.business_summary||''), lookingFor:profile.share_referral_focus===false?'':String(profile.looking_for||''), idealClient:profile.share_referral_focus===false?'':String(profile.ideal_client||''), updatedAt:profile.updated_at||plan.updated_at||null, partial:!profileQ.data&&!planQ.data }, supportSummary:{ openCount:sharedSignals.length, nextAction:sharedSignals[0]?safeSignal(sharedSignals[0]):null, lastSharedInteraction:history[0]||null }, openSupportItems:sharedSignals.map(safeSignal), supportHistory:history, roleLens:{ role:isGrowthLens?'growth':isMentorLens?'mentor':'shared', growth:isGrowthLens?{ tasks:((taskQ.data||[]) as Record<string,unknown>[]).map(row=>({id:String(row.id),type:String(row.task_type||''),status:String(row.status||''),dueDate:row.due_date||null,owner:row.assigned_owner_name||null})), categories:visibleCategories(plan.looking_for_categories,'looking_for'), powerTeamCategories:visibleCategories(plan.power_team_categories,'power_team') }:null, mentor:isMentorLens?{ activeMy121:((pairsQ.data||[]) as Record<string,unknown>[]).filter(row=>!['verified','late_verified','completed'].includes(String(row.status))).length }:null }, privacy:'Shared context excludes Mentor logs, notes, reviews, contact details, GAINS, and confidential coaching content.' });
+      return jsonResponse({ ok:true, member:{ id:String(m.id), name:String(m.name||''), nickname:String(m.nickname||''), profession:String(m.profession||''), company:String(m.company_name||'') , mentorTeam:String(m.mentor_team||'') }, sharedBusinessContext:{ businessSummary:profile.share_business===false?'':String(profile.business_summary||''), lookingFor:profile.share_referral_focus===false?'':String(profile.looking_for||''), idealClient:profile.share_referral_focus===false?'':String(profile.ideal_client||''), updatedAt:profile.updated_at||plan.updated_at||null, partial:!profileQ.data&&!Object.keys(plan).length }, supportSummary:{ openCount:sharedSignals.length, nextAction:sharedSignals[0]?safeSignal(sharedSignals[0]):null, lastSharedInteraction:history[0]||null }, openSupportItems:sharedSignals.map(safeSignal), supportHistory:history, roleLens:{ role:isGrowthLens?'growth':isMentorLens?'mentor':'shared', growth:isGrowthLens?{ tasks:((taskQ.data||[]) as Record<string,unknown>[]).map(row=>({id:String(row.id),type:String(row.task_type||''),status:String(row.status||''),dueDate:row.due_date||null,owner:row.assigned_owner_name||null})), categories:visibleCategories(plan.looking_for_categories,'looking_for'), powerTeamCategories:visibleCategories(plan.power_team_categories,'power_team') }:null, mentor:isMentorLens?{ activeMy121:((pairsQ.data||[]) as Record<string,unknown>[]).filter(row=>!['verified','late_verified','completed'].includes(String(row.status))).length }:null }, privacy:'Shared context excludes Mentor logs, notes, reviews, contact details, GAINS, and confidential coaching content.' });
     }
 
     case 'getGrowthMemberContext': {
@@ -648,22 +650,22 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       if (!access.member) return errResponse(access.error!);
       const denied = memberAccessError(auth, access.member, { allowGrowth: true });
       if (denied) return errResponse(denied, 403);
-      const year = Number(p.blueprintYear || new Date().getFullYear());
+      const year = Number(p.blueprintYear || await resolveMsbPlanningYear(db, { chapterId: scope.chapterId }));
       // Growth may compare the member's planning years, but this remains a
       // deliberately small DTO: no Mentor record, MY121 prose, or free-text
       // history is added to the Mobile member view.
       const blueprintYears = Array.from(new Set([2026, 2027, year]));
       const [profileQ, planQ, tasksQ, blueprintPlansQ, annualGoalsQ, actualQ] = await Promise.all([
         db.from('member_one_to_one_profiles').select('business_summary,looking_for,ideal_client,referral_trigger,good_referral,updated_at,share_business,share_referral_focus').eq('member_id', memberId).maybeSingle(),
-        db.from('member_success_blueprints').select('looking_for_categories,looking_for_detail,power_team_categories,power_team_detail,updated_at,status').eq('member_id', memberId).eq('blueprint_year', year).maybeSingle(),
+        db.from('member_success_blueprints').select('source,looking_for_categories,looking_for_detail,power_team_categories,power_team_detail,updated_at,status').eq('member_id', memberId).eq('blueprint_year', year).maybeSingle(),
         db.from('growth_tasks').select('id,task_text,task_type,status,due_date,created_at,assigned_owner_name,assigned_owner_email').eq('chapter_id', scope.chapterId).eq('member_id', memberId).in('status', ['new','accepted','in_progress','waiting_member']).order('created_at', { ascending: false }).limit(5),
-        db.from('member_success_blueprints').select('blueprint_year,status,expected_sales_from_bni_year,referral_needed,referral_per_month,referral_per_week,quality_121_target_per_week,updated_at').eq('member_id', memberId).in('blueprint_year', blueprintYears).order('blueprint_year', { ascending: true }),
+        db.from('member_success_blueprints').select('blueprint_year,source,status,expected_sales_from_bni_year,referral_needed,referral_per_month,referral_per_week,quality_121_target_per_week,updated_at').eq('member_id', memberId).in('blueprint_year', blueprintYears).order('blueprint_year', { ascending: true }),
         db.from('member_annual_growth_goals').select('goal_year,goal_thb,goal_type,source_file').eq('member_id', memberId).in('goal_year', blueprintYears).eq('goal_type', 'bni_revenue').order('goal_year', { ascending: true }),
         db.from('v_msb_plan_vs_actual').select('blueprint_year,actual_received_thb,rr').eq('member_id', memberId).in('blueprint_year', blueprintYears),
       ]);
       const errors = [profileQ, planQ, tasksQ, blueprintPlansQ, annualGoalsQ, actualQ].filter(q => q.error).map(q => q.error?.message).filter(Boolean);
       const profile = (profileQ.data || {}) as Record<string, unknown>;
-      const plan = (planQ.data || {}) as Record<string, unknown>;
+      const plan = planQ.data && isActiveMsbPlan(planQ.data as Record<string, unknown>) ? planQ.data as Record<string, unknown> : {};
       const consentBusiness = profile.share_business === true;
       const consentReferral = profile.share_referral_focus === true;
       const { data: explicitCategoryRows } = !consentReferral
@@ -673,7 +675,9 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       const profileUpdatedAt = String(profile.updated_at || plan.updated_at || '');
       const stale = profileUpdatedAt ? Date.now() - new Date(profileUpdatedAt).getTime() > 180 * 86400000 : true;
       const historicalGoals = new Map(((annualGoalsQ.data || []) as Record<string, unknown>[]).map(row => [Number(row.goal_year), row]));
-      const planByYear = new Map(((blueprintPlansQ.data || []) as Record<string, unknown>[]).map(row => [Number(row.blueprint_year), row]));
+      const planByYear = new Map(((blueprintPlansQ.data || []) as Record<string, unknown>[])
+        .filter(isActiveMsbPlan)
+        .map(row => [Number(row.blueprint_year), row]));
       const actualByYear = new Map(((actualQ.data || []) as Record<string, unknown>[]).map(row => [Number(row.blueprint_year), row]));
       // 2026 was imported from the approved historical goal file, so it may
       // have no member-authored Blueprint row.  Preserve that distinction in
@@ -967,7 +971,8 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
           oneToOne: { legacy: legacy121Q.data || [], pairs: pairsQ.data || [], schedules: schedulesQ.data || [], followUps: followUpsQ.data || [], attention: auth.role === 'growth' ? [] : attentionQ.data || [] },
           visitors: visitorsQ.data || [], renewal: renewalQ.data || null,
           signals: signalsQ.data || [], passport: { enrollment: passportQ.data || null, sessions: passportSessionsQ.data || [] },
-          blueprints: blueprintQ.data || [],
+          blueprints: ((blueprintQ.data || []) as Record<string, unknown>[])
+            .filter(isActiveMsbPlan),
           annualGrowthGoals: annualGoalsQ.data || [],
           timeline: auth.role === 'growth' ? sortedTimeline.filter((event) => !['mentor_log','note'].includes(String(event.type))) : sortedTimeline,
           historyLimit, refreshedAt: new Date().toISOString(), partial: optionalErrors.length > 0,
