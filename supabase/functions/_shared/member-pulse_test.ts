@@ -1,0 +1,163 @@
+import { assertEquals } from "jsr:@std/assert";
+import { decideMemberPulse, type PulsePolicy } from "./member-pulse.ts";
+
+// Test policy illustrates the requested milestones; Production has no active
+// policy until Pete approves Chapter cadence and cooldown.
+const policy: PulsePolicy = {
+  enabled: true,
+  milestones: [
+    { stage: "onboarding", months: 3 },
+    { stage: "activation", months: 6 },
+    { stage: "value_retention", months: 12 },
+    { stage: "experience", months: 24, repeatMonths: 12 },
+  ],
+  renewalDaysBefore: 90,
+  dueSoonDays: 7,
+  cooldownDays: 30,
+};
+
+Deno.test("Member Pulse selects 3, 6 and 12-month stages from join date", () => {
+  for (
+    const [today, stage] of [
+      ["2026-04-01", "onboarding"],
+      ["2026-07-01", "activation"],
+      ["2027-01-01", "value_retention"],
+    ]
+  ) {
+    const decision = decideMemberPulse({
+      today,
+      joinedOn: "2026-01-01",
+      expiresOn: "2027-12-31",
+      history: today === "2026-04-01" ? [] : [
+        {
+          stage: "onboarding",
+          cycleKey: "onboarding:2026-04-01",
+          status: "completed",
+          sentOn: "2026-04-01",
+        },
+        ...(today === "2027-01-01"
+          ? [{
+            stage: "activation" as const,
+            cycleKey: "activation:2026-07-01",
+            status: "completed" as const,
+            sentOn: "2026-07-01",
+          }]
+          : []),
+      ],
+    }, policy);
+    assertEquals(decision.stage, stage);
+  }
+});
+
+Deno.test("Renewal due 90 days before expiry wins over a lifecycle milestone", () => {
+  const decision = decideMemberPulse({
+    today: "2026-10-03",
+    joinedOn: "2026-04-03",
+    expiresOn: "2027-01-01",
+  }, policy);
+  assertEquals(decision.stage, "renewal");
+  assertEquals(decision.dueOn, "2026-10-03");
+  assertEquals(decision.status, "DUE");
+});
+
+Deno.test("Member Pulse avoids duplicate campaign and respects cooldown", () => {
+  const base = {
+    today: "2026-04-01",
+    joinedOn: "2026-01-01",
+    expiresOn: "2027-12-31",
+  };
+  const current = decideMemberPulse({
+    ...base,
+    history: [{
+      stage: "onboarding",
+      cycleKey: "onboarding:2026-04-01",
+      status: "sent",
+      sentOn: "2026-04-01",
+    }],
+  }, policy);
+  assertEquals(current.status, "SENT");
+  const cooldown = decideMemberPulse({
+    ...base,
+    history: [{
+      stage: "activation",
+      cycleKey: "other",
+      status: "sent",
+      sentOn: "2026-03-25",
+    }],
+  }, policy);
+  assertEquals(cooldown.status, "SUPPRESSED");
+});
+
+Deno.test("Missing dates, expired membership and no policy fail closed", () => {
+  assertEquals(
+    decideMemberPulse({
+      today: "2026-04-01",
+      joinedOn: null,
+      expiresOn: "2027-01-01",
+    }, policy).status,
+    "MISSING_DATE",
+  );
+  assertEquals(
+    decideMemberPulse({
+      today: "2026-04-01",
+      joinedOn: "2026-01-01",
+      expiresOn: null,
+    }, policy).status,
+    "MISSING_DATE",
+  );
+  assertEquals(
+    decideMemberPulse({
+      today: "2026-04-01",
+      joinedOn: "2025-01-01",
+      expiresOn: "2026-03-31",
+    }, policy).status,
+    "EXPIRED_MEMBERSHIP",
+  );
+  assertEquals(
+    decideMemberPulse({
+      today: "2026-04-01",
+      joinedOn: "2026-01-01",
+      expiresOn: "2027-01-01",
+    }, null).status,
+    "NOT_CONFIGURED",
+  );
+  assertEquals(
+    decideMemberPulse({
+      today: "2026-04-01",
+      joinedOn: "2026-01-01",
+      expiresOn: "2027-01-01",
+    }, { ...policy, enabled: false }).status,
+    "NOT_CONFIGURED",
+  );
+});
+
+Deno.test("Overdue stage is reported and renewal does not preempt an earlier stage before its window", () => {
+  const decision = decideMemberPulse({
+    today: "2026-04-02",
+    joinedOn: "2026-01-01",
+    expiresOn: "2027-06-01",
+  }, policy);
+  assertEquals(decision.stage, "onboarding");
+  assertEquals(decision.status, "OVERDUE");
+});
+
+Deno.test("Calendar-month arithmetic clamps short months and forecasts future work", () => {
+  const decision = decideMemberPulse({
+    today: "2026-04-23",
+    joinedOn: "2026-01-31",
+    expiresOn: "2027-12-31",
+  }, policy);
+  assertEquals(decision.stage, "onboarding");
+  assertEquals(decision.dueOn, "2026-04-30");
+  assertEquals(decision.status, "DUE_SOON");
+});
+
+Deno.test("Short membership never schedules renewal before joining", () => {
+  const decision = decideMemberPulse({
+    today: "2026-09-01",
+    joinedOn: "2026-09-01",
+    expiresOn: "2026-10-01",
+  }, policy);
+  assertEquals(decision.stage, "renewal");
+  assertEquals(decision.dueOn, "2026-09-01");
+});
