@@ -1,9 +1,21 @@
 import { assertEquals } from "jsr:@std/assert";
 import {
+  canReplaceDuePulse,
   decideMemberPulse,
+  pulsePriority,
   type PulsePolicy,
   validatePulseAnswers,
 } from "./member-pulse.ts";
+
+Deno.test("Renewal outranks unsent lifecycle and recurring Pulse", () => {
+  assertEquals(pulsePriority("renewal", "2026-10-01", "2026-01-01"), 0);
+  assertEquals(pulsePriority("experience", "2027-01-01", "2026-01-01"), 1);
+  assertEquals(pulsePriority("experience", "2027-07-01", "2026-01-01"), 2);
+  const lifecycle = [{ stage: "activation" as const, dueOn: "2026-07-01", cycleKey: "activation:2026-07-01" }];
+  assertEquals(canReplaceDuePulse({ stage: "renewal", dueOn: "2026-07-01", cycleKey: "renewal:2026-07-01" }, lifecycle, "2026-01-01"), true);
+  assertEquals(canReplaceDuePulse({ stage: "onboarding", dueOn: "2026-04-01", cycleKey: "onboarding:2026-04-01" }, lifecycle, "2026-01-01"), false);
+  assertEquals(canReplaceDuePulse(lifecycle[0], lifecycle, "2026-01-01"), false);
+});
 
 // Test policy illustrates the approved Phase 1B cadence; policies stay disabled
 // until Staging acceptance and explicit Chapter enablement.

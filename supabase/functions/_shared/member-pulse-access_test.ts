@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert";
-import { canManageMemberPulse, canUseMemberPulseStaff, canViewPulseMember, canViewPulseVisibility, pulseReminderDay } from "./member-pulse-access.ts";
+import { canManageMemberPulse, canUseMemberPulseStaff, canViewPulseMember, canViewPulseVisibility, pulseReminderDay, pulseReminderDue } from "./member-pulse-access.ts";
 
 Deno.test("Growth Pulse writes require OAuth email and explicit coordinator capability", () => {
   assertEquals(canManageMemberPulse({ role: "growth", email: "g@example.test", capabilities: ["growth.coordinate"] }), true);
@@ -34,4 +34,10 @@ Deno.test("automated reminder schedule stops after Day 7", () => {
   assertEquals(pulseReminderDay(1), 7);
   assertEquals(pulseReminderDay(2), null);
   assertEquals(pulseReminderDay(3), null);
+  assertEquals(pulseReminderDue(0, 2.9), false);
+  assertEquals(pulseReminderDue(0, 3), true);
+  assertEquals(pulseReminderDue(0, 7), false); // Never call a missed first reminder "Reminder 2".
+  assertEquals(pulseReminderDue(1, 6.9), false);
+  assertEquals(pulseReminderDue(1, 7), true);
+  assertEquals(pulseReminderDue(2, 8), false);
 });

@@ -46,3 +46,10 @@ export function canViewPulseVisibility(actor: PulseActor, scope: string): boolea
 export function pulseReminderDay(remindersSent: number): 3 | 7 | null {
   return remindersSent === 0 ? 3 : remindersSent === 1 ? 7 : null;
 }
+
+export function pulseReminderDue(remindersSent: number, elapsedDays: number): boolean {
+  if (!Number.isFinite(elapsedDays)) return false;
+  if (remindersSent === 0) return elapsedDays >= 3 && elapsedDays < 7;
+  if (remindersSent === 1) return elapsedDays >= 7;
+  return false;
+}

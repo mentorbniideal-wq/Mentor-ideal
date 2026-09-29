@@ -22,6 +22,7 @@ export type PulseHistory = {
   stage: PulseStage;
   cycleKey: string;
   status:
+    | "due"
     | "sent"
     | "opened"
     | "in_progress"
@@ -31,6 +32,16 @@ export type PulseHistory = {
     | "superseded";
   sentOn?: string;
 };
+
+export function pulsePriority(stage: PulseStage, dueOn: string, joinedOn: string): number {
+  if (stage === "renewal") return 0;
+  return stage === "experience" && dateOnly(joinedOn) && dateOnly(dueOn) && dueOn > addMonths(joinedOn, 12) ? 2 : 1;
+}
+
+export function canReplaceDuePulse(candidate: { stage: PulseStage; dueOn: string; cycleKey: string }, unsent: Array<{ stage: PulseStage; dueOn: string; cycleKey: string }>, joinedOn: string): boolean {
+  const priority = pulsePriority(candidate.stage, candidate.dueOn, joinedOn);
+  return unsent.every(row => row.cycleKey !== candidate.cycleKey && pulsePriority(row.stage, row.dueOn, joinedOn) > priority);
+}
 export type PulseDecision = {
   status:
     | "NOT_CONFIGURED"
@@ -231,6 +242,7 @@ export function decideMemberPulse(input: {
   const existing = history.find((item) => item.cycleKey === cycleKey);
   if (existing) {
     const status = ({
+      due: "DUE",
       sent: "SENT",
       opened: "OPENED",
       in_progress: "IN_PROGRESS",

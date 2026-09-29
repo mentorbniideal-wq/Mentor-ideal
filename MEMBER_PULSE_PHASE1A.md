@@ -17,6 +17,11 @@ Production is not deployed or migrated by this work.
   no third reminder. Reminder delivery reuses existing LINE delivery guard,
   idempotency, and ledger. Bearer tokens are hashed at rest and redacted from
   delivery previews/log payloads.
+- A higher-priority Renewal Due replaces only an unsent lower-priority Due;
+  the old campaign is retained as `superseded` for audit. A send is denied if
+  another actionable campaign remains for the same member. If Day 3 was
+  missed entirely, the system does not mislabel a first reminder as Day 7's
+  second reminder or send a late duplicate.
 - Policies are disabled by default. Staging delivery remains governed by
   `LINE_DELIVERY_ENABLED` and the existing environment safety guard.
 - Template visibility is one of `member`, `mentor_growth`, or
@@ -69,6 +74,9 @@ Migrations are additive and leave Pulse disabled. Staging currently has older
 pending Growth migrations in addition to the Pulse foundation and Phase 1B
 migrations. Applying the candidate migration chain may therefore apply all
 four pending migrations; verify the linked project ref and dry-run output first.
+After the initial Staging application, additive migration
+`20260929000004_member_pulse_superseded_due.sql` adds the `superseded` status
+needed for priority replacement; it does not enable a policy or delivery.
 No Production project, migration, environment, role, consent, or LINE setting
 may be changed. Keep new tables if rolling back application code; do not delete
 responses or rewrite deployed migrations.

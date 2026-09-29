@@ -3,8 +3,8 @@ import { resolveChapterScope } from "../../_shared/chapter-scope.ts";
 import { errResponse, getServiceClient, jsonResponse } from "../../_shared/db.ts";
 import { evaluateNotificationGuard, logSuppressedNotification } from "../../_shared/notification-orchestrator.ts";
 import { linePush, sha256Hex } from "../../_shared/line.ts";
-import { canManageMemberPulse, canUseMemberPulseStaff, canViewPulseMember, canViewPulseVisibility, pulseReminderDay } from "../../_shared/member-pulse-access.ts";
-import { decideMemberPulse, validatePulseAnswers, type PulseHistory, type PulsePolicy } from "../../_shared/member-pulse.ts";
+import { canManageMemberPulse, canUseMemberPulseStaff, canViewPulseMember, canViewPulseVisibility, pulseReminderDay, pulseReminderDue } from "../../_shared/member-pulse-access.ts";
+import { canReplaceDuePulse, decideMemberPulse, validatePulseAnswers, type PulseHistory, type PulsePolicy } from "../../_shared/member-pulse.ts";
 import { projectPulseBoard } from "../../_shared/member-pulse-projection.ts";
 
 type Row = Record<string, unknown>;
@@ -82,25 +82,34 @@ export async function handleMemberPulse(p: Record<string, unknown>): Promise<Res
       db.from("members").select("id,joined_date,membership_start_date").eq("chapter_id", chapterId).eq("is_archived", false).limit(1000),
       db.from("renewals").select("member_id,expiry_date").eq("chapter_id", chapterId).limit(2000),
       db.from("member_pulse_templates").select("id,stage").eq("chapter_id", chapterId).eq("active", true),
-      db.from("member_pulse_campaigns").select("member_id,stage,cycle_key,status,sent_at,due_on").eq("chapter_id", chapterId).limit(5000),
+      db.from("member_pulse_campaigns").select("id,member_id,stage,cycle_key,status,sent_at,due_on").eq("chapter_id", chapterId).limit(5000),
     ]);
     for (const result of [memberQ, renewQ, templateQ, historyQ]) if (result.error) return errResponse("ตรวจรอบ Member Pulse ไม่สำเร็จ", 503);
     const members = memberQ.data as Row[], renewals = new Map((renewQ.data as Row[]).map(row => [s(row.member_id), s(row.expiry_date)]));
     const templates = new Map((templateQ.data as Row[]).map(row => [s(row.stage), s(row.id)]));
     const history = historyQ.data as Row[];
-    const activeMemberIds = new Set(history.filter(row => ["due", "sent", "opened", "in_progress"].includes(s(row.status))).map(row => s(row.member_id)));
     const pulsePolicy: PulsePolicy = { enabled: true, milestones: Array.isArray(policy.milestones) ? policy.milestones : [], renewalDaysBefore: Number(policy.renewal_days_before), dueSoonDays: Number(policy.due_soon_days), cooldownDays: Number(policy.cooldown_days ?? 60) };
     const today = bangkokToday(); let created = 0, skipped = 0;
     for (const member of members) {
       const memberId = s(member.id), joinedOn = s(member.joined_date || member.membership_start_date), expiresOn = renewals.get(memberId) || "";
       const rows = history.filter(row => s(row.member_id) === memberId);
-      const decision = decideMemberPulse({ today, joinedOn: joinedOn || null, expiresOn: expiresOn || null, history: rows.map(row => ({ stage: s(row.stage) as PulseHistory["stage"], cycleKey: s(row.cycle_key), status: s(row.status) as PulseHistory["status"], sentOn: s(row.sent_at).slice(0, 10) || undefined })) }, pulsePolicy);
-      if (!["DUE", "DUE_SOON", "OVERDUE"].includes(decision.status) || !decision.stage || !decision.dueOn || !decision.cycleKey || activeMemberIds.has(memberId)) { skipped++; continue; }
+      if (rows.some(row => ["sent", "opened", "in_progress"].includes(s(row.status)))) { skipped++; continue; }
+      const decision = decideMemberPulse({ today, joinedOn: joinedOn || null, expiresOn: expiresOn || null, history: rows.filter(row => row.status !== "due").map(row => ({ stage: s(row.stage) as PulseHistory["stage"], cycleKey: s(row.cycle_key), status: s(row.status) as PulseHistory["status"], sentOn: s(row.sent_at).slice(0, 10) || undefined })) }, pulsePolicy);
+      if (!["DUE", "DUE_SOON", "OVERDUE"].includes(decision.status) || !decision.stage || !decision.dueOn || !decision.cycleKey) { skipped++; continue; }
+      const unsent = rows.filter(row => row.status === "due");
+      if (!canReplaceDuePulse({ stage: decision.stage, dueOn: decision.dueOn, cycleKey: decision.cycleKey }, unsent.map(row => ({ stage: s(row.stage) as PulseHistory["stage"], dueOn: s(row.due_on), cycleKey: s(row.cycle_key) })), joinedOn)) { skipped++; continue; }
       const templateId = templates.get(decision.stage);
       if (!templateId) { skipped++; continue; }
       const result = await db.from("member_pulse_campaigns").upsert({ chapter_id: chapterId, member_id: memberId, template_id: templateId, stage: decision.stage, cycle_key: decision.cycleKey, due_on: decision.dueOn, status: "due" }, { onConflict: "chapter_id,member_id,cycle_key", ignoreDuplicates: true }).select("id").maybeSingle();
       if (result.error) return errResponse("สร้าง Due Pulse ไม่สำเร็จ", 503);
-      if (result.data) { created++; activeMemberIds.add(memberId); }
+      if (result.data) {
+        const oldIds = unsent.map(row => s(row.id));
+        if (oldIds.length) {
+          const replaced = await db.from("member_pulse_campaigns").update({ status: "superseded" }).eq("chapter_id", chapterId).eq("member_id", memberId).eq("status", "due").in("id", oldIds);
+          if (replaced.error) return errResponse("มี Pulse ใหม่แล้ว แต่ปิด Due เดิมไม่สำเร็จ กรุณาตรวจคิว", 503);
+        }
+        created++;
+      }
     }
     return jsonResponse({ ok: true, enabled: true, created, skipped, scanned: members.length, checkedOn: today, sentAutomatically: false });
   }
@@ -118,7 +127,7 @@ export async function handleMemberPulse(p: Record<string, unknown>): Promise<Res
     let projected = projectPulseBoard((campaigns || []) as Row[], (members || []) as Row[]);
     if (auth.isMentor && !auth.isMC) projected = { ...projected, campaigns: projected.campaigns.filter((row: Row) => ((members || []) as Row[]).some(m => s(m.id) === s(row.memberId) && s(m.mentor_team).toLowerCase() === s(auth.teamName).toLowerCase())) };
     const today = bangkokToday(), end = new Date(`${today}T00:00:00Z`); end.setUTCDate(end.getUTCDate() + 7); const week = end.toISOString().slice(0, 10);
-    const rows = projected.campaigns.map((row: Row) => ({ ...row, bucket: row.status === "completed" ? "completed" : ["sent", "opened", "in_progress"].includes(s(row.status)) ? "waiting" : s(row.dueOn) < today ? "overdue" : s(row.dueOn) === today ? "due_now" : s(row.dueOn) <= week ? "due_this_week" : "upcoming", canSend: canManageMemberPulse(a as never) && row.status === "due", canRemind: canManageMemberPulse(a as never) && ["sent", "opened", "in_progress"].includes(s(row.status)) && Number(row.remindersSent || 0) < 2 }));
+    const rows = projected.campaigns.map((row: Row) => ({ ...row, bucket: row.status === "completed" ? "completed" : ["sent", "opened", "in_progress"].includes(s(row.status)) ? "waiting" : s(row.dueOn) < today ? "overdue" : s(row.dueOn) === today ? "due_now" : s(row.dueOn) <= week ? "due_this_week" : "upcoming", canSend: canManageMemberPulse(a as never) && row.status === "due", canRemind: canManageMemberPulse(a as never) && ["sent", "opened", "in_progress"].includes(s(row.status)) && pulseReminderDue(Number(row.remindersSent || 0), (Date.now() - new Date(s(row.sentAt)).getTime()) / 86400000) }));
     const summary = { dueNow: rows.filter((r: Row) => r.bucket === "due_now").length, dueThisWeek: rows.filter((r: Row) => r.bucket === "due_this_week").length, waiting: rows.filter((r: Row) => r.bucket === "waiting").length, completed: rows.filter((r: Row) => r.bucket === "completed").length, overdue: rows.filter((r: Row) => r.bucket === "overdue").length, upcoming: rows.filter((r: Row) => r.bucket === "upcoming").length };
     return jsonResponse({ ok: true, enabled: true, campaigns: rows, summary, cadence: { cooldownDays: Number(policy.data?.cooldown_days ?? 60), reminderDays: [3, 7] }, permissions: { canSend: canManageMemberPulse(a as never), canViewAnswers: Boolean(auth.isMC || auth.isAdmin) } });
   }
@@ -155,16 +164,21 @@ export async function handleMemberPulse(p: Record<string, unknown>): Promise<Res
     if (!member) return errResponse("ไม่พบสมาชิกใน Chapter นี้", 403);
     if (action === "previewMemberPulse") return jsonResponse({ ok: true, member: member.nickname || member.name, stage: campaign.stage, dueOn: campaign.due_on, status: campaign.status, message: `BNI IDEAL ขอเชิญตอบแบบสอบถาม ${campaign.stage} ใช้เวลาประมาณ 1–2 นาที เพื่อให้ทีมดูแลสมาชิกได้ตรงความต้องการ`, deliveryReady: Boolean(Deno.env.get("LINE_CHANNEL_ACCESS_TOKEN") && Deno.env.get("LINE_DELIVERY_ENABLED") === "true") });
     const isReminder = action === "remindMemberPulse";
+    const { data: overlapping, error: overlapError } = await db.from("member_pulse_campaigns")
+      .select("id").eq("chapter_id", chapterId).eq("member_id", campaign.member_id)
+      .in("status", ["due", "sent", "opened", "in_progress"]).neq("id", campaignId).limit(1);
+    if (overlapError) return errResponse("ตรวจ Pulse ที่อาจส่งซ้อนไม่สำเร็จ", 503);
+    if (overlapping?.length) return errResponse("มี Pulse อื่นที่ยังดำเนินการอยู่ กรุณาตรวจรายการก่อนส่ง", 409);
     let remindersCountAfter = Number(campaign.reminders_sent || 0) + 1;
     if (isReminder) {
       const count = Number(campaign.reminders_sent || 0);
       if (count >= 2) return errResponse("ส่ง Reminder ครบ 2 ครั้งแล้ว", 409);
       if (!campaign.sent_at || !["sent", "opened", "in_progress"].includes(s(campaign.status))) return errResponse("Pulse ยังไม่ได้ส่งหรือปิดรับคำตอบแล้ว", 409);
       const elapsed = (Date.now() - new Date(String(campaign.sent_at)).getTime()) / 86400000;
-      remindersCountAfter = count === 0 && elapsed >= 7 ? 2 : count + 1;
+      remindersCountAfter = count + 1;
       const targetDay = pulseReminderDay(remindersCountAfter - 1);
       if (!targetDay) return errResponse("ส่ง Reminder ครบ 2 ครั้งแล้ว", 409);
-      if (elapsed < targetDay) return errResponse(`Reminder ถึงกำหนดในวันที่ ${targetDay} หลังส่ง`, 409);
+      if (!pulseReminderDue(count, elapsed)) return errResponse(`Reminder ครั้งที่ ${remindersCountAfter} ส่งได้ตามรอบวันที่ ${targetDay} หลังส่งเท่านั้น`, 409);
     } else if (campaign.status !== "due") return errResponse("ส่งได้เฉพาะ Pulse ที่ยังไม่ส่ง", 409);
     const { data: link } = await db.from("line_members").select("line_user_id").eq("member_id", campaign.member_id).maybeSingle();
     if (!link?.line_user_id) return errResponse("สมาชิกยังไม่เชื่อม LINE", 409);

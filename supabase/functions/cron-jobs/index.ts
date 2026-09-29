@@ -4,6 +4,7 @@
 //
 // Triggered by pg_cron (see supabase/seed/03_cron_jobs.sql).
 import { serverEnvironment } from '../_shared/environment.ts';
+import { pulseReminderDue } from '../_shared/member-pulse-access.ts';
 // Each job calls this function with { job: string } in the body.
 //
 // pg_cron schedule reference (all times UTC, TH = UTC+7):
@@ -133,9 +134,8 @@ async function memberPulseReminders(db: DB): Promise<{ scanned: number; sent: nu
   let sent = 0, skipped = 0, failed = 0;
   for (const raw of rows || []) {
     const row = raw as Record<string, unknown>, count = Number(row.reminders_sent || 0), elapsedDays = (now.getTime() - new Date(String(row.sent_at)).getTime()) / 86400000;
-    const nextCount = count === 0 && elapsedDays >= 7 ? 2 : count + 1;
-    const targetDay = nextCount === 1 ? 3 : nextCount === 2 ? 7 : null;
-    if (targetDay === null || elapsedDays < targetDay) { skipped++; continue; }
+    const nextCount = count + 1;
+    if (!pulseReminderDue(count, elapsedDays)) { skipped++; continue; }
     const [{ data: response }, { data: member }, { data: line }] = await Promise.all([
       db.from('member_pulse_responses').select('completed_at').eq('campaign_id', row.id).eq('chapter_id', row.chapter_id).maybeSingle(),
       db.from('members').select('id,is_archived').eq('id', row.member_id).eq('chapter_id', row.chapter_id).maybeSingle(),
