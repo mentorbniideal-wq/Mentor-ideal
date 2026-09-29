@@ -2,7 +2,7 @@
   'use strict';
   var api = window.growthMobileApi;
   var state = window.growthMobileState;
-  var board = null, pending = null, detail = null, context = null;
+  var board = null, pending = null, detail = null, context = null, pulse = null, pulseError = '', pulsePending = null;
   var tab = 'due', month = 1, search = '';
 
   function root() { return document.getElementById('gm-cycle-root'); }
@@ -31,7 +31,7 @@
   }
   function navigation() {
     return '<nav class="gm-cycle-tabs" aria-label="มุมมองรอบสมาชิก">'+[
-      ['due','งานถึงกำหนด'],['members','สมาชิก'],['timeline','Timeline รายคน'],['overview','ภาพรวม Chapter']
+      ['due','งานถึงกำหนด'],['members','สมาชิก'],['timeline','Timeline รายคน'],['overview','ภาพรวม Chapter'],['pulse','Pulse']
     ].map(function (item) { return '<button type="button" data-cycle-tab="'+item[0]+'" '+(tab === item[0] ? 'aria-current="page"' : '')+'>'+item[1]+'</button>'; }).join('')+'</nav>';
   }
   function summary() {
@@ -52,6 +52,20 @@
     var s = board?.summary || {};
     return '<h3>ภาพรวม Chapter</h3><p class="gm-meta">ข้อมูลตามรอบสมาชิกที่ยืนยันแล้ว · ไม่ใช่การประเมินผลสมาชิก</p>'+summary()+
       '<article class="gm-context-card"><h3>จังหวะงานที่ควรทบทวน</h3><p>งานถึงกำหนดหรือเกินกำหนด '+Number(s.dueNow || 0)+' รายการ · งานใกล้ถึงกำหนด '+Number(s.dueSoon || 0)+' รายการ</p><p class="gm-meta">เปิด Timeline รายคนเพื่อดูสถานะและข้อมูลที่ได้รับอนุญาต</p></article>';
+  }
+  function pulseView() {
+    if (pulsePending) return '<div class="gm-empty" role="status">กำลังโหลด Member Pulse…</div>';
+    if (pulseError) return '<div class="gm-empty" role="alert">'+safe(pulseError)+'<br><button type="button" data-cycle-pulse-refresh>ลองใหม่</button></div>';
+    if (!pulse || !pulse.enabled) return '<div class="gm-empty">Member Pulse ยังไม่เปิดใช้งานใน Chapter นี้</div>';
+    var rows = pulse.campaigns || [], s = pulse.summary || {};
+    return '<h3>Member Pulse</h3><p class="gm-meta">เห็นเฉพาะสถานะแคมเปญ ไม่แสดงคำตอบส่วนตัว</p><div class="gm-cycle-summary"><article><b>'+Number(s.due||0)+'</b><span>ถึงกำหนด</span></article><article><b>'+Number(s.waiting||0)+'</b><span>รอคำตอบ</span></article><article><b>'+Number(s.completed||0)+'</b><span>ตอบแล้ว</span></article></div><button type="button" class="gm-cycle-link" data-cycle-pulse-refresh>รีเฟรช Pulse</button>'+
+      (rows.length ? '<div class="gm-list">'+rows.map(function(row){return '<div class="gm-card"><b>'+safe(row.memberName)+'</b><span class="gm-meta">'+safe(row.stage)+' · '+date(row.dueOn)+' · '+safe(row.status)+'</span></div>';}).join('')+'</div>' : '<div class="gm-empty">ยังไม่มีแคมเปญที่มอบหมาย</div>');
+  }
+  function loadPulse(force) {
+    if (pulsePending || pulse && !force) return;
+    pulseError = '';
+    pulsePending = api('getMemberPulseBoard').then(function(result){pulse=result;}).catch(function(error){pulseError=error.message||'โหลด Member Pulse ไม่สำเร็จ';}).finally(function(){pulsePending=null;render();});
+    render();
   }
   function timelineView() {
     if (!detail) return '<div class="gm-empty">เลือกสมาชิกจากแท็บ “สมาชิก” หรือ “งานถึงกำหนด” ก่อน</div>';
@@ -80,7 +94,7 @@
       (writable && entry.id ? '<form id="gm-cycle-note"><label>เพิ่มบันทึกใหม่ (แก้ย้อนหลังไม่ได้)<textarea name="body" maxlength="2000" required></textarea></label><button type="submit" class="gm-primary">เพิ่มบันทึก</button></form>' : '')+
       '<h4>ประวัติบันทึก</h4>'+(notes.length ? notes.map(function (item) { return '<div class="gm-card"><small>'+safe(item.created_at)+' · '+safe(item.created_by)+'</small><p>'+safe(item.body)+'</p></div>'; }).join('') : '<p class="gm-meta">'+(entry.detailRestricted ? 'บันทึกถูกจำกัด' : 'ยังไม่มีบันทึก')+'</p>')+'</article>';
   }
-  function render() { if (!active() || !root()) return; root().innerHTML = navigation() + (tab === 'due' ? dueView() : tab === 'members' ? membersView() : tab === 'overview' ? overviewView() : timelineView()); }
+  function render() { if (!active() || !root()) return; root().innerHTML = navigation() + (tab === 'due' ? dueView() : tab === 'members' ? membersView() : tab === 'overview' ? overviewView() : tab === 'pulse' ? pulseView() : timelineView()); }
   function loadBoard(force) {
     if (!force && board) { homeDue(); render(); return Promise.resolve(board); }
     if (pending) return pending;
@@ -111,12 +125,13 @@
   }
 
   document.addEventListener('click', function (event) {
-    var button = event.target.closest('[data-growth-cycle],[data-cycle-open],[data-cycle-nav],[data-cycle-select],[data-cycle-tab],[data-cycle-refresh]');
+    var button = event.target.closest('[data-growth-cycle],[data-cycle-open],[data-cycle-nav],[data-cycle-select],[data-cycle-tab],[data-cycle-refresh],[data-cycle-pulse-refresh]');
     if (!button) return;
     event.preventDefault(); event.stopImmediatePropagation();
     if (button.hasAttribute('data-cycle-refresh')) { loadBoard(true).catch(function () {}); return; }
+    if (button.hasAttribute('data-cycle-pulse-refresh')) { loadPulse(true); return; }
     if (button.hasAttribute('data-cycle-nav')) { document.querySelector('.gm-nav [data-view="cycle"]')?.click(); return; }
-    if (button.dataset.cycleTab) { tab = button.dataset.cycleTab; render(); return; }
+    if (button.dataset.cycleTab) { tab = button.dataset.cycleTab; render(); if(tab==='pulse')loadPulse(); return; }
     if (button.dataset.cycleSelect) { month = Number(button.dataset.cycleSelect); render(); return; }
     open(button.dataset.growthCycle || button.dataset.cycleOpen, button.dataset.cycleMonth);
   }, true);

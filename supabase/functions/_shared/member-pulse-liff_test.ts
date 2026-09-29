@@ -187,3 +187,16 @@ Deno.test("Member Pulse LIFF validates and deduplicates completion", async () =>
   assertEquals(again.body.duplicate, true);
   assertEquals(tables.member_pulse_responses[0].answers, { happiness: 8 });
 });
+
+Deno.test("Member Pulse LIFF fails closed on completed campaign without persisted response", async () => {
+  const { db, tables } = fakeDb();
+  tables.member_pulse_campaigns[0].status = "completed";
+  const result = await handleMemberPulseLiff(
+    db,
+    { chapterId: chapterA, memberId: memberA },
+    "submit-my-pulse",
+    { campaignId: campaign.id, answers: { happiness: 8 } },
+  );
+  assertEquals(result.status, 409);
+  assertEquals(tables.member_pulse_responses.length, 0);
+});

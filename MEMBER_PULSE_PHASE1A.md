@@ -4,8 +4,9 @@ Member Pulse is a support signal, never a member score or ranking. The desired
 loop is detect → ask → understand → help → measure again. The foundation commit
 contains a dormant schema candidate and pure scheduling decision. The following
 member-form candidate adds an authenticated LIFF page and own-response endpoint.
-It still does not create campaigns, expose answers to staff, send LINE, or alter
-Production.
+The staff candidate adds a metadata-only Member Pulse tab under existing Member
+Growth on Desktop and Mobile. It still does not create campaigns, expose answers
+to staff, send LINE, or alter Production.
 
 ## Existing system reused
 
@@ -43,9 +44,10 @@ Production.
    answers; ordinary Growth and Mentor see only explicit shareable follow-up
    status until additional consent is designed. Confidential leadership feedback
    is deferred.
-3. The LIFF member-submit contract is implemented but needs signed-in Staging
-   acceptance. Build server-authorized Member Health read and Desktop/Mobile
-   states. No public token link until Phase 2 threat review.
+3. The LIFF member-submit contract and metadata-only Desktop/Mobile Pulse views
+   are implemented but need signed-in Staging acceptance. Build consent-aware
+   Member Health read only after its visibility decision. No public token link
+   until Phase 2 threat review.
 4. Validate this migration against isolated Staging schema and synthetic Chapter
    fixtures, including RLS, foreign-key guards, immutable templates, and
    rollback by leaving dormant tables in place. Do not delete response history.
@@ -64,6 +66,9 @@ Production.
 - A repeat submission cannot overwrite a completed answer. The member can read
   only their own answer. There is deliberately no staff endpoint for answers
   until Pete approves a per-question visibility/consent rule.
+- Growth staff get only campaign stage, due date, status, completion timestamp,
+  and a Chapter-scoped member label through `getMemberPulseBoard`. They cannot
+  read question text, ratings, or free-text answers from this API.
 - LIFF Staging testing requires isolated LINE channel/LIFF configuration and a
   synthetic linked test member; existing Staging checklist currently defers
   real LIFF. Do not connect Production LINE or real members to Staging.

@@ -100,6 +100,9 @@ export async function handleMemberPulseLiff(
       return fail(503, "บันทึกสถานะไม่สำเร็จ กรุณาลองใหม่");
     }
   }
+  if (campaign.status === "completed" && !existing.data?.completed_at) {
+    return fail(409, "สถานะคำตอบยังไม่ตรงกัน กรุณาติดต่อทีมดูแล");
+  }
   if (existing.data?.completed_at || campaign.status === "completed") {
     return {
       status: 200,

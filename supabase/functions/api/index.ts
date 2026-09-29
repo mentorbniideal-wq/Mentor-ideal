@@ -38,6 +38,7 @@ import { handleMemberSuccessBlueprints } from './handlers/member-success-bluepri
 import { handleWeekly121 } from './handlers/weekly-121.ts';
 import { handleMentor121 } from './handlers/mentor-121.ts';
 import { handleMemberGrowth } from './handlers/member-growth.ts';
+import { handleMemberPulse } from './handlers/member-pulse.ts';
 
 // ── Public actions that require NO PIN ────────────────────────
 const PUBLIC_ACTIONS = new Set([
@@ -66,6 +67,7 @@ const AUTH_ACTIONS = new Set([
 // Mirrors dispatch() in WEBAPP.js lines 3400-3551
 const ROUTES: Record<string, string> = {
   'getMemberGrowthBoard': 'member-growth', 'getMemberGrowthTimeline': 'member-growth',
+  'getMemberPulseBoard': 'member-pulse',
   'saveMemberGrowthEntry': 'member-growth', 'appendMemberGrowthNote': 'member-growth',
   'linkMemberGrowthTask': 'member-growth', 'createMemberGrowthRenewalHandoff': 'member-growth',
   'linkMemberGrowthMy121': 'member-growth',
@@ -284,6 +286,7 @@ const ROUTES: Record<string, string> = {
 
 const HANDLERS: Record<string, (p: Record<string, unknown>) => Promise<Response>> = {
   'member-growth': handleMemberGrowth,
+  'member-pulse': handleMemberPulse,
   'auth':        handleAuth,
   'dashboard':   handleDashboard,
   'public':      handlePublic,
