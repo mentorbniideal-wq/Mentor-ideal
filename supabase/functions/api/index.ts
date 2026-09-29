@@ -54,6 +54,9 @@ const PUBLIC_ACTIONS = new Set([
   'getMemberSuccessBlueprintByToken',
   'saveMemberSuccessBlueprintByToken',
   'getMSBCategorySuggestions',
+  'getMemberPulseByToken',
+  'saveMemberPulseByToken',
+  'submitMemberPulseByToken',
 ]);
 
 const AUTH_ACTIONS = new Set([
@@ -68,6 +71,11 @@ const AUTH_ACTIONS = new Set([
 const ROUTES: Record<string, string> = {
   'getMemberGrowthBoard': 'member-growth', 'getMemberGrowthTimeline': 'member-growth',
   'getMemberPulseBoard': 'member-pulse',
+  'getMemberPulseByToken': 'member-pulse', 'saveMemberPulseByToken': 'member-pulse',
+  'submitMemberPulseByToken': 'member-pulse',
+  'getMemberPulseHistory': 'member-pulse', 'previewMemberPulse': 'member-pulse',
+  'sendMemberPulse': 'member-pulse', 'remindMemberPulse': 'member-pulse',
+  'createMemberPulseDue': 'member-pulse',
   'saveMemberGrowthEntry': 'member-growth', 'appendMemberGrowthNote': 'member-growth',
   'linkMemberGrowthTask': 'member-growth', 'createMemberGrowthRenewalHandoff': 'member-growth',
   'linkMemberGrowthMy121': 'member-growth',

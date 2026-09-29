@@ -9,6 +9,7 @@ import {
   LINE_QR_MC,
   LINE_QR_GROWTH,
   linePush,
+  redactSensitiveLineText,
   lineRetryKeyFor,
   normalizeLinkToken,
   renewalMilestone,
@@ -77,6 +78,12 @@ Deno.test('sha256Hex returns stable lowercase digest', async () => {
     await sha256Hex('BNI'),
     '1f1d18e1724962788bca0f6aa69ab7f3165b65f48f810a1424593f3dd292ba8d',
   );
+});
+
+Deno.test('Pulse bearer URLs are redacted from delivery previews', () => {
+  const input = 'Open https://staging.example.test/pulse/?token=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  assertEquals(redactSensitiveLineText(input, true), 'Open https://staging.example.test/pulse/?token=[REDACTED]');
+  assertEquals(redactSensitiveLineText(input, false), input);
 });
 
 Deno.test('eventIdFor prefers LINE webhookEventId and otherwise remains stable', async () => {

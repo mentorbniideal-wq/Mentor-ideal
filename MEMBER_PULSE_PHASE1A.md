@@ -1,85 +1,91 @@
-# Member Pulse — Phase 1A foundation (candidate only)
+# Member Pulse — candidate architecture and Phase 1B
 
-Member Pulse is a support signal, never a member score or ranking. The desired
-loop is detect → ask → understand → help → measure again. The foundation commit
-contains a dormant schema candidate and pure scheduling decision. The following
-member-form candidate adds an authenticated LIFF page and own-response endpoint.
-The staff candidate adds a metadata-only Member Pulse tab under existing Member
-Growth on Desktop and Mobile. It still does not create campaigns, expose answers
-to staff, send LINE, or alter Production.
+Member Pulse is a support signal, not a score or member ranking. This branch
+contains the dormant Phase 1A schema plus a Phase 1B implementation candidate.
+Production is not deployed or migrated by this work.
+
+## Approved cadence and safeguards
+
+- Onboarding at month 3; Activation at month 6; Member Experience at month 12,
+  then every 6 months. Renewal is due 90 days before expiry and outranks all
+  lifecycle/recurring candidates. Cooldown is 60 days. Lower-priority eligible
+  pulses are suppressed while a higher-priority campaign is actionable.
+- Delivery is human initiated: the due scan creates due records only. An
+  authorized Growth user previews then presses Send. There is no automatic
+  initial-send scheduler.
+- Reminders are limited to Day 3 and Day 7 (two total), only while incomplete;
+  no third reminder. Reminder delivery reuses existing LINE delivery guard,
+  idempotency, and ledger. Bearer tokens are hashed at rest and redacted from
+  delivery previews/log payloads.
+- Policies are disabled by default. Staging delivery remains governed by
+  `LINE_DELIVERY_ENABLED` and the existing environment safety guard.
+- Template visibility is one of `member`, `mentor_growth`, or
+  `leadership_only`. API history authorization is server-side; a scope grants
+  visibility only to the member, an authorized Mentor/Growth viewer, or an
+  authorized Chapter leader respectively. RLS keeps answer/token tables
+  inaccessible to browser roles; the service API must enforce viewer scope.
 
 ## Existing system reused
 
 | Need | Existing source |
 | --- | --- |
-| Member identity, join date | `members.id`, `members.joined_date` |
-| Expiry and renewal state | `renewals.expiry_date`, renewal workflow |
-| Chapter scope | `resolveChapterScope` and `members.chapter_id` |
-| Growth follow-up | `growth_tasks` and `member_signals` |
-| Member authentication | LIFF access token → `liff-api` → `line_members` |
-| LINE delivery | Existing LINE delivery guard and ledger; not invoked in 1A |
-| Audit metadata | `chapter_audit_events`; never store survey free text there |
+| Member and joined date | `members.id`, `members.joined_date` |
+| Renewal expiry | `renewals.expiry_date` |
+| Chapter scope | `resolveChapterScope`, `members.chapter_id` |
+| Growth authorization | server role/capability resolution |
+| Mentor scope | persisted Mentor assignment/team scope |
+| Member authentication | existing server auth/session; Pulse link is an opaque bearer token |
+| LINE delivery | `linePush`, delivery governance guard, idempotency and ledger |
+| Audit | `chapter_audit_events`; never put answer/free-text content there |
 
-## Phase 1A contract
+## Phase 1B implementation contract
 
-- `decideMemberPulse` takes a Chapter-approved policy and Chapter-local date. It
-  returns a due/suppressed decision only; no write and no automatic send.
-- Lifecycle milestones are *policy data*, not hardcoded product thresholds.
-  The tests illustrate 3/6/12 months and annual experience, but no policy row
-  or survey template is seeded by the migration.
-- Renewal has priority when it overlaps a lifecycle milestone. A matching
-  campaign cycle key or a recent send suppresses duplicates.
-- `member_pulse_templates` locks historical question versions. Campaigns refer
-  to the exact template and member/Chapter; answers are stored separately under
-  service-only access. The migration has no token or delivery table yet.
-- A missing date or missing/disabled policy produces no campaign. A completed
-  milestone is not inferred from membership age or other activity.
+- `createMemberPulseDue` is an explicit, authorized due scan. It never sends.
+  It uses the approved cadence and idempotency/cooldown rules to create due
+  campaigns. No policy/template is seeded; activation requires an explicit
+  authorized configuration action.
+- Growth dashboard groups Due Now, Due This Week, Waiting, Completed,
+  Overdue, and upcoming records. Preview is read-only. Send and Remind require
+  server capabilities and successful delivery-guard/idempotency checks.
+- Member access uses a random opaque token, stored only as SHA-256; token,
+  expiry, campaign/member linkage, chapter, and status are checked on every
+  request. A member can only access their own campaign through the issued token.
+  Partial answers may be saved; submit validates required questions and closes
+  the response. Expired/completed/revoked tokens fail closed.
+- Staff history is Chapter-scoped. Mentor history additionally requires the
+  member to be in the viewer's persisted Mentor assignment scope. Each answer
+  is projected only when that question's visibility scope authorizes the
+  viewer. Client-side filtering is not authorization.
+- Member UI is `/pulse/`; Growth Desktop composition is in
+  `public/assets/js/member-growth-cycle.js` under Member Growth.
+- The reminder job is implemented in the existing `cron-jobs` function but is
+  not scheduled/enabled by this change. The due scan currently requires an
+  authorized explicit request; a safe recurring due-detection schedule remains
+  an operational follow-up. Neither job automatically sends an initial Pulse.
 
-## Before Phase 1B / any deployment
+## Migration / rollout
 
-1. Pete approves the actual Chapter cadence, cooldown, due-soon window, and
-   whether a renewal pulse replaces a nearby lifecycle pulse.
-2. Pete approves the precise free-text visibility policy. Safe default proposal:
-   member sees own answers; Growth Coordinator and Chapter Admin see individual
-   answers; ordinary Growth and Mentor see only explicit shareable follow-up
-   status until additional consent is designed. Confidential leadership feedback
-   is deferred.
-3. The LIFF member-submit contract and metadata-only Desktop/Mobile Pulse views
-   are implemented but need signed-in Staging acceptance. Build consent-aware
-   Member Health read only after its visibility decision. No public token link
-   until Phase 2 threat review.
-4. Validate this migration against isolated Staging schema and synthetic Chapter
-   fixtures, including RLS, foreign-key guards, immutable templates, and
-   rollback by leaving dormant tables in place. Do not delete response history.
-5. No LINE send, automatic reminder, bulk send, AI classification, or historical
-   Happiness Survey import is part of Phase 1A.
+Migrations are additive and leave Pulse disabled. Staging currently has older
+pending Growth migrations in addition to the Pulse foundation and Phase 1B
+migrations. Applying the candidate migration chain may therefore apply all
+four pending migrations; verify the linked project ref and dry-run output first.
+No Production project, migration, environment, role, consent, or LINE setting
+may be changed. Keep new tables if rolling back application code; do not delete
+responses or rewrite deployed migrations.
 
-## Member-form candidate contract
+Before broader enablement, use synthetic Staging members and signed-in accounts
+to test Growth, Mentor assignment scope, unauthorized members, Chapter
+isolation, direct API access, expired/tampered tokens, revoked sessions, and
+another member's campaign. Test actual LINE delivery only with Staging-safe
+delivery disabled or an approved test destination; never target Production
+members from Staging.
 
-- Existing LINE access-token verification resolves the member and Chapter on the
-  server. Browser-supplied member and Chapter IDs are ignored. Only the latest
-  assigned campaign in that Chapter is returned to that member.
-- Policy must be enabled and the campaign's exact versioned template must be
-  active to accept a submission. A template question has `id`, `label`,
-  `type` (`scale` 1–10, `choice`, or `text` up to 1,000 characters), optional
-  `required`, and `options` for `choice`. Unknown answer keys are rejected.
-- A repeat submission cannot overwrite a completed answer. The member can read
-  only their own answer. There is deliberately no staff endpoint for answers
-  until Pete approves a per-question visibility/consent rule.
-- Growth staff get only campaign stage, due date, status, completion timestamp,
-  and a Chapter-scoped member label through `getMemberPulseBoard`. They cannot
-  read question text, ratings, or free-text answers from this API.
-- LIFF Staging testing requires isolated LINE channel/LIFF configuration and a
-  synthetic linked test member; existing Staging checklist currently defers
-  real LIFF. Do not connect Production LINE or real members to Staging.
-- The CLI in this worktree is presently linked to Production Supabase. Never
-  run `db push` or apply a migration from this state. Re-link and verify the
-  exact Staging project before any Staging-only migration.
+## Phase 1B remaining acceptance gates
 
-## Deployment order after acceptance
-
-Staging backup → additive migration → policy/template configuration (disabled)
-→ API/member UI → signed-in Chapter/role/consent acceptance → controlled enable.
-If UI/API must roll back after migration, leave empty/new tables in place and
-keep policy disabled. Historical responses must never be destructively rolled
-back.
+- Signed-in Staging OAuth acceptance for member, Growth, Mentor, and leadership
+  scopes, including cross-Chapter and revoked-session denial.
+- Browser acceptance for `/pulse/`, Member Detail, Growth Desktop and Mobile.
+- Confirm manual due scan is operationally sufficient or separately approve a
+  scheduled detection job. Automatic sending is explicitly out of scope.
+- Confirm templates and question scopes using synthetic data before enabling a
+  Chapter policy. No Production enablement is included in Phase 1B.

@@ -29,6 +29,8 @@ export interface LineSendOptions {
   module?: string;
   category?: string;
   priority?: 'critical' | 'action_required' | 'reminder' | 'informational';
+  /** Store a redacted delivery preview/payload when messages contain bearer links. */
+  redactSensitiveLinks?: boolean;
 }
 
 export interface LineSendResult {
@@ -219,7 +221,7 @@ async function claimDelivery(
   );
   // Extract first 300 chars of the primary text message for the activity log
   const firstText = messages.find(m => m.type === 'text' && typeof m.text === 'string');
-  const messagePreview = firstText ? String(firstText.text).slice(0, 300) : null;
+  const messagePreview = firstText ? redactSensitiveLineText(String(firstText.text), options.redactSensitiveLinks).slice(0, 300) : null;
   const baseArgs = {
     p_idempotency_key: options.idempotencyKey,
     p_channel: channel,
@@ -243,6 +245,17 @@ async function claimDelivery(
     deliveryId: row?.delivery_id ? String(row.delivery_id) : undefined,
     shouldSend: row?.should_send !== false,
   };
+}
+
+export function redactSensitiveLineText(text: string, redact = false): string {
+  return redact ? text.replace(/([?&]token=)[a-f0-9]{32,}/gi, '$1[REDACTED]') : text;
+}
+
+function deliveryAuditMessages(messages: LineMessage[], redact = false): LineMessage[] {
+  return messages.slice(0, 5).map(message => {
+    if (!redact || message.type !== 'text' || typeof message.text !== 'string') return message;
+    return { ...message, text: redactSensitiveLineText(message.text, true) };
+  });
 }
 
 async function updateDelivery(
@@ -285,7 +298,7 @@ async function sendLineRequest(
       ? Math.max(1, body.to.length)
       : 1;
     await updateDelivery(options.db, claim.deliveryId, {
-      message_payload: messages.slice(0, 5),
+      message_payload: deliveryAuditMessages(messages, options.redactSensitiveLinks),
       // LINE bills multicast by recipient, not by HTTP request. Keeping this
       // value accurate makes quota dashboards and budget guards trustworthy.
       estimated_count: estimatedCount,

@@ -29,6 +29,7 @@ import {
 } from '../_shared/line.ts';
 import { provisionLineExperience } from '../_shared/line-provision.ts';
 import { lineAutomationDecision, lineAutomationMessage } from '../_shared/line-automation.ts';
+import { evaluateNotificationGuard, logSuppressedNotification } from '../_shared/notification-orchestrator.ts';
 import webpush from 'npm:web-push@3.6.7';
 
 Deno.serve(async (req: Request) => {
@@ -62,6 +63,13 @@ Deno.serve(async (req: Request) => {
   console.log(`[cron-jobs] Running job: ${job}`);
 
   try {
+    if (job === 'memberPulseReminders') {
+      const result = await memberPulseReminders(db);
+      await finishRun(result.failed ? 'failed' : result.skipped ? 'skipped' : 'succeeded', { metadata: result });
+      return new Response(JSON.stringify({ ok: result.failed === 0, job, ...result }), {
+        status: result.failed ? 500 : 200, headers: { 'Content-Type': 'application/json' },
+      });
+    }
     if (job === 'webPushDispatch') {
       const result = await webPushDispatch(db);
       await finishRun(result.failed ? 'failed' : 'succeeded', { metadata: result });
@@ -110,6 +118,51 @@ Deno.serve(async (req: Request) => {
     });
   }
 });
+
+async function memberPulseReminders(db: DB): Promise<{ scanned: number; sent: number; skipped: number; failed: number }> {
+  const env = serverEnvironment();
+  if (!env.lineDeliveryEnabled) return { scanned: 0, sent: 0, skipped: 1, failed: 0 };
+  const appUrl = String(Deno.env.get('PUBLIC_APP_URL') || '');
+  if (!appUrl.startsWith('https://')) throw new Error('PUBLIC_APP_URL must be HTTPS for Pulse links');
+  const now = new Date(), { data: policies, error: policyError } = await db.from('member_pulse_policies').select('chapter_id,enabled').eq('enabled', true);
+  if (policyError) throw new Error('Cannot read Member Pulse policies');
+  const enabledChapters = new Set((policies || []).map((row: Record<string, unknown>) => String(row.chapter_id)));
+  if (!enabledChapters.size) return { scanned: 0, sent: 0, skipped: 0, failed: 0 };
+  const { data: rows, error } = await db.from('member_pulse_campaigns').select('id,chapter_id,member_id,status,sent_at,reminders_sent').in('chapter_id', [...enabledChapters]).in('status', ['sent','opened','in_progress']).lt('reminders_sent', 2).not('sent_at', 'is', null).limit(500);
+  if (error) throw new Error('Cannot read pending Member Pulse reminders');
+  let sent = 0, skipped = 0, failed = 0;
+  for (const raw of rows || []) {
+    const row = raw as Record<string, unknown>, count = Number(row.reminders_sent || 0), elapsedDays = (now.getTime() - new Date(String(row.sent_at)).getTime()) / 86400000;
+    const nextCount = count === 0 && elapsedDays >= 7 ? 2 : count + 1;
+    const targetDay = nextCount === 1 ? 3 : nextCount === 2 ? 7 : null;
+    if (targetDay === null || elapsedDays < targetDay) { skipped++; continue; }
+    const [{ data: response }, { data: member }, { data: line }] = await Promise.all([
+      db.from('member_pulse_responses').select('completed_at').eq('campaign_id', row.id).eq('chapter_id', row.chapter_id).maybeSingle(),
+      db.from('members').select('id,is_archived').eq('id', row.member_id).eq('chapter_id', row.chapter_id).maybeSingle(),
+      db.from('line_members').select('line_user_id').eq('member_id', row.member_id).maybeSingle(),
+    ]);
+    if (response?.completed_at || !member || member.is_archived || !line?.line_user_id) { skipped++; continue; }
+    const guardInput = { memberId: String(row.member_id), module: 'member_pulse', category: 'member_pulse_reminder', priority: 'reminder' as const };
+    const guard = await evaluateNotificationGuard(db, guardInput), key = `pulse:${row.id}:reminder:${nextCount}`;
+    if (!guard.allowed) { await logSuppressedNotification(db, guardInput, guard, key, String(line.line_user_id)); skipped++; continue; }
+    const token = [...crypto.getRandomValues(new Uint8Array(32))].map(value => value.toString(16).padStart(2, '0')).join('');
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
+    const tokenHash = [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, '0')).join('');
+    const tokenRow = await db.from('member_pulse_tokens').insert({ campaign_id: row.id, chapter_id: row.chapter_id, token_hash: tokenHash, expires_at: new Date(now.getTime() + 30 * 86400000).toISOString(), created_by_email: 'cron:memberPulseReminders' }).select('id').single();
+    if (tokenRow.error) { failed++; continue; }
+    const linkUrl = new URL('/pulse/', appUrl); linkUrl.searchParams.set('token', token);
+    try {
+      const result = await linePush(String(line.line_user_id), `🔔 ขอเตือนแบบสอบถาม Member Pulse ที่ยังไม่ได้ส่งคำตอบ\nเปิดลิงก์นี้เพื่อตอบ ใช้เวลาประมาณ 1–2 นาที\n${linkUrl}`, { db, idempotencyKey: key, memberId: String(row.member_id), notificationType: 'member_pulse_reminder', source: 'cron/member-pulse', module: 'member_pulse', category: 'member_pulse_reminder', priority: 'reminder', redactSensitiveLinks: true });
+      if (result.skipped) { skipped++; await db.from('member_pulse_tokens').update({ revoked_at: now.toISOString() }).eq('id', tokenRow.data.id); continue; }
+      const update = await db.from('member_pulse_campaigns').update({ reminders_sent: nextCount, last_reminded_at: now.toISOString() }).eq('id', row.id).eq('chapter_id', row.chapter_id).lt('reminders_sent', 2);
+      if (update.error) failed++; else sent++;
+    } catch {
+      await db.from('member_pulse_tokens').update({ revoked_at: now.toISOString() }).eq('id', tokenRow.data.id);
+      failed++;
+    }
+  }
+  return { scanned: (rows || []).length, sent, skipped, failed };
+}
 
 // ── Types ─────────────────────────────────────────────────────
 type DB = ReturnType<typeof getServiceClient>;

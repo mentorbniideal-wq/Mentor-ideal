@@ -5,19 +5,18 @@ import {
   validatePulseAnswers,
 } from "./member-pulse.ts";
 
-// Test policy illustrates the requested milestones; Production has no active
-// policy until Pete approves Chapter cadence and cooldown.
+// Test policy illustrates the approved Phase 1B cadence; policies stay disabled
+// until Staging acceptance and explicit Chapter enablement.
 const policy: PulsePolicy = {
   enabled: true,
   milestones: [
     { stage: "onboarding", months: 3 },
     { stage: "activation", months: 6 },
-    { stage: "value_retention", months: 12 },
-    { stage: "experience", months: 24, repeatMonths: 12 },
+    { stage: "experience", months: 12, repeatMonths: 6 },
   ],
   renewalDaysBefore: 90,
   dueSoonDays: 7,
-  cooldownDays: 30,
+  cooldownDays: 60,
 };
 
 Deno.test("Member Pulse selects 3, 6 and 12-month stages from join date", () => {
@@ -25,7 +24,7 @@ Deno.test("Member Pulse selects 3, 6 and 12-month stages from join date", () => 
     const [today, stage] of [
       ["2026-04-01", "onboarding"],
       ["2026-07-01", "activation"],
-      ["2027-01-01", "value_retention"],
+      ["2027-01-01", "experience"],
     ]
   ) {
     const decision = decideMemberPulse({
@@ -90,6 +89,8 @@ Deno.test("Member Pulse avoids duplicate campaign and respects cooldown", () => 
     }],
   }, policy);
   assertEquals(cooldown.status, "SUPPRESSED");
+  const boundary = decideMemberPulse({ ...base, today: "2026-05-24", history: [{ stage: "onboarding", cycleKey: "other", status: "sent", sentOn: "2026-03-25" }] }, policy);
+  assertEquals(boundary.reason, undefined);
 });
 
 Deno.test("Missing dates, expired membership and no policy fail closed", () => {
@@ -196,4 +197,26 @@ Deno.test("Pulse answers accept only server-template fields and typed values", (
     false,
   );
   assertEquals(validatePulseAnswers(spec, { intent: "yes" }).ok, false);
+});
+
+Deno.test("Partial Pulse saves may omit required answers but final submission may not", () => {
+  const spec = [{ id: "need", label: "สิ่งที่อยากให้ช่วย", type: "text", required: true }];
+  assertEquals(validatePulseAnswers(spec, {}, true).ok, true);
+  assertEquals(validatePulseAnswers(spec, {}).ok, false);
+});
+
+Deno.test("Recurring experience Pulse repeats every six months after month 12", () => {
+  const decision = decideMemberPulse({ today: "2027-07-01", joinedOn: "2026-01-01", expiresOn: "2028-01-01", history: [
+    { stage: "onboarding", cycleKey: "onboarding:2026-04-01", status: "completed", sentOn: "2026-04-01" },
+    { stage: "activation", cycleKey: "activation:2026-07-01", status: "completed", sentOn: "2026-07-01" },
+    { stage: "experience", cycleKey: "experience:2027-01-01", status: "completed", sentOn: "2027-01-01" },
+  ] }, policy);
+  assertEquals(decision.stage, "experience");
+  assertEquals(decision.dueOn, "2027-07-01");
+});
+
+Deno.test("Renewal priority wins when Renewal and Lifecycle enter due window together", () => {
+  const decision = decideMemberPulse({ today: "2027-09-01", joinedOn: "2026-09-01", expiresOn: "2027-12-01" }, policy);
+  assertEquals(decision.stage, "renewal");
+  assertEquals(decision.dueOn, "2027-09-02");
 });

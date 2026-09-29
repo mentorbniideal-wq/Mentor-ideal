@@ -27,7 +27,8 @@ export type PulseHistory = {
     | "in_progress"
     | "completed"
     | "declined"
-    | "expired";
+    | "expired"
+    | "superseded";
   sentOn?: string;
 };
 export type PulseDecision = {
@@ -63,6 +64,7 @@ export type PulseQuestion = {
 export function validatePulseAnswers(
   spec: unknown,
   answers: unknown,
+  allowPartial = false,
 ): { ok: true; answers: Record<string, string | number> } | {
   ok: false;
   error: string;
@@ -81,6 +83,7 @@ export function validatePulseAnswers(
       typeof item.label !== "string" || !item.label.trim() ||
       item.label.length > 200 ||
       !["scale", "choice", "text"].includes(item.type) || fields.has(item.id) ||
+      (item.visibility_scope !== undefined && !["member", "mentor_growth", "leadership_only"].includes(item.visibility_scope)) ||
       (item.type === "choice" && (!Array.isArray(item.options) ||
         item.options.length < 2 || item.options.length > 12 ||
         item.options.some((value: unknown) =>
@@ -99,7 +102,7 @@ export function validatePulseAnswers(
   for (const [id, question] of fields) {
     const value = source[id];
     if (value === undefined || value === null || value === "") {
-      if (question.required) {
+      if (question.required && !allowPartial) {
         return { ok: false, error: `กรุณาตอบ ${question.label}` };
       }
       continue;
@@ -205,25 +208,26 @@ export function decideMemberPulse(input: {
     while (months <= 600) {
       const dueOn = addMonths(input.joinedOn!, months);
       if (dueOn <= input.expiresOn!) {
-        candidates.push({ stage: milestone.stage, dueOn, priority: 1 });
+        const isRecurring = milestone.stage === "experience" && months > 12;
+        candidates.push({ stage: milestone.stage, dueOn, priority: isRecurring ? 2 : 1 });
       }
       if (!milestone.repeatMonths || dueOn > input.expiresOn!) break;
       months += milestone.repeatMonths;
     }
   }
-  const due = candidates.filter((item) =>
+  const history = input.history || [];
+  const closedCycles = new Set(history.filter(item => ["completed", "declined", "expired", "superseded"].includes(item.status)).map(item => item.cycleKey));
+  const actionableCandidates = candidates.filter(item => !closedCycles.has(`${item.stage}:${item.dueOn}`));
+  const due = actionableCandidates.filter((item) =>
     item.dueOn <= addDays(input.today, policy.dueSoonDays)
   );
   const next = due.length
-    ? due.sort((a, b) =>
-      b.dueOn.localeCompare(a.dueOn) || a.priority - b.priority
-    )[0]
-    : candidates.filter((item) => item.dueOn >= input.today).sort((a, b) =>
+    ? due.sort((a, b) => a.priority - b.priority || a.dueOn.localeCompare(b.dueOn))[0]
+    : actionableCandidates.filter((item) => item.dueOn >= input.today).sort((a, b) =>
       a.dueOn.localeCompare(b.dueOn) || a.priority - b.priority
     )[0];
   if (!next) return empty("NOT_DUE");
   const cycleKey = `${next.stage}:${next.dueOn}`;
-  const history = input.history || [];
   const existing = history.find((item) => item.cycleKey === cycleKey);
   if (existing) {
     const status = ({
@@ -233,6 +237,7 @@ export function decideMemberPulse(input: {
       completed: "COMPLETED",
       declined: "DECLINED",
       expired: "SUPPRESSED",
+      superseded: "SUPPRESSED",
     } as const)[existing.status];
     return {
       status,

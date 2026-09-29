@@ -16,6 +16,8 @@ export function projectPulseBoard(campaigns: Row[], members: Row[]) {
       dueOn: row.due_on,
       status: row.status,
       completedAt: row.completed_at || null,
+      sentAt: row.sent_at || null,
+      remindersSent: Number(row.reminders_sent || 0),
     }));
   return {
     campaigns: rows,
