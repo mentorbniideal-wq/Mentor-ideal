@@ -51,6 +51,79 @@ export type PulseDecision = {
   reason?: "cooldown" | "existing_campaign";
 };
 
+export type PulseQuestion = {
+  id: string;
+  label: string;
+  type: "scale" | "choice" | "text";
+  required?: boolean;
+  options?: string[];
+};
+
+// Template-driven validation; callers must never trust browser-supplied question labels.
+export function validatePulseAnswers(
+  spec: unknown,
+  answers: unknown,
+): { ok: true; answers: Record<string, string | number> } | {
+  ok: false;
+  error: string;
+} {
+  if (
+    !Array.isArray(spec) || spec.length < 1 || spec.length > 20 ||
+    !answers || typeof answers !== "object" || Array.isArray(answers)
+  ) {
+    return { ok: false, error: "รูปแบบคำถามหรือคำตอบไม่ถูกต้อง" };
+  }
+  const fields = new Map<string, PulseQuestion>();
+  for (const item of spec) {
+    if (
+      !item || typeof item !== "object" ||
+      !/^[a-z][a-z0-9_]{0,39}$/.test(item.id) ||
+      typeof item.label !== "string" || !item.label.trim() ||
+      item.label.length > 200 ||
+      !["scale", "choice", "text"].includes(item.type) || fields.has(item.id) ||
+      (item.type === "choice" && (!Array.isArray(item.options) ||
+        item.options.length < 2 || item.options.length > 12 ||
+        item.options.some((value: unknown) =>
+          typeof value !== "string" || !value || value.length > 100
+        )))
+    ) {
+      return { ok: false, error: "Template คำถามไม่ถูกต้อง" };
+    }
+    fields.set(item.id, item as PulseQuestion);
+  }
+  const source = answers as Record<string, unknown>;
+  if (Object.keys(source).some((key) => !fields.has(key))) {
+    return { ok: false, error: "มีคำตอบที่ไม่อยู่ในแบบสอบถาม" };
+  }
+  const cleaned: Record<string, string | number> = {};
+  for (const [id, question] of fields) {
+    const value = source[id];
+    if (value === undefined || value === null || value === "") {
+      if (question.required) {
+        return { ok: false, error: `กรุณาตอบ ${question.label}` };
+      }
+      continue;
+    }
+    if (question.type === "scale") {
+      if (!Number.isInteger(value) || Number(value) < 1 || Number(value) > 10) {
+        return { ok: false, error: `คะแนน ${question.label} ต้องเป็น 1–10` };
+      }
+      cleaned[id] = value as number;
+    } else if (question.type === "choice") {
+      if (typeof value !== "string" || !question.options?.includes(value)) {
+        return { ok: false, error: `ตัวเลือก ${question.label} ไม่ถูกต้อง` };
+      }
+      cleaned[id] = value;
+    } else {
+      if (typeof value !== "string" || value.length > 1000) {
+        return { ok: false, error: `ข้อความ ${question.label} ยาวเกินไป` };
+      }
+      cleaned[id] = value.trim();
+    }
+  }
+  return { ok: true, answers: cleaned };
+}
+
 function dateOnly(value: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const date = new Date(`${value}T00:00:00.000Z`);

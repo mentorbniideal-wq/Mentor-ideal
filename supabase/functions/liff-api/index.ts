@@ -17,6 +17,7 @@ import { helpRequestRoute } from '../_shared/help-request.ts';
 import { directoryMatchReasons, directoryProfileProjection, directoryResult, directorySearchScore, normalizeDirectoryQuery } from '../_shared/chapter-directory.ts';
 import { serverEnvironment } from '../_shared/environment.ts';
 import { resolveMsbPlanningYear } from '../_shared/msb-planning-year.ts';
+import { handleMemberPulseLiff } from '../_shared/member-pulse-liff.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
 
@@ -81,6 +82,11 @@ Deno.serve(async (req: Request) => {
   const member = identity.member;
   const memberId = identity.memberId;
   const chapterId = String(member.chapter_id || '');
+
+  if (action === 'get-my-pulse' || action === 'submit-my-pulse') {
+    const result = await handleMemberPulseLiff(db, { memberId, chapterId }, action, body);
+    return response(result.body, result.status);
+  }
 
   async function activeLtRoles() {
     if (!chapterId) return [];

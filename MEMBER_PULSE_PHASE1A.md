@@ -1,9 +1,11 @@
 # Member Pulse — Phase 1A foundation (candidate only)
 
 Member Pulse is a support signal, never a member score or ranking. The desired
-loop is detect → ask → understand → help → measure again. This commit contains
-only a dormant schema candidate and a pure scheduling decision with tests. It
-does not create campaigns, expose responses, send LINE, or alter Production.
+loop is detect → ask → understand → help → measure again. The foundation commit
+contains a dormant schema candidate and pure scheduling decision. The following
+member-form candidate adds an authenticated LIFF page and own-response endpoint.
+It still does not create campaigns, expose answers to staff, send LINE, or alter
+Production.
 
 ## Existing system reused
 
@@ -41,13 +43,33 @@ does not create campaigns, expose responses, send LINE, or alter Production.
    answers; ordinary Growth and Mentor see only explicit shareable follow-up
    status until additional consent is designed. Confidential leadership feedback
    is deferred.
-3. Build server-authorized Member Health read and LIFF member-submit contracts,
-   then Desktop/Mobile states. No public token link until Phase 2 threat review.
+3. The LIFF member-submit contract is implemented but needs signed-in Staging
+   acceptance. Build server-authorized Member Health read and Desktop/Mobile
+   states. No public token link until Phase 2 threat review.
 4. Validate this migration against isolated Staging schema and synthetic Chapter
    fixtures, including RLS, foreign-key guards, immutable templates, and
    rollback by leaving dormant tables in place. Do not delete response history.
 5. No LINE send, automatic reminder, bulk send, AI classification, or historical
    Happiness Survey import is part of Phase 1A.
+
+## Member-form candidate contract
+
+- Existing LINE access-token verification resolves the member and Chapter on the
+  server. Browser-supplied member and Chapter IDs are ignored. Only the latest
+  assigned campaign in that Chapter is returned to that member.
+- Policy must be enabled and the campaign's exact versioned template must be
+  active to accept a submission. A template question has `id`, `label`,
+  `type` (`scale` 1–10, `choice`, or `text` up to 1,000 characters), optional
+  `required`, and `options` for `choice`. Unknown answer keys are rejected.
+- A repeat submission cannot overwrite a completed answer. The member can read
+  only their own answer. There is deliberately no staff endpoint for answers
+  until Pete approves a per-question visibility/consent rule.
+- LIFF Staging testing requires isolated LINE channel/LIFF configuration and a
+  synthetic linked test member; existing Staging checklist currently defers
+  real LIFF. Do not connect Production LINE or real members to Staging.
+- The CLI in this worktree is presently linked to Production Supabase. Never
+  run `db push` or apply a migration from this state. Re-link and verify the
+  exact Staging project before any Staging-only migration.
 
 ## Deployment order after acceptance
 

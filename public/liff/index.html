@@ -87,6 +87,7 @@
       <button class="tab member-tab" data-view="121">1-2-1</button>
       <button class="tab member-tab" data-view="goal">เป้าหมาย</button>
       <button class="tab member-tab" data-view="progress">📊 ความก้าวหน้า</button>
+      <button class="tab member-tab" data-view="pulse">💛 Pulse</button>
       <button class="tab member-tab" data-view="directory">🔎 ค้นหาสมาชิก</button>
       <button class="tab member-tab" data-view="visitor">แขกพิเศษ</button>
       <button class="tab member-tab" data-view="issue">ช่วยเหลือ</button>
@@ -101,6 +102,12 @@
     <section class="card chapter-home" data-card="home">
       <div class="chapter-home-hero"><small>MY CHAPTER HOME</small><h2>วันนี้ควรทำอะไรต่อ?</h2><p>รวมเฉพาะเรื่องที่เกี่ยวกับคุณ เรียงจากสิ่งที่ควรทำก่อน</p></div>
       <div id="chapterHomeContent"><div class="loading" style="padding:28px 0">กำลังเตรียมหน้าของคุณ…</div></div>
+    </section>
+
+    <section class="card" data-card="pulse" aria-labelledby="pulseTitle">
+      <h2 id="pulseTitle">MY IDEAL Pulse 💛</h2>
+      <p class="hint">เสียงของคุณช่วยให้ทีมเข้าใจว่าเราควรช่วยอะไรต่อ คำตอบนี้ไม่ใช่คะแนนจัดอันดับสมาชิก</p>
+      <div id="pulseContent" role="status" aria-live="polite">กำลังตรวจแบบสอบถาม…</div>
     </section>
 
     <section class="card" data-card="m2m">
@@ -310,6 +317,7 @@
 <script src="./chapter-directory.js"></script>
 <script src="./chapter-directory-interactions.js"></script>
 <script src="./member-self-121.js"></script>
+<script src="/liff/member-pulse.js?v=20260929a"></script>
 <script src="/assets/js/notification-preferences.js?v=20260906.1"></script>
 <script>
 const cfg = window.BNI_LIFF_CONFIG || {};
@@ -323,7 +331,7 @@ function getRequestedAction() {
   const q = new URLSearchParams(location.search);
   if (q.get('action')) return q.get('action');
   const pathAction = location.pathname.match(
-    /\/liff\/(mentor-log|follow-up|issue|renewal|assignments|absence|ceu|121|goal|visitor|progress|directory|m2m)\/?$/,
+    /\/liff\/(mentor-log|follow-up|issue|renewal|assignments|absence|ceu|121|goal|visitor|progress|directory|m2m|pulse)\/?$/,
   );
   if (pathAction) return pathAction[1];
   const liffState = q.get('liff.state');
@@ -347,6 +355,7 @@ function show(view) {
   if (view === 'renewal')     loadRenewal();
   if (view === 'assignments') loadAssignments();
   if (view === 'progress')    loadProgress();
+  if (view === 'pulse')       loadMemberPulse();
   if (view === 'directory')   loadChapterDirectory();
   if (view === 'goal')        loadGoalCoach();
   if (view === 'ceu')         loadCeuCalendar();
@@ -357,7 +366,7 @@ function show(view) {
   if (view === 'm2m')         loadM2M();
 }
 
-const apiReadActions=new Set(['member-home','renewal','training-calendar','chapter-directory','chapter-directory-profile','get-my-one-to-one-system','get-my-one-to-one-history','get-my-one-to-one-profile','get-pair-121-profile','get-guided-session','get-pending-visitors','get-issues','get-issue-detail','notification-preferences','get-member-self-121','m2m-audience']);
+const apiReadActions=new Set(['member-home','renewal','training-calendar','chapter-directory','chapter-directory-profile','get-my-one-to-one-system','get-my-one-to-one-history','get-my-one-to-one-profile','get-pair-121-profile','get-guided-session','get-pending-visitors','get-issues','get-issue-detail','notification-preferences','get-member-self-121','m2m-audience','get-my-pulse']);
 const apiLatest=new Map();
 async function api(payload,options={}) {
   const key=options.latestKey||'',requestId=crypto.randomUUID();if(key)apiLatest.set(key,requestId);

@@ -1,5 +1,9 @@
 import { assertEquals } from "jsr:@std/assert";
-import { decideMemberPulse, type PulsePolicy } from "./member-pulse.ts";
+import {
+  decideMemberPulse,
+  type PulsePolicy,
+  validatePulseAnswers,
+} from "./member-pulse.ts";
 
 // Test policy illustrates the requested milestones; Production has no active
 // policy until Pete approves Chapter cadence and cooldown.
@@ -160,4 +164,36 @@ Deno.test("Short membership never schedules renewal before joining", () => {
   }, policy);
   assertEquals(decision.stage, "renewal");
   assertEquals(decision.dueOn, "2026-09-01");
+});
+
+Deno.test("Pulse answers accept only server-template fields and typed values", () => {
+  const spec = [
+    { id: "happiness", label: "ความสุข", type: "scale", required: true },
+    {
+      id: "intent",
+      label: "การต่ออายุ",
+      type: "choice",
+      options: ["yes", "unsure", "no"],
+    },
+    { id: "need", label: "สิ่งที่อยากให้ช่วย", type: "text" },
+  ];
+  assertEquals(
+    validatePulseAnswers(spec, {
+      happiness: 8,
+      intent: "unsure",
+      need: "ช่วยแนะนำ",
+    }).ok,
+    true,
+  );
+  assertEquals(
+    validatePulseAnswers(spec, { happiness: 8, privateNote: "leak" }).ok,
+    false,
+  );
+  assertEquals(validatePulseAnswers(spec, { happiness: 11 }).ok, false);
+  assertEquals(validatePulseAnswers(spec, { happiness: "8" }).ok, false);
+  assertEquals(
+    validatePulseAnswers(spec, { happiness: 8, intent: "maybe" }).ok,
+    false,
+  );
+  assertEquals(validatePulseAnswers(spec, { intent: "yes" }).ok, false);
 });
