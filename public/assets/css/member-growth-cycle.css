@@ -30,6 +30,10 @@
 .mg-eyebrow { color: var(--ac); font-size: 11px; font-weight: 800; letter-spacing: .12em; }
 .mg-cycle-hero h3 { margin: 6px 0 4px; font-size: clamp(22px, 2.1vw, 30px); line-height: 1.2; }
 .mg-cycle-hero p { margin: 0; color: var(--sub); font-size: 13px; }
+.mg-membership-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 14px 0 18px; }
+.mg-membership-facts > div { display: grid; align-content: start; gap: 5px; min-width: 0; padding: 15px 17px; border: 1px solid var(--bd); border-radius: 14px; background: var(--sf2); }
+.mg-membership-facts small { color: var(--sub); font-size: 12px; }
+.mg-membership-facts b { overflow-wrap: anywhere; font-size: 17px; }
 .mg-hero-side { display: grid; justify-items: end; gap: 11px; }
 .mg-hero-badge { padding: 8px 12px; border: 1px solid var(--ac); border-radius: 999px; background: var(--ac-dim); font-size: 12px; font-weight: 800; }
 .mg-hero-side label { display: grid; gap: 4px; color: var(--sub); font-size: 11px; }
@@ -88,6 +92,7 @@
 @media (max-width: 700px) {
   #gr-cycle > .sh { align-items: flex-start; flex-direction: column; }
   .mg-summary { grid-template-columns: 1fr; }
+  .mg-membership-facts { grid-template-columns: 1fr; }
   .mg-row { flex-direction: column; }
   .mg-row span:last-child { text-align: left; }
   .mg-cycle-hero, .mg-detail-head { flex-direction: column; }

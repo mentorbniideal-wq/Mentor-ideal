@@ -2,7 +2,7 @@ import { requireAuth } from '../../_shared/auth.ts';
 import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
 import { CAPABILITY, hasCapability } from '../../_shared/capabilities.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
-import { canManageGrowthCycle, canReadGrowthCycle, cycleMonth, growthMilestone, monthDueDate, parseDateOnly, renewalCycleStatus, todayInZone } from '../../_shared/member-growth-cycle.ts';
+import { canManageGrowthCycle, canReadGrowthCycle, cycleMonth, growthMilestone, membershipFacts, monthDueDate, parseDateOnly, renewalCycleStatus, todayInZone } from '../../_shared/member-growth-cycle.ts';
 
 type Row = Record<string, unknown>;
 const uuid = (value: unknown) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ''));
@@ -41,12 +41,12 @@ export async function handleMemberGrowth(p: Record<string, unknown>): Promise<Re
   if (!supportedActions.includes(action)) return errResponse('Unknown member growth action', 400);
   if (action === 'getMemberGrowthBoard') {
     const { data: members, error } = await db.from('members')
-      .select('id,name,nickname,is_new_member').eq('chapter_id', chapterId).eq('is_archived', false).order('name').limit(500);
+      .select('id,name,nickname,is_new_member,joined_date,membership_start_date').eq('chapter_id', chapterId).eq('is_archived', false).order('name').limit(500);
     if (error) return errResponse(error.message);
     const ids = ((members || []) as Row[]).map(row => String(row.id));
     if (!ids.length) return jsonResponse({ ok: true, members: [], dueWork: [], summary: { activeMembers: 0 } });
     const [renewalQ, cycleQ] = await Promise.all([
-      db.from('renewals').select('member_id,expiry_date,workflow_status').eq('chapter_id', chapterId).in('member_id', ids),
+      db.from('renewals').select('member_id,expiry_date,workflow_status,completed_at,extended_at,source,source_reported_at').eq('chapter_id', chapterId).in('member_id', ids),
       db.from('member_growth_cycles').select('id,member_id,expiry_date').eq('chapter_id', chapterId).in('member_id', ids),
     ]);
     if (renewalQ.error || cycleQ.error) return errResponse(renewalQ.error?.message || cycleQ.error?.message || 'Growth cycle unavailable');
@@ -67,11 +67,15 @@ export async function handleMemberGrowth(p: Record<string, unknown>): Promise<Re
     const soon = soonDate.toISOString().slice(0, 10);
     const memberRows = ((members || []) as Row[]).map(member => {
       const renewal = renewals.get(String(member.id));
-      const expiry = str(renewal?.expiry_date);
+      const facts = membershipFacts(member, renewal || null, today);
+      const expiry = facts.expiryDate || '';
       const cycle = cycles.get(`${member.id}:${expiry}`);
       const allNodes = expiry ? nodes(expiry, Boolean(member.is_new_member), byCycle.get(String(cycle?.id)) || []) : [];
       const next = allNodes.find(node => node.milestone && node.dueDate && node.dueDate >= today && node.status !== 'completed');
       return { memberId: member.id, name: member.name, nickname: member.nickname, isNewMember: Boolean(member.is_new_member),
+        membershipStartDate: facts.membershipStartDate, membershipStartSource: facts.membershipStartSource,
+        membershipDays: facts.membershipDays, lastRenewedOn: facts.lastRenewedOn,
+        expirySource: renewal?.source || null, expiryReportedAt: renewal?.source_reported_at || null,
         expiryDate: expiry || null, cycleStartDate: expiry ? monthDueDate(expiry, 1) : null,
         currentMonth: expiry ? cycleMonth(expiry, today) : null, renewalStatus: renewalCycleStatus(renewal?.workflow_status),
         nextMilestone: next?.milestone?.label || null, nextDueDate: next?.dueDate || null,
@@ -98,13 +102,14 @@ export async function handleMemberGrowth(p: Record<string, unknown>): Promise<Re
   const memberId = str(p.memberId);
   if (!uuid(memberId)) return errResponse('memberId ไม่ถูกต้อง', 400);
   const { data: member, error: memberError } = await db.from('members')
-    .select('id,name,nickname,is_new_member,chapter_id').eq('id', memberId).eq('chapter_id', chapterId).eq('is_archived', false).maybeSingle();
+    .select('id,name,nickname,is_new_member,joined_date,membership_start_date,chapter_id').eq('id', memberId).eq('chapter_id', chapterId).eq('is_archived', false).maybeSingle();
   if (memberError) return errResponse(memberError.message);
   if (!member) return errResponse('ไม่พบสมาชิกใน Chapter นี้', 404);
   const { data: renewal, error: renewalError } = await db.from('renewals')
-    .select('expiry_date,workflow_status').eq('member_id', memberId).eq('chapter_id', chapterId).maybeSingle();
+    .select('expiry_date,workflow_status,completed_at,extended_at,source,source_reported_at').eq('member_id', memberId).eq('chapter_id', chapterId).maybeSingle();
   if (renewalError) return errResponse(renewalError.message);
-  const currentExpiry = str((renewal as Row | null)?.expiry_date);
+  const facts = membershipFacts(member as Row, renewal as Row | null, today);
+  const currentExpiry = facts.expiryDate || '';
   const { data: history, error: historyError } = await db.from('member_growth_cycles')
     .select('id,expiry_date').eq('chapter_id', chapterId).eq('member_id', memberId).order('expiry_date', { ascending: false }).limit(30);
   if (historyError) return errResponse(historyError.message);
@@ -112,7 +117,8 @@ export async function handleMemberGrowth(p: Record<string, unknown>): Promise<Re
   if (requestedExpiry && !(history || []).some((cycle: Row) => String(cycle.expiry_date) === requestedExpiry))
     return errResponse('ไม่พบรอบสมาชิกนี้ใน Chapter', 404);
   const expiry = requestedExpiry || currentExpiry;
-  if (!parseDateOnly(expiry)) return jsonResponse({ ok: true, unavailable: 'ไม่มีวันหมดอายุสมาชิกที่ยืนยันได้', member: { id: memberId, name: (member as Row).name }, nodes: [] });
+  if (!parseDateOnly(expiry)) return jsonResponse({ ok: true, unavailable: 'ไม่มีวันหมดอายุสมาชิกที่ยืนยันได้', member: { id: memberId, name: (member as Row).name, nickname: (member as Row).nickname }, ...facts,
+    expirySource: (renewal as Row | null)?.source || null, expiryReportedAt: (renewal as Row | null)?.source_reported_at || null, nodes: [] });
   let { data: cycle, error: cycleError } = await db.from('member_growth_cycles')
     .select('id,member_id,expiry_date').eq('chapter_id', chapterId).eq('member_id', memberId).eq('expiry_date', expiry).maybeSingle();
   if (cycleError) return errResponse(cycleError.message);
@@ -169,7 +175,11 @@ export async function handleMemberGrowth(p: Record<string, unknown>): Promise<Re
       relatedProposalId: row.related_proposal_id, relatedMy121Id: row.related_my121_id,
       handoffStatus: signals.get(str(row.handoff_signal_id))?.status || null, updatedAt: row.updated_at }));
     return jsonResponse({ ok: true, member: { id: memberId, name: (member as Row).name, nickname: (member as Row).nickname, isNewMember: (member as Row).is_new_member },
-      expiryDate: expiry, cycleStartDate: monthDueDate(expiry, 1), currentMonth: expiry === currentExpiry ? cycleMonth(expiry, today) : null,
+      expiryDate: expiry, cycleStartDate: monthDueDate(expiry, 1),
+      membershipStartDate: facts.membershipStartDate, membershipStartSource: facts.membershipStartSource,
+      membershipDays: facts.membershipDays, lastRenewedOn: facts.lastRenewedOn, latestExpiryDate: facts.expiryDate,
+      expirySource: (renewal as Row | null)?.source || null, expiryReportedAt: (renewal as Row | null)?.source_reported_at || null,
+      currentMonth: expiry === currentExpiry ? cycleMonth(expiry, today) : null,
       cycleHistory: ((history || []) as Row[]).map(row => String(row.expiry_date)),
       renewalStatus: expiry === currentExpiry ? renewalCycleStatus((renewal as Row | null)?.workflow_status) : 'Unknown',
       nodes: nodes(expiry, Boolean((member as Row).is_new_member), ((entries || []) as Row[]).map(row => ({ ...row, note_count: noteCounts.get(String(row.id)) || 0 })))

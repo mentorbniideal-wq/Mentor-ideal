@@ -5,6 +5,29 @@ export function parseDateOnly(value: unknown): Date | null {
   return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== text ? null : date;
 }
 
+export function membershipFacts(member: { joined_date?: unknown; membership_start_date?: unknown }, renewal: { expiry_date?: unknown; completed_at?: unknown; extended_at?: unknown } | null, today: string) {
+  const joined = parseDateOnly(member.joined_date);
+  const chapterStart = parseDateOnly(member.membership_start_date);
+  const todayDate = parseDateOnly(today);
+  const validJoined = joined && todayDate && joined <= todayDate ? joined : null;
+  const validChapterStart = chapterStart && todayDate && chapterStart <= todayDate ? chapterStart : null;
+  // A BNI join date cannot be later than the recorded current-Chapter start.
+  // In that inconsistent case report only the Chapter tenure, without silently rewriting either date.
+  const start = validJoined && (!validChapterStart || validJoined <= validChapterStart) ? validJoined : validChapterStart;
+  const startSource = start === joined ? 'bni_joined_date' : start ? 'chapter_start_date' : null;
+  const lastRenewal = [renewal?.completed_at, renewal?.extended_at]
+    .map(value => String(value || '').slice(0, 10))
+    .filter(value => Boolean(parseDateOnly(value)) && value <= today)
+    .sort().at(-1) || null;
+  return {
+    membershipStartDate: start?.toISOString().slice(0, 10) || null,
+    membershipStartSource: startSource,
+    membershipDays: start && todayDate ? Math.floor((todayDate.getTime() - start.getTime()) / 86400000) : null,
+    lastRenewedOn: todayDate ? lastRenewal : null,
+    expiryDate: parseDateOnly(renewal?.expiry_date)?.toISOString().slice(0, 10) || null,
+  };
+}
+
 export function monthDueDate(expiry: string, monthNumber: number): string | null {
   const date = parseDateOnly(expiry);
   if (!date || !Number.isInteger(monthNumber) || monthNumber < 1 || monthNumber > 12) return null;
