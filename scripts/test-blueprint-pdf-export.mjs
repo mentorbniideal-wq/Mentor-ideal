@@ -6,7 +6,7 @@ const dashboard = readFileSync('public/dashboard.html', 'utf8');
 const exporter = readFileSync('public/assets/js/desktop-blueprint-summary.js', 'utf8');
 
 assert.ok(dashboard.includes("msbExportPdf('mc')") && dashboard.includes("msbExportPdf('gr')"), 'Mentor and Growth Blueprint views expose PDF export');
-assert.ok(dashboard.includes('desktop-blueprint-summary.js?v=20260924.3'), 'Blueprint summary module has an explicit cache key');
+assert.ok(dashboard.includes('desktop-blueprint-summary.js?v=20260929.1'), 'Blueprint summary module has an explicit cache key');
 assert.ok(dashboard.includes('📄 Save as PDF'), 'Blueprint views describe the browser PDF action clearly');
 assert.ok(dashboard.includes('id="msb-gr-meeting-summary"'), 'Growth Blueprint includes the meeting summary entry point');
 assert.match(exporter, /row\.status==='submitted'/, 'Only submitted Blueprints are included');
@@ -64,7 +64,8 @@ assert.ok(html.includes('Allowed &lt;A&gt;'), 'Consent-projected category is inc
 assert.ok(!html.includes('PRIVATE DETAIL'), 'Blueprint free-text is excluded');
 assert.ok(html.includes('Draft Member') && html.includes('Missing Member'), 'Meeting coverage includes members who still need follow-up');
 assert.ok(!html.includes('999,999'), 'Draft Blueprint values are excluded from the submitted detail table');
-assert.ok(html.includes('2027') && html.includes('2026'), 'Meeting report shows Blueprint coverage by year');
+assert.ok(html.includes('สถานะ Blueprint รายคน ปี 2027') && !html.includes('สถานะ Blueprint รายคนและรายปี'), 'Default report only shows current Blueprint coverage');
+assert.ok(!html.includes('2026</th>') && !html.includes('ยังไม่กรอก 2026'), '2026 is never a missing member form in the default PDF');
 const summaryRoot = { innerHTML: '' };
 context.document = { getElementById: id => id === 'msb-gr-meeting-summary' ? summaryRoot : null };
 context.BlueprintMeetingSummary.render(state);
@@ -78,7 +79,12 @@ const copyText = context.BlueprintMeetingSummary.buildCopyText(state);
 assert.ok(copyText.includes('Blueprint Meeting Summary ปี 2027'), 'LINE summary identifies its reporting year');
 assert.ok(copyText.includes('ส่งแล้ว 1 คน') && copyText.includes('Draft 1 คน') && copyText.includes('ยังไม่กรอก 1 คน'), 'LINE summary contains submission counts');
 assert.ok(copyText.includes('Draft Member — Draft') && copyText.includes('Missing Member — ยังไม่กรอก'), 'LINE summary identifies follow-up members');
-assert.ok(copyText.includes('Blueprint 2026') && copyText.includes('เป้า Growth ปี 2026 จากไฟล์เดิม: มีข้อมูล 2/3 คน'), 'LINE summary distinguishes historical targets from Blueprint submissions');
+assert.ok(!copyText.includes('Blueprint 2026:') && copyText.includes('เป้า Growth ปี 2026 จากไฟล์เดิม: มีข้อมูล 2/3 คน'), 'LINE summary does not describe 2026 as an unfilled form');
+state.comparison = { rows: [{ name: 'Member One', previousGoal: 100000, currentGoal: 300000, delta: 200000 }] };
+const baselinePdf = context.BlueprintMeetingSummary.buildPdf('gr', state, 'baseline');
+assert.ok(baselinePdf.includes('เป้า Growth ปี 2026 จากไฟล์เดิม') && !baselinePdf.includes('ต้องติดตาม:'), 'Historical-only PDF contains no submission follow-up');
+const comparePdf = context.BlueprintMeetingSummary.buildPdf('gr', state, 'compare');
+assert.ok(comparePdf.includes('เป้า 2026') && comparePdf.includes('Blueprint 2027') && comparePdf.includes('ส่วนต่าง'), 'Comparison PDF uses the authorized comparison DTO');
 assert.ok(!copyText.includes('PRIVATE DETAIL') && !copyText.includes('Allowed <A>'), 'LINE summary contains no Blueprint business content');
 assert.ok(copyText.length <= 4500, 'LINE summary stays within the client safety limit');
 

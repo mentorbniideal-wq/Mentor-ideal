@@ -21,7 +21,8 @@ assert.match(form, /ข้อมูลอ้างอิงจาก Excel/, '20
 
 assert.match(handler, /const entryYear = await resolveMsbPlanningYear\(db, \{ chapterId: scope\.chapterId, memberId \}\)/, 'dashboard-generated entry links use configured planning year');
 assert.match(handler, /async function currentMemberPlanningYear/, 'member entry endpoints enforce the current configured planning year');
-assert.match(handler, /ลิงก์ Blueprint ปี \$\{tokenYear\} เป็นข้อมูลอ้างอิงแล้ว/, 'old entry links are rejected instead of reopening historic entry');
+assert.match(handler, /planningYear === 2027 && tokenYear === 2026/, '2026 intake links continue as the 2027 plan only');
+assert.match(handler, /ลิงก์ Blueprint ปี \$\{tokenYear\} เป็นข้อมูลอ้างอิงแล้ว/, 'unrelated old entry links remain rejected');
 assert.match(liff, /import \{ resolveMsbPlanningYear \} from '..\/_shared\/msb-planning-year\.ts';/, 'LIFF imports the planning-year resolver');
 assert.doesNotMatch(liff, /const blueprintYear = new Date\(\)\.getFullYear\(\);/, 'LIFF does not create MSB links from calendar year');
 assert.match(liff, /const blueprintYear = await resolveMsbPlanningYear\(db, \{ memberId \}\);/, 'LIFF home and link paths use configured planning year');
@@ -41,7 +42,7 @@ const documentMock = {
 const storage = new Map();
 const api = new Function('document', 'window', 'localStorage', 'fetch', 'AbortController', 'setTimeout', inline)(
   documentMock,
-  {},
+  { MY_IDEAL_RUNTIME: { apiUrl: 'http://localhost:54321/functions/v1/api' } },
   { setItem: (key, value) => storage.set(key, value), getItem: key => storage.get(key) || null, removeItem: key => storage.delete(key) },
   () => Promise.reject(new Error('network disabled in behavioral test')),
   class {},
