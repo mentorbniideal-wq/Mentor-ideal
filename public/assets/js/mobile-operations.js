@@ -3841,33 +3841,53 @@ function loadNewMembers(appType) {
   document.getElementById(listId).innerHTML = '<div class="lt">⏳ กำลังโหลด...</div>';
 
   call('getNewMembers', {}, function(err, r) {
-    if (err || !r.ok) {
-      document.getElementById(listId).innerHTML = '<div class="empty">❌ ' + (err?err.message:r.error) + '</div>';
+    if (err || !r || !r.ok) {
+      document.getElementById(listId).innerHTML = '<div class="empty">❌ ' + escHtml((err&&err.message)||(r&&r.error)||'โหลดข้อมูลไม่ได้') + '<br><button class="fb" onclick="loadNewMembers(\''+appType+'\')">ลองใหม่</button></div>';
       return;
     }
-    NM.members = r.members;
+    NM.members = Array.isArray(r.members) ? r.members : [];
     // เก็บรายชื่อ (lowercase) สำหรับ duplicate check ใน form
-    S._nmNames = r.members.map(function(m){ return m.name.toLowerCase(); });
-    renderNewMembers(appType, r.members);
+    S._nmNames = NM.members.map(function(m){ return String(m.name||'').toLowerCase(); });
+    renderNewMembers(appType, NM.members);
   });
 }
 
+// Calendar checkpoint only: never treat elapsed time as completion evidence.
+function nmWeekState(member, todayIso) {
+  var start = String(member.joinedDate||member.startDate||'');
+  var today = String(todayIso||new Date().toISOString().slice(0,10));
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{4}-\d{2}-\d{2}$/.test(today))return {rank:2,label:'ยังไม่มีวันเริ่มที่ยืนยันได้'};
+  var startMs=Date.parse(start+'T00:00:00Z'),todayMs=Date.parse(today+'T00:00:00Z');
+  if(!Number.isFinite(startMs)||!Number.isFinite(todayMs)||new Date(startMs).toISOString().slice(0,10)!==start)return {rank:2,label:'วันเริ่มไม่ถูกต้อง'};
+  var days=Math.floor((todayMs-startMs)/86400000),progress=Number(member.progress)||0;
+  if(days<0)return {rank:2,label:'ยังไม่ถึงวันเริ่ม'};
+  if(days>=56&&progress<100)return {rank:0,label:'ครบกรอบ 8 สัปดาห์ · Checklist ยังไม่ครบ'};
+  if(days>=56)return {rank:2,label:'ครบกรอบ 8 สัปดาห์ · ตรวจหลักฐานรายข้อ'};
+  return {rank:1,label:'สัปดาห์ที่ '+Math.min(8,Math.floor(days/7)+1)+' / 8 · Checklist '+(Number(member.checklistDone)||0)+'/'+(Number(member.checklistTotal)||41)};
+}
+function nmTodayLocal(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+
 function renderNewMembers(appType, members) {
   var listId = appType==='mc' ? 'mc-nm-list' : 'mentor-nm-list';
-  var html = '';
+  var today=nmTodayLocal();
+  var rows=members.map(function(member){return {member:member,week:nmWeekState(member,today)};});
+  rows.sort(function(a,b){return a.week.rank-b.week.rank||String(a.member.w8Date||'').localeCompare(String(b.member.w8Date||''))||String(a.member.name||'').localeCompare(String(b.member.name||''));});
+  var reviewCount=rows.filter(function(row){return row.week.rank===0;}).length;
+  var html = '<div class="card" role="status"><strong>สมาชิกใหม่ '+rows.length+' คน</strong> · ครบกรอบ 8 สัปดาห์แต่ Checklist ยังไม่ครบ '+reviewCount+' คน<div class="mobile-mini-note">เรียงผู้ที่ควรทบทวนก่อน · ความคืบหน้ามาจาก Checklist ที่บันทึก ไม่ใช่ผลสำเร็จอัตโนมัติ</div></div>';
 
   if (appType === 'mc') {
     html += '<button class="nm-add-btn" onclick="openNMForm()">➕ เพิ่มสมาชิกใหม่</button>';
     html += '<button class="nm-add-btn" style="background:rgba(52,211,153,.1);border-color:rgba(52,211,153,.3);color:var(--green);margin-bottom:.5rem;" onclick="openBatchModal()">📋 นำเข้าหลายคน (Batch)</button>';
   }
 
-  if (!members.length) {
+  if (!rows.length) {
     html += '<div class="empty"><div class="empty-i">👶</div>ยังไม่มีสมาชิกใหม่</div>';
     document.getElementById(listId).innerHTML = html;
     return;
   }
 
-  html += members.map(function(m) {
+  html += rows.map(function(row) {
+    var m=row.member;
     var pct = m.progress || 0;
     var initials = m.nick ? m.nick.slice(0,2) : m.name.slice(0,2);
     var statusColor = pct >= 100 ? 'var(--green)' : pct > 0 ? 'var(--mint)' : 'var(--gray2)';
@@ -3893,6 +3913,7 @@ function renderNewMembers(appType, members) {
       + '<div class="nm-progress-bar"><div class="nm-progress-fill" style="width:' + pct + '%"></div></div>'
       + '<div class="nm-progress-txt"><span>' + escHtml(m.status) + '</span><span>หมดอายุ ' + escHtml(m.expDate) + '</span></div>'
       + '</div>'
+      + '<div class="mobile-mini-note" style="margin-top:.5rem">' + escHtml(row.week.label) + '</div>'
       + '</div>'
       + assignBtn
       + '</div>';

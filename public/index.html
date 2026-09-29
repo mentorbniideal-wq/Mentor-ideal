@@ -267,6 +267,7 @@
   <div class="content">
     <!-- Dashboard -->
     <div class="pane on" id="mc-dashboard">
+      <button class="mobile-command-card" onclick="mct('newmembers',null)" style="width:100%;margin-bottom:.65rem">👶 <strong>New Members · 8 Week</strong><span>เปิดติดตามสมาชิกใหม่และ Checklist</span></button>
       <div id="mc-summary"></div>
       <div id="mc-mentor-activity"></div>
       <div id="mc-121-summary"></div>
@@ -426,6 +427,9 @@
 
     <!-- สมาชิก: New Members -->
     <div class="pane" id="mc-newmembers">
+      <div class="sh">👶 New Members · 8 Week</div>
+      <p class="mobile-mini-note">ดู Checklist และเปิดรายคนเพื่อติดตามต่อ · วันที่ครบ 8 สัปดาห์ไม่ใช่หลักฐานว่าเสร็จแล้ว</p>
+      <button class="fb" onclick="loadNewMembers('mc')" aria-label="รีเฟรชสมาชิกใหม่" style="min-height:44px;margin-bottom:.6rem">↻ รีเฟรช</button>
       <div id="mc-nm-list"><div class="lt">⏳ กำลังโหลด...</div></div>
     </div>
 
@@ -561,6 +565,7 @@
   </div>
   <div class="content">
     <div class="pane on" id="mentor-myteam">
+      <button class="mentor-hub-card" onclick="mentorOpenSection('newmembers')" style="width:100%;margin-bottom:.65rem">👶 <strong>New Members · 8 Week</strong><span>ดูความคืบหน้าและเปิด Checklist ของ Mentee ในทีม</span></button>
       <div id="mentor-focus3"></div>
       <div id="mentor-weekly"></div>
       <div id="mentor-growth-tasks"></div>
@@ -624,7 +629,10 @@
       <div id="mentor-121-care-list"><div class="lt">⏳ กำลังโหลด...</div></div>
     </div>
     <div class="pane" id="mentor-newmembers">
-  <button class="dp-back" onclick="mentorReturnTo('more')" aria-label="กลับไปเมนูเพิ่มเติม">← เพิ่มเติม</button>
+  <button class="dp-back" onclick="mentorReturnTo('myteam')" aria-label="กลับไปหน้า Mentor วันนี้">← วันนี้</button>
+  <div class="sh">👶 New Members · 8 Week</div>
+  <p class="mobile-mini-note">ติดตาม Checklist ตลอดช่วงเริ่มต้น · วันที่ครบ 8 สัปดาห์ไม่ใช่หลักฐานว่าเสร็จแล้ว</p>
+  <button class="fb" onclick="loadNewMembers('mentor')" aria-label="รีเฟรชสมาชิกใหม่" style="min-height:44px;margin-bottom:.6rem">↻ รีเฟรช</button>
   <div id="mentor-nm-list"><div class="lt">⏳ กำลังโหลด...</div></div>
 </div>
     <div class="pane" id="mentor-mcmsg">
@@ -1219,7 +1227,7 @@
 </div>
 </main>
 
-<script src="/assets/js/mobile-operations.js?v=20260913-mentor-labels.2" defer></script>
+<script src="/assets/js/mobile-operations.js?v=20260928-mentor-onboarding.1" defer></script>
 <script src="/assets/js/mobile-121-command.js?v=20260911.1" defer></script>
 <script src="/assets/js/dynamic-team-labels.js?v=20260912-mentor-team-labels.1" defer></script>
 <!-- Checklist Panel -->

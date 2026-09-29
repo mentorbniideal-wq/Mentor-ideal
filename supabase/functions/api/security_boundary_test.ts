@@ -22,6 +22,26 @@ Deno.test("Growth cannot call broad Mentor Member Detail", async () => {
   assert(!block.match(/requireAuth\([^\n]+growth/));
 });
 
+Deno.test("Mentor onboarding reads and writes stay in Chapter and team", async () => {
+  const members = await read("supabase/functions/api/handlers/members.ts");
+  for (const [action, next] of [["saveNMCheckItem", "getNMChecklist"], ["getNMChecklist", "getNewMembers"], ["getNewMembers", "removeNewMember"]] as const) {
+    const start = members.indexOf(`case "${action}"`);
+    const end = members.indexOf(`case "${next}"`, start + 1);
+    assert(start >= 0 && end > start);
+    const block = members.slice(start, end);
+    assert(block.includes("resolveChapterScope(db, auth)"), `${action} needs server Chapter scope`);
+    assert(block.includes('.eq("chapter_id", scope.chapterId)'), `${action} needs Chapter-filtered members`);
+    assert(block.includes("callerTeam") || block.includes("canAccessTeam(auth"), `${action} needs Mentor team scope`);
+  }
+  const line = await read("supabase/functions/api/handlers/line-admin.ts");
+  for (const [action, next] of [["getOnboardingStatus", "getOnboardingMessages"], ["sendOnboardingWeek", "mentorBroadcast"]] as const) {
+    const block = actionBlock(line, action, next);
+    assert(block.includes("resolveChapterScope(db, auth)"), `${action} needs server Chapter scope`);
+    assert(block.includes("scope.chapterId"), `${action} needs Chapter-filtered members`);
+    assert(block.includes("auth.teamName") || block.includes("canAccessTeam(auth"), `${action} needs Mentor team scope`);
+  }
+});
+
 Deno.test("Growth contexts are Chapter-scoped and consent-minimised", async () => {
   const source = await read("supabase/functions/api/handlers/dashboard.ts");
   for (

@@ -22,6 +22,7 @@ import { trackLineEvent } from '../../_shared/analytics.ts';
 import { lineAutomationDefaultPreview } from '../../_shared/line-automation-preview.ts';
 import { serverEnvironment } from '../../_shared/environment.ts';
 import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
+import { canAccessTeam } from '../../_shared/authorization.ts';
 import { evaluateNotificationGuard, logSuppressedNotification } from '../../_shared/notification-orchestrator.ts';
 import { nextCustomLineRun, type CustomLineRecurrence } from '../../_shared/custom-line-automation.ts';
 
@@ -1601,11 +1602,23 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
     case 'getOnboardingStatus': {
       const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      let memberQuery = db.from('members').select('id').eq('chapter_id', scope.chapterId).eq('is_archived', false);
+      if (!auth.isMC) {
+        if (!auth.teamName) return errResponse('ไม่พบทีม Mentor ที่ได้รับอนุญาต', 403);
+        memberQuery = memberQuery.eq('mentor_team', auth.teamName);
+      }
+      const { data: scopedRows, error: scopedErr } = await memberQuery;
+      if (scopedErr) return errResponse(scopedErr.message);
+      const scopedIds = ((scopedRows || []) as Record<string, unknown>[]).map(row => String(row.id));
+      if (!scopedIds.length) return jsonResponse({ ok: true, members: [], enrolled: [] });
 
       // Find active enrolled members (removed_at is null)
       const { data: enrolledRows, error: enrErr } = await db
         .from('onboarding_schedule')
         .select('member_id, enrolled_at, members(name, nickname)')
+        .in('member_id', scopedIds)
         .is('removed_at', null);
       if (enrErr) return errResponse(enrErr.message);
 
@@ -1723,13 +1736,20 @@ export async function handleLineAdmin(p: Record<string, unknown>): Promise<Respo
     case 'sendOnboardingWeek': {
       const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
       const memberName = String(p.memberName || '').trim();
       const weekNum    = Number(p.weekNum || p.week);
       if (!memberName || !weekNum) return errResponse('memberName and weekNum required');
 
-      const memberId = await findMemberId(db, memberName);
-      if (!memberId) return errResponse(`ไม่พบสมาชิก: ${memberName}`);
+      const { data: member, error: memberErr } = await db.from('members')
+        .select('id, mentor_team').eq('chapter_id', scope.chapterId)
+        .eq('name', memberName).eq('is_archived', false).maybeSingle();
+      if (memberErr) return errResponse(memberErr.message);
+      if (!member) return errResponse(`ไม่พบสมาชิก: ${memberName}`);
+      if (!canAccessTeam(auth, String(member.mentor_team || ''))) return errResponse('ไม่มีสิทธิ์ส่งข้อความให้สมาชิกทีมอื่น', 403);
+      const memberId = String(member.id);
 
       // Get message template
       const { data: msgRow } = await db

@@ -4256,6 +4256,8 @@ export async function handleMembers(
         "amp",
       ]);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const memberName = String(p.memberName || p.fileUrl || "").trim();
       const itemKey = String(p.itemKey || "").trim();
       // pass=true → passed, pass=false+nopass=true → no-pass, pass=null → reset
@@ -4281,6 +4283,7 @@ export async function handleMembers(
         .from("members")
         .select("id, mentor_team")
         .eq("name", memberName)
+        .eq("chapter_id", scope.chapterId)
         .limit(1)
         .maybeSingle();
       if (mErr) return errResponse(mErr.message);
@@ -4323,6 +4326,8 @@ export async function handleMembers(
         "growth",
       ]);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       // fileUrl = member name (legacy identifier from GAS version)
       const memberName = String(p.memberName || p.fileUrl || "").trim();
       if (!memberName) return errResponse("memberName required");
@@ -4331,6 +4336,7 @@ export async function handleMembers(
         .from("members")
         .select("id, name, nickname, mentor_team, created_at")
         .eq("name", memberName)
+        .eq("chapter_id", scope.chapterId)
         .limit(1)
         .maybeSingle();
       if (mErr) return errResponse(mErr.message);
@@ -4828,8 +4834,9 @@ export async function handleMembers(
       const scope = await resolveChapterScope(db, auth);
       if (!scope.ok) return errResponse(scope.error, 403);
       let callerTeam: string | null = null;
-      if (auth.role && auth.role !== "mc" && auth.role !== "growth") {
+      if (!auth.isMC && auth.role !== "growth") {
         callerTeam = auth.teamName ?? null;
+        if (!callerTeam) return errResponse("ไม่พบทีม Mentor ที่ได้รับอนุญาต", 403);
       }
 
       // Query 1: members explicitly flagged as new
