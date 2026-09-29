@@ -8356,14 +8356,14 @@ function tlC(tl){return tl==='green'?'var(--gr)':tl==='yellow'?'var(--ye)':tl===
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 // ── Member Success Blueprint (MSB) ───────────────────────────
-var MSB={mc:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,pairs:null,followups:null,dataQuality:null,comparison:null,coverage:null,year:0},gr:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,pairs:null,followups:null,dataQuality:null,comparison:null,coverage:null,year:0}};
+var MSB={mc:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,pairs:null,followups:null,dataQuality:null,comparison:null,coverage:null,historicalGoalCoverage:null,year:0},gr:{loaded:false,rows:[],summary:null,overview:null,intelRows:[],radar:null,pairs:null,followups:null,dataQuality:null,comparison:null,coverage:null,historicalGoalCoverage:null,year:0}};
 function msbMoney(v){v=Number(v)||0;if(v>=1000000)return '฿'+(v/1000000).toFixed(v>=10000000?0:1)+'M';if(v>=1000)return '฿'+Math.round(v/1000)+'K';return '฿'+Math.round(v).toLocaleString('th-TH');}
 function msbNum(v,d){v=Number(v)||0;return v.toLocaleString('th-TH',{maximumFractionDigits:d==null?1:d});}
 function msbYearSelect(group,selectedYear){
   var id=group==='gr'?'msb-gr-year':'msb-mc-year';
   var el=document.getElementById(id);if(!el)return;
   var y=Number(selectedYear)||new Date().getFullYear();
-  if(!el.options.length){for(var i=-1;i<=2;i++){var o=document.createElement('option');o.value=String(y+i);o.textContent=String(y+i);el.appendChild(o);}}
+  if(!el.options.length){for(var i=-1;i<=2;i++){if(y+i===2026)continue;var o=document.createElement('option');o.value=String(y+i);o.textContent=String(y+i);el.appendChild(o);}}
   el.value=String(y);
 }
 function msbStatusLabel(s){
@@ -8426,6 +8426,7 @@ function msbLoad(group,force){
       MSB[group].dataQuality=b.dataQuality||null;
       MSB[group].comparison=b.yearComparison||null;
       MSB[group].coverage=b.submissionCoverage||null;
+      MSB[group].historicalGoalCoverage=b.historicalGoalCoverage||null;
       MSB[group].loaded=true;
       msbRender(group);
       return;

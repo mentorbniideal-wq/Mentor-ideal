@@ -8,7 +8,7 @@ import { sha256Hex } from '../../_shared/line.ts';
 import { calculateMsbGoal } from '../../_shared/msb-goal-calculation.ts';
 import { annualGoalProgress } from '../../_shared/msb-goal-progress.ts';
 import { resolveMsbPlanningYear } from '../../_shared/msb-planning-year.ts';
-import { buildBlueprintSubmissionCoverage } from '../../_shared/msb-submission-coverage.ts';
+import { buildBlueprintSubmissionCoverage, preferPlanningBlueprint } from '../../_shared/msb-submission-coverage.ts';
 import { serverEnvironment } from '../../_shared/environment.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
@@ -693,6 +693,14 @@ async function currentMemberPlanningYear(
   if (!identity.memberId) return { error: 'Unauthorized' };
   const planningYear = await resolveMsbPlanningYear(db, { memberId: identity.memberId });
   const tokenYear = Number(identity.blueprintYear || planningYear);
+  // Existing 2026 member-form links belong to the 2027 intake. The token is
+  // still validated for owner and expiry before reaching this function.
+  if (planningYear === 2027 && tokenYear === 2026) {
+    const { data: legacy } = await db.from('member_success_blueprints')
+      .select('id').eq('member_id', identity.memberId)
+      .in('source', ['member_form_2026_reclassified', 'member_form_2026_superseded']).limit(1);
+    if (legacy?.length) return { year: 2027 };
+  }
   if (tokenYear !== planningYear) {
     return { error: `ลิงก์ Blueprint ปี ${tokenYear} เป็นข้อมูลอ้างอิงแล้ว กรุณาขอลิงก์ Blueprint ปี ${planningYear} ใหม่` };
   }
@@ -796,10 +804,12 @@ async function getBlueprint(db: Db, memberId: string, year: number) {
     .from('member_success_blueprints')
     .select('*')
     .eq('member_id', memberId)
-    .eq('blueprint_year', year)
-    .maybeSingle();
+    .in('blueprint_year', year === 2027 ? [2026, 2027] : [year]);
   if (error) throw new Error(error.message);
-  return data as Record<string, unknown> | null;
+  if (year !== 2027) return (data as Record<string, unknown>[])[0] || null;
+  return (data as Record<string, unknown>[]).filter(row => Number(row.blueprint_year) === 2027 || txt(row.source) === 'member_form_2026_superseded').reduce<Record<string, unknown> | undefined>(
+    (best, row) => preferPlanningBlueprint(best, row), undefined,
+  ) || null;
 }
 
 async function getGrowth2026Actual(db: Db, memberId: string) {
@@ -900,7 +910,7 @@ async function listDashboardRows(db: Db, auth: Awaited<ReturnType<typeof require
   const memberIds = memberRows.map(m => String(m.id)).filter(Boolean);
 
   const { data: blueprints, error: bpErr } = memberIds.length
-    ? await db.from('member_success_blueprints').select('*').eq('blueprint_year', year).in('member_id', memberIds)
+    ? await db.from('member_success_blueprints').select('*').in('blueprint_year', year === 2027 ? [2026, 2027] : [year]).in('member_id', memberIds)
     : { data: [], error: null };
   if (bpErr) throw new Error(bpErr.message);
 
@@ -913,7 +923,11 @@ async function listDashboardRows(db: Db, auth: Awaited<ReturnType<typeof require
   if (tokErr) throw new Error(tokErr.message);
 
   const bpByMember: Record<string, Record<string, unknown>> = {};
-  for (const bp of (blueprints || []) as Record<string, unknown>[]) bpByMember[String(bp.member_id)] = bp;
+  for (const bp of (blueprints || []) as Record<string, unknown>[]) {
+    if (Number(bp.blueprint_year) === 2026 && txt(bp.source) !== 'member_form_2026_superseded') continue;
+    const id = String(bp.member_id);
+    bpByMember[id] = preferPlanningBlueprint(bpByMember[id], bp);
+  }
   const tokenByMember: Record<string, Record<string, unknown>> = {};
   for (const token of (tokens || []) as Record<string, unknown>[]) tokenByMember[String(token.member_id)] = token;
 
@@ -956,7 +970,7 @@ async function loadBlueprintSubmissionCoverage(
   const memberIds = memberRows.map(member => String(member.id || '')).filter(Boolean);
   const { data: blueprints, error: blueprintError } = memberIds.length
     ? await db.from('member_success_blueprints')
-      .select('member_id,blueprint_year,status,updated_at')
+      .select('member_id,blueprint_year,source,status,updated_at')
       .in('member_id', memberIds)
     : { data: [], error: null };
   if (blueprintError) throw new Error(blueprintError.message);
@@ -1011,8 +1025,11 @@ function compareBlueprintYears(
     const previousBlueprint = previous?.blueprint as Record<string, unknown> | null;
     const currentGoal = currentBlueprint ? num(currentBlueprint.expected_sales_from_bni_year) : null;
     const historicalGoal = historicalGoals.get(String(row.memberId));
+    // In the 2027 cycle, 2026 is the imported Growth baseline only. A 2026
+    // member form is a 2027 plan and must never stand in for that baseline.
     const previousGoal = historicalGoal !== undefined
       ? historicalGoal
+      : currentYear === 2027 ? null
       : previousBlueprint ? num(previousBlueprint.expected_sales_from_bni_year) : null;
     const comparable = currentGoal !== null && previousGoal !== null;
     const delta = comparable ? currentGoal - previousGoal : null;
@@ -1020,7 +1037,7 @@ function compareBlueprintYears(
     return {
       memberId: row.memberId, name: row.name, nickname: row.nickname, mentorTeam: row.mentorTeam,
       previousYear: currentYear - 1, currentYear, previousGoal, currentGoal, delta, deltaPercent,
-      previousGoalSource: historicalGoal !== undefined ? 'historical_growth_goal' : previousBlueprint ? 'blueprint' : null,
+      previousGoalSource: historicalGoal !== undefined ? 'historical_growth_goal' : currentYear === 2027 ? null : previousBlueprint ? 'blueprint' : null,
       direction: !comparable ? 'incomplete' : Number(delta) > 0 ? 'increase' : Number(delta) < 0 ? 'decrease' : 'same',
     };
   });
@@ -1314,7 +1331,7 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       if (currentYear.error || !currentYear.year) return errResponse(currentYear.error || 'Unauthorized', 409);
       const tokenYear = currentYear.year;
       const blueprint = await getBlueprint(db, identity.memberId, tokenYear);
-      const previousBlueprint = tokenYear > 2020 ? await getBlueprint(db, identity.memberId, tokenYear - 1) : null;
+      const previousBlueprint = tokenYear > 2020 && tokenYear !== 2027 ? await getBlueprint(db, identity.memberId, tokenYear - 1) : null;
       const historicalActual = tokenYear > 2026 ? await getGrowth2026Actual(db, identity.memberId) : null;
       return jsonResponse({
         ok: true,
@@ -1489,7 +1506,11 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
         historicalGoalCoverage,
         submissionCoverage: coverageResult.status === 'fulfilled'
           ? coverageResult.value
-          : buildBlueprintSubmissionCoverage(dashboardRows.map(row => ({ id: row.memberId, name: row.name, nickname: row.nickname })), [], year),
+          : buildBlueprintSubmissionCoverage(
+            dashboardRows.map(row => ({ id: row.memberId, name: row.name, nickname: row.nickname })),
+            dashboardRows.filter(row => row.status !== 'missing').map(row => ({ member_id: row.memberId, blueprint_year: year, status: row.status })),
+            year,
+          ),
         meta: {
           bundled: true,
           generatedAt: new Date().toISOString(),

@@ -6,10 +6,16 @@ export type BlueprintCoverageMember = {
 };
 
 type MemberRow = { id?: unknown; name?: unknown; nickname?: unknown; [key: string]: unknown };
-type BlueprintRow = { member_id?: unknown; blueprint_year?: unknown; status?: unknown; updated_at?: unknown; [key: string]: unknown };
+type BlueprintRow = { member_id?: unknown; blueprint_year?: unknown; source?: unknown; status?: unknown; updated_at?: unknown; [key: string]: unknown };
 
 function text(value: unknown): string {
   return String(value ?? '').trim();
+}
+
+export function preferPlanningBlueprint<T extends BlueprintRow>(current: T | undefined, candidate: T): T {
+  if (!current) return candidate;
+  const score = (row: T) => (text(row.status) === 'submitted' ? 2 : 0) + (Number(row.blueprint_year) === 2027 ? 1 : 0);
+  return score(candidate) > score(current) ? candidate : current;
 }
 
 export function buildBlueprintSubmissionCoverage(
@@ -24,12 +30,20 @@ export function buildBlueprintSubmissionCoverage(
 
   for (const row of blueprints) {
     const memberId = text(row.member_id);
-    const year = Number(row.blueprint_year);
+    // The 2026 MSB intake was an early version of the 2027 member form.
+    // Historical 2026 Growth targets live in member_annual_growth_goals,
+    // never in this table. Keep the original year in storage for audit.
+    const storedYear = Number(row.blueprint_year);
+    const year = focusYear === 2027 && storedYear === 2026 && text(row.source) === 'member_form_2026_superseded' ? 2027 : storedYear;
     if (!memberIds.has(memberId) || !Number.isInteger(year) || year <= 0) continue;
     const status = text(row.status) === 'submitted' ? 'submitted' : 'draft';
     years.add(year);
     const entries = byMember.get(memberId) || [];
-    entries.push({ year, status, updatedAt: text(row.updated_at) || null });
+    const incoming: BlueprintCoverageMember['years'][number] = { year, status, updatedAt: text(row.updated_at) || null };
+    const existing = entries.findIndex(entry => entry.year === year);
+    if (existing < 0) entries.push(incoming);
+    else if (incoming.status === 'submitted' && entries[existing].status !== 'submitted') entries[existing] = incoming;
+    else if (incoming.status === entries[existing].status && String(incoming.updatedAt || '') > String(entries[existing].updatedAt || '')) entries[existing] = incoming;
     byMember.set(memberId, entries);
   }
 
