@@ -3,7 +3,7 @@ import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
 import { CAPABILITY, hasCapability } from '../../_shared/capabilities.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { canManageGrowthCycle, canReadGrowthCycle, cycleMonth, growthMilestone, membershipFacts, monthDueDate, parseDateOnly, renewalCycleStatus, todayInZone } from '../../_shared/member-growth-cycle.ts';
-import { buildMemberPerformanceHistory } from '../../_shared/member-performance-history.ts';
+import { buildMemberPerformanceHistory, PERFORMANCE_METRIC_SEMANTICS } from '../../_shared/member-performance-history.ts';
 
 type Row = Record<string, unknown>;
 const uuid = (value: unknown) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ''));
@@ -197,6 +197,7 @@ export async function handleMemberGrowth(p: Record<string, unknown>): Promise<Re
         .map(node => node.month === 3 && mentorReview ? { ...node, status: 'completed' } : node),
       mentorReview: mentorReview ? { status: 'completed', reviewDate: (mentorReview as Row).review_date } : { status: 'not_recorded', reviewDate: null },
       entries: safeEntries, notes: (notesQ.data || []), performanceHistory,
+      performanceMetricSemantics: PERFORMANCE_METRIC_SEMANTICS,
       verifiedMy121: ((verifiedPairs || []) as Row[]).map(pair => ({ pairId: pair.id, meetingDate: roundDates.get(String(pair.round_id)) || null })),
       canManage: writable(auth) && expiry === currentExpiry, privacy: canReadText ? 'current_consent' : 'detail_restricted' });
   }

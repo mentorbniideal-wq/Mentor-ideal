@@ -250,7 +250,7 @@ function enterApp(r){
   setDesktopTabs(S.role);
   restoreTabFold(S.role==='growth'?'gr':'mc');
   var meetingBtn=document.getElementById('btn-meeting');if(meetingBtn)meetingBtn.style.display=S.role==='mc'?'':'none';
-  document.getElementById('btn-monthly-sync').style.display=(S.isAdmin&&!S.isViewer)?'':'none';
+  document.getElementById('btn-monthly-sync').style.display=(S.token&&!S.isReadOnly&&!S.isViewer&&((S.capabilities||[]).indexOf('*')>=0||(S.capabilities||[]).indexOf('growth.monthly_sync.execute')>=0))?'':'none';
   document.getElementById('btn-admin-settings').style.display=(S.isAdmin&&!S.isViewer)?'':'none';
   document.querySelectorAll('[data-admin-only="1"]').forEach(function(el){el.style.display=S.isAdmin?'':'none';});
   document.getElementById('btn-role-growth').style.display=(S.canRoleSwitch&&S.role==='mc')?'':'none';
@@ -350,6 +350,7 @@ function resetMonthlySyncPreview(){
   var preview=document.getElementById('sync-preview');if(preview){preview.className='sync-preview';preview.innerHTML='';}
 }
 function openSyncModal(){
+  if(!S.token||S.isReadOnly||S.isViewer||((S.capabilities||[]).indexOf('*')<0&&(S.capabilities||[]).indexOf('growth.monthly_sync.execute')<0)){toast('Monthly Sync ต้องใช้บัญชี OAuth ที่มีสิทธิ์','err');return;}
   // Reset state
   for(var i=1;i<=9;i++){
     var el=document.getElementById('sync-s'+i);

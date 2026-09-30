@@ -9,6 +9,7 @@ import { buildGrowthIntelligence } from '../../_shared/growth-intelligence.ts';
 import { CAPABILITY, hasCapability } from '../../_shared/capabilities.ts';
 import { resolveMsbPlanningYear } from '../../_shared/msb-planning-year.ts';
 import { reportingGoal, visibleGrowthCategories } from '../../_shared/growth-plan.ts';
+import { uniqueMemberNameMap } from '../../_shared/member-import-identity.ts';
 
 function hasGrowthCapability(auth: Awaited<ReturnType<typeof requireAuth>>, capability: string) {
   return Boolean(auth.isAdmin || hasCapability(auth, capability));
@@ -147,13 +148,6 @@ async function sha256Text(value: string): Promise<string> {
   return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
-async function activeChapterId(db: ReturnType<typeof getServiceClient>): Promise<string> {
-  const { data, error } = await db.from('chapter_profiles').select('id').eq('is_active', true).order('created_at').limit(1).maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data?.id) throw new Error('ยังไม่ได้ตั้งค่า Active Chapter');
-  return String(data.id);
-}
-
 async function monthlySyncFingerprint(inputs: { tlCsv: string | null; memberTLCsv: string | null; r2yCsv: string | null }, period: { year: number; month: number }) {
   const fileHashes: Record<string, string> = {};
   if (inputs.tlCsv) fileHashes.trafficLightEvolution = await sha256Text(inputs.tlCsv);
@@ -169,7 +163,7 @@ async function captureMonthlySyncSnapshot(db: ReturnType<typeof getServiceClient
     db.from('r2y_stats').select('*').in('member_id', memberIds),
     db.from('palms_key_snapshots').select('*').in('member_id', memberIds),
     db.from('traffic_light_evolution_summary').select('*').in('member_id', memberIds),
-    db.from('members').select('id,email,phone').in('id', memberIds),
+    db.from('members').select('id,email,phone,given_thb,received_thb').in('id', memberIds),
     db.from('renewals').select('*').in('member_id', memberIds),
   ]);
   const failed = [monthly, r2y, keys, evolution, members, renewals].find(result => result.error);
@@ -587,10 +581,11 @@ function nextRenewalFromBniDays(bniDays: number, today = new Date()): string | n
   return ymd(renewal);
 }
 
-async function syncRenewalsFromR2YStats(db: ReturnType<typeof getServiceClient>): Promise<number> {
+async function syncRenewalsFromR2YStats(db: ReturnType<typeof getServiceClient>, chapterId: string): Promise<number> {
   const { data: stats, error: statsError } = await db
     .from('r2y_stats')
     .select('member_id, bni_days')
+    .eq('chapter_id', chapterId)
     .gt('bni_days', 0);
   if (statsError) throw new Error(statsError.message);
   if (!stats || !stats.length) return 0;
@@ -598,13 +593,14 @@ async function syncRenewalsFromR2YStats(db: ReturnType<typeof getServiceClient>)
   const { data: members, error: memberError } = await db
     .from('members')
     .select('id')
+    .eq('chapter_id', chapterId)
     .eq('is_archived', false);
   if (memberError) throw new Error(memberError.message);
 
   const activeIds = new Set((members || []).map((m: Record<string, unknown>) => String(m.id)));
   const { data: existingRows, error: existingError } = await db
     .from('renewals')
-    .select('member_id, expiry_date, workflow_status');
+    .select('member_id, expiry_date, workflow_status').eq('chapter_id', chapterId);
   if (existingError) throw new Error(existingError.message);
   const existingMap = new Map(
     (existingRows || []).map((row: Record<string, unknown>) => [String(row.member_id), row]),
@@ -627,6 +623,7 @@ async function syncRenewalsFromR2YStats(db: ReturnType<typeof getServiceClient>)
       const expiryChanged = !!existing && existingExpiry !== expiryDate;
       return {
         member_id: memberId,
+        chapter_id: chapterId,
         expiry_date: expiryDate,
         workflow_status: expiryChanged
           ? 'pending_contact'
@@ -661,6 +658,7 @@ async function syncRenewalsFromR2YStats(db: ReturnType<typeof getServiceClient>)
   const { data: mWithStart } = await db
     .from('members')
     .select('id, membership_start_date')
+    .eq('chapter_id', chapterId)
     .eq('is_archived', false)
     .not('membership_start_date', 'is', null);
   const fallbackRows = ((mWithStart || []) as Array<Record<string, unknown>>)
@@ -676,6 +674,7 @@ async function syncRenewalsFromR2YStats(db: ReturnType<typeof getServiceClient>)
       if (renewal.getTime() < today.getTime()) renewal.setFullYear(today.getFullYear() + 1);
       return {
         member_id: String(m.id),
+        chapter_id: chapterId,
         expiry_date: ymd(renewal),
         workflow_status: String(existing?.workflow_status || 'pending_contact'),
         notes: 'Synced from membership_start_date',
@@ -693,7 +692,7 @@ async function syncRenewalsFromR2YStats(db: ReturnType<typeof getServiceClient>)
 
 // Auto-enroll members whose bni_days < 56 (not yet 8 weeks) as is_new_member = true.
 // Sets joined_date from bni_days if not already set.
-async function autoEnrollNewMembers(db: ReturnType<typeof getServiceClient>): Promise<number> {
+async function autoEnrollNewMembers(db: ReturnType<typeof getServiceClient>, chapterId: string): Promise<number> {
   const today = new Date();
   let enrolled = 0;
 
@@ -701,6 +700,7 @@ async function autoEnrollNewMembers(db: ReturnType<typeof getServiceClient>): Pr
   const { data: rows } = await db
     .from('r2y_stats')
     .select('member_id, bni_days')
+    .eq('chapter_id', chapterId)
     .gt('bni_days', 0)
     .lt('bni_days', 56);
   for (const row of (rows || []) as Array<{ member_id: string; bni_days: number }>) {
@@ -712,13 +712,14 @@ async function autoEnrollNewMembers(db: ReturnType<typeof getServiceClient>): Pr
       .from('members')
       .select('id, is_new_member, is_archived, joined_date')
       .eq('id', row.member_id)
+      .eq('chapter_id', chapterId)
       .maybeSingle();
     if (!m || (m as Record<string, unknown>).is_archived) continue;
     if ((m as Record<string, unknown>).is_new_member) continue;
 
     const upd: Record<string, unknown> = { is_new_member: true, updated_at: new Date().toISOString() };
     if (!(m as Record<string, unknown>).joined_date) upd.joined_date = joinedDateStr;
-    const { error } = await db.from('members').update(upd).eq('id', row.member_id);
+    const { error } = await db.from('members').update(upd).eq('id', row.member_id).eq('chapter_id', chapterId);
     if (!error) enrolled++;
   }
 
@@ -729,6 +730,7 @@ async function autoEnrollNewMembers(db: ReturnType<typeof getServiceClient>): Pr
   const { data: recentByDate } = await db
     .from('members')
     .select('id, is_new_member, is_archived, joined_date, membership_start_date')
+    .eq('chapter_id', chapterId)
     .eq('is_archived', false)
     .eq('is_new_member', false)
     .gte('membership_start_date', cutoffStr);
@@ -737,7 +739,7 @@ async function autoEnrollNewMembers(db: ReturnType<typeof getServiceClient>): Pr
     if (!startDate) continue;
     const upd: Record<string, unknown> = { is_new_member: true, updated_at: new Date().toISOString() };
     if (!m.joined_date) upd.joined_date = startDate;
-    const { error } = await db.from('members').update(upd).eq('id', m.id);
+    const { error } = await db.from('members').update(upd).eq('id', m.id).eq('chapter_id', chapterId);
     if (!error) enrolled++;
   }
 
@@ -1715,6 +1717,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'previewMonthlySync': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const inputs = {
         tlCsv: typeof p.tlCsv === 'string' ? p.tlCsv : null,
         r2yCsv: typeof p.r2yCsv === 'string' ? p.r2yCsv : null,
@@ -1726,15 +1730,13 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const requestedPeriod = parseRequestedPeriod(p.reportingPeriod);
       if (!requestedPeriod) return errResponse('กรุณาระบุเดือนข้อมูลในรูปแบบ YYYY-MM');
       try {
-        const chapterId = await activeChapterId(db);
-        const { data: members, error: memberError } = await db.from('members').select('id,name,nickname,is_archived');
+        const chapterId = scope.chapterId;
+        const { data: members, error: memberError } = await db.from('members').select('id,name,nickname,is_archived').eq('chapter_id', chapterId);
         if (memberError) throw new Error(memberError.message);
-        const memberMap: Record<string, string> = {};
+        const { memberMap, ambiguous } = uniqueMemberNameMap((members || []) as Array<{ id: unknown; name: unknown; nickname?: unknown }>, normalizeName);
         const activeMemberIds: string[] = [];
         for (const row of (members || []) as Array<Record<string, unknown>>) {
           const id = String(row.id);
-          const name = normalizeName(row.name); if (name) memberMap[name] = id;
-          const nickname = normalizeName(row.nickname); if (nickname && !memberMap[nickname]) memberMap[nickname] = id;
           if (!row.is_archived) activeMemberIds.push(id);
         }
         const tlRows = parseCsvString(inputs.tlCsv);
@@ -1749,6 +1751,12 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         }
         const mtlScores = mtlRows.length ? parseMemberTLCurrentScores(mtlRows, memberMap, requestedPeriod.year, requestedPeriod.month) : [];
         const r2yParsed = r2yRows.length ? parseR2YRows(r2yRows, memberMap, r2yUnmatched) : [];
+        const ambiguousNames = new Set(ambiguous);
+        const ambiguousInFiles = [...trafficLightUnmatched, ...r2yUnmatched, ...Object.keys(parseMemberTLStats(mtlRows))]
+          .some(name => ambiguousNames.has(normalizeName(name)));
+        if (ambiguousInFiles) {
+          return errResponse('พบชื่อหรือนิคเนมที่ตรงกับสมาชิกมากกว่าหนึ่งคน กรุณาแก้การจับคู่ก่อน Sync', 409);
+        }
         const scoreRows = Array.from(new Map([...tlParsed.scores, ...mtlScores].map(row => [`${row.member_id}|${row.year}|${row.month}`, row])).values());
         if ((tlRows.length || mtlRows.length) && !scoreRows.length) return errResponse('ไม่พบคะแนนที่อ่านได้จากไฟล์ กรุณาตรวจรูปแบบ CSV');
         const affectedMemberIds = [...new Set([...scoreRows.map(row => row.member_id), ...r2yParsed.map(row => String(row.member_id))])];
@@ -1808,7 +1816,9 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'monthlySync': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
-      if (!hasGrowthCapability(auth, CAPABILITY.GROWTH_MONTHLY_SYNC_EXECUTE)) return errResponse('Monthly Sync ต้องได้รับสิทธิ์ Admin', 403);
+      if (!auth.email || auth.isReadOnly || auth.isViewer || !hasGrowthCapability(auth, CAPABILITY.GROWTH_MONTHLY_SYNC_EXECUTE)) return errResponse('Monthly Sync ต้องใช้บัญชี OAuth ที่มีสิทธิ์และแก้ไขได้', 403);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
       const tlCsv = typeof p.tlCsv === 'string' ? p.tlCsv : null;
       const r2yCsv = typeof p.r2yCsv === 'string' ? p.r2yCsv : null;
@@ -1829,7 +1839,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       let monthlyBatch: Record<string, unknown>;
       let chapterId: string;
       try {
-        chapterId = await activeChapterId(db);
+        chapterId = scope.chapterId;
         const fingerprint = await monthlySyncFingerprint({ tlCsv, memberTLCsv, r2yCsv }, requestedPeriod);
         const { data, error } = await db.from('monthly_sync_batches').select('*').eq('id', batchId).eq('chapter_id', chapterId).maybeSingle();
         if (error) throw new Error(error.message);
@@ -1849,15 +1859,14 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const mtlRows = parseCsvString(memberTLCsv);
       const r2yRows = parseCsvString(r2yCsv);
 
-      const { data: members, error: memberError } = await db.from('members').select('id, name, nickname');
+      const { data: members, error: memberError } = await db.from('members').select('id, name, nickname').eq('chapter_id', chapterId);
       if (memberError) return errResponse(memberError.message);
-      const memberMap: Record<string, string> = {};
-      for (const row of (members || []) as Array<Record<string, unknown>>) {
-        const name = normalizeName(row.name);
-        if (name) memberMap[name] = String(row.id);
-        const nickname = normalizeName(row.nickname);
-        if (nickname && !memberMap[nickname]) memberMap[nickname] = String(row.id);
-      }
+      const { memberMap, ambiguous } = uniqueMemberNameMap((members || []) as Array<{ id: unknown; name: unknown; nickname?: unknown }>, normalizeName);
+      const ambiguousNames = new Set(ambiguous);
+      const evolutionUnmatched: string[] = [];
+      if (tlRows.length) parseMonthlyScores(tlRows, memberMap, evolutionUnmatched);
+      if ([...Object.keys(parseMemberTLStats(mtlRows)), ...r2yRows.slice(1).map(row => row[0]), ...evolutionUnmatched]
+        .some(name => ambiguousNames.has(normalizeName(name)))) return errResponse('มีชื่อสมาชิกซ้ำหลัง Preview กรุณา Preview ใหม่', 409);
       if (!Object.keys(memberMap).length) {
         return errResponse('ไม่พบสมาชิกในระบบ');
       }
@@ -1897,7 +1906,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       }
       if (scoreRows.length) {
         try {
-          importedScores = await upsertMonthlyScores(db, scoreRows);
+          importedScores = await upsertMonthlyScores(db, scoreRows.map(row => ({ ...row, chapter_id: chapterId })));
         } catch (e) {
           nonMentorOk = false; counterOk = false;
           stepErrors.push(`scores: ${(e as Error).message}`);
@@ -1917,7 +1926,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         const r2yParsed = parseR2YRows(r2yRows, memberMap, r2yUnmatched);
         if (r2yParsed.length) {
           try {
-            importedR2Y += await upsertR2YStats(db, r2yParsed);
+            importedR2Y += await upsertR2YStats(db, r2yParsed.map(row => ({ ...row, chapter_id: chapterId })));
             importedKeySnapshots += await upsertPalmsKeySnapshots(db, r2yParsed, scorePeriod);
           } catch (e) {
             r2yOk = false; r2ySyncOk = false;
@@ -1959,6 +1968,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           grMap[name] = { given: item.given, received: item.received };
           const upsertRow: Record<string, unknown> = {
             member_id: memberId,
+            chapter_id: chapterId,
             rg: item.rg, rr: item.rr, visitors: item.visitors,
             one_to_one: item.one_to_one, ceu: item.ceu, tyfcb_thb: item.given,
             official_pts: item.score, attend: item.p, absent: item.a,
@@ -1991,13 +2001,13 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       // Auto-enroll new members: anyone with bni_days < 56 who isn't already enrolled
       let autoEnrolled = 0;
       try {
-        autoEnrolled = await autoEnrollNewMembers(db);
+        autoEnrolled = await autoEnrollNewMembers(db, chapterId);
       } catch (e) {
         stepErrors.push(`autoEnroll: ${(e as Error).message}`);
       }
 
       try {
-        await syncRenewalsFromR2YStats(db);
+        await syncRenewalsFromR2YStats(db, chapterId);
       } catch (e) {
         renewalOk = false;
         stepErrors.push(`renewal: ${(e as Error).message}`);
@@ -2084,8 +2094,10 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'getMonthlySyncHistory': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       try {
-        const chapterId = await activeChapterId(db);
+        const chapterId = scope.chapterId;
         const { data, error } = await db.from('monthly_sync_batches')
           .select('id,period_year,period_month,status,source_files,quality_summary,result_summary,created_by,created_at,completed_at,rolled_back_at')
           .eq('chapter_id', chapterId).order('created_at', { ascending: false }).limit(24);
@@ -2099,11 +2111,13 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'rollbackMonthlySync': {
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
-      if (!hasGrowthCapability(auth, CAPABILITY.GROWTH_MONTHLY_SYNC_EXECUTE)) return errResponse('Rollback Monthly Sync ต้องได้รับสิทธิ์ Admin', 403);
+      if (!auth.email || auth.isReadOnly || auth.isViewer || !hasGrowthCapability(auth, CAPABILITY.GROWTH_MONTHLY_SYNC_EXECUTE)) return errResponse('Rollback Monthly Sync ต้องใช้บัญชี OAuth ที่มีสิทธิ์และแก้ไขได้', 403);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const batchId = String(p.batchId || '');
       if (!batchId || !Boolean(p.confirmed)) return errResponse('ต้องระบุรอบและยืนยัน Rollback');
       try {
-        const chapterId = await activeChapterId(db);
+        const chapterId = scope.chapterId;
         const { data, error } = await db.from('monthly_sync_batches').select('*').eq('id', batchId).eq('chapter_id', chapterId).maybeSingle();
         if (error) throw new Error(error.message);
         if (!data) return errResponse('ไม่พบ Monthly Sync batch ของ Chapter นี้');

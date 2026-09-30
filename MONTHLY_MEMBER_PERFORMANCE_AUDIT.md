@@ -10,6 +10,10 @@ The Admin Monthly Sync modal accepts (1) Member Traffic Light CSV, (2) Traffic L
 
 All three CSV pipelines match source rows to `members.id` via normalized name/nickname. Historical rows retain the stable ID after a rename, but a new import may fail to match a changed name or resolve an ambiguous name to the wrong member. Existing FK constraints on `monthly_scores` and `palms_key_snapshots` use `ON DELETE CASCADE`; archival is safe, physical deletion is not. Existing rollback can replace score/key snapshots from the batch's before-state. It does not restore `members.given_thb` / `received_thb`, which is a data-integrity risk.
 
+Safety fix in this candidate: Monthly Sync now derives its Chapter from the authenticated session for preview, execution, history and rollback; member candidates are filtered to that Chapter. Duplicate normalized names/nicknames are excluded from matching and cause a preview/execute error if present in an uploaded file. New score/R2Y upserts include the derived Chapter ID. This does not resolve name changes or all duplicate rows inside a CSV; a stable source ID column would be preferable.
+
+The candidate also captures `given_thb` / `received_thb` in future batch before/after snapshots and includes an additive migration to restore those fields on rollback. Pre-existing batches lack the keys and retain their prior rollback behavior. The migration has not been applied or tested against a live database; it must be validated before any Production release.
+
 ## Metric semantics from the current importer
 
 | Source | Supported fields | What code proves | Monthly derivation |

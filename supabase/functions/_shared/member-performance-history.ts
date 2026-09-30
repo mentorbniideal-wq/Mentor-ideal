@@ -1,5 +1,14 @@
 type Row = Record<string, unknown>;
 
+export const PERFORMANCE_METRIC_SEMANTICS = {
+  referralGivenSnapshot: 'needs_verification',
+  visitorSnapshot: 'needs_verification',
+  oneToOneSnapshot: 'needs_verification',
+  ceuSnapshot: 'needs_verification',
+  tyfcbGivenSnapshot: 'needs_verification',
+  trafficLightScore: 'snapshot_only',
+} as const;
+
 /** Historical source values only. This deliberately does not infer monthly activity. */
 export function buildMemberPerformanceHistory(keys: Row[], scores: Row[], limit = 12) {
   const keyByPeriod = new Map(keys.map(row => [`${row.year}-${row.month}`, row]));
