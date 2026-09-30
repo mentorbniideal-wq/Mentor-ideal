@@ -1,6 +1,14 @@
 # Monthly Member Performance History — Phase 0 audit
 
-Status: audited in code; source-file metric semantics and live data coverage are **not yet verified**. Do not promote snapshot values as monthly activity.
+Status: audited in code and against three Pete-provided CSV examples dated September 2026. Live data coverage and exact source windows are **not yet verified**. Do not promote snapshot values as monthly activity.
+
+## Evidence from the three supplied files (no member data copied)
+
+- `Member Traffic Light-BNI Ideal-Aug'26.csv` declares August 2026 in its title and includes given/received business, score, and per-week metrics. Across 61 usable rows, the median ratio of `Referral` to `Referral/wk` is 25 weeks. Its raw totals are therefore not August-only activity. The precise report start/end dates are absent, so the window remains unverified.
+- `Traffic Lights Evolution-2.csv` has explicit score columns August 2025 through July 2026. Those historical columns can accompany the August 2026 Member Traffic Light report; the old preview wrongly required an August 2026 Evolution column and rejected this valid combination. The candidate now accepts historical Evolution columns not later than the selected report month, and validates the Member Traffic Light title against that month.
+- `Reporting2You-2.csv` has no report date, From/To interval, or period header. It can update latest snapshots, but this one file cannot establish month-specific activity or support safe subtraction.
+
+The three files alone do not prove which members have complete monthly history or allow reconstruction of prior-month business received. True monthly activity requires a source with explicit monthly interval (or independently verified same-window snapshots and business rules); it is intentionally not fabricated here.
 
 ## Current state
 

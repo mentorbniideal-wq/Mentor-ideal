@@ -10,6 +10,7 @@ import { CAPABILITY, hasCapability } from '../../_shared/capabilities.ts';
 import { resolveMsbPlanningYear } from '../../_shared/msb-planning-year.ts';
 import { reportingGoal, visibleGrowthCategories } from '../../_shared/growth-plan.ts';
 import { uniqueMemberNameMap } from '../../_shared/member-import-identity.ts';
+import { evolutionIsHistorical, memberTrafficLightReportPeriod } from '../../_shared/monthly-sync-period.ts';
 import { linePush, sha256Hex } from '../../_shared/line.ts';
 import { evaluateNotificationGuard, logSuppressedNotification } from '../../_shared/notification-orchestrator.ts';
 
@@ -1870,9 +1871,10 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         const r2yUnmatched: string[] = [];
         const tlParsed = tlRows.length ? parseMonthlyScores(tlRows, memberMap, trafficLightUnmatched) : { scores: [], averages: [] };
         const periods = [...new Set(tlParsed.scores.map(row => `${row.year}-${String(row.month).padStart(2, '0')}`))];
-        if (periods.length && !periods.includes(`${requestedPeriod.year}-${String(requestedPeriod.month).padStart(2, '0')}`)) {
-          return errResponse(`เดือนที่เลือกไม่ตรงกับ Traffic Lights Evolution (พบ ${periods.join(', ')})`);
-        }
+        const periodKey = `${requestedPeriod.year}-${String(requestedPeriod.month).padStart(2, '0')}`;
+        const reportPeriod = memberTrafficLightReportPeriod(mtlRows);
+        if (reportPeriod && reportPeriod !== periodKey) return errResponse(`เดือนที่เลือกไม่ตรงกับ Member Traffic Light (${reportPeriod})`);
+        if (periods.length && !evolutionIsHistorical(periods, periodKey)) return errResponse(`Traffic Lights Evolution มีคะแนนหลังเดือนที่เลือก (${periods.join(', ')})`);
         const mtlScores = mtlRows.length ? parseMemberTLCurrentScores(mtlRows, memberMap, requestedPeriod.year, requestedPeriod.month) : [];
         const r2yParsed = r2yRows.length ? parseR2YRows(r2yRows, memberMap, r2yUnmatched) : [];
         const ambiguousNames = new Set(ambiguous);
@@ -1982,6 +1984,9 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const tlRows = parseCsvString(tlCsv);
       const mtlRows = parseCsvString(memberTLCsv);
       const r2yRows = parseCsvString(r2yCsv);
+      const periodKey = `${requestedPeriod.year}-${String(requestedPeriod.month).padStart(2, '0')}`;
+      const reportPeriod = memberTrafficLightReportPeriod(mtlRows);
+      if (reportPeriod && reportPeriod !== periodKey) return errResponse('เดือนรายงาน Member Traffic Light เปลี่ยนหลัง Preview กรุณา Preview ใหม่');
 
       const { data: members, error: memberError } = await db.from('members').select('id, name, nickname').eq('chapter_id', chapterId);
       if (memberError) return errResponse(memberError.message);
