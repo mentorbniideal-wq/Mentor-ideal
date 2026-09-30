@@ -7,6 +7,8 @@ import { calcPalmsScore } from '../../_shared/palms.ts';
 import { getMentorActivityData } from './dashboard.ts';
 import { buildGrowthIntelligence } from '../../_shared/growth-intelligence.ts';
 import { CAPABILITY, hasCapability } from '../../_shared/capabilities.ts';
+import { resolveMsbPlanningYear } from '../../_shared/msb-planning-year.ts';
+import { reportingGoal, visibleGrowthCategories } from '../../_shared/growth-plan.ts';
 
 function hasGrowthCapability(auth: Awaited<ReturnType<typeof requireAuth>>, capability: string) {
   return Boolean(auth.isAdmin || hasCapability(auth, capability));
@@ -1103,7 +1105,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       if (!scope.ok) return errResponse(scope.error, 403);
       // Grouped structure for the Growth Sheet UI
       // Columns: 0=seq, 1=ชื่อ-สกุล, 2=ชื่อเล่น, 3=อายุสมาชิก, 4=หมายเหตุ, 5=เป้าหมาย ฿, 6=รับจริง ฿, 7=%ทำได้
-      const HEADERS = ['', 'ชื่อ-สกุล', 'ชื่อเล่น', 'อายุสมาชิก', 'หมายเหตุ', 'เป้า Growth/MSB ฿', 'รับจริง ฿', '%ทำได้'];
+      const HEADERS = ['', 'ชื่อ-สกุล', 'ชื่อเล่น', 'อายุสมาชิก', 'หมายเหตุ', 'เป้า Legacy Growth ฿', 'รับจริงล่าสุด ฿', '% เทียบเป้า (ประมาณ)'];
       const COL_MAP = { name: 1, nick: 2, memberAge: 3, note: 4, target: 5, received: 6, pct: 7 };
 
       const { data: groupRows, error: gErr } = await db
@@ -1130,12 +1132,14 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const monthlyActualMap: Record<string, { given: number; received: number }> = {};
       const msbMap: Record<string, Record<string, unknown>> = {};
       const memberMetaMap: Record<string, Record<string, unknown>> = {};
+      const shareBusinessMap: Record<string, boolean> = {};
       const lineLinkedSet = new Set<string>();
       const r2ySyncedSet = new Set<string>();
       const reviewMap: Record<string, Record<string, unknown>> = {};
-      const blueprintYear = Number(p.blueprintYear || p.blueprint_year || new Date().getFullYear());
+      const blueprintYear = await resolveMsbPlanningYear(db, { chapterId: scope.chapterId });
+      const reportingYear = new Date().getFullYear();
       if (linkedIds.length) {
-        const [{ data: r2yRows }, { data: goalRows }, { data: msbRows }, { data: memberMetaRows }, { data: lineRows }, { data: reviewRows }] = await Promise.all([
+        const [{ data: r2yRows }, { data: goalRows }, { data: msbRows }, { data: memberMetaRows }, { data: lineRows }, { data: reviewRows }, { data: profileRows }, { data: categoryRows }] = await Promise.all([
           db.from('r2y_stats').select('member_id, bni_days, synced_at').in('member_id', linkedIds),
           db.from('members').select('id, bni_goal, given_thb, received_thb, profession, company_name').in('id', linkedIds),
           db.from('member_success_blueprints')
@@ -1145,7 +1149,27 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           db.from('members').select('id, profession, company_name').in('id', linkedIds),
           db.from('line_members').select('member_id').in('member_id', linkedIds),
           db.from('msb_goal_reviews').select('member_id, blueprint_year, status, note, reviewed_by, reviewed_at').eq('blueprint_year', blueprintYear).in('member_id', linkedIds),
+          db.from('member_one_to_one_profiles').select('member_id,share_business,share_referral_focus').in('member_id', linkedIds),
+          db.from('member_growth_category_consents').select('member_id,category_type,category').in('member_id', linkedIds).is('revoked_at', null),
         ]);
+        const profileMap = new Map(((profileRows || []) as Record<string, unknown>[]).map(row => [String(row.member_id), row]));
+        for (const [id, flags] of profileMap) shareBusinessMap[id] = flags.share_business === true;
+        const categoryMap = new Map<string, Set<string>>();
+        for (const row of (categoryRows || []) as Record<string, unknown>[]) {
+          const key = `${String(row.member_id)}:${String(row.category_type)}`;
+          const values = categoryMap.get(key) || new Set<string>();
+          values.add(String(row.category).toLowerCase());
+          categoryMap.set(key, values);
+        }
+        for (const row of (msbRows || []) as Record<string, unknown>[]) {
+          const id = String(row.member_id);
+          const flags = profileMap.get(id) || {};
+          const shared = flags.share_referral_focus === true;
+          for (const [field, type] of [['looking_for_categories', 'looking_for'], ['power_team_categories', 'power_team']] as const) {
+            row[field] = visibleGrowthCategories(row[field], shared, categoryMap.get(`${id}:${type}`));
+          }
+          if (!shared) { row.looking_for_detail = ''; row.power_team_detail = ''; }
+        }
         for (const r of (r2yRows || []) as Record<string, unknown>[]) {
           const id = String(r.member_id);
           bniDaysMap[id] = Number(r.bni_days) || 0;
@@ -1196,12 +1220,15 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           const msb = memberId ? msbMap[memberId] : null;
           const review = memberId ? reviewMap[memberId] : null;
           const meta = memberId ? memberMetaMap[memberId] : null;
-          const msbGoalSubmitted = msb && String(msb.status || '') === 'submitted'
-            ? (Number(msb.expected_sales_from_bni_year) || 0)
+          const submitted = Boolean(msb && String(msb.status || '') === 'submitted');
+          const submittedMsb = submitted ? msb : null;
+          const msbGoalSubmitted = submittedMsb
+            ? (Number(submittedMsb.expected_sales_from_bni_year) || 0)
             : 0;
           const syncedBniGoal = memberId ? (bniGoalMap[memberId] || 0) : 0;
           const msbGoal = msbGoalSubmitted || syncedBniGoal;
-          const tgt  = msbGoalSubmitted > 0 ? msbGoalSubmitted : legacyTarget;
+          // Never compare a future MSB planning goal with this year's actuals.
+          const tgt = reportingGoal(reportingYear, blueprintYear, legacyTarget, submitted ? msbGoalSubmitted : null);
           // Current actuals always come from the monthly R2Y sync on members.
           // The Growth sheet's received_thb is only a legacy 2026 snapshot fallback.
           const actual = memberId ? monthlyActualMap[memberId] : null;
@@ -1210,13 +1237,13 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           const gap  = Math.max(0, tgt - recv);
           const delta = msbGoalSubmitted > 0 && legacyTarget > 0 ? msbGoalSubmitted - legacyTarget : 0;
           const deltaPct = msbGoalSubmitted > 0 && legacyTarget > 0 ? Math.round((delta / legacyTarget) * 100) : 0;
-          const materialDiff = msbGoalSubmitted > 0 && legacyTarget > 0 && Math.abs(deltaPct) >= 30;
+          const materialDiff = submitted && legacyTarget > 0 && Math.abs(deltaPct) >= 30;
           const reviewStatus = review ? String(review.status || 'pending') : (materialDiff ? 'pending' : 'not_required');
           const needsReview = materialDiff && reviewStatus !== 'reviewed';
-          const hasLookingDetail = Boolean(msb && String(msb.looking_for_detail || '').trim().length >= 8);
-          const hasPowerDetail = Boolean(msb && String(msb.power_team_detail || '').trim().length >= 8);
+          const hasLookingDetail = Boolean(submittedMsb && String(submittedMsb.looking_for_detail || '').trim().length >= 8);
+          const hasPowerDetail = Boolean(submittedMsb && String(submittedMsb.power_team_detail || '').trim().length >= 8);
           const dq = dataQualityFromFlags({
-            blueprintSubmitted: msbGoalSubmitted > 0,
+            blueprintSubmitted: submitted,
             lineLinked: memberId ? lineLinkedSet.has(memberId) : false,
             hasProfession: Boolean(meta && (String(meta.profession || '').trim() || String(meta.company_name || '').trim())),
             hasGrowthGroup: true,
@@ -1229,7 +1256,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           gReceived += recv;
           gLegacyTarget += legacyTarget;
           gMsbGoal += msbGoalSubmitted;
-          if (msbGoalSubmitted > 0) gSubmittedBlueprints++;
+          if (submitted) gSubmittedBlueprints++;
           if (needsReview) gReviewNeeded++;
           if (reviewStatus === 'reviewed') reviewedGoals++;
           // Compute membership age from bni_days if linked, else use stored value (skip #REF! garbage)
@@ -1246,9 +1273,9 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
             msbGoal: msbGoalSubmitted,
             msbGoalFallback: msbGoal,
             activeGoal: tgt,
-            activeGoalSource: msbGoalSubmitted > 0 ? 'msb' : (legacyTarget > 0 ? 'legacy' : 'none'),
+            activeGoalSource: blueprintYear === reportingYear && submitted ? 'msb' : (legacyTarget > 0 ? 'legacy' : 'none'),
             target:   tgt,
-            targetSource: msbGoalSubmitted > 0 ? 'msb' : (legacyTarget > 0 ? 'legacy' : (msbGoal > 0 ? 'msb_fallback' : 'none')),
+            targetSource: blueprintYear === reportingYear && submitted ? 'msb' : (legacyTarget > 0 ? 'legacy' : 'none'),
             received: recv,
             given: actual ? actual.given : 0,
             actualSource: actual ? 'monthly_sync' : 'legacy_snapshot',
@@ -1265,14 +1292,14 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
             dataQualityGrade: dq.grade,
             dataQualityMissing: dq.missing,
             lineLinked: memberId ? lineLinkedSet.has(memberId) : false,
-            profession: meta ? String(meta.profession || '') : '',
-            companyName: meta ? String(meta.company_name || '') : '',
+            profession: meta && shareBusinessMap[memberId] ? String(meta.profession || '') : '',
+            companyName: meta && shareBusinessMap[memberId] ? String(meta.company_name || '') : '',
             blueprintStatus: msb ? String(msb.status || 'draft') : 'missing',
-            referralNeeded: msb ? Number(msb.referral_needed) || 0 : 0,
-            lookingForCategories: msb && Array.isArray(msb.looking_for_categories) ? (msb.looking_for_categories as unknown[]).map(String) : [],
-            lookingForDetail: msb ? String(msb.looking_for_detail || '') : '',
-            powerTeamCategories: msb && Array.isArray(msb.power_team_categories) ? (msb.power_team_categories as unknown[]).map(String) : [],
-            powerTeamDetail: msb ? String(msb.power_team_detail || '') : '',
+            referralNeeded: submittedMsb ? Number(submittedMsb.referral_needed) || 0 : 0,
+            lookingForCategories: submittedMsb && Array.isArray(submittedMsb.looking_for_categories) ? (submittedMsb.looking_for_categories as unknown[]).map(String) : [],
+            lookingForDetail: submittedMsb ? String(submittedMsb.looking_for_detail || '') : '',
+            powerTeamCategories: submittedMsb && Array.isArray(submittedMsb.power_team_categories) ? (submittedMsb.power_team_categories as unknown[]).map(String) : [],
+            powerTeamDetail: submittedMsb ? String(submittedMsb.power_team_detail || '') : '',
             cells: [
               Number(m.seq_no) || 0,    // 0
               m.raw_name || '',          // 1 name
@@ -1314,6 +1341,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const overallPct = totalTarget > 0 ? Math.round(totalReceived / totalTarget * 100) : 0;
       return jsonResponse({
         ok: true,
+        planningYear: blueprintYear,
+        reportingYear,
         headers: HEADERS,
         colMap: COL_MAP,
         groups,
@@ -1366,25 +1395,44 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'saveGrowthGoalReview': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.email || auth.isReadOnly || auth.isViewer || !hasGrowthCapability(auth, CAPABILITY.GROWTH_COORDINATE)) {
+        return errResponse('ต้องใช้บัญชี Growth Coordinator ที่มีสิทธิ์แก้ไข', 403);
+      }
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const memberId = cleanText(p.memberId || p.member_id);
-      const blueprintYear = Number(p.blueprintYear || p.blueprint_year || new Date().getFullYear());
+      const blueprintYear = await resolveMsbPlanningYear(db, { chapterId: scope.chapterId });
       const status = cleanText(p.status || 'reviewed');
       const note = cleanText(p.note);
       if (!memberId) return errResponse('memberId required', 400);
       if (!['pending', 'reviewed', 'needs_revision'].includes(status)) return errResponse('Invalid review status', 400);
+      if (note.length > 500) return errResponse('หมายเหตุต้องไม่เกิน 500 ตัวอักษร', 400);
+      const { data: member, error: memberError } = await db.from('members').select('id').eq('id', memberId).eq('chapter_id', scope.chapterId).maybeSingle();
+      if (memberError) return errResponse('ตรวจสอบสมาชิกไม่สำเร็จ', 500);
+      if (!member) return errResponse('ไม่พบสมาชิกใน Chapter นี้', 404);
+      const { data: blueprint, error: blueprintError } = await db.from('member_success_blueprints')
+        .select('member_id').eq('member_id', memberId).eq('blueprint_year', blueprintYear).eq('status', 'submitted').maybeSingle();
+      if (blueprintError) return errResponse('ตรวจสอบ Blueprint ไม่สำเร็จ', 500);
+      if (!blueprint) return errResponse('ต้องมี Blueprint ที่สมาชิกส่งแล้วก่อนบันทึกการทบทวน', 409);
       const now = new Date().toISOString();
       const payload = {
         member_id: memberId,
         blueprint_year: blueprintYear,
         status,
         note: note || null,
-        reviewed_by: String(auth.displayName || auth.role || 'growth'),
+        reviewed_by: auth.email,
         reviewed_at: status === 'pending' ? null : now,
         updated_at: now,
       };
       const { error } = await db.from('msb_goal_reviews')
         .upsert(payload, { onConflict: 'member_id,blueprint_year' });
       if (error) return errResponse(error.message, 400);
+      const { error: auditError } = await db.from('chapter_audit_events').insert({
+        chapter_id: scope.chapterId, event_type: 'growth_goal_review_saved', actor_role: auth.role,
+        actor_ref: auth.email, subject_type: 'member_success_blueprint', subject_ref: memberId,
+        metadata: { blueprint_year: blueprintYear, status },
+      });
+      if (auditError) return jsonResponse({ ok: true, review: payload, auditWarning: 'บันทึกแล้ว แต่บันทึก Audit ไม่สำเร็จ กรุณาแจ้งผู้ดูแล' });
       return jsonResponse({ ok: true, review: payload });
     }
 
@@ -2074,34 +2122,52 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'updateGrowthMember': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
-      if (!hasGrowthCapability(auth, CAPABILITY.GROWTH_MEMBER_MANAGE)) return errResponse('แก้ไขข้อมูลสมาชิกต้องได้รับสิทธิ์ Admin', 403);
+      if (!auth.email || auth.isReadOnly || auth.isViewer || !hasGrowthCapability(auth, CAPABILITY.GROWTH_MEMBER_MANAGE)) return errResponse('แก้ไข Legacy Growth ต้องได้รับสิทธิ์จัดการสมาชิก', 403);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
       const memberId = String(p.sheetRow || '');
       if (!memberId) return errResponse('sheetRow required');
 
       // col is 1-based; map to DB field
       const COL_TO_FIELD: Record<number, string> = {
-        3: 'nickname', 4: 'membership_age', 5: 'note', 6: 'target_thb',
+        3: 'nickname', 5: 'note', 6: 'target_thb',
       };
-      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      const updates: Record<string, unknown> = {};
       for (const u of (Array.isArray(p.updates) ? p.updates : []) as { col: number; val: unknown }[]) {
         const field = COL_TO_FIELD[u.col];
-        if (field) updates[field] = u.val;
+        if (!field) return errResponse('แก้ได้เฉพาะชื่อเล่น หมายเหตุ และเป้า Legacy; ข้อมูลคำนวณ/รับจริงต้องอัปเดตจากแหล่งข้อมูล', 400);
+        if (field === 'target_thb') {
+          const value = Number(u.val);
+          if (!Number.isFinite(value) || value < 0 || value > 1_000_000_000_000) return errResponse('เป้า Legacy ไม่ถูกต้อง', 400);
+          updates[field] = value;
+        } else {
+          const value = cleanText(u.val);
+          if (value.length > (field === 'note' ? 500 : 100)) return errResponse('ข้อความยาวเกินกำหนด', 400);
+          updates[field] = value;
+        }
       }
-
-      if ((Array.isArray(p.updates) ? p.updates : []).some((u: { col: number }) => Number(u.col) === 7)) {
-        return errResponse('ยอดรับจริงต้องอัปเดตผ่าน Monthly Sync เพื่อรักษาที่มาและประวัติข้อมูล');
-      }
-
-      const { error } = await db.from('growth_referral_members').update(updates).eq('id', memberId);
+      if (!Object.keys(updates).length) return errResponse('ไม่มีข้อมูลที่แก้ไข', 400);
+      updates.updated_at = new Date().toISOString();
+      const { data: updated, error } = await db.from('growth_referral_members').update(updates)
+        .eq('id', memberId).eq('chapter_id', scope.chapterId).select('id').maybeSingle();
       if (error) return errResponse(error.message);
+      if (!updated) return errResponse('ไม่พบข้อมูล Legacy Growth ใน Chapter นี้', 404);
+      const { error: auditError } = await db.from('chapter_audit_events').insert({
+        chapter_id: scope.chapterId, event_type: 'growth_legacy_member_updated', actor_role: auth.role,
+        actor_ref: auth.email, subject_type: 'growth_referral_member', subject_ref: memberId,
+        metadata: { fields: Object.keys(updates).filter(field => field !== 'updated_at') },
+      });
+      if (auditError) return jsonResponse({ ok: true, auditWarning: 'แก้ไขแล้ว แต่บันทึก Audit ไม่สำเร็จ กรุณาแจ้งผู้ดูแล' });
       return jsonResponse({ ok: true });
     }
 
     case 'addGrowthMember': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
-      if (!hasGrowthCapability(auth, CAPABILITY.GROWTH_MEMBER_MANAGE)) return errResponse('เพิ่มข้อมูลสมาชิกต้องได้รับสิทธิ์ Admin', 403);
+      if (!auth.email || auth.isReadOnly || auth.isViewer || !hasGrowthCapability(auth, CAPABILITY.GROWTH_MEMBER_MANAGE)) return errResponse('เพิ่มข้อมูล Legacy Growth ต้องได้รับสิทธิ์จัดการสมาชิก', 403);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
       const name      = String(p.name      || '').trim();
       const groupName = String(p.groupName || '').trim();
@@ -2112,7 +2178,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         .from('growth_referral_groups')
         .select('id')
         .eq('name', groupName)
-        .single();
+        .eq('chapter_id', scope.chapterId)
+        .maybeSingle();
       if (gErr || !grp) return errResponse('กลุ่ม "' + groupName + '" ไม่มีอยู่');
 
       const { data: lastRow } = await db
@@ -2125,6 +2192,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const nextSeq = lastRow ? (Number((lastRow as Record<string, unknown>).seq_no) || 0) + 1 : 1;
 
       const { error } = await db.from('growth_referral_members').insert({
+        chapter_id: scope.chapterId,
         group_id:     (grp as Record<string, unknown>).id,
         raw_name:     name,
         nickname:     String(p.nick || ''),
@@ -2139,7 +2207,9 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'moveGrowthMember': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
-      if (!hasGrowthCapability(auth, CAPABILITY.GROWTH_MEMBER_MANAGE)) return errResponse('ย้ายข้อมูลสมาชิกต้องได้รับสิทธิ์ Admin', 403);
+      if (!auth.email || auth.isReadOnly || auth.isViewer || !hasGrowthCapability(auth, CAPABILITY.GROWTH_MEMBER_MANAGE)) return errResponse('ย้ายข้อมูล Legacy Growth ต้องได้รับสิทธิ์จัดการสมาชิก', 403);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
       const memberId  = String(p.sheetRow    || '');
       const groupName = String(p.targetGroup || '').trim();
@@ -2150,14 +2220,16 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         .from('growth_referral_groups')
         .select('id')
         .eq('name', groupName)
-        .single();
+        .eq('chapter_id', scope.chapterId)
+        .maybeSingle();
       if (gErr || !grp) return errResponse('กลุ่ม "' + groupName + '" ไม่มีอยู่');
 
-      const { error } = await db
+      const { data: moved, error } = await db
         .from('growth_referral_members')
         .update({ group_id: (grp as Record<string, unknown>).id, updated_at: new Date().toISOString() })
-        .eq('id', memberId);
+        .eq('id', memberId).eq('chapter_id', scope.chapterId).select('id').maybeSingle();
       if (error) return errResponse(error.message);
+      if (!moved) return errResponse('ไม่พบข้อมูล Legacy Growth ใน Chapter นี้', 404);
       return jsonResponse({ ok: true });
     }
 

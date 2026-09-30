@@ -13,6 +13,7 @@ const detail = { ok: true, member: { id: 'member-1', name: '<img src=x onerror=a
   membershipStartDate: '2024-03-01', membershipStartSource: 'bni_joined_date', membershipDays: 942,
   lastRenewedOn: '2026-03-02', latestExpiryDate: '2027-12-28', expirySource: 'bni_connect_membership_dues', expiryReportedAt: '2026-09-01T00:00:00Z',
   entries: [{ id: 'entry-1', month: 1, status: 'open', result: 'SECRET_HISTORICAL_TEXT', detailRestricted: true }],
+  performanceHistory: [{ period: '2026-09', referralGivenSnapshot: 8, visitorSnapshot: null, oneToOneSnapshot: null, ceuSnapshot: null, tyfcbGivenSnapshot: 560000, trafficLightScore: 55, capturedAt: '2026-09-30', source: 'PALMS key snapshot', monthlyActivityVerified: false }],
   notes: [{ entry_id: 'entry-1', body: 'SECRET_NOTE', created_by: 'test', created_at: '2027-01-01' }], canManage: false };
 const board = { ok: true, members: [{ memberId: 'member-1', name: 'Test', nickname: 'Test', currentMonth: 6, membershipStartSource: 'bni_joined_date', membershipDays: 942, lastRenewedOn: '2026-03-02', expiryDate: '2027-12-28' }], dueWork: [], summary: { activeMembers: 1, dueNow: 0, missingExpiry: 0 } };
 const window = { G: { tasks: [] } };
@@ -36,6 +37,9 @@ assert.match(root.innerHTML, /mg-cycle-hero|เส้นทาง 12 เดื�
 assert.match(root.innerHTML, /หมดอายุล่าสุดตามระบบ/);
 assert.match(root.innerHTML, /2027-12-28/);
 assert.match(root.innerHTML, /BNI Connect Membership Dues/);
+assert.match(root.innerHTML, /ประวัติ Performance จากไฟล์รายเดือน/);
+assert.match(root.innerHTML, /ไม่ใช่ผลงานที่เกิดขึ้นเฉพาะเดือนนั้น/);
+assert.match(root.innerHTML, /560,000/);
 assert.doesNotMatch(root.innerHTML, /SECRET_HISTORICAL_TEXT|SECRET_NOTE|<img/);
 detail.canManage = true;
 detail.entries[0].detailRestricted = false;

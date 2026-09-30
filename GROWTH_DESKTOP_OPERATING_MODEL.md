@@ -20,6 +20,14 @@ MSB shortcuts open the exact Blueprint workspace needed for the decision: Suppor
 
 Blueprint tools are separate views, with `Chapter Blueprint Table` as the default. Only one workflow is visible at a time. Data is member-provided or sourced from named operational records; the UI must not present inferred values as facts.
 
+## Growth Plan / Blueprint source and editing rules
+
+- The Chapter-configured MSB planning year controls which member-submitted Blueprint is shown (currently 2027 for the installed Chapter). The legacy Growth target remains a separately labelled baseline for the current reporting year. Never substitute a future Blueprint goal into current-year progress.
+- `members.received_thb` is the latest Monthly Sync value, falling back to the legacy Growth snapshot where no linked member exists. This field has no verified reporting-year attribution. UI labels it as latest actual, marks target comparisons approximate, and must not describe it as a confirmed annual result.
+- The member owns their Blueprint submission. Growth can review it or request a revision, but must not silently edit member answers. The legacy Growth editor permits only nickname, note and legacy target. Membership age, actual received and calculated progress are read-only in that editor.
+- The API derives Chapter scope from authentication for reads and writes, checks capabilities on writes, and records review/edit audit events without copying private notes into audit metadata. Blueprint categories and business details follow active member sharing/consent; absent or revoked consent fails closed.
+- Commercial-readiness debt: Growth Plan still uses the imported legacy group sheet and its target as a baseline. Before calling the comparison an annual KPI, add a period-attributed actual revenue source and migrate the remaining sheet workflow to member-keyed records with verified Chapter ownership.
+
 ## Growth Mobile onboarding
 
 The active Growth term supports one Lead and up to two Co-Leads. Chapter Admin must:
