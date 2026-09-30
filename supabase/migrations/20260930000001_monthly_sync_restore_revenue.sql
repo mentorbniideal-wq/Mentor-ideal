@@ -79,4 +79,5 @@ BEGIN
     'restoredMembers', cardinality(v_member_ids), 'rolledBackAt', v_rolled_back_at);
 END;
 $$;
+
 REVOKE ALL ON FUNCTION public.fn_rollback_monthly_sync(UUID, TEXT) FROM PUBLIC, anon, authenticated;

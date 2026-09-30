@@ -24,10 +24,12 @@ CREATE TABLE public.member_performance_source_snapshots (
   CHECK ((window_start IS NULL AND window_end IS NULL) OR (window_start IS NOT NULL AND window_end IS NOT NULL AND window_start <= window_end)),
   UNIQUE (chapter_id, member_id, period_year, period_month, source_type)
 );
+
 CREATE INDEX member_performance_source_snapshots_member_period_idx
   ON public.member_performance_source_snapshots(chapter_id, member_id, period_year DESC, period_month DESC);
 CREATE INDEX member_performance_source_snapshots_batch_idx
   ON public.member_performance_source_snapshots(import_batch_id);
+
 CREATE OR REPLACE FUNCTION public.fn_check_member_performance_snapshot_scope()
 RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
 BEGIN
@@ -45,11 +47,13 @@ $$;
 CREATE TRIGGER check_member_performance_snapshot_scope
   BEFORE INSERT OR UPDATE ON public.member_performance_source_snapshots
   FOR EACH ROW EXECUTE FUNCTION public.fn_check_member_performance_snapshot_scope();
+
 ALTER TABLE public.member_performance_source_snapshots ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.member_performance_source_snapshots FROM anon, authenticated;
 REVOKE ALL ON FUNCTION public.fn_check_member_performance_snapshot_scope() FROM PUBLIC, anon, authenticated;
 COMMENT ON TABLE public.member_performance_source_snapshots IS
   'Service-only source-scoped historical report values. Do not interpret as monthly activity unless source_semantics and source window are verified.';
+
 -- The existing rollback RPC changes batch status inside one transaction. Restore
 -- source snapshots when that status changes; older batches have no snapshot key.
 CREATE OR REPLACE FUNCTION public.fn_restore_member_performance_on_sync_rollback()

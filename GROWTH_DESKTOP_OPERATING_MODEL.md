@@ -20,6 +20,14 @@ MSB shortcuts open the exact Blueprint workspace needed for the decision: Suppor
 
 Blueprint tools are separate views, with `Chapter Blueprint Table` as the default. Only one workflow is visible at a time. Data is member-provided or sourced from named operational records; the UI must not present inferred values as facts.
 
+## Growth Plan / Blueprint source and editing rules
+
+- The Chapter-configured MSB planning year controls which member-submitted Blueprint is shown (currently 2027 for the installed Chapter). The legacy Growth target remains a separately labelled baseline for the current reporting year. Never substitute a future Blueprint goal into current-year progress.
+- `members.received_thb` is the latest Monthly Sync value, falling back to the legacy Growth snapshot where no linked member exists. This field has no verified reporting-year attribution. UI labels it as latest actual, marks target comparisons approximate, and must not describe it as a confirmed annual result.
+- The member owns their Blueprint submission. Growth can review it or request a revision, but must not silently edit member answers. The legacy Growth editor permits only nickname, note and legacy target. Membership age, actual received and calculated progress are read-only in that editor.
+- The API derives Chapter scope from authentication for reads and writes, checks capabilities on writes, and records review/edit audit events without copying private notes into audit metadata. Blueprint categories and business details follow active member sharing/consent; absent or revoked consent fails closed.
+- Commercial-readiness debt: Growth Plan still uses the imported legacy group sheet and its target as a baseline. Before calling the comparison an annual KPI, add a period-attributed actual revenue source and migrate the remaining sheet workflow to member-keyed records with verified Chapter ownership.
+
 ## Growth Mobile onboarding
 
 The active Growth term supports one Lead and up to two Co-Leads. Chapter Admin must:
@@ -31,6 +39,12 @@ The active Growth term supports one Lead and up to two Co-Leads. Chapter Admin m
 5. Confirm the readiness state becomes `พร้อมใช้งาน`.
 
 Readiness states are `ยังไม่ได้ตั้งค่า`, `รอยืนยัน`, and `พร้อมใช้งาน`. Access lookup, invitation delivery and cancellation are scoped from the authenticated Chapter on the server. A claimed invitation stores the Chapter derived from the invited member, never from a browser-supplied Chapter ID.
+
+## Growth LINE Center
+
+Growth Lead and Co-Leads can communicate through MYIDEAL from a dedicated Desktop workflow after Google OAuth and a server check against the current Chapter LT term; a shared PIN or generic Growth role is insufficient. The supported audiences are members whose current-year MSB is not submitted and an explicit member selection (at most 100 per batch). The browser receives MSB/LINE readiness but never LINE user IDs. Power Team categories are labelled as a draft for Growth review, not an assigned team, and are shown only from submitted MSB when current referral sharing consent allows them. Mentor Team is not a Growth grouping fallback.
+
+Every live delivery requires a recent server-recorded Preview whose message and recipient digests still match. Delivery reuses the shared notification guard, idempotent LINE ledger and per-recipient result model. Preview and send batches are audit events; audit metadata stores digests and counts, not message content.
 
 ## Design rules
 

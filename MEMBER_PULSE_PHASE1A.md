@@ -2,7 +2,10 @@
 
 Member Pulse is a support signal, not a score or member ranking. This branch
 contains the dormant Phase 1A schema plus a Phase 1B implementation candidate.
-Production is not deployed or migrated by this work.
+On 2026-09-29, the additive Pulse migrations and the `api`, `liff-api`, and
+`cron-jobs` functions were deployed to Production at Pete's request. No Pulse
+policy, template, scheduler, or LINE delivery was enabled; the feature remains
+dormant until signed-in acceptance and an explicit Chapter configuration step.
 
 ## Approved cadence and safeguards
 
@@ -77,9 +80,11 @@ four pending migrations; verify the linked project ref and dry-run output first.
 After the initial Staging application, additive migration
 `20260929000004_member_pulse_superseded_due.sql` adds the `superseded` status
 needed for priority replacement; it does not enable a policy or delivery.
-No Production project, migration, environment, role, consent, or LINE setting
-may be changed. Keep new tables if rolling back application code; do not delete
-responses or rewrite deployed migrations.
+The Production rollout applied only migrations `20260929000001`,
+`20260929000002`, and `20260929000004`; migration `20260929000003` was already
+present. Keep the new tables if rolling back application code; do not delete
+responses or rewrite deployed migrations. The web release must be verified
+separately from the database/function rollout.
 
 Before broader enablement, use synthetic Staging members and signed-in accounts
 to test Growth, Mentor assignment scope, unauthorized members, Chapter
@@ -90,10 +95,11 @@ members from Staging.
 
 ## Phase 1B remaining acceptance gates
 
-- Signed-in Staging OAuth acceptance for member, Growth, Mentor, and leadership
-  scopes, including cross-Chapter and revoked-session denial.
+- Signed-in OAuth acceptance for member, Growth, Mentor, and leadership scopes,
+  including cross-Chapter and revoked-session denial. Keep the Production
+  policy disabled until these checks pass with safe test identities.
 - Browser acceptance for `/pulse/`, Member Detail, Growth Desktop and Mobile.
 - Confirm manual due scan is operationally sufficient or separately approve a
   scheduled detection job. Automatic sending is explicitly out of scope.
 - Confirm templates and question scopes using synthetic data before enabling a
-  Chapter policy. No Production enablement is included in Phase 1B.
+  Chapter policy. Production deployment of dormant code is not Pulse activation.

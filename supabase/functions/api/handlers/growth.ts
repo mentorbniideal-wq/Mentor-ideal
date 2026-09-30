@@ -1,5 +1,5 @@
 // Handler: growth — getRiskMembers, getWeeklyActions, getGrowthData, etc.
-import { requireAuth } from '../../_shared/auth.ts';
+import { requireAuth, type AuthResult } from '../../_shared/auth.ts';
 import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { findEvolutionAverageColumn } from '../../_shared/traffic-evolution.ts';
@@ -7,9 +7,30 @@ import { calcPalmsScore } from '../../_shared/palms.ts';
 import { getMentorActivityData } from './dashboard.ts';
 import { buildGrowthIntelligence } from '../../_shared/growth-intelligence.ts';
 import { CAPABILITY, hasCapability } from '../../_shared/capabilities.ts';
+import { resolveMsbPlanningYear } from '../../_shared/msb-planning-year.ts';
+import { reportingGoal, visibleGrowthCategories } from '../../_shared/growth-plan.ts';
+import { uniqueMemberNameMap } from '../../_shared/member-import-identity.ts';
+import { evolutionIsHistorical, memberTrafficLightReportPeriod, reportedNumber, reportedScore } from '../../_shared/monthly-sync-period.ts';
+import { performanceSourceRows } from '../../_shared/member-performance-source.ts';
+import { linePush, sha256Hex } from '../../_shared/line.ts';
+import { evaluateNotificationGuard, logSuppressedNotification } from '../../_shared/notification-orchestrator.ts';
 
 function hasGrowthCapability(auth: Awaited<ReturnType<typeof requireAuth>>, capability: string) {
   return Boolean(auth.isAdmin || hasCapability(auth, capability));
+}
+
+// A shared Growth PIN or a generic Growth role cannot identify a current LT
+// sender. Resolve the OAuth member against the Chapter's active LT roster.
+async function authorizeGrowthLineSender(db: ReturnType<typeof getServiceClient>, auth: AuthResult, chapterId: string): Promise<string | null> {
+  if (auth.role !== 'growth' || !auth.email || !auth.memberId || auth.isReadOnly || auth.isViewer) return 'เฉพาะ Growth Lead/Co-Lead ที่เข้าสู่ระบบด้วย Google เท่านั้น';
+  const dateKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const { data: terms, error: termError } = await db.from('lt_terms').select('id').eq('chapter_id', chapterId).eq('status', 'active').lte('starts_on', dateKey).gte('ends_on', dateKey);
+  if (termError) return 'ตรวจสอบวาระ LT ไม่สำเร็จ';
+  const termIds = ((terms || []) as Record<string, unknown>[]).map(row => String(row.id));
+  if (!termIds.length) return 'ยังไม่มีวาระ LT ที่ใช้งานอยู่';
+  const { data: assignment, error } = await db.from('lt_growth_team_members').select('position').eq('chapter_id', chapterId).eq('member_id', auth.memberId).in('term_id', termIds).in('position', ['lead', 'co_lead']).maybeSingle();
+  if (error) return 'ตรวจสอบตำแหน่ง Growth ไม่สำเร็จ';
+  return assignment ? null : 'บัญชีนี้ไม่ได้เป็น Growth Lead/Co-Lead ในวาระปัจจุบัน';
 }
 
 const TEAM_ROLE: Record<string, string> = {
@@ -118,6 +139,25 @@ function findColumnIndex(headers: string[], candidates: string[]): number {
   return -1;
 }
 
+function hasDuplicateCsvMembers(rows: string[][], source: 'r2y' | 'memberTL'): boolean {
+  if (!rows.length) return false;
+  const header = source === 'memberTL'
+    ? findHeaderRow(rows, row => row.some(cell => String(cell).toLowerCase().trim() === 'total score'))
+    : { idx: 0, row: rows[0] };
+  if (!header) return false;
+  const nameIdx = source === 'r2y' ? 0 : findColumnIndex(header.row, ['name -surname', 'name - surname', 'name', 'member']);
+  if (nameIdx < 0) return false;
+  const seen = new Set<string>();
+  for (const row of rows.slice(header.idx + 1)) {
+    if (source === 'memberTL' && !/^\d+$/.test(String(row[0] || '').trim())) continue;
+    const key = normalizeName(row[nameIdx]);
+    if (!key) continue;
+    if (seen.has(key)) return true;
+    seen.add(key);
+  }
+  return false;
+}
+
 function latestScorePeriod(
   rows: Array<{ year: number; month: number }>,
   fallbackDate = new Date(),
@@ -145,13 +185,6 @@ async function sha256Text(value: string): Promise<string> {
   return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
-async function activeChapterId(db: ReturnType<typeof getServiceClient>): Promise<string> {
-  const { data, error } = await db.from('chapter_profiles').select('id').eq('is_active', true).order('created_at').limit(1).maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data?.id) throw new Error('ยังไม่ได้ตั้งค่า Active Chapter');
-  return String(data.id);
-}
-
 async function monthlySyncFingerprint(inputs: { tlCsv: string | null; memberTLCsv: string | null; r2yCsv: string | null }, period: { year: number; month: number }) {
   const fileHashes: Record<string, string> = {};
   if (inputs.tlCsv) fileHashes.trafficLightEvolution = await sha256Text(inputs.tlCsv);
@@ -160,19 +193,20 @@ async function monthlySyncFingerprint(inputs: { tlCsv: string | null; memberTLCs
   return { fileHashes, combinedHash: await sha256Text(JSON.stringify({ period, fileHashes })) };
 }
 
-async function captureMonthlySyncSnapshot(db: ReturnType<typeof getServiceClient>, memberIds: string[]) {
-  if (!memberIds.length) return { monthlyScores: [], r2yStats: [], keySnapshots: [], evolution: [], members: [], renewals: [] };
-  const [monthly, r2y, keys, evolution, members, renewals] = await Promise.all([
+async function captureMonthlySyncSnapshot(db: ReturnType<typeof getServiceClient>, memberIds: string[], period: { year: number; month: number }) {
+  if (!memberIds.length) return { monthlyScores: [], r2yStats: [], keySnapshots: [], evolution: [], members: [], renewals: [], performanceSnapshots: [] };
+  const [monthly, r2y, keys, evolution, members, renewals, performance] = await Promise.all([
     db.from('monthly_scores').select('*').in('member_id', memberIds),
     db.from('r2y_stats').select('*').in('member_id', memberIds),
     db.from('palms_key_snapshots').select('*').in('member_id', memberIds),
     db.from('traffic_light_evolution_summary').select('*').in('member_id', memberIds),
-    db.from('members').select('id,email,phone').in('id', memberIds),
+    db.from('members').select('id,email,phone,given_thb,received_thb').in('id', memberIds),
     db.from('renewals').select('*').in('member_id', memberIds),
+    db.from('member_performance_source_snapshots').select('*').in('member_id', memberIds).eq('period_year', period.year).eq('period_month', period.month),
   ]);
-  const failed = [monthly, r2y, keys, evolution, members, renewals].find(result => result.error);
+  const failed = [monthly, r2y, keys, evolution, members, renewals, performance].find(result => result.error);
   if (failed?.error) throw new Error(failed.error.message);
-  return { monthlyScores: monthly.data || [], r2yStats: r2y.data || [], keySnapshots: keys.data || [], evolution: evolution.data || [], members: members.data || [], renewals: renewals.data || [] };
+  return { monthlyScores: monthly.data || [], r2yStats: r2y.data || [], keySnapshots: keys.data || [], evolution: evolution.data || [], members: members.data || [], renewals: renewals.data || [], performanceSnapshots: performance.data || [] };
 }
 
 async function getExistingLatestScorePeriod(
@@ -292,8 +326,8 @@ function parseMonthlyScores(
 
     for (const col of monthCols) {
       if (row.length <= col.idx) continue;
-      const score = parseNumber(row[col.idx]);
-      if (score > 0) {
+      const score = reportedScore(row[col.idx]);
+      if (score !== null) {
         scores.push({ member_id: memberId, year: col.year, month: col.month, score, source: 'traffic_light_csv' });
       }
     }
@@ -322,7 +356,7 @@ function parseMemberTLCurrentScores(
   const scores: Array<{ member_id: string; year: number; month: number; score: number; source: string }> = [];
   for (const [name, item] of Object.entries(data)) {
     const memberId = memberMap[name];
-    if (!memberId || !item.score) continue;
+    if (!memberId || !item.scorePresent) continue;
     scores.push({ member_id: memberId, year, month, score: item.score, source: 'traffic_light_csv' });
   }
   return scores;
@@ -511,7 +545,7 @@ function parseR2YRows(
       member_id:  memberId,
       rg:         parseNumber(row[1]),
       rr:         parseNumber(row[2]),
-      visitors:   parseNumber(row[3]),
+      // Column 4 has no header in the supplied R2Y export. Never label it Visitors.
       one_to_one: parseNumber(row[4]),
       ceu:        parseNumber(row[5]),
       tyfcb_thb:  parseNumber(row[6]),
@@ -522,6 +556,14 @@ function parseR2YRows(
       late:       parseNumber(row[11]),
       medical:    parseNumber(row[12]),
       sub:        parseNumber(row[13]),
+      source_values: {
+        rg: reportedNumber(row[1]), rr: reportedNumber(row[2]),
+        one_to_one: reportedNumber(row[4]), ceu: reportedNumber(row[5]),
+        tyfcb_thb: reportedNumber(row[6]), official_pts: reportedNumber(row[7]),
+        bni_days: reportedNumber(row[8]), attend: reportedNumber(row[9]),
+        absent: reportedNumber(row[10]), late: reportedNumber(row[11]),
+        medical: reportedNumber(row[12]), sub: reportedNumber(row[13]),
+      },
       synced_at:  new Date().toISOString(),
     });
   }
@@ -585,10 +627,11 @@ function nextRenewalFromBniDays(bniDays: number, today = new Date()): string | n
   return ymd(renewal);
 }
 
-async function syncRenewalsFromR2YStats(db: ReturnType<typeof getServiceClient>): Promise<number> {
+async function syncRenewalsFromR2YStats(db: ReturnType<typeof getServiceClient>, chapterId: string): Promise<number> {
   const { data: stats, error: statsError } = await db
     .from('r2y_stats')
     .select('member_id, bni_days')
+    .eq('chapter_id', chapterId)
     .gt('bni_days', 0);
   if (statsError) throw new Error(statsError.message);
   if (!stats || !stats.length) return 0;
@@ -596,13 +639,14 @@ async function syncRenewalsFromR2YStats(db: ReturnType<typeof getServiceClient>)
   const { data: members, error: memberError } = await db
     .from('members')
     .select('id')
+    .eq('chapter_id', chapterId)
     .eq('is_archived', false);
   if (memberError) throw new Error(memberError.message);
 
   const activeIds = new Set((members || []).map((m: Record<string, unknown>) => String(m.id)));
   const { data: existingRows, error: existingError } = await db
     .from('renewals')
-    .select('member_id, expiry_date, workflow_status');
+    .select('member_id, expiry_date, workflow_status').eq('chapter_id', chapterId);
   if (existingError) throw new Error(existingError.message);
   const existingMap = new Map(
     (existingRows || []).map((row: Record<string, unknown>) => [String(row.member_id), row]),
@@ -625,6 +669,7 @@ async function syncRenewalsFromR2YStats(db: ReturnType<typeof getServiceClient>)
       const expiryChanged = !!existing && existingExpiry !== expiryDate;
       return {
         member_id: memberId,
+        chapter_id: chapterId,
         expiry_date: expiryDate,
         workflow_status: expiryChanged
           ? 'pending_contact'
@@ -659,6 +704,7 @@ async function syncRenewalsFromR2YStats(db: ReturnType<typeof getServiceClient>)
   const { data: mWithStart } = await db
     .from('members')
     .select('id, membership_start_date')
+    .eq('chapter_id', chapterId)
     .eq('is_archived', false)
     .not('membership_start_date', 'is', null);
   const fallbackRows = ((mWithStart || []) as Array<Record<string, unknown>>)
@@ -674,6 +720,7 @@ async function syncRenewalsFromR2YStats(db: ReturnType<typeof getServiceClient>)
       if (renewal.getTime() < today.getTime()) renewal.setFullYear(today.getFullYear() + 1);
       return {
         member_id: String(m.id),
+        chapter_id: chapterId,
         expiry_date: ymd(renewal),
         workflow_status: String(existing?.workflow_status || 'pending_contact'),
         notes: 'Synced from membership_start_date',
@@ -691,7 +738,7 @@ async function syncRenewalsFromR2YStats(db: ReturnType<typeof getServiceClient>)
 
 // Auto-enroll members whose bni_days < 56 (not yet 8 weeks) as is_new_member = true.
 // Sets joined_date from bni_days if not already set.
-async function autoEnrollNewMembers(db: ReturnType<typeof getServiceClient>): Promise<number> {
+async function autoEnrollNewMembers(db: ReturnType<typeof getServiceClient>, chapterId: string): Promise<number> {
   const today = new Date();
   let enrolled = 0;
 
@@ -699,6 +746,7 @@ async function autoEnrollNewMembers(db: ReturnType<typeof getServiceClient>): Pr
   const { data: rows } = await db
     .from('r2y_stats')
     .select('member_id, bni_days')
+    .eq('chapter_id', chapterId)
     .gt('bni_days', 0)
     .lt('bni_days', 56);
   for (const row of (rows || []) as Array<{ member_id: string; bni_days: number }>) {
@@ -710,13 +758,14 @@ async function autoEnrollNewMembers(db: ReturnType<typeof getServiceClient>): Pr
       .from('members')
       .select('id, is_new_member, is_archived, joined_date')
       .eq('id', row.member_id)
+      .eq('chapter_id', chapterId)
       .maybeSingle();
     if (!m || (m as Record<string, unknown>).is_archived) continue;
     if ((m as Record<string, unknown>).is_new_member) continue;
 
     const upd: Record<string, unknown> = { is_new_member: true, updated_at: new Date().toISOString() };
     if (!(m as Record<string, unknown>).joined_date) upd.joined_date = joinedDateStr;
-    const { error } = await db.from('members').update(upd).eq('id', row.member_id);
+    const { error } = await db.from('members').update(upd).eq('id', row.member_id).eq('chapter_id', chapterId);
     if (!error) enrolled++;
   }
 
@@ -727,6 +776,7 @@ async function autoEnrollNewMembers(db: ReturnType<typeof getServiceClient>): Pr
   const { data: recentByDate } = await db
     .from('members')
     .select('id, is_new_member, is_archived, joined_date, membership_start_date')
+    .eq('chapter_id', chapterId)
     .eq('is_archived', false)
     .eq('is_new_member', false)
     .gte('membership_start_date', cutoffStr);
@@ -735,7 +785,7 @@ async function autoEnrollNewMembers(db: ReturnType<typeof getServiceClient>): Pr
     if (!startDate) continue;
     const upd: Record<string, unknown> = { is_new_member: true, updated_at: new Date().toISOString() };
     if (!m.joined_date) upd.joined_date = startDate;
-    const { error } = await db.from('members').update(upd).eq('id', m.id);
+    const { error } = await db.from('members').update(upd).eq('id', m.id).eq('chapter_id', chapterId);
     if (!error) enrolled++;
   }
 
@@ -760,7 +810,7 @@ async function updateMembersGivenReceived(db: ReturnType<typeof getServiceClient
 
 function parseMemberTLStats(rows: string[][]): Record<string, {
   given: number; received: number; rg: number; rr: number; visitors: number; one_to_one: number;
-  ceu: number; score: number; p: number; a: number; l: number; m: number; s: number;
+  ceu: number; score: number; scorePresent: boolean; p: number; a: number; l: number; m: number; s: number;
 }> {
   if (!rows || rows.length === 0) return {};
   const normalizedRows = rows.map(row => row.map(cell => String(cell || '').toLowerCase().trim()));
@@ -813,11 +863,22 @@ function parseMemberTLStats(rows: string[][]): Record<string, {
       one_to_one: parseNumber(row[otoIdx]),
       ceu: parseNumber(row[ceuIdx]),
       score: parseNumber(row[scoreIdx]),
+      scorePresent: reportedScore(row[scoreIdx]) !== null,
       p: parseNumber(row[pIdx]),
       a: parseNumber(row[aIdx]),
       l: parseNumber(row[lIdx]),
       m: parseNumber(row[mIdx]),
       s: parseNumber(row[sIdx]),
+      source_values: {
+        given: reportedNumber(row[givenIdx]), received: reportedNumber(row[recvIdx]),
+        rg: reportedNumber(row[rgIdx]),
+        rr: reportedNumber(row[rrIdx]) ?? ((reportedNumber(row[rriIdx]) !== null || reportedNumber(row[rroIdx]) !== null)
+          ? (reportedNumber(row[rriIdx]) || 0) + (reportedNumber(row[rroIdx]) || 0) : null),
+        visitors: reportedNumber(row[visitorsIdx]), one_to_one: reportedNumber(row[otoIdx]),
+        ceu: reportedNumber(row[ceuIdx]), score: reportedScore(row[scoreIdx]),
+        p: reportedNumber(row[pIdx]), a: reportedNumber(row[aIdx]),
+        l: reportedNumber(row[lIdx]), m: reportedNumber(row[mIdx]), s: reportedNumber(row[sIdx]),
+      },
     };
   }
   return map;
@@ -828,6 +889,114 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
   const action = String(p.action || '');
 
   switch (action) {
+
+    case 'getGrowthLineCenter': {
+      const auth = await requireAuth(db, p, ['growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const senderError = await authorizeGrowthLineSender(db, auth, scope.chapterId);
+      if (senderError) return errResponse(senderError, 403);
+      const blueprintYear = await resolveMsbPlanningYear(db, { chapterId: scope.chapterId });
+      const { data: members, error: memberError } = await db.from('members')
+        .select('id,name,nickname').eq('chapter_id', scope.chapterId).eq('is_archived', false).order('name');
+      if (memberError) return errResponse(memberError.message);
+      const memberIds = ((members || []) as Record<string, unknown>[]).map(row => String(row.id));
+      const [blueprintsResult, linksResult, profilesResult] = memberIds.length ? await Promise.all([
+        db.from('member_success_blueprints').select('member_id,status,updated_at,power_team_categories').eq('blueprint_year', blueprintYear).in('member_id', memberIds),
+        db.from('line_members').select('member_id').in('member_id', memberIds),
+        db.from('member_one_to_one_profiles').select('member_id,share_referral_focus').in('member_id', memberIds),
+      ]) : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
+      const lookupError = blueprintsResult.error || linksResult.error || profilesResult.error;
+      if (lookupError) return errResponse(lookupError.message);
+      const blueprintByMember = new Map(((blueprintsResult.data || []) as Record<string, unknown>[]).map(row => [String(row.member_id), row]));
+      const linkedIds = new Set(((linksResult.data || []) as Record<string, unknown>[]).map(row => String(row.member_id)));
+      const sharingIds = new Set(((profilesResult.data || []) as Record<string, unknown>[]).filter(row => row.share_referral_focus === true).map(row => String(row.member_id)));
+      const audience = ((members || []) as Record<string, unknown>[]).map(member => {
+        const memberId = String(member.id);
+        const blueprint = blueprintByMember.get(memberId);
+        const submitted = String(blueprint?.status || '') === 'submitted';
+        const powerTeamDraft = submitted && sharingIds.has(memberId) && Array.isArray(blueprint?.power_team_categories)
+          ? (blueprint.power_team_categories as unknown[]).map(value => String(value).trim()).filter(Boolean).slice(0, 10) : [];
+        return { memberId, name: String(member.nickname || member.name || 'สมาชิก'), fullName: String(member.name || ''), powerTeamDraft, lineLinked: linkedIds.has(memberId), blueprintStatus: blueprint ? String(blueprint.status || 'draft') : 'missing', blueprintUpdatedAt: blueprint?.updated_at || null };
+      });
+      return jsonResponse({ ok: true, blueprintYear, audience });
+    }
+
+    case 'previewGrowthLineMessage':
+    case 'sendGrowthLineMessage': {
+      const auth = await requireAuth(db, p, ['growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      const senderError = await authorizeGrowthLineSender(db, auth, scope.chapterId);
+      if (senderError) return errResponse(senderError, 403);
+      const blueprintYear = await resolveMsbPlanningYear(db, { chapterId: scope.chapterId });
+      const template = String(p.template || 'msb_reminder') === 'custom' ? 'custom' : 'msb_reminder';
+      const audienceMode = String(p.audienceMode || 'selected') === 'msb_incomplete' ? 'msb_incomplete' : 'selected';
+      const requestedIds = new Set(Array.isArray(p.memberIds) ? (p.memberIds as unknown[]).map(String).filter(Boolean) : []);
+      if (requestedIds.size > 100) return errResponse('เลือกผู้รับได้ไม่เกิน 100 คนต่อครั้ง', 400);
+      if (audienceMode === 'selected' && !requestedIds.size) return errResponse('กรุณาเลือกสมาชิกอย่างน้อย 1 คน');
+      const defaultMessage = `📋 MYIDEAL · Growth Team\n\nขอชวนคุณกรอก Member Success Blueprint (MSB) ปี ${blueprintYear} ให้เรียบร้อยครับ เพื่อให้ทีม Growth เข้าใจเป้าหมาย Looking For และช่วยเชื่อมต่อโอกาสได้ตรงขึ้น\n\nพิมพ์ “Blueprint” ในแชตนี้เพื่อเปิดแบบฟอร์มส่วนตัวของคุณ\n\nหากต้องการความช่วยเหลือ สามารถตอบกลับ MYIDEAL ได้เลยครับ`;
+      const message = String(p.message || '').trim().slice(0, 5000) || defaultMessage;
+      if (template === 'custom' && !String(p.message || '').trim()) return errResponse('กรุณากรอกข้อความ');
+      const { data: members, error: memberError } = await db.from('members').select('id,name,nickname').eq('chapter_id', scope.chapterId).eq('is_archived', false);
+      if (memberError) return errResponse(memberError.message);
+      const allMembers = (members || []) as Record<string, unknown>[];
+      const allIds = allMembers.map(row => String(row.id));
+      const [blueprintsResult, linksResult] = allIds.length ? await Promise.all([
+        db.from('member_success_blueprints').select('member_id,status').eq('blueprint_year', blueprintYear).in('member_id', allIds),
+        db.from('line_members').select('member_id,line_user_id').in('member_id', allIds),
+      ]) : [{ data: [], error: null }, { data: [], error: null }];
+      const lookupError = blueprintsResult.error || linksResult.error;
+      if (lookupError) return errResponse(lookupError.message);
+      const submitted = new Set(((blueprintsResult.data || []) as Record<string, unknown>[]).filter(row => String(row.status) === 'submitted').map(row => String(row.member_id)));
+      const lineByMember = new Map(((linksResult.data || []) as Record<string, unknown>[]).map(row => [String(row.member_id), String(row.line_user_id || '')]));
+      const eligible = allMembers.filter(member => { const id = String(member.id); return audienceMode === 'msb_incomplete' ? !submitted.has(id) : requestedIds.has(id); });
+      if (eligible.length > 100) return errResponse('ผู้รับเกิน 100 คน กรุณาเลือกเป็นรายคน', 400);
+      const recipients = eligible.map(member => ({ memberId: String(member.id), name: String(member.nickname || member.name || 'สมาชิก'), lineUserId: lineByMember.get(String(member.id)) || '' }));
+      if (!recipients.length) return errResponse('ไม่พบสมาชิกในกลุ่มที่เลือก');
+      const linkedRecipients = recipients.filter(row => row.lineUserId);
+      const digest = await sha256Hex(message);
+      const audienceDigest = await sha256Hex(recipients.map(row => row.memberId).sort().join('|'));
+      const senderDigest = await sha256Hex(String(auth.email).toLowerCase());
+      const notificationType = template === 'msb_reminder' ? 'growth_msb_reminder' : `growth_member_message_${digest.slice(0, 12)}`;
+      const now = new Date();
+      const bangkokHour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Bangkok', hour: '2-digit', hourCycle: 'h23' }).format(now));
+      if (action === 'previewGrowthLineMessage') {
+        const previewId = crypto.randomUUID();
+        const { error: previewError } = await db.from('chapter_audit_events').insert({ chapter_id: scope.chapterId, event_type: 'growth_line_preview', actor_role: String(auth.role || 'growth'), actor_ref: String(auth.displayName || auth.role || 'Growth'), subject_type: 'line_delivery_preview', subject_ref: previewId, metadata: { template, audience_mode: audienceMode, blueprint_year: blueprintYear, recipient_count: recipients.length, message_digest: digest, audience_digest: audienceDigest, sender_digest: senderDigest } });
+        if (previewError) return errResponse(previewError.message);
+        return jsonResponse({ ok: true, dryRun: true, previewId, blueprintYear, audienceMode, message, recipients: recipients.map(({ lineUserId: _lineUserId, ...row }) => row), recipientCount: linkedRecipients.length, unavailableCount: recipients.length - linkedRecipients.length, estimatedMessages: linkedRecipients.length, quietHoursWarning: bangkokHour >= 20 || bangkokHour < 8 });
+      }
+      if (p.confirmed !== true) return errResponse('ต้อง Preview และยืนยันก่อนส่ง LINE');
+      const previewId = String(p.previewId || '').trim();
+      if (!previewId) return errResponse('ไม่พบหลักฐาน Preview กรุณา Preview ใหม่');
+      const previewCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      const { data: preview } = await db.from('chapter_audit_events').select('metadata,created_at').eq('chapter_id', scope.chapterId).eq('event_type', 'growth_line_preview').eq('subject_ref', previewId).gte('created_at', previewCutoff).maybeSingle();
+      const previewMeta = (preview?.metadata || {}) as Record<string, unknown>;
+      if (!preview || String(previewMeta.message_digest || '') !== digest || String(previewMeta.audience_digest || '') !== audienceDigest || String(previewMeta.sender_digest || '') !== senderDigest || String(previewMeta.template || '') !== template || String(previewMeta.audience_mode || '') !== audienceMode) return errResponse('Preview หมดอายุหรือข้อมูลเปลี่ยน กรุณา Preview ใหม่');
+
+      const batchId = String(p.clientBatchId || crypto.randomUUID()).replace(/[^a-zA-Z0-9:_-]/g, '').slice(0, 100);
+      const dateKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+      const results: Record<string, unknown>[] = [];
+      for (const recipient of recipients) {
+        if (!recipient.lineUserId) { results.push({ memberId: recipient.memberId, name: recipient.name, status: 'failed', reason: 'no_line', error: 'สมาชิกยังไม่เชื่อม LINE' }); continue; }
+        const guardInput = { memberId: recipient.memberId, module: 'growth', category: notificationType, priority: 'reminder' as const };
+        const guard = await evaluateNotificationGuard(db, guardInput);
+        const idempotencyKey = `growth:${scope.chapterId}:${notificationType}:${dateKey}:${recipient.memberId}`;
+        if (!guard.allowed) { await logSuppressedNotification(db, guardInput, guard, idempotencyKey, recipient.lineUserId); results.push({ memberId: recipient.memberId, name: recipient.name, status: 'skipped', reason: guard.reason, error: null }); continue; }
+        try {
+          const delivery = await linePush(recipient.lineUserId, message, { db, idempotencyKey, memberId: recipient.memberId, notificationType, source: 'desktop/growth-line-center', module: 'growth', category: notificationType, priority: 'reminder' });
+          results.push({ memberId: recipient.memberId, name: recipient.name, status: delivery.skipped ? 'skipped' : 'sent', reason: delivery.skipped ? 'duplicate' : null, deliveryId: delivery.deliveryId || null, error: null });
+        } catch (error) { results.push({ memberId: recipient.memberId, name: recipient.name, status: 'failed', reason: 'provider_error', error: error instanceof Error ? error.message.slice(0, 500) : 'LINE delivery failed' }); }
+      }
+      const sentCount = results.filter(row => row.status === 'sent').length;
+      const skipped = results.filter(row => row.status === 'skipped').length;
+      const failed = results.filter(row => row.status === 'failed').length;
+      await db.from('chapter_audit_events').insert({ chapter_id: scope.chapterId, event_type: 'growth_line_batch', actor_role: String(auth.role || 'growth'), actor_ref: String(auth.displayName || auth.role || 'Growth'), subject_type: 'line_delivery_batch', subject_ref: batchId, metadata: { preview_id: previewId, template, audience_mode: audienceMode, blueprint_year: blueprintYear, requested: recipients.length, sent: sentCount, skipped, failed, message_digest: digest.slice(0, 24) } });
+      return jsonResponse({ ok: true, batchId, sentCount, skipped, failed, total: results.length, results });
+    }
 
     // Read-only, explainable Growth Intelligence. It composes existing sources
     // and never changes PALMS, Traffic Light, RGI/RR, or TYFCB definitions.
@@ -1103,7 +1272,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       if (!scope.ok) return errResponse(scope.error, 403);
       // Grouped structure for the Growth Sheet UI
       // Columns: 0=seq, 1=ชื่อ-สกุล, 2=ชื่อเล่น, 3=อายุสมาชิก, 4=หมายเหตุ, 5=เป้าหมาย ฿, 6=รับจริง ฿, 7=%ทำได้
-      const HEADERS = ['', 'ชื่อ-สกุล', 'ชื่อเล่น', 'อายุสมาชิก', 'หมายเหตุ', 'เป้า Growth/MSB ฿', 'รับจริง ฿', '%ทำได้'];
+      const HEADERS = ['', 'ชื่อ-สกุล', 'ชื่อเล่น', 'อายุสมาชิก', 'หมายเหตุ', 'เป้า Legacy Growth ฿', 'รับจริงล่าสุด ฿', '% เทียบเป้า (ประมาณ)'];
       const COL_MAP = { name: 1, nick: 2, memberAge: 3, note: 4, target: 5, received: 6, pct: 7 };
 
       const { data: groupRows, error: gErr } = await db
@@ -1130,12 +1299,14 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const monthlyActualMap: Record<string, { given: number; received: number }> = {};
       const msbMap: Record<string, Record<string, unknown>> = {};
       const memberMetaMap: Record<string, Record<string, unknown>> = {};
+      const shareBusinessMap: Record<string, boolean> = {};
       const lineLinkedSet = new Set<string>();
       const r2ySyncedSet = new Set<string>();
       const reviewMap: Record<string, Record<string, unknown>> = {};
-      const blueprintYear = Number(p.blueprintYear || p.blueprint_year || new Date().getFullYear());
+      const blueprintYear = await resolveMsbPlanningYear(db, { chapterId: scope.chapterId });
+      const reportingYear = new Date().getFullYear();
       if (linkedIds.length) {
-        const [{ data: r2yRows }, { data: goalRows }, { data: msbRows }, { data: memberMetaRows }, { data: lineRows }, { data: reviewRows }] = await Promise.all([
+        const [{ data: r2yRows }, { data: goalRows }, { data: msbRows }, { data: memberMetaRows }, { data: lineRows }, { data: reviewRows }, { data: profileRows }, { data: categoryRows }] = await Promise.all([
           db.from('r2y_stats').select('member_id, bni_days, synced_at').in('member_id', linkedIds),
           db.from('members').select('id, bni_goal, given_thb, received_thb, profession, company_name').in('id', linkedIds),
           db.from('member_success_blueprints')
@@ -1145,7 +1316,27 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           db.from('members').select('id, profession, company_name').in('id', linkedIds),
           db.from('line_members').select('member_id').in('member_id', linkedIds),
           db.from('msb_goal_reviews').select('member_id, blueprint_year, status, note, reviewed_by, reviewed_at').eq('blueprint_year', blueprintYear).in('member_id', linkedIds),
+          db.from('member_one_to_one_profiles').select('member_id,share_business,share_referral_focus').in('member_id', linkedIds),
+          db.from('member_growth_category_consents').select('member_id,category_type,category').in('member_id', linkedIds).is('revoked_at', null),
         ]);
+        const profileMap = new Map(((profileRows || []) as Record<string, unknown>[]).map(row => [String(row.member_id), row]));
+        for (const [id, flags] of profileMap) shareBusinessMap[id] = flags.share_business === true;
+        const categoryMap = new Map<string, Set<string>>();
+        for (const row of (categoryRows || []) as Record<string, unknown>[]) {
+          const key = `${String(row.member_id)}:${String(row.category_type)}`;
+          const values = categoryMap.get(key) || new Set<string>();
+          values.add(String(row.category).toLowerCase());
+          categoryMap.set(key, values);
+        }
+        for (const row of (msbRows || []) as Record<string, unknown>[]) {
+          const id = String(row.member_id);
+          const flags = profileMap.get(id) || {};
+          const shared = flags.share_referral_focus === true;
+          for (const [field, type] of [['looking_for_categories', 'looking_for'], ['power_team_categories', 'power_team']] as const) {
+            row[field] = visibleGrowthCategories(row[field], shared, categoryMap.get(`${id}:${type}`));
+          }
+          if (!shared) { row.looking_for_detail = ''; row.power_team_detail = ''; }
+        }
         for (const r of (r2yRows || []) as Record<string, unknown>[]) {
           const id = String(r.member_id);
           bniDaysMap[id] = Number(r.bni_days) || 0;
@@ -1196,12 +1387,15 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           const msb = memberId ? msbMap[memberId] : null;
           const review = memberId ? reviewMap[memberId] : null;
           const meta = memberId ? memberMetaMap[memberId] : null;
-          const msbGoalSubmitted = msb && String(msb.status || '') === 'submitted'
-            ? (Number(msb.expected_sales_from_bni_year) || 0)
+          const submitted = Boolean(msb && String(msb.status || '') === 'submitted');
+          const submittedMsb = submitted ? msb : null;
+          const msbGoalSubmitted = submittedMsb
+            ? (Number(submittedMsb.expected_sales_from_bni_year) || 0)
             : 0;
           const syncedBniGoal = memberId ? (bniGoalMap[memberId] || 0) : 0;
           const msbGoal = msbGoalSubmitted || syncedBniGoal;
-          const tgt  = msbGoalSubmitted > 0 ? msbGoalSubmitted : legacyTarget;
+          // Never compare a future MSB planning goal with this year's actuals.
+          const tgt = reportingGoal(reportingYear, blueprintYear, legacyTarget, submitted ? msbGoalSubmitted : null);
           // Current actuals always come from the monthly R2Y sync on members.
           // The Growth sheet's received_thb is only a legacy 2026 snapshot fallback.
           const actual = memberId ? monthlyActualMap[memberId] : null;
@@ -1210,13 +1404,13 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           const gap  = Math.max(0, tgt - recv);
           const delta = msbGoalSubmitted > 0 && legacyTarget > 0 ? msbGoalSubmitted - legacyTarget : 0;
           const deltaPct = msbGoalSubmitted > 0 && legacyTarget > 0 ? Math.round((delta / legacyTarget) * 100) : 0;
-          const materialDiff = msbGoalSubmitted > 0 && legacyTarget > 0 && Math.abs(deltaPct) >= 30;
+          const materialDiff = submitted && legacyTarget > 0 && Math.abs(deltaPct) >= 30;
           const reviewStatus = review ? String(review.status || 'pending') : (materialDiff ? 'pending' : 'not_required');
           const needsReview = materialDiff && reviewStatus !== 'reviewed';
-          const hasLookingDetail = Boolean(msb && String(msb.looking_for_detail || '').trim().length >= 8);
-          const hasPowerDetail = Boolean(msb && String(msb.power_team_detail || '').trim().length >= 8);
+          const hasLookingDetail = Boolean(submittedMsb && String(submittedMsb.looking_for_detail || '').trim().length >= 8);
+          const hasPowerDetail = Boolean(submittedMsb && String(submittedMsb.power_team_detail || '').trim().length >= 8);
           const dq = dataQualityFromFlags({
-            blueprintSubmitted: msbGoalSubmitted > 0,
+            blueprintSubmitted: submitted,
             lineLinked: memberId ? lineLinkedSet.has(memberId) : false,
             hasProfession: Boolean(meta && (String(meta.profession || '').trim() || String(meta.company_name || '').trim())),
             hasGrowthGroup: true,
@@ -1229,7 +1423,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           gReceived += recv;
           gLegacyTarget += legacyTarget;
           gMsbGoal += msbGoalSubmitted;
-          if (msbGoalSubmitted > 0) gSubmittedBlueprints++;
+          if (submitted) gSubmittedBlueprints++;
           if (needsReview) gReviewNeeded++;
           if (reviewStatus === 'reviewed') reviewedGoals++;
           // Compute membership age from bni_days if linked, else use stored value (skip #REF! garbage)
@@ -1246,9 +1440,9 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
             msbGoal: msbGoalSubmitted,
             msbGoalFallback: msbGoal,
             activeGoal: tgt,
-            activeGoalSource: msbGoalSubmitted > 0 ? 'msb' : (legacyTarget > 0 ? 'legacy' : 'none'),
+            activeGoalSource: blueprintYear === reportingYear && submitted ? 'msb' : (legacyTarget > 0 ? 'legacy' : 'none'),
             target:   tgt,
-            targetSource: msbGoalSubmitted > 0 ? 'msb' : (legacyTarget > 0 ? 'legacy' : (msbGoal > 0 ? 'msb_fallback' : 'none')),
+            targetSource: blueprintYear === reportingYear && submitted ? 'msb' : (legacyTarget > 0 ? 'legacy' : 'none'),
             received: recv,
             given: actual ? actual.given : 0,
             actualSource: actual ? 'monthly_sync' : 'legacy_snapshot',
@@ -1265,14 +1459,14 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
             dataQualityGrade: dq.grade,
             dataQualityMissing: dq.missing,
             lineLinked: memberId ? lineLinkedSet.has(memberId) : false,
-            profession: meta ? String(meta.profession || '') : '',
-            companyName: meta ? String(meta.company_name || '') : '',
+            profession: meta && shareBusinessMap[memberId] ? String(meta.profession || '') : '',
+            companyName: meta && shareBusinessMap[memberId] ? String(meta.company_name || '') : '',
             blueprintStatus: msb ? String(msb.status || 'draft') : 'missing',
-            referralNeeded: msb ? Number(msb.referral_needed) || 0 : 0,
-            lookingForCategories: msb && Array.isArray(msb.looking_for_categories) ? (msb.looking_for_categories as unknown[]).map(String) : [],
-            lookingForDetail: msb ? String(msb.looking_for_detail || '') : '',
-            powerTeamCategories: msb && Array.isArray(msb.power_team_categories) ? (msb.power_team_categories as unknown[]).map(String) : [],
-            powerTeamDetail: msb ? String(msb.power_team_detail || '') : '',
+            referralNeeded: submittedMsb ? Number(submittedMsb.referral_needed) || 0 : 0,
+            lookingForCategories: submittedMsb && Array.isArray(submittedMsb.looking_for_categories) ? (submittedMsb.looking_for_categories as unknown[]).map(String) : [],
+            lookingForDetail: submittedMsb ? String(submittedMsb.looking_for_detail || '') : '',
+            powerTeamCategories: submittedMsb && Array.isArray(submittedMsb.power_team_categories) ? (submittedMsb.power_team_categories as unknown[]).map(String) : [],
+            powerTeamDetail: submittedMsb ? String(submittedMsb.power_team_detail || '') : '',
             cells: [
               Number(m.seq_no) || 0,    // 0
               m.raw_name || '',          // 1 name
@@ -1314,6 +1508,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const overallPct = totalTarget > 0 ? Math.round(totalReceived / totalTarget * 100) : 0;
       return jsonResponse({
         ok: true,
+        planningYear: blueprintYear,
+        reportingYear,
         headers: HEADERS,
         colMap: COL_MAP,
         groups,
@@ -1366,25 +1562,44 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'saveGrowthGoalReview': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.email || auth.isReadOnly || auth.isViewer || !hasGrowthCapability(auth, CAPABILITY.GROWTH_COORDINATE)) {
+        return errResponse('ต้องใช้บัญชี Growth Coordinator ที่มีสิทธิ์แก้ไข', 403);
+      }
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const memberId = cleanText(p.memberId || p.member_id);
-      const blueprintYear = Number(p.blueprintYear || p.blueprint_year || new Date().getFullYear());
+      const blueprintYear = await resolveMsbPlanningYear(db, { chapterId: scope.chapterId });
       const status = cleanText(p.status || 'reviewed');
       const note = cleanText(p.note);
       if (!memberId) return errResponse('memberId required', 400);
       if (!['pending', 'reviewed', 'needs_revision'].includes(status)) return errResponse('Invalid review status', 400);
+      if (note.length > 500) return errResponse('หมายเหตุต้องไม่เกิน 500 ตัวอักษร', 400);
+      const { data: member, error: memberError } = await db.from('members').select('id').eq('id', memberId).eq('chapter_id', scope.chapterId).maybeSingle();
+      if (memberError) return errResponse('ตรวจสอบสมาชิกไม่สำเร็จ', 500);
+      if (!member) return errResponse('ไม่พบสมาชิกใน Chapter นี้', 404);
+      const { data: blueprint, error: blueprintError } = await db.from('member_success_blueprints')
+        .select('member_id').eq('member_id', memberId).eq('blueprint_year', blueprintYear).eq('status', 'submitted').maybeSingle();
+      if (blueprintError) return errResponse('ตรวจสอบ Blueprint ไม่สำเร็จ', 500);
+      if (!blueprint) return errResponse('ต้องมี Blueprint ที่สมาชิกส่งแล้วก่อนบันทึกการทบทวน', 409);
       const now = new Date().toISOString();
       const payload = {
         member_id: memberId,
         blueprint_year: blueprintYear,
         status,
         note: note || null,
-        reviewed_by: String(auth.displayName || auth.role || 'growth'),
+        reviewed_by: auth.email,
         reviewed_at: status === 'pending' ? null : now,
         updated_at: now,
       };
       const { error } = await db.from('msb_goal_reviews')
         .upsert(payload, { onConflict: 'member_id,blueprint_year' });
       if (error) return errResponse(error.message, 400);
+      const { error: auditError } = await db.from('chapter_audit_events').insert({
+        chapter_id: scope.chapterId, event_type: 'growth_goal_review_saved', actor_role: auth.role,
+        actor_ref: auth.email, subject_type: 'member_success_blueprint', subject_ref: memberId,
+        metadata: { blueprint_year: blueprintYear, status },
+      });
+      if (auditError) return jsonResponse({ ok: true, review: payload, auditWarning: 'บันทึกแล้ว แต่บันทึก Audit ไม่สำเร็จ กรุณาแจ้งผู้ดูแล' });
       return jsonResponse({ ok: true, review: payload });
     }
 
@@ -1667,6 +1882,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'previewMonthlySync': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const inputs = {
         tlCsv: typeof p.tlCsv === 'string' ? p.tlCsv : null,
         r2yCsv: typeof p.r2yCsv === 'string' ? p.r2yCsv : null,
@@ -1678,29 +1895,36 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const requestedPeriod = parseRequestedPeriod(p.reportingPeriod);
       if (!requestedPeriod) return errResponse('กรุณาระบุเดือนข้อมูลในรูปแบบ YYYY-MM');
       try {
-        const chapterId = await activeChapterId(db);
-        const { data: members, error: memberError } = await db.from('members').select('id,name,nickname,is_archived');
+        const chapterId = scope.chapterId;
+        const { data: members, error: memberError } = await db.from('members').select('id,name,nickname,is_archived').eq('chapter_id', chapterId);
         if (memberError) throw new Error(memberError.message);
-        const memberMap: Record<string, string> = {};
+        const { memberMap, ambiguous } = uniqueMemberNameMap((members || []) as Array<{ id: unknown; name: unknown; nickname?: unknown }>, normalizeName);
         const activeMemberIds: string[] = [];
         for (const row of (members || []) as Array<Record<string, unknown>>) {
           const id = String(row.id);
-          const name = normalizeName(row.name); if (name) memberMap[name] = id;
-          const nickname = normalizeName(row.nickname); if (nickname && !memberMap[nickname]) memberMap[nickname] = id;
           if (!row.is_archived) activeMemberIds.push(id);
         }
         const tlRows = parseCsvString(inputs.tlCsv);
         const mtlRows = parseCsvString(inputs.memberTLCsv);
         const r2yRows = parseCsvString(inputs.r2yCsv);
+        if (hasDuplicateCsvMembers(mtlRows, 'memberTL') || hasDuplicateCsvMembers(r2yRows, 'r2y'))
+          return errResponse('พบสมาชิกซ้ำในไฟล์เดียวกัน กรุณาตรวจไฟล์ก่อน Sync', 409);
         const trafficLightUnmatched: string[] = [];
         const r2yUnmatched: string[] = [];
         const tlParsed = tlRows.length ? parseMonthlyScores(tlRows, memberMap, trafficLightUnmatched) : { scores: [], averages: [] };
         const periods = [...new Set(tlParsed.scores.map(row => `${row.year}-${String(row.month).padStart(2, '0')}`))];
-        if (periods.length && !periods.includes(`${requestedPeriod.year}-${String(requestedPeriod.month).padStart(2, '0')}`)) {
-          return errResponse(`เดือนที่เลือกไม่ตรงกับ Traffic Lights Evolution (พบ ${periods.join(', ')})`);
-        }
+        const periodKey = `${requestedPeriod.year}-${String(requestedPeriod.month).padStart(2, '0')}`;
+        const reportPeriod = memberTrafficLightReportPeriod(mtlRows);
+        if (reportPeriod && reportPeriod !== periodKey) return errResponse(`เดือนที่เลือกไม่ตรงกับ Member Traffic Light (${reportPeriod})`);
+        if (periods.length && !evolutionIsHistorical(periods, periodKey)) return errResponse(`Traffic Lights Evolution มีคะแนนหลังเดือนที่เลือก (${periods.join(', ')})`);
         const mtlScores = mtlRows.length ? parseMemberTLCurrentScores(mtlRows, memberMap, requestedPeriod.year, requestedPeriod.month) : [];
         const r2yParsed = r2yRows.length ? parseR2YRows(r2yRows, memberMap, r2yUnmatched) : [];
+        const ambiguousNames = new Set(ambiguous);
+        const ambiguousInFiles = [...trafficLightUnmatched, ...r2yUnmatched, ...Object.keys(parseMemberTLStats(mtlRows))]
+          .some(name => ambiguousNames.has(normalizeName(name)));
+        if (ambiguousInFiles) {
+          return errResponse('พบชื่อหรือนิคเนมที่ตรงกับสมาชิกมากกว่าหนึ่งคน กรุณาแก้การจับคู่ก่อน Sync', 409);
+        }
         const scoreRows = Array.from(new Map([...tlParsed.scores, ...mtlScores].map(row => [`${row.member_id}|${row.year}|${row.month}`, row])).values());
         if ((tlRows.length || mtlRows.length) && !scoreRows.length) return errResponse('ไม่พบคะแนนที่อ่านได้จากไฟล์ กรุณาตรวจรูปแบบ CSV');
         const affectedMemberIds = [...new Set([...scoreRows.map(row => row.member_id), ...r2yParsed.map(row => String(row.member_id))])];
@@ -1719,6 +1943,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           scoreRows: scoreRows.length, r2yRows: r2yParsed.length, affectedMembers: affectedMemberIds.length,
           unmatched: [...new Set([...trafficLightUnmatched, ...r2yUnmatched])], missingActiveMembers: missingMemberIds.length,
           anomalyCount: anomalies.length, anomalies: anomalies.slice(0, 20), periodsFound: periods,
+          memberTrafficLightPeriod: reportPeriod,
+          sourceWindowVerified: false,
         };
         const requestedFiles = typeof p.sourceFiles === 'object' && p.sourceFiles ? p.sourceFiles as Record<string, unknown> : {};
         const sourceFiles = Object.fromEntries(Object.entries(requestedFiles).slice(0, 3).map(([key, value]) => [key.slice(0, 80), String(value || '').slice(0, 255)]));
@@ -1760,7 +1986,9 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'monthlySync': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
-      if (!hasGrowthCapability(auth, CAPABILITY.GROWTH_MONTHLY_SYNC_EXECUTE)) return errResponse('Monthly Sync ต้องได้รับสิทธิ์ Admin', 403);
+      if (!auth.email || auth.isReadOnly || auth.isViewer || !hasGrowthCapability(auth, CAPABILITY.GROWTH_MONTHLY_SYNC_EXECUTE)) return errResponse('Monthly Sync ต้องใช้บัญชี OAuth ที่มีสิทธิ์และแก้ไขได้', 403);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
       const tlCsv = typeof p.tlCsv === 'string' ? p.tlCsv : null;
       const r2yCsv = typeof p.r2yCsv === 'string' ? p.r2yCsv : null;
@@ -1781,14 +2009,19 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       let monthlyBatch: Record<string, unknown>;
       let chapterId: string;
       try {
-        chapterId = await activeChapterId(db);
+        chapterId = scope.chapterId;
         const fingerprint = await monthlySyncFingerprint({ tlCsv, memberTLCsv, r2yCsv }, requestedPeriod);
         const { data, error } = await db.from('monthly_sync_batches').select('*').eq('id', batchId).eq('chapter_id', chapterId).maybeSingle();
         if (error) throw new Error(error.message);
         if (!data) return errResponse('ไม่พบ Preview batch ของ Chapter นี้');
         monthlyBatch = data as Record<string, unknown>;
         if (String(monthlyBatch.combined_hash) !== fingerprint.combinedHash || String(monthlyBatch.preview_token) !== previewToken) return errResponse('ไฟล์หรือเดือนเปลี่ยนหลัง Preview กรุณา Preview ใหม่');
-        if (['completed','completed_with_warnings'].includes(String(monthlyBatch.status))) return jsonResponse({ ok: true, duplicate: true, batchId, ...(monthlyBatch.result_summary as Record<string, unknown> || {}) });
+        if (['completed','completed_with_warnings'].includes(String(monthlyBatch.status))) {
+          const hashes = (monthlyBatch.file_hashes || {}) as Record<string, unknown>;
+          const allThree = ['trafficLightEvolution', 'memberTrafficLight', 'reporting2You'].every(key => Boolean(hashes[key]));
+          return jsonResponse({ ok: true, duplicate: true, batchId, ...(monthlyBatch.result_summary as Record<string, unknown> || {}),
+            periodStatus: monthlyBatch.status === 'completed' && allThree ? 'COMPLETE' : 'PARTIAL' });
+        }
         if (String(monthlyBatch.status) === 'rolled_back') return errResponse('รอบนี้ถูก Rollback แล้ว กรุณาสร้าง Preview ใหม่');
         if (String(monthlyBatch.status) !== 'previewed') return errResponse('Preview รอบนี้กำลังทำงานหรือใช้งานแล้ว กรุณาโหลดประวัติและตรวจสถานะ');
         const previewAge = Date.now() - new Date(String(monthlyBatch.created_at)).getTime();
@@ -1800,16 +2033,20 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const tlRows = parseCsvString(tlCsv);
       const mtlRows = parseCsvString(memberTLCsv);
       const r2yRows = parseCsvString(r2yCsv);
+      if (hasDuplicateCsvMembers(mtlRows, 'memberTL') || hasDuplicateCsvMembers(r2yRows, 'r2y'))
+        return errResponse('พบสมาชิกซ้ำหลัง Preview กรุณาตรวจไฟล์และ Preview ใหม่', 409);
+      const periodKey = `${requestedPeriod.year}-${String(requestedPeriod.month).padStart(2, '0')}`;
+      const reportPeriod = memberTrafficLightReportPeriod(mtlRows);
+      if (reportPeriod && reportPeriod !== periodKey) return errResponse('เดือนรายงาน Member Traffic Light เปลี่ยนหลัง Preview กรุณา Preview ใหม่');
 
-      const { data: members, error: memberError } = await db.from('members').select('id, name, nickname');
+      const { data: members, error: memberError } = await db.from('members').select('id, name, nickname').eq('chapter_id', chapterId);
       if (memberError) return errResponse(memberError.message);
-      const memberMap: Record<string, string> = {};
-      for (const row of (members || []) as Array<Record<string, unknown>>) {
-        const name = normalizeName(row.name);
-        if (name) memberMap[name] = String(row.id);
-        const nickname = normalizeName(row.nickname);
-        if (nickname && !memberMap[nickname]) memberMap[nickname] = String(row.id);
-      }
+      const { memberMap, ambiguous } = uniqueMemberNameMap((members || []) as Array<{ id: unknown; name: unknown; nickname?: unknown }>, normalizeName);
+      const ambiguousNames = new Set(ambiguous);
+      const evolutionUnmatched: string[] = [];
+      if (tlRows.length) parseMonthlyScores(tlRows, memberMap, evolutionUnmatched);
+      if ([...Object.keys(parseMemberTLStats(mtlRows)), ...r2yRows.slice(1).map(row => row[0]), ...evolutionUnmatched]
+        .some(name => ambiguousNames.has(normalizeName(name)))) return errResponse('มีชื่อสมาชิกซ้ำหลัง Preview กรุณา Preview ใหม่', 409);
       if (!Object.keys(memberMap).length) {
         return errResponse('ไม่พบสมาชิกในระบบ');
       }
@@ -1840,7 +2077,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       }
       try {
         const memberIds = Array.isArray(monthlyBatch.affected_member_ids) ? monthlyBatch.affected_member_ids.map(String) : [];
-        const beforeSnapshot = await captureMonthlySyncSnapshot(db, memberIds);
+        const beforeSnapshot = await captureMonthlySyncSnapshot(db, memberIds, requestedPeriod);
         const { data: started, error: startError } = await db.from('monthly_sync_batches').update({ status: 'running', confirmed_at: new Date().toISOString(), before_snapshot: beforeSnapshot }).eq('id', batchId).eq('status', 'previewed').select('id').maybeSingle();
         if (startError) throw new Error(startError.message);
         if (!started) return errResponse('มีการยืนยัน Preview รอบนี้ไปแล้ว กรุณาโหลดสถานะล่าสุด');
@@ -1849,7 +2086,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       }
       if (scoreRows.length) {
         try {
-          importedScores = await upsertMonthlyScores(db, scoreRows);
+          importedScores = await upsertMonthlyScores(db, scoreRows.map(row => ({ ...row, chapter_id: chapterId })));
         } catch (e) {
           nonMentorOk = false; counterOk = false;
           stepErrors.push(`scores: ${(e as Error).message}`);
@@ -1865,12 +2102,25 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
 
       // Steps 5+6: upsert R2Y stats from R2Y CSV
       const r2yUnmatched: string[] = [];
+      let sourceR2YRows: Array<Record<string, unknown>> = [];
+      let sourceMTLRows: Array<Record<string, unknown>> = [];
       if (r2yRows.length) {
         const r2yParsed = parseR2YRows(r2yRows, memberMap, r2yUnmatched);
         if (r2yParsed.length) {
           try {
-            importedR2Y += await upsertR2YStats(db, r2yParsed);
-            importedKeySnapshots += await upsertPalmsKeySnapshots(db, r2yParsed, scorePeriod);
+            // Legacy r2y_stats.visitors is NOT NULL. Preserve its existing value;
+            // the unnamed R2Y column cannot supply a new Visitors value.
+            const { data: priorVisitors, error: visitorsError } = await db.from('r2y_stats')
+              .select('member_id,visitors').in('member_id', r2yParsed.map(row => String(row.member_id)));
+            if (visitorsError) throw new Error(visitorsError.message);
+            const visitorsByMember = new Map((priorVisitors || []).map(row => [String(row.member_id), Number(row.visitors) || 0]));
+            importedR2Y += await upsertR2YStats(db, r2yParsed.map(row => {
+              const { source_values: _sourceValues, ...latest } = row;
+              return { ...latest, chapter_id: chapterId, visitors: visitorsByMember.get(String(row.member_id)) ?? 0 };
+            }));
+            // Do not calculate PALMS visitor points from the unnamed R2Y column.
+            // Member Traffic Light below supplies the labelled Visitors value.
+            sourceR2YRows = r2yParsed;
           } catch (e) {
             r2yOk = false; r2ySyncOk = false;
             stepErrors.push(`r2y: ${(e as Error).message}`);
@@ -1911,6 +2161,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           grMap[name] = { given: item.given, received: item.received };
           const upsertRow: Record<string, unknown> = {
             member_id: memberId,
+            chapter_id: chapterId,
             rg: item.rg, rr: item.rr, visitors: item.visitors,
             one_to_one: item.one_to_one, ceu: item.ceu, tyfcb_thb: item.given,
             official_pts: item.score, attend: item.p, absent: item.a,
@@ -1933,6 +2184,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           try {
             importedR2Y += await upsertR2YStats(db, r2yUpserts);
             importedKeySnapshots += await upsertPalmsKeySnapshots(db, r2yUpserts, scorePeriod);
+            sourceMTLRows = Object.entries(mtlData).flatMap(([name, item]) => memberMap[name]
+              ? [{ member_id: memberMap[name], ...item, score: item.scorePresent ? item.score : null }] : []);
           } catch (e) {
             mtlOk = false;
             stepErrors.push(`mtl-r2y: ${(e as Error).message}`);
@@ -1943,13 +2196,13 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       // Auto-enroll new members: anyone with bni_days < 56 who isn't already enrolled
       let autoEnrolled = 0;
       try {
-        autoEnrolled = await autoEnrollNewMembers(db);
+        autoEnrolled = await autoEnrollNewMembers(db, chapterId);
       } catch (e) {
         stepErrors.push(`autoEnroll: ${(e as Error).message}`);
       }
 
       try {
-        await syncRenewalsFromR2YStats(db);
+        await syncRenewalsFromR2YStats(db, chapterId);
       } catch (e) {
         renewalOk = false;
         stepErrors.push(`renewal: ${(e as Error).message}`);
@@ -2003,6 +2256,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         nonMentorOk, counterOk, r2yOk, r2ySyncOk, renewalOk, grOk, mtlOk,
         importedScores, importedEvolutionAverages, importedR2Y, updatedGivenReceived: updatedGR,
         importedKeySnapshots,
+        importedSourceSnapshots: sourceR2YRows.length + sourceMTLRows.length,
         autoEnrolled,
         scoreYear: scoreRows.length ? scorePeriod.year : null,
         scoreMonth: scoreRows.length ? scorePeriod.month : null,
@@ -2011,13 +2265,31 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         ...(stepErrors.length ? { errors: stepErrors } : {}),
       };
       try {
+        const sourceRows = [
+          ...performanceSourceRows(sourceR2YRows, 'reporting2you', chapterId, batchId, requestedPeriod),
+          ...performanceSourceRows(sourceMTLRows, 'member_traffic_light', chapterId, batchId, requestedPeriod),
+        ];
+        if (sourceRows.length) {
+          const { error: sourceError } = await db.from('member_performance_source_snapshots').upsert(sourceRows,
+            { onConflict: 'chapter_id,member_id,period_year,period_month,source_type' });
+          if (sourceError) throw new Error(sourceError.message);
+        }
         const memberIds = Array.isArray(monthlyBatch.affected_member_ids) ? monthlyBatch.affected_member_ids.map(String) : [];
-        const afterSnapshot = await captureMonthlySyncSnapshot(db, memberIds);
-        const finalStatus = stepErrors.length ? 'completed_with_warnings' : 'completed';
+        const afterSnapshot = await captureMonthlySyncSnapshot(db, memberIds, requestedPeriod);
+        const allFilesPresent = Boolean(tlCsv && memberTLCsv && r2yCsv);
+        const allSourcesImported = Boolean(tlParsed.scores.length && sourceR2YRows.length && sourceMTLRows.length);
+        // completed_with_warnings is exposed as PARTIAL. Only a clean three-file
+        // sync may be used by the trusted historical Growth view.
+        const finalStatus = stepErrors.length || !allFilesPresent || !allSourcesImported
+          ? 'completed_with_warnings' : 'completed';
         const completedAt = new Date().toISOString();
         const { error: finishError } = await db.from('monthly_sync_batches').update({
           status: finalStatus, result_summary: result, after_snapshot: afterSnapshot,
-          error_summary: stepErrors.length ? stepErrors.join(' | ').slice(0, 2000) : null,
+          error_summary: [
+            ...stepErrors,
+            ...(!allFilesPresent ? ['Missing one or more of the three monthly source files'] : []),
+            ...(!allSourcesImported ? ['One or more source files had no matched import rows'] : []),
+          ].join(' | ').slice(0, 2000) || null,
           completed_at: completedAt,
         }).eq('id', batchId).eq('chapter_id', chapterId);
         if (finishError) throw new Error(finishError.message);
@@ -2030,16 +2302,20 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         await db.from('monthly_sync_batches').update({ status: 'failed', error_summary: String((error as Error).message).slice(0, 2000) }).eq('id', batchId);
         return errResponse(`ข้อมูลบางส่วนถูก Sync แต่บันทึกผลลัพธ์ไม่สำเร็จ: ${(error as Error).message}`);
       }
-      return jsonResponse({ ...result, batchId, duplicate: false });
+      return jsonResponse({ ...result, batchId, duplicate: false,
+        periodStatus: stepErrors.length || !(tlCsv && memberTLCsv && r2yCsv) || !sourceR2YRows.length || !sourceMTLRows.length || !tlParsed.scores.length
+          ? 'PARTIAL' : 'COMPLETE' });
     }
 
     case 'getMonthlySyncHistory': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       try {
-        const chapterId = await activeChapterId(db);
+        const chapterId = scope.chapterId;
         const { data, error } = await db.from('monthly_sync_batches')
-          .select('id,period_year,period_month,status,source_files,quality_summary,result_summary,created_by,created_at,completed_at,rolled_back_at')
+          .select('id,period_year,period_month,status,file_hashes,source_files,quality_summary,result_summary,created_by,created_at,completed_at,rolled_back_at')
           .eq('chapter_id', chapterId).order('created_at', { ascending: false }).limit(24);
         if (error) throw new Error(error.message);
         return jsonResponse({ ok: true, rows: data || [] });
@@ -2051,11 +2327,13 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'rollbackMonthlySync': {
       const auth = await requireAuth(db, p, ['mc']);
       if (!auth.ok) return errResponse(auth.error!);
-      if (!hasGrowthCapability(auth, CAPABILITY.GROWTH_MONTHLY_SYNC_EXECUTE)) return errResponse('Rollback Monthly Sync ต้องได้รับสิทธิ์ Admin', 403);
+      if (!auth.email || auth.isReadOnly || auth.isViewer || !hasGrowthCapability(auth, CAPABILITY.GROWTH_MONTHLY_SYNC_EXECUTE)) return errResponse('Rollback Monthly Sync ต้องใช้บัญชี OAuth ที่มีสิทธิ์และแก้ไขได้', 403);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
       const batchId = String(p.batchId || '');
       if (!batchId || !Boolean(p.confirmed)) return errResponse('ต้องระบุรอบและยืนยัน Rollback');
       try {
-        const chapterId = await activeChapterId(db);
+        const chapterId = scope.chapterId;
         const { data, error } = await db.from('monthly_sync_batches').select('*').eq('id', batchId).eq('chapter_id', chapterId).maybeSingle();
         if (error) throw new Error(error.message);
         if (!data) return errResponse('ไม่พบ Monthly Sync batch ของ Chapter นี้');
@@ -2074,34 +2352,52 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'updateGrowthMember': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
-      if (!hasGrowthCapability(auth, CAPABILITY.GROWTH_MEMBER_MANAGE)) return errResponse('แก้ไขข้อมูลสมาชิกต้องได้รับสิทธิ์ Admin', 403);
+      if (!auth.email || auth.isReadOnly || auth.isViewer || !hasGrowthCapability(auth, CAPABILITY.GROWTH_MEMBER_MANAGE)) return errResponse('แก้ไข Legacy Growth ต้องได้รับสิทธิ์จัดการสมาชิก', 403);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
       const memberId = String(p.sheetRow || '');
       if (!memberId) return errResponse('sheetRow required');
 
       // col is 1-based; map to DB field
       const COL_TO_FIELD: Record<number, string> = {
-        3: 'nickname', 4: 'membership_age', 5: 'note', 6: 'target_thb',
+        3: 'nickname', 5: 'note', 6: 'target_thb',
       };
-      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      const updates: Record<string, unknown> = {};
       for (const u of (Array.isArray(p.updates) ? p.updates : []) as { col: number; val: unknown }[]) {
         const field = COL_TO_FIELD[u.col];
-        if (field) updates[field] = u.val;
+        if (!field) return errResponse('แก้ได้เฉพาะชื่อเล่น หมายเหตุ และเป้า Legacy; ข้อมูลคำนวณ/รับจริงต้องอัปเดตจากแหล่งข้อมูล', 400);
+        if (field === 'target_thb') {
+          const value = Number(u.val);
+          if (!Number.isFinite(value) || value < 0 || value > 1_000_000_000_000) return errResponse('เป้า Legacy ไม่ถูกต้อง', 400);
+          updates[field] = value;
+        } else {
+          const value = cleanText(u.val);
+          if (value.length > (field === 'note' ? 500 : 100)) return errResponse('ข้อความยาวเกินกำหนด', 400);
+          updates[field] = value;
+        }
       }
-
-      if ((Array.isArray(p.updates) ? p.updates : []).some((u: { col: number }) => Number(u.col) === 7)) {
-        return errResponse('ยอดรับจริงต้องอัปเดตผ่าน Monthly Sync เพื่อรักษาที่มาและประวัติข้อมูล');
-      }
-
-      const { error } = await db.from('growth_referral_members').update(updates).eq('id', memberId);
+      if (!Object.keys(updates).length) return errResponse('ไม่มีข้อมูลที่แก้ไข', 400);
+      updates.updated_at = new Date().toISOString();
+      const { data: updated, error } = await db.from('growth_referral_members').update(updates)
+        .eq('id', memberId).eq('chapter_id', scope.chapterId).select('id').maybeSingle();
       if (error) return errResponse(error.message);
+      if (!updated) return errResponse('ไม่พบข้อมูล Legacy Growth ใน Chapter นี้', 404);
+      const { error: auditError } = await db.from('chapter_audit_events').insert({
+        chapter_id: scope.chapterId, event_type: 'growth_legacy_member_updated', actor_role: auth.role,
+        actor_ref: auth.email, subject_type: 'growth_referral_member', subject_ref: memberId,
+        metadata: { fields: Object.keys(updates).filter(field => field !== 'updated_at') },
+      });
+      if (auditError) return jsonResponse({ ok: true, auditWarning: 'แก้ไขแล้ว แต่บันทึก Audit ไม่สำเร็จ กรุณาแจ้งผู้ดูแล' });
       return jsonResponse({ ok: true });
     }
 
     case 'addGrowthMember': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
-      if (!hasGrowthCapability(auth, CAPABILITY.GROWTH_MEMBER_MANAGE)) return errResponse('เพิ่มข้อมูลสมาชิกต้องได้รับสิทธิ์ Admin', 403);
+      if (!auth.email || auth.isReadOnly || auth.isViewer || !hasGrowthCapability(auth, CAPABILITY.GROWTH_MEMBER_MANAGE)) return errResponse('เพิ่มข้อมูล Legacy Growth ต้องได้รับสิทธิ์จัดการสมาชิก', 403);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
       const name      = String(p.name      || '').trim();
       const groupName = String(p.groupName || '').trim();
@@ -2112,7 +2408,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         .from('growth_referral_groups')
         .select('id')
         .eq('name', groupName)
-        .single();
+        .eq('chapter_id', scope.chapterId)
+        .maybeSingle();
       if (gErr || !grp) return errResponse('กลุ่ม "' + groupName + '" ไม่มีอยู่');
 
       const { data: lastRow } = await db
@@ -2125,6 +2422,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const nextSeq = lastRow ? (Number((lastRow as Record<string, unknown>).seq_no) || 0) + 1 : 1;
 
       const { error } = await db.from('growth_referral_members').insert({
+        chapter_id: scope.chapterId,
         group_id:     (grp as Record<string, unknown>).id,
         raw_name:     name,
         nickname:     String(p.nick || ''),
@@ -2139,7 +2437,9 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'moveGrowthMember': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
-      if (!hasGrowthCapability(auth, CAPABILITY.GROWTH_MEMBER_MANAGE)) return errResponse('ย้ายข้อมูลสมาชิกต้องได้รับสิทธิ์ Admin', 403);
+      if (!auth.email || auth.isReadOnly || auth.isViewer || !hasGrowthCapability(auth, CAPABILITY.GROWTH_MEMBER_MANAGE)) return errResponse('ย้ายข้อมูล Legacy Growth ต้องได้รับสิทธิ์จัดการสมาชิก', 403);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
 
       const memberId  = String(p.sheetRow    || '');
       const groupName = String(p.targetGroup || '').trim();
@@ -2150,14 +2450,16 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         .from('growth_referral_groups')
         .select('id')
         .eq('name', groupName)
-        .single();
+        .eq('chapter_id', scope.chapterId)
+        .maybeSingle();
       if (gErr || !grp) return errResponse('กลุ่ม "' + groupName + '" ไม่มีอยู่');
 
-      const { error } = await db
+      const { data: moved, error } = await db
         .from('growth_referral_members')
         .update({ group_id: (grp as Record<string, unknown>).id, updated_at: new Date().toISOString() })
-        .eq('id', memberId);
+        .eq('id', memberId).eq('chapter_id', scope.chapterId).select('id').maybeSingle();
       if (error) return errResponse(error.message);
+      if (!moved) return errResponse('ไม่พบข้อมูล Legacy Growth ใน Chapter นี้', 404);
       return jsonResponse({ ok: true });
     }
 

@@ -250,7 +250,7 @@ function enterApp(r){
   setDesktopTabs(S.role);
   restoreTabFold(S.role==='growth'?'gr':'mc');
   var meetingBtn=document.getElementById('btn-meeting');if(meetingBtn)meetingBtn.style.display=S.role==='mc'?'':'none';
-  document.getElementById('btn-monthly-sync').style.display=(S.isAdmin&&!S.isViewer)?'':'none';
+  document.getElementById('btn-monthly-sync').style.display=(S.token&&!S.isReadOnly&&!S.isViewer&&((S.capabilities||[]).indexOf('*')>=0||(S.capabilities||[]).indexOf('growth.monthly_sync.execute')>=0))?'':'none';
   document.getElementById('btn-admin-settings').style.display=(S.isAdmin&&!S.isViewer)?'':'none';
   document.querySelectorAll('[data-admin-only="1"]').forEach(function(el){el.style.display=S.isAdmin?'':'none';});
   document.getElementById('btn-role-growth').style.display=(S.canRoleSwitch&&S.role==='mc')?'':'none';
@@ -350,6 +350,7 @@ function resetMonthlySyncPreview(){
   var preview=document.getElementById('sync-preview');if(preview){preview.className='sync-preview';preview.innerHTML='';}
 }
 function openSyncModal(){
+  if(!S.token||S.isReadOnly||S.isViewer||((S.capabilities||[]).indexOf('*')<0&&(S.capabilities||[]).indexOf('growth.monthly_sync.execute')<0)){toast('Monthly Sync ต้องใช้บัญชี OAuth ที่มีสิทธิ์','err');return;}
   // Reset state
   for(var i=1;i<=9;i++){
     var el=document.getElementById('sync-s'+i);
@@ -409,6 +410,7 @@ function renderMonthlySyncPreview(r){
     (unmatched.length?'<div class="sync-preview-warn">⚠️ ไม่พบชื่อ '+unmatched.length+' รายการ: '+escH(unmatched.slice(0,8).join(', '))+'</div>':'<div style="color:var(--gr)">✅ ไม่พบปัญหาชื่อสมาชิก</div>')+
     (q.missingActiveMembers?'<div class="sync-preview-warn">⚠️ สมาชิก Active ที่ไม่อยู่ในไฟล์ '+Number(q.missingActiveMembers)+' คน — ระบบจะไม่ลบข้อมูลของบุคคลเหล่านี้</div>':'')+
     (anomalies.length?'<div class="sync-preview-warn">⚠️ คะแนนเปลี่ยนตั้งแต่ 25 คะแนนขึ้นไป '+anomalies.length+' คน กรุณาตรวจ CSV</div>':'')+
+    '<div class="sync-preview-warn">ตัวเลข R2Y/Traffic Light จะเก็บเป็นค่าในรายงานตามไฟล์ต้นทาง · ยังไม่ใช่ผลงานเฉพาะเดือน เพราะไฟล์ไม่มีช่วงวันที่ยืนยัน</div>'+
     '<div style="margin-top:7px;color:var(--sub)">ระบบเก็บ hash และ snapshot ก่อน–หลัง โดยไม่เก็บเนื้อหา CSV ต้นฉบับ</div>';
 }
 function confirmMonthlySync(){
@@ -433,7 +435,7 @@ function confirmMonthlySync(){
           _setSyncStep(7,r.renewalOk?'done':'error');
           _setSyncStep(8,r.grOk?(hasMTL?'done':'skip'):'error');
           _setSyncStep(9,r.mtlOk?(hasMTL?'done':'skip'):'error');
-          var coreOk=r.nonMentorOk&&r.counterOk&&r.grOk&&r.r2ySyncOk&&r.renewalOk&&r.mtlOk;
+          var coreOk=r.periodStatus==='COMPLETE'&&r.nonMentorOk&&r.counterOk&&r.grOk&&r.r2ySyncOk&&r.renewalOk&&r.mtlOk;
           var period=(r.scoreYear&&r.scoreMonth)?(' · คะแนนล่าสุด '+r.scoreMonth+'/'+r.scoreYear):'';
           var enrolled=r.autoEnrolled>0?' · เพิ่ม New Member อัตโนมัติ '+r.autoEnrolled+' คน':'';
           var errTxt=(r.errors&&r.errors.length)?(' · '+r.errors.join(' | ')):'';
@@ -444,14 +446,14 @@ function confirmMonthlySync(){
           if(r.r2yUnmatched&&r.r2yUnmatched.length){
             unmatchedTxt+=' · ⚠️ ชื่อใน R2Y ไม่ match ในระบบ ('+r.r2yUnmatched.length+' คน): '+r.r2yUnmatched.join(', ');
           }
-          btn.textContent=coreOk?'✅ Sync สำเร็จ!'+period+enrolled+unmatchedTxt+' (คลิกปิดแล้วรีเฟรช)':'⚠️ บางขั้นตอนมีข้อผิดพลาด'+errTxt+unmatchedTxt;
+          btn.textContent=coreOk?'✅ Sync COMPLETE!'+period+enrolled+unmatchedTxt+' (คลิกปิดแล้วรีเฟรช)':'⚠️ PARTIAL · ยังไม่ใช่ข้อมูล Growth ที่เชื่อถือได้'+errTxt+unmatchedTxt;
           btn.disabled=false;
           if(coreOk){_syncPreview=null;_syncPayload=null;loadMonthlySyncHistory();setTimeout(function(){manualReload();},800);}
         });
 }
 function loadMonthlySyncHistory(){
   var el=document.getElementById('sync-history');if(!el)return;el.textContent='กำลังโหลด…';
-  gsr('getMonthlySyncHistory',{role:S.role},function(r){if(!r||!r.ok){el.textContent='โหลดประวัติไม่สำเร็จ';return;}var rows=r.rows||[];if(!rows.length){el.textContent='ยังไม่มีประวัติ Sync';return;}el.innerHTML=rows.map(function(row,index){var period=row.period_year+'-'+String(row.period_month).padStart(2,'0'),canRollback=index===0&&(row.status==='completed'||row.status==='completed_with_warnings')&&!S.isViewer;return '<div class="sync-history-row"><b>'+escH(period)+'</b><span>'+escH(row.status)+'<small style="display:block;color:var(--sub)">'+escH(new Date(row.created_at).toLocaleString('th-TH'))+'</small></span>'+(canRollback?'<button class="sync-rollback" onclick="rollbackMonthlySync(\''+escH(row.id)+'\',\''+escH(period)+'\')">Rollback</button>':'<span></span>')+'</div>';}).join('');});
+  gsr('getMonthlySyncHistory',{role:S.role},function(r){if(!r||!r.ok){el.textContent='โหลดประวัติไม่สำเร็จ';return;}var rows=r.rows||[];if(!rows.length){el.textContent='ยังไม่มีประวัติ Sync';return;}el.innerHTML=rows.map(function(row,index){var period=row.period_year+'-'+String(row.period_month).padStart(2,'0'),hashes=row.file_hashes||{},complete=row.status==='completed'&&hashes.trafficLightEvolution&&hashes.memberTrafficLight&&hashes.reporting2You,displayStatus=complete?'COMPLETE':row.status==='completed_with_warnings'||row.status==='completed'?'PARTIAL':row.status,canRollback=index===0&&(row.status==='completed'||row.status==='completed_with_warnings')&&!S.isViewer;return '<div class="sync-history-row"><b>'+escH(period)+'</b><span>'+escH(displayStatus)+'<small style="display:block;color:var(--sub)">'+escH(new Date(row.created_at).toLocaleString('th-TH'))+'</small></span>'+(canRollback?'<button class="sync-rollback" onclick="rollbackMonthlySync(\''+escH(row.id)+'\',\''+escH(period)+'\')">Rollback</button>':'<span></span>')+'</div>';}).join('');});
 }
 function rollbackMonthlySync(batchId,period){
   if(!confirm('ยืนยัน Rollback เดือน '+period+'?\n\nระบบจะคืนค่าคะแนน กิจกรรม R2Y ข้อมูลติดต่อ และ Renewal กลับไปก่อนรอบ Sync นี้'))return;
@@ -8840,6 +8842,8 @@ function msbRender(group){
 
 // ── Growth Revenue Dashboard ──────────────────────────────────
 var _rvData=null,_rvLoaded=false,_rvSort={col:-1,asc:true},_rvFilter={team:'',q:''},_rvLibrary=null;
+function rvCanCoordinate(){var c=S&&S.capabilities||[];return !!S.token&&!S.isReadOnly&&!S.isViewer&&(c.indexOf('*')>=0||c.indexOf('growth.coordinate')>=0);}
+function rvCanManageLegacy(){var c=S&&S.capabilities||[];return !!S.token&&!S.isReadOnly&&!S.isViewer&&(c.indexOf('*')>=0||c.indexOf('growth.member.manage')>=0);}
 
 function rvLoad(){
   if(_rvLoaded&&_rvData){
@@ -8884,12 +8888,12 @@ function rvGoalBadge(src){
   return '<div style="font-size:9px;color:var(--sub);font-weight:800;margin-top:2px">No goal</div>';
 }
 function rvReviewBadge(m){
-  if(m.blueprintStatus==='missing')return '<span style="color:var(--sub);font-weight:800">📝 No MSB</span>';
-  if(m.goalReviewStatus==='reviewed')return '<span style="color:var(--gr);font-weight:900">✅ Reviewed</span>';
-  if(m.goalReviewStatus==='needs_revision')return '<span style="color:var(--re);font-weight:900">↩ Needs Revision</span>';
-  if(m.goalReviewNeeded)return '<span style="color:var(--ye);font-weight:900">⚠️ Review Goal</span><div style="font-size:9px;color:var(--sub);margin-top:2px">MSB ต่างจากเดิม '+(m.goalDeltaPct>0?'+':'')+(m.goalDeltaPct||0)+'%</div>';
-  if(m.activeGoalSource==='msb')return '<span style="color:var(--gr);font-weight:900">✅ MSB Ready</span>';
-  return '<span style="color:var(--sub);font-weight:800">Baseline</span>';
+  if(m.blueprintStatus==='missing')return '<span style="color:var(--sub);font-weight:800">ยังไม่พบ Blueprint</span>';
+  if(m.blueprintStatus!=='submitted')return '<span style="color:var(--ye);font-weight:800">Blueprint Draft</span>';
+  if(m.goalReviewStatus==='reviewed')return '<span style="color:var(--gr);font-weight:900">✅ ทบทวนแล้ว</span>';
+  if(m.goalReviewStatus==='needs_revision')return '<span style="color:var(--re);font-weight:900">↩ ขอให้สมาชิกแก้ไข</span>';
+  if(m.goalReviewNeeded)return '<span style="color:var(--ye);font-weight:900">⚠️ ควรทบทวน</span><div style="font-size:9px;color:var(--sub);margin-top:2px">เป้าต่างจาก Legacy '+(m.goalDeltaPct>0?'+':'')+(m.goalDeltaPct||0)+'%</div>';
+  return '<span style="color:var(--gr);font-weight:800">ส่งแล้ว · รอทบทวน</span>';
 }
 function rvQualityBadge(m){
   var score=Number(m.dataQualityScore)||0, grade=m.dataQualityGrade||'weak';
@@ -8899,11 +8903,17 @@ function rvQualityBadge(m){
   return '<span class="rv-pill" style="color:'+color+';border-color:'+color+'">'+score+' · '+label+'</span>'+(miss?'<div style="font-size:9px;color:var(--sub);margin-top:3px;white-space:normal;max-width:150px">เติม: '+esc(miss)+'</div>':'');
 }
 function rvSaveReview(memberId,status){
+  if(!rvCanCoordinate()){toast('บัญชีนี้ไม่มีสิทธิ์ทบทวนเป้าหมาย','err');return;}
   var note='';
-  if(status==='needs_revision')note=prompt('หมายเหตุให้สมาชิก/ทีมแก้เป้า:', '')||'';
+  if(status==='needs_revision'){
+    note=prompt('เหตุผลที่ขอให้สมาชิกทบทวน Blueprint (ไม่เกิน 500 ตัวอักษร):', '');
+    if(note===null)return;
+    note=note.trim();
+    if(!note){toast('กรุณาระบุเหตุผลก่อนขอให้แก้ไข','err');return;}
+  }
   gsr('saveGrowthGoalReview',{role:S.role,memberId:memberId,status:status,note:note},function(r){
     if(!r||!r.ok){toast('บันทึก review ไม่สำเร็จ: '+(r&&r.error||'unknown'),'err');return;}
-    toast(status==='reviewed'?'บันทึกว่า review แล้ว':'บันทึกว่าให้แก้เป้าแล้ว','ok');
+    toast(r.auditWarning|| (status==='reviewed'?'บันทึกว่า review แล้ว':'บันทึกคำขอทบทวนแล้ว'),r.auditWarning?'err':'ok');
     _rvLoaded=false;rvLoad();
   });
 }
@@ -8960,26 +8970,28 @@ function rvSearch(v){_rvFilter.q=v.trim().toLowerCase();rvRenderTable();}
 function rvRender(){
   if(!_rvData)return;
   var s=_rvData.summary;
+  var reportingYear=Number(_rvData.reportingYear)||new Date().getFullYear();
+  var planningYear=Number(_rvData.planningYear)||reportingYear;
   var pc=s.pct>=80?'var(--gr)':s.pct>=50?'var(--ye)':'var(--re)';
   var completion=s.memberCount?Math.round((s.submittedBlueprints||0)/s.memberCount*100):0;
 
-  // Hero KPI cards
+  // Keep actuals and their reporting-year baseline separate from future plans.
   document.getElementById('rv-hero').innerHTML=
-    rvKpi('🎯','Active Goal',rvFmt(s.totalTarget),'#c7a76a','MSB ถ้ามี / Legacy ถ้ายังไม่มี')
-    +rvKpi('💰','Actual Received',rvFmt(s.totalReceived),'var(--gr)','รายได้ที่รับจริงในระบบ Growth')
-    +rvKpi('📊','Progress',s.pct+'%',pc,'Actual / Active Goal')
-    +rvKpi('📝','MSB Completion',completion+'%','#a78bfa',(s.submittedBlueprints||0)+' / '+(s.memberCount||0)+' คน')
-    +rvKpi('📚','Legacy Baseline',rvFmt(s.totalLegacyTarget||0),'#94a3b8','เป้าเดิมก่อนมี MSB')
-    +rvKpi('✨','MSB Goal Total',rvFmt(s.totalMsbGoal||0),'#fbbf24','เป้าใหม่จากสมาชิก')
-    +rvKpi('📉','Revenue Gap',rvFmt(s.revenueGap||0),'var(--re)','Active Goal - Actual')
-    +rvKpi('⚠️','Need Review',(s.reviewNeeded||0)+' คน','var(--ye)','MSB ต่างจาก Legacy ≥30%')
+    rvKpi('🎯','เป้า '+reportingYear,rvFmt(s.totalTarget),'#c7a76a',planningYear===reportingYear?'MSB ที่ส่งแล้ว / เป้า Legacy':'เป้า Legacy จากข้อมูล Growth')
+    +rvKpi('💰','รับจริงล่าสุด',rvFmt(s.totalReceived),'var(--gr)','จาก Monthly Sync / ข้อมูล Legacy; ยังไม่ยืนยันช่วงปี')
+    +rvKpi('📊','เทียบเป้า Legacy',s.pct+'%',pc,'ยอดล่าสุด / เป้า '+reportingYear+' · ใช้ประกอบการติดตาม')
+    +rvKpi('📉','ส่วนต่างเทียบเป้า',rvFmt(s.revenueGap||0),'var(--re)','เป้า '+reportingYear+' − ยอดล่าสุด (คนละช่วงข้อมูลอาจเทียบตรงไม่ได้)')
+    +rvKpi('✨','Blueprint Goal '+planningYear,rvFmt(s.totalMsbGoal||0),'#fbbf24','เป้าที่สมาชิกส่งแล้ว; ไม่ใช่ยอดรับจริง')
+    +rvKpi('📝','ส่ง Blueprint '+planningYear,completion+'%','#a78bfa',(s.submittedBlueprints||0)+' / '+(s.memberCount||0)+' คน')
+    +rvKpi('📚','เป้า Legacy '+reportingYear,rvFmt(s.totalLegacyTarget||0),'#94a3b8','ข้อมูลจาก Growth เดิม')
+    +rvKpi('⚠️','ควรทบทวน',(s.reviewNeeded||0)+' คน','var(--ye)','เป้าสมาชิกต่างจาก Legacy ≥30%')
     +rvKpi('🧹','Data Quality',(s.avgDataQuality||0)+'/100','#38bdf8','ความพร้อมของข้อมูลต่อสมาชิก')
     +rvKpi('✅','Reviewed',(s.reviewedGoals||0)+' คน','#34d399','เป้าที่ Growth/MC ตรวจแล้ว');
 
   // Chapter progress bar
   document.getElementById('rv-prog-wrap').innerHTML=
     '<div class="rv-prog-top">'
-    +'<span class="rv-prog-title">Chapter Growth Plan Progress</span>'
+    +'<span class="rv-prog-title">ยอดรับล่าสุดเทียบเป้า Legacy '+reportingYear+' (ไม่ยืนยันช่วงปีของยอด)</span>'
     +'<span class="rv-prog-pct" style="color:'+pc+';">'+s.pct+'% · '+rvFmt(s.totalReceived)+' / '+rvFmt(s.totalTarget)+'</span>'
     +'</div>'
     +'<div class="rv-prog-bar">'
@@ -9016,6 +9028,8 @@ function rvKpi(icon,lbl,val,color,sub){
 
 function rvRenderTable(){
   if(!_rvData)return;
+  var reportingYear=Number(_rvData.reportingYear)||new Date().getFullYear();
+  var planningYear=Number(_rvData.planningYear)||reportingYear;
 
   // Collect all members matching filter
   var all=[];
@@ -9066,12 +9080,12 @@ function rvRenderTable(){
   var thHtml='<th style="width:36px;text-align:center;">#</th>';
   thHtml+='<th onclick="rvSortBy(-2,this)">ชื่อ / นิคเนม</th>';
   thHtml+='<th onclick="rvSortBy(-3,this)">ทีม</th>';
-  thHtml+='<th onclick="rvSortBy(-4,this)">Legacy Target</th>';
-  thHtml+='<th onclick="rvSortBy(-5,this)">MSB Goal</th>';
-  thHtml+='<th onclick="rvSortBy(-6,this)">Active Goal</th>';
-  thHtml+='<th onclick="rvSortBy(-7,this)">Actual</th>';
-  thHtml+='<th onclick="rvSortBy(-8,this)">Progress</th>';
-  thHtml+='<th onclick="rvSortBy(-9,this)">Gap</th>';
+  thHtml+='<th onclick="rvSortBy(-4,this)">เป้า Legacy '+reportingYear+'</th>';
+  thHtml+='<th onclick="rvSortBy(-5,this)">Blueprint '+planningYear+'</th>';
+  thHtml+='<th onclick="rvSortBy(-6,this)">เป้าที่ใช้เทียบ '+reportingYear+'</th>';
+  thHtml+='<th onclick="rvSortBy(-7,this)">รับจริงล่าสุด</th>';
+  thHtml+='<th onclick="rvSortBy(-8,this)">เทียบเป้า (ประมาณ)</th>';
+  thHtml+='<th onclick="rvSortBy(-9,this)">ส่วนต่าง (ประมาณ)</th>';
   thHtml+='<th>Looking For</th>';
   thHtml+='<th>Power Team</th>';
   thHtml+='<th>Data Quality</th>';
@@ -9092,8 +9106,8 @@ function rvRenderTable(){
       +(m.nick&&m.nick!==m.name?'<div style="font-size:10px;color:var(--sub);">'+esc(m.name)+'</div>':'')
       +'</td>';
     tdHtml+='<td style="color:var(--sub);">'+esc(m._group)+'</td>';
-    tdHtml+='<td style="color:var(--sub)">'+rvFmt(m.legacyTarget||0)+'<div style="font-size:9px;color:var(--sub);margin-top:2px">old baseline</div></td>';
-    tdHtml+='<td>'+(m.msbGoal?rvFmt(m.msbGoal):'—')+'<div style="font-size:9px;color:var(--ye);font-weight:800;margin-top:2px">'+(m.blueprintStatus==='submitted'?'submitted':'not submitted')+'</div></td>';
+    tdHtml+='<td style="color:var(--sub)">'+rvFmt(m.legacyTarget||0)+'<div style="font-size:9px;color:var(--sub);margin-top:2px">ไฟล์ Growth เดิม</div></td>';
+    tdHtml+='<td>'+(m.blueprintStatus==='submitted'?rvFmt(m.msbGoal||0):'—')+'<div style="font-size:9px;color:var(--ye);font-weight:800;margin-top:2px">'+(m.blueprintStatus==='submitted'?'สมาชิกส่งแล้ว':m.blueprintStatus==='draft'?'Draft':'ยังไม่ส่ง')+'</div></td>';
     tdHtml+='<td><b>'+rvFmt(m.activeGoal||m.target||0)+'</b>'+rvGoalBadge(m.activeGoalSource||m.targetSource)+'</td>';
     tdHtml+='<td><span style="font-weight:800;color:'+mc2+'">'+rvFmt(m.received||0)+'</span></td>';
     tdHtml+='<td><div class="rv-pbar"><div class="rv-pbar-f" style="background:'+mc2+';width:'+Math.min(mP,100)+'%;"></div></div> <span style="font-size:11px;color:'+mc2+';font-weight:800">'+mP+'%</span></td>';
@@ -9101,8 +9115,8 @@ function rvRenderTable(){
     tdHtml+='<td><div style="max-width:180px;white-space:normal;line-height:1.35">'+esc(looking||'—')+'<div style="font-size:9px;color:var(--sub)">'+esc((m.lookingForDetail||'').slice(0,64))+'</div></div></td>';
     tdHtml+='<td><div style="max-width:180px;white-space:normal;line-height:1.35">'+esc(power||'—')+'<div style="font-size:9px;color:var(--sub)">'+esc((m.powerTeamDetail||'').slice(0,64))+'</div></div></td>';
     tdHtml+='<td>'+rvQualityBadge(m)+'</td>';
-    tdHtml+='<td>'+rvReviewBadge(m)+(m.memberId&&m.goalReviewNeeded?'<div><button class="rv-action" onclick="rvSaveReview(\''+esc(m.memberId)+'\',\'reviewed\')">Mark reviewed</button><br><button class="rv-action" onclick="rvSaveReview(\''+esc(m.memberId)+'\',\'needs_revision\')">Needs revision</button></div>':'')+'</td>';
-    tdHtml+='<td><button class="rv-edt" onclick="gshOpenEdit('+m._gi+',\''+m.sheetRow+'\');document.getElementById(\'gsh-modal\').classList.add(\'open\')">✏️</button></td>';
+    tdHtml+='<td>'+rvReviewBadge(m)+(m.memberId&&m.blueprintStatus==='submitted'&&rvCanCoordinate()?'<div><button class="rv-action" onclick="rvSaveReview(\''+esc(m.memberId)+'\',\'reviewed\')">ยืนยันการทบทวน</button><br><button class="rv-action" onclick="rvSaveReview(\''+esc(m.memberId)+'\',\'needs_revision\')">ขอให้แก้ไข</button></div>':'')+'</td>';
+    tdHtml+='<td>'+(rvCanManageLegacy()?'<button class="rv-edt" title="แก้เฉพาะข้อมูล Legacy Growth ไม่แก้ Blueprint ของสมาชิก" aria-label="แก้ข้อมูล Legacy Growth ของ '+esc(dn)+'" onclick="gshOpenEdit('+m._gi+',\''+m.sheetRow+'\')">✏️</button>':'')+'</td>';
     return '<tr>'+tdHtml+'</tr>';
   }).join('');
 
@@ -9264,6 +9278,7 @@ function gshLoad(){
     document.getElementById('gsh-loading').style.display='none';
     document.getElementById('gsh-content').style.display='block';
     gshRender();
+    if(document.getElementById('rv-content'))rvRender();
     return;
   }
   document.getElementById('gsh-loading').style.display='block';
@@ -9284,12 +9299,13 @@ function gshLoad(){
 function gshRender(){
   if(!_gshData)return;
   var s=_gshData.summary;
+  var reportingYear=Number(_gshData.reportingYear)||new Date().getFullYear();
   var pc=s.pct>=80?'var(--gr)':s.pct>=50?'var(--ye)':'var(--re)';
   document.getElementById('gsh-summary').innerHTML=
     '<div class="gsh-cards">'
-    +gshCard('💰 รับจริง',gshFmt(s.totalReceived),'var(--gr)')
-    +gshCard('🎯 เป้าหมาย',gshFmt(s.totalTarget),'#B08A3C')
-    +gshCard('📊 ทำได้',s.pct+'%',pc)
+    +gshCard('💰 รับจริงล่าสุด (ไม่ยืนยันช่วงปี)',gshFmt(s.totalReceived),'var(--gr)')
+    +gshCard('🎯 เป้า Legacy '+reportingYear,gshFmt(s.totalTarget),'#B08A3C')
+    +gshCard('📊 เทียบเป้า (ประมาณ)',s.pct+'%',pc)
     +'</div>'
     +'<div class="gsh-prog"><div class="gsh-prog-fill" style="background:'+pc+';width:'+Math.min(s.pct,100)+'%;"></div></div>'
     +'<div style="font-size:11px;color:var(--sub);margin-bottom:14px;">'+s.groupCount+' ทีม · '+s.memberCount+' สมาชิก</div>';
@@ -9382,7 +9398,7 @@ function gshRenderGroup(g,gi){
 
       return'<td style="white-space:nowrap;">'+esc(str)+'</td>';
     }).join('');
-    return'<tr>'+tds+'<td><button class="gsh-edt" onclick="gshOpenEdit('+gi+',\''+m.sheetRow+'\')">✏️</button></td></tr>';
+    return'<tr>'+tds+'<td>'+(rvCanManageLegacy()?'<button class="gsh-edt" onclick="gshOpenEdit('+gi+',\''+m.sheetRow+'\')">✏️</button>':'')+'</td></tr>';
   }).join('');
 
   // Total row (from sheet)
@@ -9413,7 +9429,7 @@ function gshRenderGroup(g,gi){
     +'<table class="gsh-tbl"><thead><tr>'+ths+'</tr></thead>'
     +'<tbody>'+rows+totalHtml+'</tbody></table>'
     +'</div>'
-    +'<div class="gsh-add-row" onclick="gshOpenAdd('+gi+')">+ เพิ่มสมาชิก</div>'
+    +(rvCanManageLegacy()?'<div class="gsh-add-row" onclick="gshOpenAdd('+gi+')">+ เพิ่มข้อมูล Legacy</div>':'')
     +'</div>'
     +'</div>';
 }
@@ -9428,6 +9444,7 @@ function gshToggle(hdr){
 
 // Shared edit helper — used by both Sheet tab and Revenue Dashboard
 function gshOpenEdit(gi,sheetRow){
+  if(!rvCanManageLegacy()){toast('บัญชีนี้ไม่มีสิทธิ์แก้ข้อมูล Legacy Growth','err');return;}
   closeAllModals();
   var data=_gshData||_rvData;
   if(!data||!data.groups[gi])return;
@@ -9435,34 +9452,31 @@ function gshOpenEdit(gi,sheetRow){
   if(!m)return;
   var h=data.headers||[];
   var cm=data.colMap||{};
-  var pctCol=cm.pct;
-  var nameCol=cm.name!==undefined?cm.name:1;
   var curGroupName=data.groups[gi].name;
 
-  // Build field list: all headers except seq(0), formula pct
+  // Only stored legacy fields are editable. Age, actuals and progress are sourced/calculated.
   var fields=[];
   h.forEach(function(hdr,ci){
-    if(ci===0)return;
+    if([2,4,5].indexOf(ci)===-1)return;
     if(!String(hdr||'').trim())return;
-    if(ci===pctCol)return;
-    var val=m.cells&&m.cells[ci]!==undefined?m.cells[ci]:'';
-    var isNum=val!==''&&!isNaN(parseFloat(String(val).replace(/[,%]/g,'')))&&String(val).indexOf('%')===-1&&!/^\d{2}\/\d{2}\/\d{4}$/.test(String(val));
-    var isDis=(ci===nameCol);
+    var val=ci===5?m.legacyTarget:(m.cells&&m.cells[ci]!==undefined?m.cells[ci]:'');
+    var isNum=ci===5;
+    var isDis=false;
     var isWide=ci<=2||String(hdr).length>12;
-    fields.push({ci:ci,hdr:String(hdr).trim(),val:val,isNum:isNum,isDis:isDis,wide:isWide});
+    fields.push({ci:ci,hdr:ci===5?'เป้า Legacy จาก Growth เดิม (บาท)':String(hdr).trim(),val:val,isNum:isNum,isDis:isDis,wide:isWide});
   });
 
   // Power Team selector
   var teamOptions=(data.groups||[]).map(function(g){
     return'<option value="'+esc(g.name)+'"'+(g.name===curGroupName?' selected':'')+'>'+esc(g.name)+'</option>';
   }).join('');
-  var teamField='<div class="gshf wide"><label>⚡ Power Team</label>'
+  var teamField='<div class="gshf wide"><label>กลุ่ม Growth เดิม (ไม่ใช่ Power Team ที่จัดตั้งแล้ว)</label>'
     +'<select id="gsh-team-sel">'+teamOptions+'</select></div>'
     +'<hr class="gsh-team-sep">';
 
-  document.getElementById('gsh-mtitle').textContent='✏️ '+(m.nick||m.name);
+  document.getElementById('gsh-mtitle').textContent='แก้ข้อมูล Legacy Growth · '+(m.nick||m.name);
   document.getElementById('gsh-mfields').innerHTML=
-    '<div class="gsh-fgrid">'+teamField
+    '<p style="font-size:12px;color:var(--sub)">แก้ได้เฉพาะชื่อเล่น หมายเหตุ และเป้า Legacy เท่านั้น · Blueprint เป็นข้อมูลที่สมาชิกกรอก ส่วนยอดรับจริงมาจาก Monthly Sync</p><div class="gsh-fgrid">'+teamField
     +fields.map(function(f){
       return f.isNum
         ?gshNumField('gsh-c'+f.ci,f.hdr,f.val,f.wide)
@@ -9490,8 +9504,8 @@ function gshSaveEdit(gi,sheetRow,fields,data,origGroupName){
     var val=el.value;
     if(f.isNum)val=parseFloat(val)||0;
     else val=val.trim();
+    if(String(val)===String(f.val==null?'':f.val).trim())return;
     updates.push({col:f.ci+1,val:val});
-    if(m.cells)m.cells[f.ci]=val;
   });
 
   var btn=document.getElementById('gsh-msave');
@@ -9525,6 +9539,7 @@ function gshSaveEdit(gi,sheetRow,fields,data,origGroupName){
 }
 
 function gshOpenAdd(gi){
+  if(!rvCanManageLegacy()){toast('บัญชีนี้ไม่มีสิทธิ์เพิ่มข้อมูล Legacy Growth','err');return;}
   closeAllModals();
   if(!_gshData||!_gshData.groups[gi])return;
   document.getElementById('gsh-mtitle').textContent='➕ เพิ่มสมาชิกใหม่ · '+esc(_gshData.groups[gi].name);

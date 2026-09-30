@@ -22,6 +22,15 @@ Deno.test("Growth cannot call broad Mentor Member Detail", async () => {
   assert(!block.match(/requireAuth\([^\n]+growth/));
 });
 
+Deno.test("Member performance source history requires OAuth Growth scope and same-Chapter member", async () => {
+  const source = await read("supabase/functions/api/handlers/member-growth.ts");
+  assert(source.includes("canReadGrowthCycle(auth)"));
+  assert(source.includes("resolveChapterScope(db, auth)"));
+  assert(source.includes(".eq('id', memberId).eq('chapter_id', chapterId)"));
+  assert(source.includes("db.from('member_performance_source_snapshots')"));
+  assert(source.includes(".eq('chapter_id', chapterId).eq('member_id', memberId)"));
+});
+
 Deno.test("Mentor onboarding reads and writes stay in Chapter and team", async () => {
   const members = await read("supabase/functions/api/handlers/members.ts");
   for (const [action, next] of [["saveNMCheckItem", "getNMChecklist"], ["getNMChecklist", "getNewMembers"], ["getNewMembers", "removeNewMember"]] as const) {

@@ -156,6 +156,7 @@
     <button class="tb" onclick="sw('gr-flow',this,'gr');flowLoad()">🌊 Referral Outcomes</button>
     <button class="tb" onclick="sw('gr-gw',this,'gr');renderGrowthWatchGR()">🔵 Growth Watch<span class="nb" id="badge-gw-gr"></span></button>
     <button class="tb" onclick="sw('gr-nm',this,'gr')">🆕 New Member Success<span class="nb" id="badge-nm"></span></button>
+    <button class="tb" onclick="sw('gr-line',this,'gr');growthLineLoad()">💬 LINE &amp; MSB</button>
     <div class="nav-group-label">วิเคราะห์และวางแผน</div>
     <button class="tb" onclick="sw('gr-rev',this,'gr');rvLoad()">💰 Growth Plan</button>
     <button class="tb" onclick="sw('gr-cycle',this,'gr');memberGrowthLoad()">🗓️ Member Growth</button>
@@ -1032,6 +1033,38 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       </div>
     </div>
 
+    <!-- Growth LINE Center -->
+    <div id="gr-line" class="sec">
+      <section class="growth-line-head">
+        <div><span>MYIDEAL COMMUNICATION</span><h2>Growth LINE Center</h2><p>สื่อสารกับสมาชิกจากข้อมูลจริงของ Chapter พร้อม Preview และระบบป้องกันการส่งซ้ำ</p></div>
+        <button class="bsm" onclick="growthLineLoad(true)">↻ รีเฟรช</button>
+      </section>
+      <div id="growth-line-state" class="growth-line-state" aria-live="polite">เลือกเมนู LINE &amp; MSB เพื่อโหลดรายชื่อสมาชิก</div>
+      <section id="growth-line-workspace" class="growth-line-workspace" hidden>
+        <div class="growth-line-compose">
+          <div class="growth-line-step"><b>1</b><div><strong>เลือกวัตถุประสงค์</strong><small>ข้อความจะขึ้นต้นในนาม MYIDEAL · Growth Team</small></div></div>
+          <div class="growth-line-purpose" role="group" aria-label="เลือกวัตถุประสงค์ข้อความ">
+            <button type="button" class="on" data-growth-line-template="msb_reminder" onclick="growthLineSetTemplate('msb_reminder',this)">📋 เตือนกรอก MSB</button>
+            <button type="button" data-growth-line-template="custom" onclick="growthLineSetTemplate('custom',this)">💬 ติดต่อช่วยเหลือสมาชิก</button>
+          </div>
+          <label class="growth-line-label" for="growth-line-message">ข้อความที่จะส่ง <small>แก้ไขได้ก่อน Preview</small></label>
+          <textarea id="growth-line-message" maxlength="5000" rows="9" oninput="growthLineUpdateCount()"></textarea>
+          <div class="growth-line-message-meta"><span id="growth-line-count">0 / 5,000</span><span>ระบบจะไม่ส่งจนกว่าจะ Preview และยืนยัน</span></div>
+          <button id="growth-line-preview" class="growth-line-primary" type="button" onclick="growthLinePreview()">ตรวจผู้รับและ Preview →</button>
+        </div>
+        <div class="growth-line-audience">
+          <div class="growth-line-step"><b>2</b><div><strong>เลือกผู้รับ</strong><small id="growth-line-year">Blueprint ปี —</small></div></div>
+          <div class="growth-line-filters">
+            <button type="button" class="on" data-growth-line-audience="incomplete" onclick="growthLineAudienceMode('incomplete',this)">ยังไม่ส่ง MSB</button>
+            <button type="button" data-growth-line-audience="selected" onclick="growthLineAudienceMode('selected',this)">เลือกเอง</button>
+            <input id="growth-line-search" type="search" placeholder="ค้นหาชื่อหรือทีม…" oninput="growthLineRender()">
+          </div>
+          <div id="growth-line-summary" class="growth-line-summary"></div>
+          <div id="growth-line-members" class="growth-line-members"></div>
+        </div>
+      </section>
+    </div>
+
     <!-- Growth Referral Balance -->
     <div id="gr-bal" class="sec">
       <div class="fbar">
@@ -1717,7 +1750,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
           <div>
             <h2 style="font-size:15px;font-weight:800;letter-spacing:-.3px;margin:0">💰 Growth Plan / Blueprint</h2>
-            <div style="font-size:11px;color:var(--sub);margin-top:3px">หน้าแม่สำหรับ Legacy Revenue + MSB Goal + Blueprint Intelligence</div>
+            <div style="font-size:11px;color:var(--sub);margin-top:3px">ติดตามผลปีปัจจุบัน และทบทวน Blueprint ปีที่กำลังวางแผน โดยไม่ปะปนข้อมูลคนละปี</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;">
             <select class="rv-tf" id="rv-tf-team" onchange="rvFilterTeam(this.value)" style="font-size:11px;">
@@ -1737,7 +1770,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
           <div class="rv-tbl-hdr">
             <span class="rv-tbl-title">📋 Growth Plan รายสมาชิก</span>
             <span id="rv-cnt" style="font-size:11px;color:var(--sub);"></span>
-            <button class="rv-add-btn" id="rv-add-global-btn" onclick="rvOpenAdd('')" style="display:none;">+ เพิ่มสมาชิก</button>
+            <button class="bsm" type="button" onclick="_rvLoaded=false;rvLoad()">↻ อัปเดตข้อมูล</button>
           </div>
           <div style="overflow-x:auto;">
             <table class="rv-tbl" id="rv-tbl">
@@ -2234,10 +2267,11 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 <script src="/assets/js/desktop-blueprint-workspace.js?v=20260919.1" defer></script>
 <script src="/assets/js/desktop-blueprint-summary.js?v=20260929.1" defer></script>
 <script src="/assets/js/desktop-growth-workspace.js?v=20260919.1" defer></script>
-<script src="/assets/js/desktop-operations.js?v=20260929-msb-year.1" defer></script>
+<script src="/assets/js/desktop-growth-line.js?v=20260919.1" defer></script>
+<script src="/assets/js/desktop-operations.js?v=20260930-growth-plan.1" defer></script>
 <script src="/assets/js/desktop-power-team-hub.js?v=20260928.1" defer></script>
 <script src="/assets/js/desktop-growth-my121.js?v=20260928.1" defer></script>
-<script src="/assets/js/member-growth-cycle.js?v=20260928.2" defer></script>
+<script src="/assets/js/member-growth-cycle.js?v=20260930-performance-pulse.1" defer></script>
 <script src="/assets/js/member-pulse-pilot-admin.js?v=20260930" defer></script>
 <script src="/assets/js/desktop-line-compose.js?v=20260909-audit.1" defer></script>
 <script src="/assets/js/desktop-navigation.js?v=20260909-audit.1" defer></script>
