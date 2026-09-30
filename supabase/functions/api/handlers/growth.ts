@@ -10,7 +10,7 @@ import { CAPABILITY, hasCapability } from '../../_shared/capabilities.ts';
 import { resolveMsbPlanningYear } from '../../_shared/msb-planning-year.ts';
 import { reportingGoal, visibleGrowthCategories } from '../../_shared/growth-plan.ts';
 import { uniqueMemberNameMap } from '../../_shared/member-import-identity.ts';
-import { evolutionIsHistorical, memberTrafficLightReportPeriod } from '../../_shared/monthly-sync-period.ts';
+import { evolutionIsHistorical, memberTrafficLightReportPeriod, reportedNumber, reportedScore } from '../../_shared/monthly-sync-period.ts';
 import { performanceSourceRows } from '../../_shared/member-performance-source.ts';
 import { linePush, sha256Hex } from '../../_shared/line.ts';
 import { evaluateNotificationGuard, logSuppressedNotification } from '../../_shared/notification-orchestrator.ts';
@@ -326,8 +326,8 @@ function parseMonthlyScores(
 
     for (const col of monthCols) {
       if (row.length <= col.idx) continue;
-      const score = parseNumber(row[col.idx]);
-      if (score > 0) {
+      const score = reportedScore(row[col.idx]);
+      if (score !== null) {
         scores.push({ member_id: memberId, year: col.year, month: col.month, score, source: 'traffic_light_csv' });
       }
     }
@@ -356,7 +356,7 @@ function parseMemberTLCurrentScores(
   const scores: Array<{ member_id: string; year: number; month: number; score: number; source: string }> = [];
   for (const [name, item] of Object.entries(data)) {
     const memberId = memberMap[name];
-    if (!memberId || !item.score) continue;
+    if (!memberId || !item.scorePresent) continue;
     scores.push({ member_id: memberId, year, month, score: item.score, source: 'traffic_light_csv' });
   }
   return scores;
@@ -545,7 +545,7 @@ function parseR2YRows(
       member_id:  memberId,
       rg:         parseNumber(row[1]),
       rr:         parseNumber(row[2]),
-      visitors:   parseNumber(row[3]),
+      // Column 4 has no header in the supplied R2Y export. Never label it Visitors.
       one_to_one: parseNumber(row[4]),
       ceu:        parseNumber(row[5]),
       tyfcb_thb:  parseNumber(row[6]),
@@ -556,6 +556,14 @@ function parseR2YRows(
       late:       parseNumber(row[11]),
       medical:    parseNumber(row[12]),
       sub:        parseNumber(row[13]),
+      source_values: {
+        rg: reportedNumber(row[1]), rr: reportedNumber(row[2]),
+        one_to_one: reportedNumber(row[4]), ceu: reportedNumber(row[5]),
+        tyfcb_thb: reportedNumber(row[6]), official_pts: reportedNumber(row[7]),
+        bni_days: reportedNumber(row[8]), attend: reportedNumber(row[9]),
+        absent: reportedNumber(row[10]), late: reportedNumber(row[11]),
+        medical: reportedNumber(row[12]), sub: reportedNumber(row[13]),
+      },
       synced_at:  new Date().toISOString(),
     });
   }
@@ -802,7 +810,7 @@ async function updateMembersGivenReceived(db: ReturnType<typeof getServiceClient
 
 function parseMemberTLStats(rows: string[][]): Record<string, {
   given: number; received: number; rg: number; rr: number; visitors: number; one_to_one: number;
-  ceu: number; score: number; p: number; a: number; l: number; m: number; s: number;
+  ceu: number; score: number; scorePresent: boolean; p: number; a: number; l: number; m: number; s: number;
 }> {
   if (!rows || rows.length === 0) return {};
   const normalizedRows = rows.map(row => row.map(cell => String(cell || '').toLowerCase().trim()));
@@ -855,11 +863,22 @@ function parseMemberTLStats(rows: string[][]): Record<string, {
       one_to_one: parseNumber(row[otoIdx]),
       ceu: parseNumber(row[ceuIdx]),
       score: parseNumber(row[scoreIdx]),
+      scorePresent: reportedScore(row[scoreIdx]) !== null,
       p: parseNumber(row[pIdx]),
       a: parseNumber(row[aIdx]),
       l: parseNumber(row[lIdx]),
       m: parseNumber(row[mIdx]),
       s: parseNumber(row[sIdx]),
+      source_values: {
+        given: reportedNumber(row[givenIdx]), received: reportedNumber(row[recvIdx]),
+        rg: reportedNumber(row[rgIdx]),
+        rr: reportedNumber(row[rrIdx]) ?? ((reportedNumber(row[rriIdx]) !== null || reportedNumber(row[rroIdx]) !== null)
+          ? (reportedNumber(row[rriIdx]) || 0) + (reportedNumber(row[rroIdx]) || 0) : null),
+        visitors: reportedNumber(row[visitorsIdx]), one_to_one: reportedNumber(row[otoIdx]),
+        ceu: reportedNumber(row[ceuIdx]), score: reportedScore(row[scoreIdx]),
+        p: reportedNumber(row[pIdx]), a: reportedNumber(row[aIdx]),
+        l: reportedNumber(row[lIdx]), m: reportedNumber(row[mIdx]), s: reportedNumber(row[sIdx]),
+      },
     };
   }
   return map;
@@ -1997,7 +2016,12 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         if (!data) return errResponse('ไม่พบ Preview batch ของ Chapter นี้');
         monthlyBatch = data as Record<string, unknown>;
         if (String(monthlyBatch.combined_hash) !== fingerprint.combinedHash || String(monthlyBatch.preview_token) !== previewToken) return errResponse('ไฟล์หรือเดือนเปลี่ยนหลัง Preview กรุณา Preview ใหม่');
-        if (['completed','completed_with_warnings'].includes(String(monthlyBatch.status))) return jsonResponse({ ok: true, duplicate: true, batchId, ...(monthlyBatch.result_summary as Record<string, unknown> || {}) });
+        if (['completed','completed_with_warnings'].includes(String(monthlyBatch.status))) {
+          const hashes = (monthlyBatch.file_hashes || {}) as Record<string, unknown>;
+          const allThree = ['trafficLightEvolution', 'memberTrafficLight', 'reporting2You'].every(key => Boolean(hashes[key]));
+          return jsonResponse({ ok: true, duplicate: true, batchId, ...(monthlyBatch.result_summary as Record<string, unknown> || {}),
+            periodStatus: monthlyBatch.status === 'completed' && allThree ? 'COMPLETE' : 'PARTIAL' });
+        }
         if (String(monthlyBatch.status) === 'rolled_back') return errResponse('รอบนี้ถูก Rollback แล้ว กรุณาสร้าง Preview ใหม่');
         if (String(monthlyBatch.status) !== 'previewed') return errResponse('Preview รอบนี้กำลังทำงานหรือใช้งานแล้ว กรุณาโหลดประวัติและตรวจสถานะ');
         const previewAge = Date.now() - new Date(String(monthlyBatch.created_at)).getTime();
@@ -2084,8 +2108,18 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         const r2yParsed = parseR2YRows(r2yRows, memberMap, r2yUnmatched);
         if (r2yParsed.length) {
           try {
-            importedR2Y += await upsertR2YStats(db, r2yParsed.map(row => ({ ...row, chapter_id: chapterId })));
-            importedKeySnapshots += await upsertPalmsKeySnapshots(db, r2yParsed, scorePeriod);
+            // Legacy r2y_stats.visitors is NOT NULL. Preserve its existing value;
+            // the unnamed R2Y column cannot supply a new Visitors value.
+            const { data: priorVisitors, error: visitorsError } = await db.from('r2y_stats')
+              .select('member_id,visitors').in('member_id', r2yParsed.map(row => String(row.member_id)));
+            if (visitorsError) throw new Error(visitorsError.message);
+            const visitorsByMember = new Map((priorVisitors || []).map(row => [String(row.member_id), Number(row.visitors) || 0]));
+            importedR2Y += await upsertR2YStats(db, r2yParsed.map(row => {
+              const { source_values: _sourceValues, ...latest } = row;
+              return { ...latest, chapter_id: chapterId, visitors: visitorsByMember.get(String(row.member_id)) ?? 0 };
+            }));
+            // Do not calculate PALMS visitor points from the unnamed R2Y column.
+            // Member Traffic Light below supplies the labelled Visitors value.
             sourceR2YRows = r2yParsed;
           } catch (e) {
             r2yOk = false; r2ySyncOk = false;
@@ -2150,7 +2184,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           try {
             importedR2Y += await upsertR2YStats(db, r2yUpserts);
             importedKeySnapshots += await upsertPalmsKeySnapshots(db, r2yUpserts, scorePeriod);
-            sourceMTLRows = Object.entries(mtlData).flatMap(([name, item]) => memberMap[name] ? [{ member_id: memberMap[name], ...item }] : []);
+            sourceMTLRows = Object.entries(mtlData).flatMap(([name, item]) => memberMap[name]
+              ? [{ member_id: memberMap[name], ...item, score: item.scorePresent ? item.score : null }] : []);
           } catch (e) {
             mtlOk = false;
             stepErrors.push(`mtl-r2y: ${(e as Error).message}`);
@@ -2241,11 +2276,20 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         }
         const memberIds = Array.isArray(monthlyBatch.affected_member_ids) ? monthlyBatch.affected_member_ids.map(String) : [];
         const afterSnapshot = await captureMonthlySyncSnapshot(db, memberIds, requestedPeriod);
-        const finalStatus = stepErrors.length ? 'completed_with_warnings' : 'completed';
+        const allFilesPresent = Boolean(tlCsv && memberTLCsv && r2yCsv);
+        const allSourcesImported = Boolean(tlParsed.scores.length && sourceR2YRows.length && sourceMTLRows.length);
+        // completed_with_warnings is exposed as PARTIAL. Only a clean three-file
+        // sync may be used by the trusted historical Growth view.
+        const finalStatus = stepErrors.length || !allFilesPresent || !allSourcesImported
+          ? 'completed_with_warnings' : 'completed';
         const completedAt = new Date().toISOString();
         const { error: finishError } = await db.from('monthly_sync_batches').update({
           status: finalStatus, result_summary: result, after_snapshot: afterSnapshot,
-          error_summary: stepErrors.length ? stepErrors.join(' | ').slice(0, 2000) : null,
+          error_summary: [
+            ...stepErrors,
+            ...(!allFilesPresent ? ['Missing one or more of the three monthly source files'] : []),
+            ...(!allSourcesImported ? ['One or more source files had no matched import rows'] : []),
+          ].join(' | ').slice(0, 2000) || null,
           completed_at: completedAt,
         }).eq('id', batchId).eq('chapter_id', chapterId);
         if (finishError) throw new Error(finishError.message);
@@ -2258,7 +2302,9 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         await db.from('monthly_sync_batches').update({ status: 'failed', error_summary: String((error as Error).message).slice(0, 2000) }).eq('id', batchId);
         return errResponse(`ข้อมูลบางส่วนถูก Sync แต่บันทึกผลลัพธ์ไม่สำเร็จ: ${(error as Error).message}`);
       }
-      return jsonResponse({ ...result, batchId, duplicate: false });
+      return jsonResponse({ ...result, batchId, duplicate: false,
+        periodStatus: stepErrors.length || !(tlCsv && memberTLCsv && r2yCsv) || !sourceR2YRows.length || !sourceMTLRows.length || !tlParsed.scores.length
+          ? 'PARTIAL' : 'COMPLETE' });
     }
 
     case 'getMonthlySyncHistory': {
@@ -2269,7 +2315,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       try {
         const chapterId = scope.chapterId;
         const { data, error } = await db.from('monthly_sync_batches')
-          .select('id,period_year,period_month,status,source_files,quality_summary,result_summary,created_by,created_at,completed_at,rolled_back_at')
+          .select('id,period_year,period_month,status,file_hashes,source_files,quality_summary,result_summary,created_by,created_at,completed_at,rolled_back_at')
           .eq('chapter_id', chapterId).order('created_at', { ascending: false }).limit(24);
         if (error) throw new Error(error.message);
         return jsonResponse({ ok: true, rows: data || [] });

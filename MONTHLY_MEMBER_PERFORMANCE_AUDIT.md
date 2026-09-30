@@ -1,5 +1,34 @@
 # Monthly Member Performance History — Phase 0 audit
 
+## Snapshot-only release decision (30 September 2026)
+
+The product contract is now Historical Snapshot / Trend, not monthly activity. Each
+confirmed three-file sync stores source values under stable `member_id`, Chapter,
+reporting period, source type and import batch. Re-import of a period upserts that
+period/source only; earlier periods are unchanged. The Growth Cycle API displays
+only the latest completed three-file batch for a period. A missing file, failed
+step or newer failed attempt makes that period PARTIAL and unavailable as trusted
+history. The existing database `completed_with_warnings` status is displayed as
+PARTIAL; no new status enum or parallel batch model was introduced.
+
+An explicit zero score is preserved. Blank raw report cells remain null in the
+source history. The unnamed Reporting2You column is no longer mapped to Visitors
+or used to calculate PALMS visitor points; the legacy NOT NULL latest-value table
+retains its previous Visitors value until the labelled Member Traffic Light file
+updates it. The additive `20260930000003` migration adds labelled attendance,
+BNI Days and reported-points fields without backfilling unverifiable history.
+
+Growth compares numeric snapshots only against the previous **same-source**
+report and labels the result “Change vs previous report.” A delta is not a
+monthly activity count. Source report windows and cross-file equivalence remain
+unverified. Earlier legacy score/key snapshots remain visible only as an
+explicitly non-monthly fallback; no historical source batches were invented.
+
+Deployment order: apply `20260930000001`–`00003`, deploy the API, then deploy
+the Growth Desktop asset. Do not import real files until a signed-in Admin has
+previewed the correct period and name-match warnings. The latest corrected batch
+must be COMPLETE before Growth treats that period as trusted.
+
 Status: audited in code and against three Pete-provided CSV examples dated September 2026. Live data coverage and exact source windows are **not yet verified**. Do not promote snapshot values as monthly activity.
 
 ## Evidence from the three supplied files (no member data copied)

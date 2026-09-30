@@ -15,3 +15,13 @@ export function memberTrafficLightReportPeriod(rows: string[][]): string | null 
 export function evolutionIsHistorical(periods: string[], requestedPeriod: string): boolean {
   return periods.every(period => /^\d{4}-(0[1-9]|1[0-2])$/.test(period) && period <= requestedPeriod);
 }
+
+/** A reported zero is data, whereas a blank/invalid score is missing. */
+export function reportedNumber(value: unknown): number | null {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  const score = Number(raw.replace(/[\s,฿$]/g, ''));
+  return Number.isFinite(score) && score >= 0 ? score : null;
+}
+
+export const reportedScore = reportedNumber;

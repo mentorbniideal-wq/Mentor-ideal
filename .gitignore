@@ -11,3 +11,4 @@ supabase/.temp/
 BNI REPORT/
 .codex/**/__pycache__/
 *.pyc
+.env*
