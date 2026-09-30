@@ -21,9 +21,9 @@ BEGIN
     RAISE EXCEPTION 'Pulse pilot identity is immutable';
   END IF;
   NEW.updated_at := now();
-  INSERT INTO public.chapter_audit_events(event_type, subject_type, subject_ref, metadata)
-  VALUES ('member_pulse_pilot_access_changed', 'member', NEW.member_id::text,
-    jsonb_build_object('chapter_id', NEW.chapter_id, 'enabled', NEW.enabled, 'actor', NEW.updated_by_email));
+  INSERT INTO public.chapter_audit_events(chapter_id, event_type, actor_role, actor_ref, subject_type, subject_ref, metadata)
+  VALUES (NEW.chapter_id, 'member_pulse_pilot_access_changed', 'admin', NEW.updated_by_email,
+    'member', NEW.member_id::text, jsonb_build_object('enabled', NEW.enabled));
   RETURN NEW;
 END; $$;
 CREATE TRIGGER guard_member_pulse_pilot_access
