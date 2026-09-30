@@ -26,6 +26,7 @@ try {
   await page.addScriptTag({ path: 'public/assets/js/desktop-line-compose.js' });
   await page.addScriptTag({ path: 'public/assets/js/desktop-blueprint-workspace.js' });
   await page.addScriptTag({ path: 'public/assets/js/desktop-growth-workspace.js' });
+  await page.addScriptTag({ path: 'public/assets/js/desktop-growth-line.js' });
   await page.evaluate(() => {
     document.body.classList.add('dark');
     document.querySelector('#login').style.display = 'none';
@@ -94,6 +95,8 @@ try {
   await page.evaluate(() => msbOpenView('pairs'));
   assert.equal(await page.locator('#gr-msb [data-msb-view="pairs"]:not([hidden])').count(), 1, 'Blueprint workspace shows the selected MSB tool');
   assert.equal(await page.locator('#gr-msb [data-msb-view="comparison"]:not([hidden])').count(), 0, 'Blueprint workspace hides unrelated MSB tools');
+  assert.equal(await page.locator('#gr-line').count(), 1, 'Growth LINE Center has a dedicated workspace');
+  assert.equal(await page.locator('#growth-line-preview').count(), 1, 'Growth LINE Center exposes a preview-first send action');
   const nickname = '\\"\'><img src=x onerror=alert(1)>';
   await page.evaluate(nick => { window.S = { role: 'mc' }; _renderDeskLineTpls(nick); }, nickname);
   assert.equal(await page.locator('#desk-line-tpls img').count(), 0, 'Nickname is not markup');

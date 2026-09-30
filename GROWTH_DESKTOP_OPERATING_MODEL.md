@@ -40,6 +40,12 @@ The active Growth term supports one Lead and up to two Co-Leads. Chapter Admin m
 
 Readiness states are `ยังไม่ได้ตั้งค่า`, `รอยืนยัน`, and `พร้อมใช้งาน`. Access lookup, invitation delivery and cancellation are scoped from the authenticated Chapter on the server. A claimed invitation stores the Chapter derived from the invited member, never from a browser-supplied Chapter ID.
 
+## Growth LINE Center
+
+Growth Lead and Co-Leads can communicate through MYIDEAL from a dedicated Desktop workflow after Google OAuth and a server check against the current Chapter LT term; a shared PIN or generic Growth role is insufficient. The supported audiences are members whose current-year MSB is not submitted and an explicit member selection (at most 100 per batch). The browser receives MSB/LINE readiness but never LINE user IDs. Power Team categories are labelled as a draft for Growth review, not an assigned team, and are shown only from submitted MSB when current referral sharing consent allows them. Mentor Team is not a Growth grouping fallback.
+
+Every live delivery requires a recent server-recorded Preview whose message and recipient digests still match. Delivery reuses the shared notification guard, idempotent LINE ledger and per-recipient result model. Preview and send batches are audit events; audit metadata stores digests and counts, not message content.
+
 ## Design rules
 
 - Keep Desktop and Mobile separate, but share the same member and action sources of truth.
