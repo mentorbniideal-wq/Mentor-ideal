@@ -410,6 +410,7 @@ function renderMonthlySyncPreview(r){
     (unmatched.length?'<div class="sync-preview-warn">⚠️ ไม่พบชื่อ '+unmatched.length+' รายการ: '+escH(unmatched.slice(0,8).join(', '))+'</div>':'<div style="color:var(--gr)">✅ ไม่พบปัญหาชื่อสมาชิก</div>')+
     (q.missingActiveMembers?'<div class="sync-preview-warn">⚠️ สมาชิก Active ที่ไม่อยู่ในไฟล์ '+Number(q.missingActiveMembers)+' คน — ระบบจะไม่ลบข้อมูลของบุคคลเหล่านี้</div>':'')+
     (anomalies.length?'<div class="sync-preview-warn">⚠️ คะแนนเปลี่ยนตั้งแต่ 25 คะแนนขึ้นไป '+anomalies.length+' คน กรุณาตรวจ CSV</div>':'')+
+    '<div class="sync-preview-warn">ตัวเลข R2Y/Traffic Light จะเก็บเป็นค่าในรายงานตามไฟล์ต้นทาง · ยังไม่ใช่ผลงานเฉพาะเดือน เพราะไฟล์ไม่มีช่วงวันที่ยืนยัน</div>'+
     '<div style="margin-top:7px;color:var(--sub)">ระบบเก็บ hash และ snapshot ก่อน–หลัง โดยไม่เก็บเนื้อหา CSV ต้นฉบับ</div>';
 }
 function confirmMonthlySync(){

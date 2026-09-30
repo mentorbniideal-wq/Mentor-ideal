@@ -10,6 +10,16 @@ Status: audited in code and against three Pete-provided CSV examples dated Septe
 
 The three files alone do not prove which members have complete monthly history or allow reconstruction of prior-month business received. True monthly activity requires a source with explicit monthly interval (or independently verified same-window snapshots and business rules); it is intentionally not fabricated here.
 
+## Source-history increment for long-term use
+
+Migration `20260930000002_member_performance_source_snapshots.sql` adds a service-only, Chapter/member/period/source-unique source history with batch provenance. It stores both given and received values when the file contains them, but leaves unsupported values null. The unlabeled Reporting2You column is not imported as a verified Visitor metric into this new history. Supplied sources have `needs_verification` semantics and no source window, so the Growth Timeline shows raw report values by source with no monthly activity or month-on-month claim. Older `palms_key_snapshots` and `monthly_scores` remain as a read-only fallback; they are not backfilled or rewritten.
+
+The existing batch preview, fingerprint and rollback workflow is reused. New before/after batch snapshots include the source-history rows for the selected period. An additive database trigger restores them in the same transaction when the existing rollback RPC marks a batch rolled back. A matching batch/Chapter/member/period trigger prevents cross-Chapter or mismatched writes. The two supplied CSVs use names rather than a stable source member ID; matching remains conservative and ambiguous names block Sync.
+
+Validation on 30 September 2026: migrations `20260930000001` and `20260930000002` were applied to the `my-ideal-staging` database only. Catalog checks confirmed RLS and both triggers. Two transactional smoke checks passed: source rows were removed on a batch rollback status change, and the existing rollback RPC returned success. Synthetic 2099 batch/row changes were intentionally rolled back and verified absent. This does not replace signed-in API/UI or production database acceptance.
+
+Operational sequence: verify production migration history and backup, apply both migrations in order, deploy API and UI, perform one signed-in Growth preview with approved test records, then allow production import. Do not promote the candidate by Git push alone; the API now requires the new table. No real member CSV has been written by this work.
+
 ## Current state
 
 The Admin Monthly Sync modal accepts (1) Member Traffic Light CSV, (2) Traffic Lights Evolution CSV, and (3) Reporting2You CSV. `previewMonthlySync` / `monthlySync` in `supabase/functions/api/handlers/growth.ts` process them as one selected `YYYY-MM` batch. `monthly_sync_batches` records Chapter, period, file hashes/names, status, affected IDs, quality and before/after rollback snapshots; raw CSV is not retained. An identical combined hash is idempotent, but another file set for the same period may produce a separate batch.

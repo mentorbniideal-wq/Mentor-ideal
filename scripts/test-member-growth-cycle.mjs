@@ -41,6 +41,14 @@ assert.match(root.innerHTML, /ประวัติ Performance จากไฟ�
 assert.match(root.innerHTML, /ไม่ใช่ผลงานที่เกิดขึ้นเฉพาะเดือนนั้น/);
 assert.match(root.innerHTML, /560,000/);
 assert.doesNotMatch(root.innerHTML, /SECRET_HISTORICAL_TEXT|SECRET_NOTE|<img/);
+detail.performanceSourceHistory = [{ period: '2026-09', source: 'member_traffic_light', semantics: 'needs_verification',
+  tyfcbReceived: 60000, referralsGiven: 8, batchId: 'test-batch-id', capturedAt: '2026-09-30', monthlyActivityVerified: false }];
+window.memberGrowthOpen('member-1');
+await new Promise(resolve => setImmediate(resolve));
+assert.match(root.innerHTML, /ประวัติ Performance ตามไฟล์ต้นทาง/);
+assert.match(root.innerHTML, /TYFCB รับ: 60,000/);
+assert.match(root.innerHTML, /ยังคำนวณยอดรายเดือนหรือส่วนต่างไม่ได้/);
+assert.doesNotMatch(root.innerHTML, /560,000/);
 detail.canManage = true;
 detail.entries[0].detailRestricted = false;
 window.memberGrowthOpen('member-1');

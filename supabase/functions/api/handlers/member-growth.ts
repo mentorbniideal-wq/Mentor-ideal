@@ -4,6 +4,7 @@ import { CAPABILITY, hasCapability } from '../../_shared/capabilities.ts';
 import { getServiceClient, jsonResponse, errResponse } from '../../_shared/db.ts';
 import { canManageGrowthCycle, canReadGrowthCycle, cycleMonth, growthMilestone, membershipFacts, monthDueDate, parseDateOnly, renewalCycleStatus, todayInZone } from '../../_shared/member-growth-cycle.ts';
 import { buildMemberPerformanceHistory, PERFORMANCE_METRIC_SEMANTICS } from '../../_shared/member-performance-history.ts';
+import { sourceSnapshotHistory } from '../../_shared/member-performance-source.ts';
 
 type Row = Record<string, unknown>;
 const uuid = (value: unknown) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ''));
@@ -139,14 +140,19 @@ export async function handleMemberGrowth(p: Record<string, unknown>): Promise<Re
   if (action === 'getMemberGrowthTimeline') {
     // Historical values are source snapshots, not confirmed monthly activity.
     // The member lookup above establishes Chapter ownership before service-role reads.
-    const [performanceQ, scoresQ] = await Promise.all([
+    const [performanceQ, scoresQ, sourcesQ] = await Promise.all([
       db.from('palms_key_snapshots').select('year,month,referral_value,visitor_value,one_to_one_value,ceu_value,tyfcb_value,captured_at')
         .eq('member_id', memberId).order('year', { ascending: false }).order('month', { ascending: false }).limit(12),
       db.from('monthly_scores').select('year,month,score,synced_at,source').eq('member_id', memberId).eq('chapter_id', chapterId)
         .order('year', { ascending: false }).order('month', { ascending: false }).limit(12),
+      db.from('member_performance_source_snapshots')
+        .select('period_year,period_month,source_type,source_semantics,window_start,window_end,referrals_given,referrals_received,tyfcb_given,tyfcb_received,visitors,one_to_ones,ceu,traffic_light_points,import_batch_id,captured_at')
+        .eq('chapter_id', chapterId).eq('member_id', memberId)
+        .order('period_year', { ascending: false }).order('period_month', { ascending: false }).limit(24),
     ]);
-    if (performanceQ.error || scoresQ.error) return errResponse(performanceQ.error?.message || scoresQ.error?.message || 'Performance history unavailable');
+    if (performanceQ.error || scoresQ.error || sourcesQ.error) return errResponse(performanceQ.error?.message || scoresQ.error?.message || sourcesQ.error?.message || 'Performance history unavailable');
     const performanceHistory = buildMemberPerformanceHistory((performanceQ.data || []) as Row[], (scoresQ.data || []) as Row[]);
+    const performanceSourceHistory = sourceSnapshotHistory((sourcesQ.data || []) as Row[]);
     const { data: entries, error: entriesError } = cycleId
       ? await db.from('member_growth_entries').select('id,month_number,status,result,issue,next_action,follow_up_date,related_growth_task_id,related_proposal_id,related_my121_id,handoff_signal_id,updated_at').eq('cycle_id', cycleId)
       : { data: [], error: null };
@@ -196,7 +202,7 @@ export async function handleMemberGrowth(p: Record<string, unknown>): Promise<Re
       nodes: nodes(expiry, Boolean((member as Row).is_new_member), ((entries || []) as Row[]).map(row => ({ ...row, note_count: noteCounts.get(String(row.id)) || 0 })))
         .map(node => node.month === 3 && mentorReview ? { ...node, status: 'completed' } : node),
       mentorReview: mentorReview ? { status: 'completed', reviewDate: (mentorReview as Row).review_date } : { status: 'not_recorded', reviewDate: null },
-      entries: safeEntries, notes: (notesQ.data || []), performanceHistory,
+      entries: safeEntries, notes: (notesQ.data || []), performanceHistory, performanceSourceHistory,
       performanceMetricSemantics: PERFORMANCE_METRIC_SEMANTICS,
       verifiedMy121: ((verifiedPairs || []) as Row[]).map(pair => ({ pairId: pair.id, meetingDate: roundDates.get(String(pair.round_id)) || null })),
       canManage: writable(auth) && expiry === currentExpiry, privacy: canReadText ? 'current_consent' : 'detail_restricted' });

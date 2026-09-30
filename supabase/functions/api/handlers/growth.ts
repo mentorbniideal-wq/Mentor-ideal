@@ -11,6 +11,7 @@ import { resolveMsbPlanningYear } from '../../_shared/msb-planning-year.ts';
 import { reportingGoal, visibleGrowthCategories } from '../../_shared/growth-plan.ts';
 import { uniqueMemberNameMap } from '../../_shared/member-import-identity.ts';
 import { evolutionIsHistorical, memberTrafficLightReportPeriod } from '../../_shared/monthly-sync-period.ts';
+import { performanceSourceRows } from '../../_shared/member-performance-source.ts';
 import { linePush, sha256Hex } from '../../_shared/line.ts';
 import { evaluateNotificationGuard, logSuppressedNotification } from '../../_shared/notification-orchestrator.ts';
 
@@ -138,6 +139,25 @@ function findColumnIndex(headers: string[], candidates: string[]): number {
   return -1;
 }
 
+function hasDuplicateCsvMembers(rows: string[][], source: 'r2y' | 'memberTL'): boolean {
+  if (!rows.length) return false;
+  const header = source === 'memberTL'
+    ? findHeaderRow(rows, row => row.some(cell => String(cell).toLowerCase().trim() === 'total score'))
+    : { idx: 0, row: rows[0] };
+  if (!header) return false;
+  const nameIdx = source === 'r2y' ? 0 : findColumnIndex(header.row, ['name -surname', 'name - surname', 'name', 'member']);
+  if (nameIdx < 0) return false;
+  const seen = new Set<string>();
+  for (const row of rows.slice(header.idx + 1)) {
+    if (source === 'memberTL' && !/^\d+$/.test(String(row[0] || '').trim())) continue;
+    const key = normalizeName(row[nameIdx]);
+    if (!key) continue;
+    if (seen.has(key)) return true;
+    seen.add(key);
+  }
+  return false;
+}
+
 function latestScorePeriod(
   rows: Array<{ year: number; month: number }>,
   fallbackDate = new Date(),
@@ -173,19 +193,20 @@ async function monthlySyncFingerprint(inputs: { tlCsv: string | null; memberTLCs
   return { fileHashes, combinedHash: await sha256Text(JSON.stringify({ period, fileHashes })) };
 }
 
-async function captureMonthlySyncSnapshot(db: ReturnType<typeof getServiceClient>, memberIds: string[]) {
-  if (!memberIds.length) return { monthlyScores: [], r2yStats: [], keySnapshots: [], evolution: [], members: [], renewals: [] };
-  const [monthly, r2y, keys, evolution, members, renewals] = await Promise.all([
+async function captureMonthlySyncSnapshot(db: ReturnType<typeof getServiceClient>, memberIds: string[], period: { year: number; month: number }) {
+  if (!memberIds.length) return { monthlyScores: [], r2yStats: [], keySnapshots: [], evolution: [], members: [], renewals: [], performanceSnapshots: [] };
+  const [monthly, r2y, keys, evolution, members, renewals, performance] = await Promise.all([
     db.from('monthly_scores').select('*').in('member_id', memberIds),
     db.from('r2y_stats').select('*').in('member_id', memberIds),
     db.from('palms_key_snapshots').select('*').in('member_id', memberIds),
     db.from('traffic_light_evolution_summary').select('*').in('member_id', memberIds),
     db.from('members').select('id,email,phone,given_thb,received_thb').in('id', memberIds),
     db.from('renewals').select('*').in('member_id', memberIds),
+    db.from('member_performance_source_snapshots').select('*').in('member_id', memberIds).eq('period_year', period.year).eq('period_month', period.month),
   ]);
-  const failed = [monthly, r2y, keys, evolution, members, renewals].find(result => result.error);
+  const failed = [monthly, r2y, keys, evolution, members, renewals, performance].find(result => result.error);
   if (failed?.error) throw new Error(failed.error.message);
-  return { monthlyScores: monthly.data || [], r2yStats: r2y.data || [], keySnapshots: keys.data || [], evolution: evolution.data || [], members: members.data || [], renewals: renewals.data || [] };
+  return { monthlyScores: monthly.data || [], r2yStats: r2y.data || [], keySnapshots: keys.data || [], evolution: evolution.data || [], members: members.data || [], renewals: renewals.data || [], performanceSnapshots: performance.data || [] };
 }
 
 async function getExistingLatestScorePeriod(
@@ -1867,6 +1888,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         const tlRows = parseCsvString(inputs.tlCsv);
         const mtlRows = parseCsvString(inputs.memberTLCsv);
         const r2yRows = parseCsvString(inputs.r2yCsv);
+        if (hasDuplicateCsvMembers(mtlRows, 'memberTL') || hasDuplicateCsvMembers(r2yRows, 'r2y'))
+          return errResponse('พบสมาชิกซ้ำในไฟล์เดียวกัน กรุณาตรวจไฟล์ก่อน Sync', 409);
         const trafficLightUnmatched: string[] = [];
         const r2yUnmatched: string[] = [];
         const tlParsed = tlRows.length ? parseMonthlyScores(tlRows, memberMap, trafficLightUnmatched) : { scores: [], averages: [] };
@@ -1901,6 +1924,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           scoreRows: scoreRows.length, r2yRows: r2yParsed.length, affectedMembers: affectedMemberIds.length,
           unmatched: [...new Set([...trafficLightUnmatched, ...r2yUnmatched])], missingActiveMembers: missingMemberIds.length,
           anomalyCount: anomalies.length, anomalies: anomalies.slice(0, 20), periodsFound: periods,
+          memberTrafficLightPeriod: reportPeriod,
+          sourceWindowVerified: false,
         };
         const requestedFiles = typeof p.sourceFiles === 'object' && p.sourceFiles ? p.sourceFiles as Record<string, unknown> : {};
         const sourceFiles = Object.fromEntries(Object.entries(requestedFiles).slice(0, 3).map(([key, value]) => [key.slice(0, 80), String(value || '').slice(0, 255)]));
@@ -1984,6 +2009,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const tlRows = parseCsvString(tlCsv);
       const mtlRows = parseCsvString(memberTLCsv);
       const r2yRows = parseCsvString(r2yCsv);
+      if (hasDuplicateCsvMembers(mtlRows, 'memberTL') || hasDuplicateCsvMembers(r2yRows, 'r2y'))
+        return errResponse('พบสมาชิกซ้ำหลัง Preview กรุณาตรวจไฟล์และ Preview ใหม่', 409);
       const periodKey = `${requestedPeriod.year}-${String(requestedPeriod.month).padStart(2, '0')}`;
       const reportPeriod = memberTrafficLightReportPeriod(mtlRows);
       if (reportPeriod && reportPeriod !== periodKey) return errResponse('เดือนรายงาน Member Traffic Light เปลี่ยนหลัง Preview กรุณา Preview ใหม่');
@@ -2026,7 +2053,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       }
       try {
         const memberIds = Array.isArray(monthlyBatch.affected_member_ids) ? monthlyBatch.affected_member_ids.map(String) : [];
-        const beforeSnapshot = await captureMonthlySyncSnapshot(db, memberIds);
+        const beforeSnapshot = await captureMonthlySyncSnapshot(db, memberIds, requestedPeriod);
         const { data: started, error: startError } = await db.from('monthly_sync_batches').update({ status: 'running', confirmed_at: new Date().toISOString(), before_snapshot: beforeSnapshot }).eq('id', batchId).eq('status', 'previewed').select('id').maybeSingle();
         if (startError) throw new Error(startError.message);
         if (!started) return errResponse('มีการยืนยัน Preview รอบนี้ไปแล้ว กรุณาโหลดสถานะล่าสุด');
@@ -2051,12 +2078,15 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
 
       // Steps 5+6: upsert R2Y stats from R2Y CSV
       const r2yUnmatched: string[] = [];
+      let sourceR2YRows: Array<Record<string, unknown>> = [];
+      let sourceMTLRows: Array<Record<string, unknown>> = [];
       if (r2yRows.length) {
         const r2yParsed = parseR2YRows(r2yRows, memberMap, r2yUnmatched);
         if (r2yParsed.length) {
           try {
             importedR2Y += await upsertR2YStats(db, r2yParsed.map(row => ({ ...row, chapter_id: chapterId })));
             importedKeySnapshots += await upsertPalmsKeySnapshots(db, r2yParsed, scorePeriod);
+            sourceR2YRows = r2yParsed;
           } catch (e) {
             r2yOk = false; r2ySyncOk = false;
             stepErrors.push(`r2y: ${(e as Error).message}`);
@@ -2120,6 +2150,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           try {
             importedR2Y += await upsertR2YStats(db, r2yUpserts);
             importedKeySnapshots += await upsertPalmsKeySnapshots(db, r2yUpserts, scorePeriod);
+            sourceMTLRows = Object.entries(mtlData).flatMap(([name, item]) => memberMap[name] ? [{ member_id: memberMap[name], ...item }] : []);
           } catch (e) {
             mtlOk = false;
             stepErrors.push(`mtl-r2y: ${(e as Error).message}`);
@@ -2190,6 +2221,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         nonMentorOk, counterOk, r2yOk, r2ySyncOk, renewalOk, grOk, mtlOk,
         importedScores, importedEvolutionAverages, importedR2Y, updatedGivenReceived: updatedGR,
         importedKeySnapshots,
+        importedSourceSnapshots: sourceR2YRows.length + sourceMTLRows.length,
         autoEnrolled,
         scoreYear: scoreRows.length ? scorePeriod.year : null,
         scoreMonth: scoreRows.length ? scorePeriod.month : null,
@@ -2198,8 +2230,17 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         ...(stepErrors.length ? { errors: stepErrors } : {}),
       };
       try {
+        const sourceRows = [
+          ...performanceSourceRows(sourceR2YRows, 'reporting2you', chapterId, batchId, requestedPeriod),
+          ...performanceSourceRows(sourceMTLRows, 'member_traffic_light', chapterId, batchId, requestedPeriod),
+        ];
+        if (sourceRows.length) {
+          const { error: sourceError } = await db.from('member_performance_source_snapshots').upsert(sourceRows,
+            { onConflict: 'chapter_id,member_id,period_year,period_month,source_type' });
+          if (sourceError) throw new Error(sourceError.message);
+        }
         const memberIds = Array.isArray(monthlyBatch.affected_member_ids) ? monthlyBatch.affected_member_ids.map(String) : [];
-        const afterSnapshot = await captureMonthlySyncSnapshot(db, memberIds);
+        const afterSnapshot = await captureMonthlySyncSnapshot(db, memberIds, requestedPeriod);
         const finalStatus = stepErrors.length ? 'completed_with_warnings' : 'completed';
         const completedAt = new Date().toISOString();
         const { error: finishError } = await db.from('monthly_sync_batches').update({
