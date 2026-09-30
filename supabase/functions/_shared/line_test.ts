@@ -324,6 +324,7 @@ Deno.test('all documented LINE command aliases resolve to stable command contrac
     ['เป้า', 'goals'],
     ['เป้าหมาย', 'goals'],
     ['Blueprint', 'blueprint'],
+    ['Pulse', 'member-pulse'],
     ['goal', 'blueprint'],
     ['MSB', 'blueprint'],
     ['แจ้งเตือน', 'notifications'],

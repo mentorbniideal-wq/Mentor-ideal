@@ -1,5 +1,5 @@
 // Member-facing Pulse: existing LIFF session and liff-api are the only auth path.
-// No LINE send, campaign creation, or staff access is exposed here.
+// Pilot campaign creation happens server-side only after linked-member allowlist checks.
 (function () {
   "use strict";
   var current = null;
@@ -37,7 +37,7 @@
       return;
     }
     if (!result.available) {
-      target.textContent = result.reason === "not_enabled" ? "Member Pulse ยังไม่เปิดใช้งาน" : "ตอนนี้ยังไม่มีแบบสอบถามสำหรับคุณ";
+      target.textContent = result.reason === "not_enabled" ? "Member Pulse ยังไม่เปิดให้บัญชีของคุณใช้งาน" : result.reason === "expired" ? "แบบสอบถามทดลองหมดอายุแล้ว กรุณาติดต่อทีม Growth" : "ตอนนี้ยังไม่มีแบบสอบถามสำหรับคุณ";
       return;
     }
     current = result;

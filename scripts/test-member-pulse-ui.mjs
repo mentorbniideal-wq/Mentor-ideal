@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
+const liffHtml = readFileSync(new URL('../public/liff/index.html', import.meta.url), 'utf8');
+assert.doesNotMatch(liffHtml, /class="tab member-tab" data-view="pulse"/, 'private pilot has no regular member menu entry');
+assert.match(liffHtml, /if \(view === 'pulse'\)\s+loadMemberPulse\(\)/, 'direct LIFF action still opens the private page');
+
 const listeners = {};
 const elements = {
   pulseContent: { textContent: '', innerHTML: '' },

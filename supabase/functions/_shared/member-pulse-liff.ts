@@ -28,7 +28,12 @@ export async function handleMemberPulseLiff(
   const policy = await db.from("member_pulse_policies").select("enabled")
     .eq("chapter_id", identity.chapterId).maybeSingle();
   if (policy.error) return fail(503, "Member Pulse ยังไม่พร้อมใช้งาน");
-  if (policy.data?.enabled !== true) {
+  const pilotAccess = await db.from("member_pulse_pilot_access").select("enabled")
+    .eq("chapter_id", identity.chapterId).eq("member_id", identity.memberId)
+    .maybeSingle();
+  if (pilotAccess.error) return fail(503, "ตรวจสิทธิ์ทดลอง Pulse ไม่สำเร็จ");
+  const pilotMode = policy.data?.enabled !== true && pilotAccess.data?.enabled === true;
+  if (policy.data?.enabled !== true && !pilotMode) {
     return action === "get-my-pulse"
       ? {
         status: 200,
@@ -36,9 +41,25 @@ export async function handleMemberPulseLiff(
       }
       : fail(403, "Member Pulse ยังไม่เปิดใช้งาน");
   }
+  if (pilotMode && action === "get-my-pulse") {
+    const activeTemplate = await db.from("member_pulse_templates")
+      .select("id").eq("chapter_id", identity.chapterId)
+      .eq("stage", "experience").eq("version", 1000).maybeSingle();
+    if (activeTemplate.error || !activeTemplate.data) return fail(503, "แบบสอบถามทดลองยังไม่พร้อม");
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 30 * 86400000).toISOString();
+    const started = await db.from("member_pulse_campaigns").upsert({
+      chapter_id: identity.chapterId, member_id: identity.memberId,
+      template_id: activeTemplate.data.id, stage: "experience", cycle_key: "pilot:v1",
+      due_on: now.toISOString().slice(0, 10), status: "opened",
+      opened_at: now.toISOString(), expires_at: expiresAt,
+    }, { onConflict: "chapter_id,member_id,cycle_key", ignoreDuplicates: true }).select("id").maybeSingle();
+    if (started.error) return fail(503, "เปิดแบบสอบถามทดลองไม่สำเร็จ");
+  }
   const query = db.from("member_pulse_campaigns")
-    .select("id,template_id,stage,due_on,status,created_at")
+    .select("id,template_id,stage,due_on,status,created_at,expires_at")
     .eq("chapter_id", identity.chapterId).eq("member_id", identity.memberId);
+  if (pilotMode) query.eq("cycle_key", "pilot:v1");
   const campaignResult = action === "get-my-pulse"
     ? await query.order("created_at", { ascending: false }).limit(1)
       .maybeSingle()
@@ -52,6 +73,11 @@ export async function handleMemberPulseLiff(
         body: { ok: true, available: false, reason: "no_campaign" },
       }
       : fail(404, "ไม่พบแบบสอบถามของคุณ");
+  }
+  if (campaign.status !== "completed" && campaign.expires_at && new Date(String(campaign.expires_at)).getTime() <= Date.now()) {
+    return action === "get-my-pulse"
+      ? { status: 200, body: { ok: true, available: false, reason: "expired" } }
+      : fail(410, "แบบสอบถามนี้หมดอายุแล้ว");
   }
   const templateResult = await db.from("member_pulse_templates")
     .select("id,title,question_spec,active,version")
@@ -113,7 +139,7 @@ export async function handleMemberPulseLiff(
       },
     };
   }
-  if (!template.active || ["declined", "expired"].includes(campaign.status)) {
+  if ((!template.active && !pilotMode) || !["sent", "opened", "in_progress"].includes(campaign.status)) {
     return fail(409, "แบบสอบถามนี้ปิดรับคำตอบแล้ว");
   }
   const checked = validatePulseAnswers(template.question_spec, body.answers);
@@ -127,13 +153,6 @@ export async function handleMemberPulseLiff(
     "completed_at",
   ).maybeSingle();
   if (saved.error) return fail(503, "บันทึกคำตอบไม่สำเร็จ กรุณาลองใหม่");
-  const updated = await db.from("member_pulse_campaigns").update({
-    status: "completed",
-    completed_at: saved.data?.completed_at || new Date().toISOString(),
-  }).eq("id", campaign.id).eq("chapter_id", identity.chapterId)
-    .eq("member_id", identity.memberId).select("id").maybeSingle();
-  if (updated.error || !updated.data) {
-    return fail(503, "บันทึกสถานะไม่สำเร็จ กรุณาลองใหม่");
-  }
+  // The DB response trigger completes the campaign atomically with this write.
   return { status: 200, body: { ok: true, duplicate: !saved.data } };
 }

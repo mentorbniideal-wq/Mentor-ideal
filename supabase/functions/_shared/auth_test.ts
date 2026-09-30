@@ -93,10 +93,14 @@ Deno.test('verified OAuth role matrix keeps caller scope despite client role and
   }
 });
 
-Deno.test('only verified system-owner identity gets unrestricted Admin access', async () => {
+Deno.test('Chapter Admin requires assigned role and flag; System Owner stays separate', async () => {
   await withIdentity({ role: 'admin', is_admin: true, capabilities: ['*'] }, async db => {
     const result = await requireAuth(db, { token: 'test', action: 'getDashboard' });
-    assert(result.ok && !result.isAdmin && !result.capabilities?.includes('*'), 'DB flags must not elevate another identity');
+    assert(result.ok && result.isAdmin && !result.isSystemOwner, 'Assigned Chapter Admin is not System Owner');
+  });
+  await withIdentity({ role: 'mc', is_admin: true, capabilities: ['*'] }, async db => {
+    const result = await requireAuth(db, { token: 'test', action: 'getDashboard' });
+    assert(result.ok && !result.isAdmin && !result.isSystemOwner && !result.capabilities?.includes('*'), 'Flag alone must not promote an account');
   });
   await withIdentity({ role: 'admin' }, async db => {
     const result = await requireAdminAccess(db, { token: 'test', action: 'updateAdminMember' }, 'members', { write: true });

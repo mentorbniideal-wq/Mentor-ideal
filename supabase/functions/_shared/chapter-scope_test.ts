@@ -23,3 +23,8 @@ Deno.test('legacy PIN scope only works with one active Chapter', async () => {
   const result = await resolveChapterScope(dbFor([], [{ id: 'ideal', chapter_key: 'bni-ideal' }]), {});
   assertEquals(result, { ok: true, chapterId: 'ideal', chapterKey: 'bni-ideal', source: 'single_active_legacy' });
 });
+
+Deno.test('Chapter Admin never falls back to an unrelated active Chapter', async () => {
+  const result = await resolveChapterScope(dbFor([]), { email: 'admin@example.com', isAdmin: true, isSystemOwner: false });
+  assertEquals(result.ok, false);
+});

@@ -44,12 +44,14 @@ function fakeDb() {
     member_pulse_templates: [{ ...template }],
     member_pulse_campaigns: [{ ...campaign }],
     member_pulse_responses: [],
+    member_pulse_pilot_access: [],
   };
   const db = {
     from(table: string) {
       const filters: [string, unknown][] = [];
       let mutation: Row | null = null;
       let operation = "read";
+      let conflictColumns: string[] = [];
       const query = {
         select(_columns: string) {
           return query;
@@ -69,9 +71,10 @@ function fakeDb() {
           mutation = value;
           return query;
         },
-        upsert(value: Row, _options: unknown) {
+        upsert(value: Row, options: { onConflict?: string }) {
           operation = "upsert";
           mutation = value;
+          conflictColumns = String(options?.onConflict || "campaign_id").split(",");
           return query;
         },
         async maybeSingle() {
@@ -80,8 +83,9 @@ function fakeDb() {
             filters.every(([column, value]) => item[column] === value)
           );
           if (operation === "upsert") {
+            row = rows.find((item) => conflictColumns.every((key) => item[key] === mutation?.[key]));
             if (!row) {
-              row = { ...mutation };
+              row = { ...(table === "member_pulse_campaigns" ? { id: "pilot-campaign" } : {}), ...mutation };
               rows.push(row);
             } else row = undefined;
           } else if (operation === "update" && row) {
@@ -163,6 +167,7 @@ Deno.test("Member Pulse LIFF denies forged campaign and disabled policy", async 
 
 Deno.test("Member Pulse LIFF validates and deduplicates completion", async () => {
   const { db, tables } = fakeDb();
+  tables.member_pulse_campaigns[0].status = "sent";
   const invalid = await handleMemberPulseLiff(
     db,
     { chapterId: chapterA, memberId: memberA },
@@ -186,6 +191,34 @@ Deno.test("Member Pulse LIFF validates and deduplicates completion", async () =>
   );
   assertEquals(again.body.duplicate, true);
   assertEquals(tables.member_pulse_responses[0].answers, { happiness: 8 });
+});
+
+Deno.test("Member Pulse LIFF cannot submit a due campaign before Growth sends it", async () => {
+  const { db, tables } = fakeDb();
+  const result = await handleMemberPulseLiff(db, { chapterId: chapterA, memberId: memberA }, "submit-my-pulse", { campaignId: campaign.id, answers: { happiness: 8 } });
+  assertEquals(result.status, 409);
+  assertEquals(tables.member_pulse_responses.length, 0);
+});
+
+Deno.test("private pilot starts only for explicitly allowed linked member and never sends LINE", async () => {
+  const { db, tables } = fakeDb();
+  tables.member_pulse_policies[0].enabled = false;
+  tables.member_pulse_pilot_access.push({ chapter_id: chapterA, member_id: memberA, enabled: true });
+  tables.member_pulse_templates.push({ ...template, id: "pilot-template", stage: "experience", version: 1000, active: false });
+  const allowed = await handleMemberPulseLiff(db, { chapterId: chapterA, memberId: memberA }, "get-my-pulse", {});
+  assertEquals(allowed.status, 200);
+  assertEquals(allowed.body.available, true);
+  assertEquals(tables.member_pulse_campaigns.filter((row) => row.cycle_key === "pilot:v1").length, 1);
+  const denied = await handleMemberPulseLiff(db, { chapterId: chapterA, memberId: memberB }, "get-my-pulse", {});
+  assertEquals(denied.body.available, false);
+  const repeated = await handleMemberPulseLiff(db, { chapterId: chapterA, memberId: memberA }, "get-my-pulse", {});
+  assertEquals(repeated.status, 200);
+  assertEquals(tables.member_pulse_campaigns.filter((row) => row.cycle_key === "pilot:v1").length, 1);
+  tables.member_pulse_pilot_access[0].enabled = false;
+  const revoked = await handleMemberPulseLiff(db, { chapterId: chapterA, memberId: memberA }, "get-my-pulse", {});
+  assertEquals(revoked.body.available, false);
+  const blockedSubmit = await handleMemberPulseLiff(db, { chapterId: chapterA, memberId: memberA }, "submit-my-pulse", { campaignId: (repeated.body.campaign as Row).id, answers: { happiness: 8 } });
+  assertEquals(blockedSubmit.status, 403);
 });
 
 Deno.test("Member Pulse LIFF fails closed on completed campaign without persisted response", async () => {

@@ -8,7 +8,7 @@ export type ChapterScope = { ok: true; chapterId: string; chapterKey: string; so
 
 function normalizedEmail(value: unknown): string { return String(value || '').trim().toLowerCase(); }
 
-export async function resolveChapterScope(db: Db, auth: Pick<AuthResult, 'email'>): Promise<ChapterScope> {
+export async function resolveChapterScope(db: Db, auth: Pick<AuthResult, 'email' | 'isAdmin' | 'isSystemOwner'>): Promise<ChapterScope> {
   const email = normalizedEmail(auth.email);
   if (email) {
     const { data, error } = await db.from('chapter_memberships')
@@ -25,6 +25,7 @@ export async function resolveChapterScope(db: Db, auth: Pick<AuthResult, 'email'
       return { ok: true, chapterId: String(selected.chapter_id), chapterKey: String(chapter.chapter_key), source: 'membership' };
     }
     if (rows.length > 1) return { ok: false, error: 'บัญชีนี้มีหลาย Chapter กรุณาเลือก Chapter ผ่าน session ที่ระบบออกให้' };
+    if (auth.isAdmin && !auth.isSystemOwner) return { ok: false, error: 'บัญชี Admin ต้องมี Chapter membership ที่ใช้งานอยู่' };
   }
   const { data, error } = await db.from('chapter_profiles').select('id,chapter_key').eq('is_active', true).limit(2);
   if (error) return { ok: false, error: 'ไม่สามารถตรวจสอบ Active Chapter ได้' };

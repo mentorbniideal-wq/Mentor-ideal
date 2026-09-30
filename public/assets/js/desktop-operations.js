@@ -233,7 +233,7 @@ function enterApp(r){
   viewerBanner.style.display=(S.isViewer||S.isReadOnly)?'block':'none';
   // Workspace switching is a System Owner privilege. MC and Growth remain
   // in their own workspaces even when their UI is loaded directly by URL.
-  S.canRoleSwitch=!S.isViewer&&Boolean(r.isSystemOwner);
+  S.canRoleSwitch=!S.isViewer&&!S.isReadOnly&&Boolean(r.isAdmin);
   if(DESKTOP_ROLE_TARGET&&DESKTOP_ROLE_TARGET!==S.role&&(S.isMC||S.role==='toomtam')){
     var target=DESKTOP_ROLE_TARGET;
     DESKTOP_ROLE_TARGET='';

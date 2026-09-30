@@ -9,6 +9,7 @@ export type LineCommand =
   | 'chapter-trend'
   | 'tracking'
   | 'blueprint'
+  | 'member-pulse'
   | 'goals'
   | 'notifications'
   | 'issues'
@@ -49,6 +50,7 @@ export function parseLineCommand(input: string): ParsedLineCommand {
   if (normalized === 'chapter trend') return command('chapter-trend');
   if (['ติดตาม', '1-2-1', 'นัด 1-2-1', 'นัด1-2-1'].includes(normalized)) return command('tracking');
   if (['blueprint', 'msb', 'member success blueprint', 'advanced msp', 'goal', 'goals', 'แผนธุรกิจ', 'แผนธุรกิจประจำปี'].includes(normalized)) return command('blueprint');
+  if (['pulse', 'member pulse', 'แบบสอบถาม pulse'].includes(normalized)) return command('member-pulse');
   if (['เป้า', 'เป้าหมาย', 'เป้าของฉัน'].includes(normalized)) return command('goals');
   if (['แจ้งเตือน', 'notif'].includes(normalized)) return command('notifications');
   if (['ปัญหา', 'issue', 'ขอความช่วยเหลือ'].includes(normalized)) return command('issues');

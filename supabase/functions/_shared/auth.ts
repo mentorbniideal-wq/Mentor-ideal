@@ -89,14 +89,15 @@ export async function verifyToken(
   if (r.access_expires_at && new Date(String(r.access_expires_at)).getTime() <= Date.now()) {
     return { ok: false, error: 'สิทธิ์ของบัญชีนี้หมดอายุแล้ว กรุณาติดต่อ Chapter Admin' };
   }
-  // Full, unrestricted access is deliberately tied to one verified Google
-  // identity. Database flags cannot accidentally promote another account.
+  // System ownership remains tied to Pete's verified Google identity. Chapter
+  // Admin is a separate, database-assigned role for the signed-in account.
   const isSystemOwner = email === SYSTEM_OWNER_EMAIL;
-  const isAdmin = isSystemOwner;
+  const isAdmin = isSystemOwner || (String(r.role).toLowerCase() === 'admin' && r.is_admin === true);
   const isViewer = String(r.role).toLowerCase() === 'viewer';
   const isReadOnly = isViewer || Boolean(r.read_only_after && new Date(String(r.read_only_after)).getTime() <= Date.now());
   const capabilities = isSystemOwner
     ? defaultCapabilities('admin', true)
+    : isAdmin ? defaultCapabilities('admin', true)
     : (Array.isArray(r.capabilities) ? r.capabilities.map(String).filter(x => x !== '*') : []);
   return {
     ok:          true,

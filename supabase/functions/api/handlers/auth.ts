@@ -107,7 +107,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
 
     const result = await verifyToken(db, token);
     if (!result.ok) return jsonResponse({ ok: false, error: result.error });
-    if (!result.isSystemOwner || !canAssumeOperationalView(result, targetRole)) {
+    if (result.isReadOnly || !result.isAdmin || !canAssumeOperationalView(result, targetRole)) {
       if (targetRole === 'admin') {
         return jsonResponse({ ok: false, error: 'เฉพาะ Chapter Admin เท่านั้นที่เปิดมุมมอง Chapter Admin ได้' });
       }
@@ -135,7 +135,7 @@ export async function handleAuth(p: Record<string, unknown>): Promise<Response> 
     const { data: ver } = await db.from('settings').select('key, value').in('key', ['APP_VERSION']);
     const version = ver?.find((r: { key: string }) => r.key === 'APP_VERSION')?.value || 'v4.0';
 
-    return jsonResponse({ ok: true, role: targetRole, ...info, ...teamIdentity, isAdmin: true, isSystemOwner: true, version });
+    return jsonResponse({ ok: true, role: targetRole, ...info, ...teamIdentity, isAdmin: result.isAdmin, isSystemOwner: Boolean(result.isSystemOwner), version });
   }
 
   // ── changePIN ────────────────────────────────────────────────

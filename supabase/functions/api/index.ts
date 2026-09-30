@@ -76,6 +76,7 @@ const ROUTES: Record<string, string> = {
   'getMemberPulseHistory': 'member-pulse', 'previewMemberPulse': 'member-pulse',
   'sendMemberPulse': 'member-pulse', 'remindMemberPulse': 'member-pulse',
   'createMemberPulseDue': 'member-pulse',
+  'getMemberPulsePilotAccess': 'member-pulse', 'setMemberPulsePilotAccess': 'member-pulse',
   'saveMemberGrowthEntry': 'member-growth', 'appendMemberGrowthNote': 'member-growth',
   'linkMemberGrowthTask': 'member-growth', 'createMemberGrowthRenewalHandoff': 'member-growth',
   'linkMemberGrowthMy121': 'member-growth',
@@ -417,10 +418,9 @@ Deno.serve(async (req: Request) => {
     if (!PUBLIC_ACTIONS.has(action) && !AUTH_ACTIONS.has(action)) {
       const auth = await requireAuth(getServiceClient(), payload);
       if (!auth.ok) return errResponse(auth.error || 'Authentication required', 401);
-      // Growth is a separate operational workspace. Never grant it merely
-      // because a caller can authenticate as Mentor Co.; only its assigned
-      // Growth role or the verified System Owner may enter this domain.
-      if (domain === 'growth' && !auth.isSystemOwner && auth.role !== 'growth') {
+      // Growth remains separate from Mentor Co. A verified, assigned Chapter
+      // Admin may manage its own Chapter; a plain MC account cannot.
+      if (domain === 'growth' && !auth.isAdmin && auth.role !== 'growth') {
         return errResponse('ไม่มีสิทธิ์เข้าพื้นที่ Growth', 403);
       }
     }

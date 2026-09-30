@@ -167,7 +167,7 @@ async function handleEvent(
   // Look up registered member
   const { data: lineRec } = await db
     .from('line_members')
-    .select('member_id, members(name, nickname, mentor_team)')
+    .select('member_id, members(name, nickname, mentor_team, chapter_id)')
     .eq('line_user_id', userId)
     .maybeSingle();
 
@@ -250,6 +250,21 @@ async function handleEvent(
       );
       return;
     }
+  }
+  if (memberName && parsedCommand.name === 'member-pulse' && ev.replyToken) {
+    const chapterId = String((lineRec as any)?.members?.chapter_id || '');
+    const memberId = String(lineRec?.member_id || '');
+    const { data: pilot, error: pilotError } = await db.from('member_pulse_pilot_access')
+      .select('enabled').eq('chapter_id', chapterId).eq('member_id', memberId).maybeSingle();
+    if (pilotError) throw pilotError;
+    const liffUrl = Deno.env.get('LINE_LIFF_URL') || '';
+    const target = pilot?.enabled && liffUrl ? new URL(liffUrl) : null;
+    if (target) target.searchParams.set('action', 'pulse');
+    await lineReplyMessages(ev.replyToken, [commandCardFlex('MEMBER PULSE',
+      target ? '💛 เปิดแบบสอบถามทดลองของคุณได้จากปุ่มด้านล่าง\nคำตอบนี้ใช้เพื่อช่วยให้ทีมดูแลสมาชิกได้ตรงความต้องการ ไม่ใช่คะแนนจัดอันดับ' : 'ขณะนี้ Member Pulse ยังไม่เปิดให้บัญชีของคุณใช้งาน',
+      { eyebrow: 'MY IDEAL · PRIVATE PILOT', actions: target ? [{ label: 'เปิด Member Pulse', type: 'uri', uri: target.toString(), primary: true }] : [] },
+    )], { db, idempotencyKey: `webhook:${eventId}:pulse-link`, memberId, notificationType: 'member_pulse_link', source: 'line-webhook' });
+    return;
   }
   if (memberName && parsedCommand.name === 'blueprint' && ev.replyToken) {
     const link = await createMemberSuccessBlueprintLink(
@@ -688,6 +703,8 @@ async function processCommand(
       return await reply121(db, memberName);
     case 'blueprint':
       return 'พิมพ์ “Blueprint” อีกครั้งเพื่อรับลิงก์ Member Success Blueprint ครับ';
+    case 'member-pulse':
+      return 'ขณะนี้ Member Pulse ยังไม่เปิดให้บัญชีของคุณใช้งาน';
     case 'goals':
       return await replyGoals(db, memberName);
     case 'notifications':
