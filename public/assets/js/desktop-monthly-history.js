@@ -30,19 +30,7 @@
       '<div class="history-state"><span class="history-status ' + state.tone + '">' + state.text + '</span></div>' +
       '<button type="button" class="history-review" data-history-preview="' + period + '"' + (!ready || busy ? ' disabled' : '') + '>ตรวจไฟล์ <span aria-hidden="true">↗</span></button></div>';
   }
-  window.switchSyncView = function (mode) {
-    var current = mode !== 'history';
-    el('sync-operational-panel').hidden = !current;
-    el('sync-history-panel').hidden = current;
-    el('sync-current-tab').setAttribute('aria-selected', String(current));
-    el('sync-history-tab').setAttribute('aria-selected', String(!current));
-    el('sync-modal').classList.toggle('history-mode', !current);
-    if (!current) {
-      if (!el('history-window-end').value) el('history-window-end').value = monthKey(localMonth());
-      window.loadHistoryGrid();
-    }
-  };
-  window.openHistoryBackfill = function () { openSyncModal(); window.switchSyncView('history'); };
+  function canUseHistory() { return Boolean(S.token && S.isAdmin && !S.isReadOnly && !S.isViewer); }
   window.moveHistoryWindow = function (delta) {
     var input = el('history-window-end');
     input.value = monthKey(Math.min(localMonth(), monthIndex(input.value) + delta));
@@ -58,6 +46,8 @@
   };
   window.loadHistoryGrid = function () {
     var grid = el('history-grid'); if (!grid) return;
+    if (!canUseHistory()) { grid.innerHTML = '<p class="history-error" role="alert">หน้านี้สำหรับเจ้าของระบบหรือ Admin ที่เข้าสู่ระบบด้วย Google เท่านั้น</p>'; return; }
+    if (!el('history-window-end').value) el('history-window-end').value = monthKey(localMonth());
     grid.textContent = 'กำลังโหลดสถานะรายงวด…';
     return call('getMonthlySyncHistory', { role: S.role }).then(function (result) {
       history = (result.rows || []).slice().sort(function (a, b) { return String(b.created_at).localeCompare(String(a.created_at)); });

@@ -1,5 +1,14 @@
 import { assert, assertEquals, assertRejects } from 'https://deno.land/std@0.224.0/assert/mod.ts';
-import { prepareHistoricalBackfill } from './growth.ts';
+import { canBackfillMonthlyHistory, prepareHistoricalBackfill } from './growth.ts';
+
+Deno.test('historical backfill requires verified owner/admin OAuth, not Growth capability or PIN', () => {
+  assertEquals(canBackfillMonthlyHistory({ ok: true, email: 'admin@example.test', role: 'admin', isAdmin: true }), true);
+  assertEquals(canBackfillMonthlyHistory({ ok: true, email: 'growth@example.test', role: 'growth', capabilities: ['growth.monthly_sync.execute'] }), false);
+  assertEquals(canBackfillMonthlyHistory({ ok: true, role: 'admin', isAdmin: true }), false);
+  assertEquals(canBackfillMonthlyHistory({ ok: true, email: 'admin@example.test', isAdmin: true, isReadOnly: true }), false);
+  assertEquals(canBackfillMonthlyHistory({ ok: true, email: 'admin@example.test', isAdmin: true, isViewer: true }), false);
+  assertEquals(canBackfillMonthlyHistory({ ok: false, email: 'admin@example.test', isAdmin: true }), false);
+});
 
 const db = {
   from(table: string) {

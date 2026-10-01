@@ -19,6 +19,11 @@ function hasGrowthCapability(auth: Awaited<ReturnType<typeof requireAuth>>, capa
   return Boolean(auth.isAdmin || hasCapability(auth, capability));
 }
 
+export function canBackfillMonthlyHistory(auth: AuthResult): boolean {
+  return Boolean(auth.ok && auth.email && auth.isAdmin && !auth.isReadOnly && !auth.isViewer &&
+    hasGrowthCapability(auth, CAPABILITY.GROWTH_MONTHLY_SYNC_EXECUTE));
+}
+
 // A shared Growth PIN or a generic Growth role cannot identify a current LT
 // sender. Resolve the OAuth member against the Chapter's active LT roster.
 async function authorizeGrowthLineSender(db: ReturnType<typeof getServiceClient>, auth: AuthResult, chapterId: string): Promise<string | null> {
@@ -1937,8 +1942,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'commitHistoricalBackfill': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
-      if (!auth.email || auth.isReadOnly || auth.isViewer || !hasGrowthCapability(auth, CAPABILITY.GROWTH_MONTHLY_SYNC_EXECUTE))
-        return errResponse('นำเข้าย้อนหลังต้องใช้บัญชี OAuth ที่มีสิทธิ์ Monthly Sync', 403);
+      if (!canBackfillMonthlyHistory(auth))
+        return errResponse('นำเข้าย้อนหลังสำหรับเจ้าของระบบหรือ Admin ที่เข้าสู่ระบบด้วย Google เท่านั้น', 403);
       const scope = await resolveChapterScope(db, auth);
       if (!scope.ok) return errResponse(scope.error, 403);
       try {

@@ -368,7 +368,6 @@ function openSyncModal(){
   document.getElementById('sync-r2y-file').value='';
   ['sync-reporting-period','sync-mtl-file','sync-tl-file','sync-r2y-file'].forEach(function(id){var input=document.getElementById(id);if(input)input.onchange=resetMonthlySyncPreview;});
   document.getElementById('sync-modal').classList.add('open');
-  if(window.switchSyncView)window.switchSyncView('current');
   loadMonthlySyncHistory();
 }
 function closeSyncModal(){document.getElementById('sync-modal').classList.remove('open');}
