@@ -26,7 +26,7 @@
 <link rel="stylesheet" href="/assets/css/viewer-mode.css">
 <link rel="stylesheet" href="/assets/css/line-auto-control-center.css?v=20260925b">
 <link rel="stylesheet" href="/assets/css/line-delivery-control.css?v=20260925b">
-<link rel="stylesheet" href="/assets/css/desktop-monthly-sync.css?v=20260905">
+<link rel="stylesheet" href="/assets/css/desktop-monthly-sync.css?v=20261001-history.1">
 <link rel="stylesheet" href="/assets/css/desktop-ux-pro-max.css?v=20260909-audit.1">
 <link rel="stylesheet" href="/assets/css/desktop-responsive.css?v=20260909a">
 </head>
@@ -198,6 +198,7 @@
           <button class="rail-action" onclick="openMeetingPrep()">Meeting Prep</button>
           <button class="rail-action" onclick="openActionCenter('pq')">Action Center</button>
           <button class="rail-action" onclick="openSyncModal()">Monthly Sync</button>
+          <button class="rail-action" onclick="openHistoryBackfill()">Monthly History</button>
           <button class="rail-action" onclick="openTrafficLightMonthlySummary()">Traffic Light Summary</button>
           <button class="rail-action" onclick="generateSnapshot()">Weekly Snapshot</button>
         </div>
@@ -1912,8 +1913,14 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 <!-- ── Monthly Sync Modal ── -->
 <div id="sync-modal" onclick="if(event.target===this)closeSyncModal()">
   <div class="sync-box">
-    <div class="sync-title">📅 Monthly Sync — วันที่ 5</div>
-    <div class="sync-sub">อัปโหลดไฟล์จาก BNI Connect → ตรวจ Preview → ยืนยัน Sync ระบบจะเก็บประวัติและ Snapshot สำหรับย้อนกลับ</div>
+    <div class="sync-title">📊 Monthly Report Center</div>
+    <div class="sync-sub">จัดการรายงานรายงวดอย่างชัดเจน ตรวจไฟล์ก่อนบันทึกทุกครั้ง</div>
+    <div class="sync-view-tabs" role="tablist" aria-label="รูปแบบการนำเข้ารายงาน">
+      <button type="button" id="sync-current-tab" role="tab" aria-selected="true" aria-controls="sync-operational-panel" onclick="switchSyncView('current')">Sync งวดปัจจุบัน</button>
+      <button type="button" id="sync-history-tab" role="tab" aria-selected="false" aria-controls="sync-history-panel" onclick="switchSyncView('history')">ประวัติรายเดือน</button>
+    </div>
+    <div id="sync-operational-panel" role="tabpanel" aria-labelledby="sync-current-tab">
+    <div class="sync-note" style="margin:0 0 14px">อัปโหลดไฟล์จาก BNI Connect → ตรวจ Preview → ยืนยัน Sync · โหมดนี้อัปเดตข้อมูลปัจจุบันของสมาชิก</div>
 
     <div class="sync-sect">
       <div class="sync-sect-title">เดือนของข้อมูล <span style="color:var(--re);font-size:10px">* ต้องตรวจให้ถูกต้อง</span></div>
@@ -1965,6 +1972,20 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
       <summary>ประวัติ Sync และ Rollback</summary>
       <div id="sync-history">กำลังโหลด…</div>
     </details>
+    </div>
+    <section id="sync-history-panel" role="tabpanel" aria-labelledby="sync-history-tab" hidden>
+      <div class="history-hero">
+        <div><span class="history-eyebrow">GROWTH · REPORT ARCHIVE</span><h3>ประวัติรายเดือน</h3><p>หนึ่งแถวต่อหนึ่งงวด · รายงานครบ 3 ไฟล์ · ไม่เขียนทับข้อมูลปัจจุบัน</p></div>
+        <span class="history-safe-badge">● Historical snapshots only</span>
+      </div>
+      <div class="history-toolbar">
+        <div><strong>เลือกช่วงรายงาน</strong><small>แสดงครั้งละ 10 เดือน ย้อนดูงวดเก่าได้</small></div>
+        <div class="history-period-controls"><button type="button" onclick="moveHistoryWindow(-10)" aria-label="ดู 10 เดือนก่อนหน้า">← ก่อนหน้า</button><input type="month" id="history-window-end" aria-label="เดือนสุดท้ายที่แสดง" onchange="renderHistoryGrid()"><button type="button" onclick="moveHistoryWindow(10)" aria-label="ดู 10 เดือนถัดไป">ถัดไป →</button></div>
+      </div>
+      <div class="history-grid-wrap"><div id="history-grid" role="region" aria-label="ตารางรายงานย้อนหลัง" aria-live="polite">กำลังโหลดประวัติ…</div></div>
+      <div id="history-preview" class="history-preview" aria-live="polite"></div>
+      <p class="history-footnote">ระบบไม่เก็บเนื้อหา CSV ต้นฉบับ เก็บเฉพาะค่ารายงาน, hash, งวด และ batch ที่ตรวจสอบย้อนกลับได้ · ตัวเลขคือ Snapshot ไม่ใช่ Monthly Activity</p>
+    </section>
   </div>
 </div>
 
@@ -2269,6 +2290,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 <script src="/assets/js/desktop-growth-workspace.js?v=20260919.1" defer></script>
 <script src="/assets/js/desktop-growth-line.js?v=20260919.1" defer></script>
 <script src="/assets/js/desktop-operations.js?v=20260930-growth-plan.1" defer></script>
+<script src="/assets/js/desktop-monthly-history.js?v=20261001.1" defer></script>
 <script src="/assets/js/desktop-power-team-hub.js?v=20260928.1" defer></script>
 <script src="/assets/js/desktop-growth-my121.js?v=20260928.1" defer></script>
 <script src="/assets/js/member-growth-cycle.js?v=20260930-performance-pulse.1" defer></script>

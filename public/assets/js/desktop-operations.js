@@ -368,6 +368,7 @@ function openSyncModal(){
   document.getElementById('sync-r2y-file').value='';
   ['sync-reporting-period','sync-mtl-file','sync-tl-file','sync-r2y-file'].forEach(function(id){var input=document.getElementById(id);if(input)input.onchange=resetMonthlySyncPreview;});
   document.getElementById('sync-modal').classList.add('open');
+  if(window.switchSyncView)window.switchSyncView('current');
   loadMonthlySyncHistory();
 }
 function closeSyncModal(){document.getElementById('sync-modal').classList.remove('open');}
@@ -453,7 +454,7 @@ function confirmMonthlySync(){
 }
 function loadMonthlySyncHistory(){
   var el=document.getElementById('sync-history');if(!el)return;el.textContent='กำลังโหลด…';
-  gsr('getMonthlySyncHistory',{role:S.role},function(r){if(!r||!r.ok){el.textContent='โหลดประวัติไม่สำเร็จ';return;}var rows=r.rows||[];if(!rows.length){el.textContent='ยังไม่มีประวัติ Sync';return;}el.innerHTML=rows.map(function(row,index){var period=row.period_year+'-'+String(row.period_month).padStart(2,'0'),hashes=row.file_hashes||{},complete=row.status==='completed'&&hashes.trafficLightEvolution&&hashes.memberTrafficLight&&hashes.reporting2You,displayStatus=complete?'COMPLETE':row.status==='completed_with_warnings'||row.status==='completed'?'PARTIAL':row.status,canRollback=index===0&&(row.status==='completed'||row.status==='completed_with_warnings')&&!S.isViewer;return '<div class="sync-history-row"><b>'+escH(period)+'</b><span>'+escH(displayStatus)+'<small style="display:block;color:var(--sub)">'+escH(new Date(row.created_at).toLocaleString('th-TH'))+'</small></span>'+(canRollback?'<button class="sync-rollback" onclick="rollbackMonthlySync(\''+escH(row.id)+'\',\''+escH(period)+'\')">Rollback</button>':'<span></span>')+'</div>';}).join('');});
+  gsr('getMonthlySyncHistory',{role:S.role},function(r){if(!r||!r.ok){el.textContent='โหลดประวัติไม่สำเร็จ';return;}var rows=r.rows||[];if(!rows.length){el.textContent='ยังไม่มีประวัติ Sync';return;}el.innerHTML=rows.map(function(row,index){var period=row.period_year+'-'+String(row.period_month).padStart(2,'0'),hashes=row.file_hashes||{},complete=row.status==='completed'&&hashes.trafficLightEvolution&&hashes.memberTrafficLight&&hashes.reporting2You,displayStatus=complete?'COMPLETE':row.status==='completed_with_warnings'||row.status==='completed'?'PARTIAL':row.status,historyOnly=row.quality_summary&&row.quality_summary.importMode==='historical_backfill',canRollback=index===0&&!historyOnly&&(row.status==='completed'||row.status==='completed_with_warnings')&&!S.isViewer;return '<div class="sync-history-row"><b>'+escH(period)+'</b><span>'+escH(displayStatus)+(historyOnly?' · HISTORY':'')+'<small style="display:block;color:var(--sub)">'+escH(new Date(row.created_at).toLocaleString('th-TH'))+'</small></span>'+(canRollback?'<button class="sync-rollback" onclick="rollbackMonthlySync(\''+escH(row.id)+'\',\''+escH(period)+'\')">Rollback</button>':'<span></span>')+'</div>';}).join('');});
 }
 function rollbackMonthlySync(batchId,period){
   if(!confirm('ยืนยัน Rollback เดือน '+period+'?\n\nระบบจะคืนค่าคะแนน กิจกรรม R2Y ข้อมูลติดต่อ และ Renewal กลับไปก่อนรอบ Sync นี้'))return;

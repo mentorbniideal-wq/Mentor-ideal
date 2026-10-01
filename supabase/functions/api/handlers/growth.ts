@@ -193,6 +193,59 @@ async function monthlySyncFingerprint(inputs: { tlCsv: string | null; memberTLCs
   return { fileHashes, combinedHash: await sha256Text(JSON.stringify({ period, fileHashes })) };
 }
 
+/** A backfill deliberately writes report snapshots only; never member/current-score tables. */
+export async function prepareHistoricalBackfill(
+  db: ReturnType<typeof getServiceClient>, chapterId: string, p: Record<string, unknown>,
+) {
+  const period = parseRequestedPeriod(p.reportingPeriod);
+  if (!period) throw new Error('กรุณาเลือกงวดรายงาน YYYY-MM');
+  const periodKey = `${period.year}-${String(period.month).padStart(2, '0')}`;
+  const currentKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit' }).format(new Date());
+  if (periodKey >= currentKey) throw new Error('นำเข้าย้อนหลังได้เฉพาะงวดก่อนเดือนปัจจุบัน; งวดปัจจุบันใช้ Monthly Sync ปกติ');
+  const tlCsv = typeof p.tlCsv === 'string' ? p.tlCsv : '';
+  const memberTLCsv = typeof p.memberTLCsv === 'string' ? p.memberTLCsv : '';
+  const r2yCsv = typeof p.r2yCsv === 'string' ? p.r2yCsv : '';
+  if (!tlCsv || !memberTLCsv || !r2yCsv) throw new Error('งวดย้อนหลังต้องมีรายงานครบทั้ง 3 ไฟล์');
+  if (new TextEncoder().encode(tlCsv + memberTLCsv + r2yCsv).byteLength > 16 * 1024 * 1024) throw new Error('ไฟล์รวมใหญ่เกิน 16 MB');
+  const tlRows = parseCsvString(tlCsv), mtlRows = parseCsvString(memberTLCsv), r2yRows = parseCsvString(r2yCsv);
+  if (hasDuplicateCsvMembers(mtlRows, 'memberTL') || hasDuplicateCsvMembers(r2yRows, 'r2y')) throw new Error('มีชื่อสมาชิกซ้ำในรายงานเดียวกัน');
+  const { data: members, error: memberError } = await db.from('members').select('id,name,nickname').eq('chapter_id', chapterId);
+  if (memberError) throw new Error(memberError.message);
+  const { memberMap, ambiguous } = uniqueMemberNameMap((members || []) as Array<{ id: unknown; name: unknown; nickname?: unknown }>, normalizeName);
+  const tlUnmatched: string[] = [], r2yUnmatched: string[] = [];
+  const evolution = parseMonthlyScores(tlRows, memberMap, tlUnmatched);
+  const scoreRows = evolution.scores.filter(row => row.year === period.year && row.month === period.month);
+  if (!scoreRows.length) throw new Error('Traffic Lights Evolution ไม่มีคะแนนของงวดที่เลือก');
+  const evolutionPeriods = [...new Set(evolution.scores.map(row => `${row.year}-${String(row.month).padStart(2, '0')}`))];
+  if (!evolutionIsHistorical(evolutionPeriods, periodKey)) throw new Error('Traffic Lights Evolution มีงวดใหม่กว่าเดือนที่เลือก');
+  const reportPeriod = memberTrafficLightReportPeriod(mtlRows);
+  if (reportPeriod && reportPeriod !== periodKey) throw new Error(`Member Traffic Light ระบุงวด ${reportPeriod} ไม่ตรงกับ ${periodKey}`);
+  const mtlData = parseMemberTLStats(mtlRows);
+  const mtlUnmatched = Object.keys(mtlData).filter(name => !memberMap[name]);
+  const r2y = parseR2YRows(r2yRows, memberMap, r2yUnmatched);
+  const unknown = [...new Set([...tlUnmatched, ...mtlUnmatched, ...r2yUnmatched])];
+  if (unknown.length) throw new Error(`มีสมาชิกที่จับคู่ stable ID ไม่ได้ ${unknown.length} รายการ; ตรวจรายชื่อก่อนนำเข้า`);
+  if (ambiguous.length && [...Object.keys(mtlData), ...r2yRows.slice(1).map(row => normalizeName(row[0]))]
+    .some(name => ambiguous.includes(name))) throw new Error('ชื่อสมาชิกซ้ำหลายบัญชี ต้องแก้การจับคู่ก่อนนำเข้า');
+  const mtl = Object.entries(mtlData).map(([name, item]) => ({ member_id: memberMap[name], ...item, score: item.scorePresent ? item.score : null }));
+  if (!mtl.length || !r2y.length) throw new Error('Member Traffic Light หรือ Reporting2You ไม่มีข้อมูลสมาชิกที่จับคู่ได้');
+  const fileHashes = {
+    trafficLightEvolution: await sha256Text(tlCsv),
+    memberTrafficLight: await sha256Text(memberTLCsv),
+    reporting2You: await sha256Text(r2yCsv),
+  };
+  const combinedHash = await sha256Text(JSON.stringify({ mode: 'historical_backfill', chapterId, period, fileHashes }));
+  const previewToken = await sha256Text(JSON.stringify({ chapterId, period, combinedHash, mtl: mtl.length, r2y: r2y.length, evolution: scoreRows.length }));
+  const requestedFiles = p.sourceFiles && typeof p.sourceFiles === 'object' ? p.sourceFiles as Record<string, unknown> : {};
+  const sourceFiles = Object.fromEntries(['trafficLightEvolution', 'memberTrafficLight', 'reporting2You']
+    .map(key => [key, String(requestedFiles[key] || '').slice(0, 255)]));
+  const memberIds = [...new Set([...mtl, ...r2y].map(row => String(row.member_id)))];
+  return { period, periodKey, fileHashes, combinedHash, previewToken, sourceFiles, memberIds,
+    quality: { importMode: 'historical_backfill', evolutionRows: scoreRows.length, memberTrafficLightRows: mtl.length,
+      reporting2YouRows: r2y.length, affectedMembers: memberIds.length, memberTrafficLightPeriodVerified: Boolean(reportPeriod),
+      sourceWindowVerified: false }, mtl, r2y };
+}
+
 async function captureMonthlySyncSnapshot(db: ReturnType<typeof getServiceClient>, memberIds: string[], period: { year: number; month: number }) {
   if (!memberIds.length) return { monthlyScores: [], r2yStats: [], keySnapshots: [], evolution: [], members: [], renewals: [], performanceSnapshots: [] };
   const [monthly, r2y, keys, evolution, members, renewals, performance] = await Promise.all([
@@ -1878,6 +1931,103 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       return jsonResponse({ ok:true, event:data });
     }
 
+    // Separate historical-only path. Never route old reports through monthlySync:
+    // that action updates current member data, renewal and operational counters.
+    case 'previewHistoricalBackfill':
+    case 'commitHistoricalBackfill': {
+      const auth = await requireAuth(db, p, ['mc', 'growth']);
+      if (!auth.ok) return errResponse(auth.error!);
+      if (!auth.email || auth.isReadOnly || auth.isViewer || !hasGrowthCapability(auth, CAPABILITY.GROWTH_MONTHLY_SYNC_EXECUTE))
+        return errResponse('นำเข้าย้อนหลังต้องใช้บัญชี OAuth ที่มีสิทธิ์ Monthly Sync', 403);
+      const scope = await resolveChapterScope(db, auth);
+      if (!scope.ok) return errResponse(scope.error, 403);
+      try {
+        const prepared = await prepareHistoricalBackfill(db, scope.chapterId, p);
+        const { data: previous, error: previousError } = await db.from('monthly_sync_batches')
+          .select('id,status,quality_summary').eq('chapter_id', scope.chapterId).eq('combined_hash', prepared.combinedHash).maybeSingle();
+        if (previousError) throw new Error(previousError.message);
+        let batch = previous as Record<string, unknown> | null;
+        if (batch && (batch.quality_summary as Record<string, unknown>)?.importMode !== 'historical_backfill')
+          return errResponse('พบ batch ชนกับการ Sync ปกติ; ไม่อนุญาตให้นำเข้าย้อนหลังทับ', 409);
+        if (action === 'previewHistoricalBackfill') {
+          if (!batch) {
+            const { data, error } = await db.from('monthly_sync_batches').insert({
+              chapter_id: scope.chapterId, period_year: prepared.period.year, period_month: prepared.period.month,
+              file_hashes: prepared.fileHashes, combined_hash: prepared.combinedHash, preview_token: prepared.previewToken,
+              source_files: prepared.sourceFiles, affected_member_ids: prepared.memberIds, quality_summary: prepared.quality,
+              created_by: String(auth.email),
+            }).select('id,status').single();
+            if (error) throw new Error(error.message);
+            batch = data as Record<string, unknown>;
+          } else if (['previewed', 'failed', 'rolled_back'].includes(String(batch.status))) {
+            const { data, error } = await db.from('monthly_sync_batches').update({
+              status: 'previewed', preview_token: prepared.previewToken, source_files: prepared.sourceFiles,
+              affected_member_ids: prepared.memberIds, quality_summary: prepared.quality,
+              before_snapshot: {}, after_snapshot: {}, error_summary: null, result_summary: {},
+              created_at: new Date().toISOString(), confirmed_at: null, completed_at: null,
+            }).eq('id', batch.id).select('id,status').single();
+            if (error) throw new Error(error.message);
+            batch = data as Record<string, unknown>;
+          }
+          if (batch.status === 'running') return errResponse('งวดนี้กำลังนำเข้าอยู่ กรุณาตรวจสถานะ', 409);
+          const { data: existingPeriods, error: periodError } = await db.from('monthly_sync_batches')
+            .select('id,status,combined_hash').eq('chapter_id', scope.chapterId)
+            .eq('period_year', prepared.period.year).eq('period_month', prepared.period.month)
+            .in('status', ['completed','completed_with_warnings']).order('created_at', { ascending: false }).limit(1);
+          if (periodError) throw new Error(periodError.message);
+          return jsonResponse({ ok: true, batchId: batch.id, previewToken: prepared.previewToken,
+            reportingPeriod: prepared.periodKey, quality: prepared.quality,
+            alreadyCompleted: batch.status === 'completed', replacingPeriod: Boolean(existingPeriods?.length && existingPeriods[0].id !== batch.id),
+            historicalOnly: true });
+        }
+        if (!Boolean(p.confirmed) || String(p.batchId || '') !== String(batch?.id) ||
+          String(p.previewToken || '') !== prepared.previewToken || batch?.status !== 'previewed')
+          return errResponse('ต้อง Preview ไฟล์ชุดเดิมและยืนยันก่อนนำเข้าย้อนหลัง', 409);
+        const { data: freshBatch, error: freshError } = await db.from('monthly_sync_batches')
+          .select('created_at').eq('id', batch.id).eq('chapter_id', scope.chapterId).single();
+        if (freshError) throw new Error(freshError.message);
+        if (Date.now() - new Date(String(freshBatch.created_at)).getTime() > 30 * 60 * 1000)
+          return errResponse('Preview หมดอายุแล้ว กรุณาตรวจไฟล์ใหม่', 409);
+        const { data: beforeRows, error: beforeError } = await db.from('member_performance_source_snapshots')
+          .select('*').eq('chapter_id', scope.chapterId).eq('period_year', prepared.period.year).eq('period_month', prepared.period.month);
+        if (beforeError) throw new Error(beforeError.message);
+        const { data: started, error: startError } = await db.from('monthly_sync_batches').update({
+          status: 'running', confirmed_at: new Date().toISOString(), before_snapshot: { performanceSnapshots: beforeRows || [] },
+        }).eq('id', batch.id).eq('status', 'previewed').select('id').maybeSingle();
+        if (startError) throw new Error(startError.message);
+        if (!started) return errResponse('Preview นี้ถูกใช้งานแล้ว กรุณารีเฟรช', 409);
+        try {
+          const rows = [
+            ...performanceSourceRows(prepared.r2y, 'reporting2you', scope.chapterId, String(batch.id), prepared.period),
+            ...performanceSourceRows(prepared.mtl, 'member_traffic_light', scope.chapterId, String(batch.id), prepared.period),
+          ];
+          const { error: upsertError } = await db.from('member_performance_source_snapshots').upsert(rows,
+            { onConflict: 'chapter_id,member_id,period_year,period_month,source_type' });
+          if (upsertError) throw new Error(upsertError.message);
+          const { error: auditError } = await db.from('chapter_audit_events').insert({ chapter_id: scope.chapterId,
+            event_type: 'monthly_history_backfill_confirmed', actor_role: String(auth.role), actor_ref: String(auth.email),
+            subject_type: 'monthly_sync_batch', subject_ref: String(batch.id),
+            metadata: { period: prepared.periodKey, source_count: 3, snapshot_rows: rows.length },
+          });
+          if (auditError) throw new Error(auditError.message);
+          const { data: finished, error: finishError } = await db.from('monthly_sync_batches').update({
+            status: 'completed', completed_at: new Date().toISOString(),
+            result_summary: { importMode: 'historical_backfill', importedSnapshots: rows.length },
+            after_snapshot: { performanceSnapshots: rows },
+          }).eq('id', batch.id).eq('status', 'running').select('id').maybeSingle();
+          if (finishError) throw new Error(finishError.message);
+          if (!finished) throw new Error('สถานะ batch เปลี่ยนระหว่างนำเข้า; กรุณาตรวจข้อมูลก่อนลองใหม่');
+          return jsonResponse({ ok: true, batchId: batch.id, reportingPeriod: prepared.periodKey,
+            periodStatus: 'COMPLETE', importedSnapshots: rows.length, historicalOnly: true });
+        } catch (error) {
+          await db.from('monthly_sync_batches').update({ status: 'failed', error_summary: String((error as Error).message).slice(0, 2000) }).eq('id', batch.id);
+          throw error;
+        }
+      } catch (error) {
+        return errResponse((error as Error).message || 'นำเข้าประวัติไม่สำเร็จ');
+      }
+    }
+
     // ── Preview Monthly Sync: no operational writes ──────────────
     case 'previewMonthlySync': {
       const auth = await requireAuth(db, p, ['mc', 'growth']);
@@ -2316,7 +2466,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         const chapterId = scope.chapterId;
         const { data, error } = await db.from('monthly_sync_batches')
           .select('id,period_year,period_month,status,file_hashes,source_files,quality_summary,result_summary,created_by,created_at,completed_at,rolled_back_at')
-          .eq('chapter_id', chapterId).order('created_at', { ascending: false }).limit(24);
+          .eq('chapter_id', chapterId).order('created_at', { ascending: false }).limit(100);
         if (error) throw new Error(error.message);
         return jsonResponse({ ok: true, rows: data || [] });
       } catch (error) {
@@ -2337,6 +2487,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         const { data, error } = await db.from('monthly_sync_batches').select('*').eq('id', batchId).eq('chapter_id', chapterId).maybeSingle();
         if (error) throw new Error(error.message);
         if (!data) return errResponse('ไม่พบ Monthly Sync batch ของ Chapter นี้');
+        if ((data.quality_summary as Record<string, unknown>)?.importMode === 'historical_backfill') return errResponse('งวดย้อนหลังไม่ใช้ Rollback ของ Monthly Sync ปกติ', 409);
         if (!['completed','completed_with_warnings'].includes(String(data.status))) return errResponse('Rollback ได้เฉพาะรอบที่ Sync สำเร็จและยังไม่เคย Rollback');
         const { data: rollbackResult, error: rollbackError } = await db.rpc('fn_rollback_monthly_sync', {
           p_batch_id: batchId,

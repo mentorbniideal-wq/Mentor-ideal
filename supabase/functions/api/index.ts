@@ -165,6 +165,7 @@ const ROUTES: Record<string, string> = {
   'getMentorActivity': 'growth', 'getWeeklyActions': 'growth',
   'createGrowthTask': 'growth', 'getGrowthTasks': 'growth',
   'respondGrowthTask': 'growth', 'previewMonthlySync': 'growth', 'monthlySync': 'growth',
+  'previewHistoricalBackfill': 'growth', 'commitHistoricalBackfill': 'growth',
   'recordGrowthTaskStage': 'growth',
   'getMonthlySyncHistory': 'growth', 'rollbackMonthlySync': 'growth', 'importScoreHistory': 'growth',
 
