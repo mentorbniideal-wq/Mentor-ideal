@@ -163,6 +163,33 @@ function hasDuplicateCsvMembers(rows: string[][], source: 'r2y' | 'memberTL'): b
   return false;
 }
 
+/** Preserve blank MTL cells as missing in historical snapshots, not reported zero. */
+function memberTrafficLightSourceValues(rows: string[][]): Record<string, Record<string, number | null>> {
+  const header = findHeaderRow(rows, row => row.some(cell => String(cell).toLowerCase().trim() === 'total score'));
+  if (!header) return {};
+  const h = header.row;
+  const nameIndex = findColumnIndex(h, ['name -surname', 'name - surname', 'name', 'member']);
+  const fields: Record<string, string[]> = {
+    given: ['value of business given (baht)', 'value of business given', 'given (baht)', 'given', 'tyfcb given', 'business given'],
+    received: ['value of business received (baht)', 'value of business received', 'received (baht)', 'received', 'tyfcb received', 'business received'],
+    rg: ['referral', 'rg', 'referrals given'], rr: ['rr', 'received referrals'], rri: ['rri'], rro: ['rro'],
+    visitors: ['v', 'visi', 'visitor', 'visitors'], one_to_one: ['121', 'one to one', 'one-to-one', 'one_to_one'],
+    ceu: ['training', 'ceu'], score: ['total score', 'score', 'points'],
+    p: ['p'], a: ['a'], l: ['l'], m: ['m'], s: ['s'],
+  };
+  const indices = Object.fromEntries(Object.entries(fields).map(([key, candidates]) => [key, findColumnIndex(h, candidates)]));
+  const out: Record<string, Record<string, number | null>> = {};
+  for (const row of rows.slice(header.idx + 1)) {
+    if (!/^\d+$/.test(String(row[0] || '').trim()) || nameIndex < 0) continue;
+    const name = normalizeName(row[nameIndex]);
+    if (!name) continue;
+    const values = Object.fromEntries(Object.entries(indices).map(([key, index]) => [key, index < 0 ? null : reportedNumber(row[index])])) as Record<string, number | null>;
+    if (values.rr === null && (values.rri !== null || values.rro !== null)) values.rr = (values.rri || 0) + (values.rro || 0);
+    out[name] = values;
+  }
+  return out;
+}
+
 function latestScorePeriod(
   rows: Array<{ year: number; month: number }>,
   fallbackDate = new Date(),
@@ -198,7 +225,7 @@ async function monthlySyncFingerprint(inputs: { tlCsv: string | null; memberTLCs
   return { fileHashes, combinedHash: await sha256Text(JSON.stringify({ period, fileHashes })) };
 }
 
-/** A backfill deliberately writes report snapshots only; never member/current-score tables. */
+/** Historical backfill accepts only the month-addressable Member Traffic Light report. */
 export async function prepareHistoricalBackfill(
   db: ReturnType<typeof getServiceClient>, chapterId: string, p: Record<string, unknown>,
 ) {
@@ -207,48 +234,36 @@ export async function prepareHistoricalBackfill(
   const periodKey = `${period.year}-${String(period.month).padStart(2, '0')}`;
   const currentKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit' }).format(new Date());
   if (periodKey >= currentKey) throw new Error('นำเข้าย้อนหลังได้เฉพาะงวดก่อนเดือนปัจจุบัน; งวดปัจจุบันใช้ Monthly Sync ปกติ');
-  const tlCsv = typeof p.tlCsv === 'string' ? p.tlCsv : '';
   const memberTLCsv = typeof p.memberTLCsv === 'string' ? p.memberTLCsv : '';
-  const r2yCsv = typeof p.r2yCsv === 'string' ? p.r2yCsv : '';
-  if (!tlCsv || !memberTLCsv || !r2yCsv) throw new Error('งวดย้อนหลังต้องมีรายงานครบทั้ง 3 ไฟล์');
-  if (new TextEncoder().encode(tlCsv + memberTLCsv + r2yCsv).byteLength > 16 * 1024 * 1024) throw new Error('ไฟล์รวมใหญ่เกิน 16 MB');
-  const tlRows = parseCsvString(tlCsv), mtlRows = parseCsvString(memberTLCsv), r2yRows = parseCsvString(r2yCsv);
-  if (hasDuplicateCsvMembers(mtlRows, 'memberTL') || hasDuplicateCsvMembers(r2yRows, 'r2y')) throw new Error('มีชื่อสมาชิกซ้ำในรายงานเดียวกัน');
+  if (!memberTLCsv) throw new Error('งวดย้อนหลังต้องใช้ไฟล์ Member Traffic Light ของเดือนนั้น');
+  if (p.tlCsv || p.r2yCsv) throw new Error('Traffic Lights Evolution และ Reporting2You ไม่ใช่รายงานย้อนหลังรายเดือน ห้ามนำเข้าเป็นงวดเก่า');
+  if (new TextEncoder().encode(memberTLCsv).byteLength > 8 * 1024 * 1024) throw new Error('ไฟล์ใหญ่เกิน 8 MB');
+  const mtlRows = parseCsvString(memberTLCsv);
+  if (hasDuplicateCsvMembers(mtlRows, 'memberTL')) throw new Error('มีชื่อสมาชิกซ้ำในรายงานเดียวกัน');
   const { data: members, error: memberError } = await db.from('members').select('id,name,nickname').eq('chapter_id', chapterId);
   if (memberError) throw new Error(memberError.message);
   const { memberMap, ambiguous } = uniqueMemberNameMap((members || []) as Array<{ id: unknown; name: unknown; nickname?: unknown }>, normalizeName);
-  const tlUnmatched: string[] = [], r2yUnmatched: string[] = [];
-  const evolution = parseMonthlyScores(tlRows, memberMap, tlUnmatched);
-  const scoreRows = evolution.scores.filter(row => row.year === period.year && row.month === period.month);
-  if (!scoreRows.length) throw new Error('Traffic Lights Evolution ไม่มีคะแนนของงวดที่เลือก');
-  const evolutionPeriods = [...new Set(evolution.scores.map(row => `${row.year}-${String(row.month).padStart(2, '0')}`))];
-  if (!evolutionIsHistorical(evolutionPeriods, periodKey)) throw new Error('Traffic Lights Evolution มีงวดใหม่กว่าเดือนที่เลือก');
   const reportPeriod = memberTrafficLightReportPeriod(mtlRows);
-  if (reportPeriod && reportPeriod !== periodKey) throw new Error(`Member Traffic Light ระบุงวด ${reportPeriod} ไม่ตรงกับ ${periodKey}`);
+  if (!reportPeriod) throw new Error('Member Traffic Light ไม่ระบุเดือนที่ตรวจสอบได้ จึงไม่สามารถผูกกับงวดย้อนหลังอย่างปลอดภัย');
+  if (reportPeriod !== periodKey) throw new Error(`Member Traffic Light ระบุงวด ${reportPeriod} ไม่ตรงกับ ${periodKey}`);
   const mtlData = parseMemberTLStats(mtlRows);
   const mtlUnmatched = Object.keys(mtlData).filter(name => !memberMap[name]);
-  const r2y = parseR2YRows(r2yRows, memberMap, r2yUnmatched);
-  const unknown = [...new Set([...tlUnmatched, ...mtlUnmatched, ...r2yUnmatched])];
+  const unknown = [...new Set(mtlUnmatched)];
   if (unknown.length) throw new Error(`มีสมาชิกที่จับคู่ stable ID ไม่ได้ ${unknown.length} รายการ; ตรวจรายชื่อก่อนนำเข้า`);
-  if (ambiguous.length && [...Object.keys(mtlData), ...r2yRows.slice(1).map(row => normalizeName(row[0]))]
-    .some(name => ambiguous.includes(name))) throw new Error('ชื่อสมาชิกซ้ำหลายบัญชี ต้องแก้การจับคู่ก่อนนำเข้า');
-  const mtl = Object.entries(mtlData).map(([name, item]) => ({ member_id: memberMap[name], ...item, score: item.scorePresent ? item.score : null }));
-  if (!mtl.length || !r2y.length) throw new Error('Member Traffic Light หรือ Reporting2You ไม่มีข้อมูลสมาชิกที่จับคู่ได้');
-  const fileHashes = {
-    trafficLightEvolution: await sha256Text(tlCsv),
-    memberTrafficLight: await sha256Text(memberTLCsv),
-    reporting2You: await sha256Text(r2yCsv),
-  };
-  const combinedHash = await sha256Text(JSON.stringify({ mode: 'historical_backfill', chapterId, period, fileHashes }));
-  const previewToken = await sha256Text(JSON.stringify({ chapterId, period, combinedHash, mtl: mtl.length, r2y: r2y.length, evolution: scoreRows.length }));
+  if (ambiguous.length && Object.keys(mtlData).some(name => ambiguous.includes(name))) throw new Error('ชื่อสมาชิกซ้ำหลายบัญชี ต้องแก้การจับคู่ก่อนนำเข้า');
+  const mtlSource = memberTrafficLightSourceValues(mtlRows);
+  const mtl = Object.entries(mtlData).map(([name, item]) => ({ member_id: memberMap[name], ...item,
+    score: item.scorePresent ? item.score : null, source_values: mtlSource[name] }));
+  if (!mtl.length) throw new Error('Member Traffic Light ไม่มีข้อมูลสมาชิกที่จับคู่ได้');
+  const fileHashes = { memberTrafficLight: await sha256Text(memberTLCsv) };
+  const combinedHash = await sha256Text(JSON.stringify({ mode: 'historical_backfill_mtl', chapterId, period, fileHashes }));
+  const previewToken = await sha256Text(JSON.stringify({ chapterId, period, combinedHash, mtl: mtl.length }));
   const requestedFiles = p.sourceFiles && typeof p.sourceFiles === 'object' ? p.sourceFiles as Record<string, unknown> : {};
-  const sourceFiles = Object.fromEntries(['trafficLightEvolution', 'memberTrafficLight', 'reporting2You']
-    .map(key => [key, String(requestedFiles[key] || '').slice(0, 255)]));
-  const memberIds = [...new Set([...mtl, ...r2y].map(row => String(row.member_id)))];
+  const sourceFiles = { memberTrafficLight: String(requestedFiles.memberTrafficLight || '').slice(0, 255) };
+  const memberIds = [...new Set(mtl.map(row => String(row.member_id)))];
   return { period, periodKey, fileHashes, combinedHash, previewToken, sourceFiles, memberIds,
-    quality: { importMode: 'historical_backfill', evolutionRows: scoreRows.length, memberTrafficLightRows: mtl.length,
-      reporting2YouRows: r2y.length, affectedMembers: memberIds.length, memberTrafficLightPeriodVerified: Boolean(reportPeriod),
-      sourceWindowVerified: false }, mtl, r2y };
+    quality: { importMode: 'historical_backfill', sourceCoverage: 'member_traffic_light_only', memberTrafficLightRows: mtl.length,
+      affectedMembers: memberIds.length, memberTrafficLightPeriodVerified: true, sourceWindowVerified: false }, mtl };
 }
 
 async function captureMonthlySyncSnapshot(db: ReturnType<typeof getServiceClient>, memberIds: string[], period: { year: number; month: number }) {
@@ -2002,28 +2017,25 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         if (startError) throw new Error(startError.message);
         if (!started) return errResponse('Preview นี้ถูกใช้งานแล้ว กรุณารีเฟรช', 409);
         try {
-          const rows = [
-            ...performanceSourceRows(prepared.r2y, 'reporting2you', scope.chapterId, String(batch.id), prepared.period),
-            ...performanceSourceRows(prepared.mtl, 'member_traffic_light', scope.chapterId, String(batch.id), prepared.period),
-          ];
+          const rows = performanceSourceRows(prepared.mtl, 'member_traffic_light', scope.chapterId, String(batch.id), prepared.period);
           const { error: upsertError } = await db.from('member_performance_source_snapshots').upsert(rows,
             { onConflict: 'chapter_id,member_id,period_year,period_month,source_type' });
           if (upsertError) throw new Error(upsertError.message);
           const { error: auditError } = await db.from('chapter_audit_events').insert({ chapter_id: scope.chapterId,
             event_type: 'monthly_history_backfill_confirmed', actor_role: String(auth.role), actor_ref: String(auth.email),
             subject_type: 'monthly_sync_batch', subject_ref: String(batch.id),
-            metadata: { period: prepared.periodKey, source_count: 3, snapshot_rows: rows.length },
+            metadata: { period: prepared.periodKey, source_count: 1, source_coverage: 'member_traffic_light_only', snapshot_rows: rows.length },
           });
           if (auditError) throw new Error(auditError.message);
           const { data: finished, error: finishError } = await db.from('monthly_sync_batches').update({
             status: 'completed', completed_at: new Date().toISOString(),
-            result_summary: { importMode: 'historical_backfill', importedSnapshots: rows.length },
+            result_summary: { importMode: 'historical_backfill', sourceCoverage: 'member_traffic_light_only', importedSnapshots: rows.length },
             after_snapshot: { performanceSnapshots: rows },
           }).eq('id', batch.id).eq('status', 'running').select('id').maybeSingle();
           if (finishError) throw new Error(finishError.message);
           if (!finished) throw new Error('สถานะ batch เปลี่ยนระหว่างนำเข้า; กรุณาตรวจข้อมูลก่อนลองใหม่');
           return jsonResponse({ ok: true, batchId: batch.id, reportingPeriod: prepared.periodKey,
-            periodStatus: 'COMPLETE', importedSnapshots: rows.length, historicalOnly: true });
+            periodStatus: 'MTL_ONLY', importedSnapshots: rows.length, historicalOnly: true });
         } catch (error) {
           await db.from('monthly_sync_batches').update({ status: 'failed', error_summary: String((error as Error).message).slice(0, 2000) }).eq('id', batch.id);
           throw error;

@@ -13,6 +13,8 @@
   function batchStatus(row) {
     if (!row) return { text: 'ยังไม่มีข้อมูล', tone: 'empty' };
     var hashes = row.file_hashes || {};
+    var quality = row.quality_summary || {};
+    if (row.status === 'completed' && quality.importMode === 'historical_backfill' && quality.sourceCoverage === 'member_traffic_light_only' && hashes.memberTrafficLight) return { text: 'MTL ONLY', tone: 'complete' };
     if (row.status === 'completed' && hashes.trafficLightEvolution && hashes.memberTrafficLight && hashes.reporting2You) return { text: 'COMPLETE', tone: 'complete' };
     if (row.status === 'failed') return { text: 'FAILED', tone: 'error' };
     if (row.status === 'running') return { text: 'กำลังนำเข้า', tone: 'pending' };
@@ -24,9 +26,9 @@
   }
   function row(period) {
     var batch = shownBatch(period), state = batchStatus(batch), chosen = fileState(period);
-    var ready = Boolean(chosen.trafficLightEvolution && chosen.memberTrafficLight && chosen.reporting2You);
+    var ready = Boolean(chosen.memberTrafficLight);
     return '<div class="history-row" data-period="' + period + '"><div class="history-period"><b>' + safe(monthLabel(period)) + '</b><small>' + period + '</small></div>' +
-      fileControl(period, 'trafficLightEvolution', 'Evolution') + fileControl(period, 'memberTrafficLight', 'Member TL') + fileControl(period, 'reporting2You', 'Reporting2You') +
+      fileControl(period, 'memberTrafficLight', 'Member Traffic Light · ระบุเดือนในรายงาน') +
       '<div class="history-state"><span class="history-status ' + state.tone + '">' + state.text + '</span></div>' +
       '<button type="button" class="history-review" data-history-preview="' + period + '"' + (!ready || busy ? ' disabled' : '') + '>ตรวจไฟล์ <span aria-hidden="true">↗</span></button></div>';
   }
@@ -41,7 +43,7 @@
     var end = Math.min(localMonth(), monthIndex(input.value || monthKey(localMonth())));
     if (!Number.isFinite(end)) end = localMonth();
     input.value = monthKey(end); input.max = monthKey(localMonth());
-    grid.innerHTML = '<div class="history-head" aria-hidden="true"><span>งวดรายงาน</span><span>TRAFFIC LIGHTS EVOLUTION</span><span>MEMBER TRAFFIC LIGHT</span><span>REPORTING2YOU</span><span>สถานะ</span><span>ดำเนินการ</span></div>' +
+    grid.innerHTML = '<div class="history-head" aria-hidden="true"><span>งวดรายงาน</span><span>MEMBER TRAFFIC LIGHT</span><span>สถานะ</span><span>ดำเนินการ</span></div>' +
       Array.from({ length: 10 }, function (_, index) { return row(monthKey(end - index)); }).join('');
   };
   window.loadHistoryGrid = function () {
@@ -61,19 +63,19 @@
   function previewArea(html) { var target = el('history-preview'); if (target) { target.innerHTML = html; target.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } }
   async function preview(period) {
     if (busy) return;
-    var selected = fileState(period), keys = ['trafficLightEvolution', 'memberTrafficLight', 'reporting2You'];
-    if (!keys.every(function (key) { return selected[key]; })) return;
-    busy = period; window.renderHistoryGrid(); previewArea('<p role="status">กำลังอ่านและตรวจทั้ง 3 ไฟล์ของงวด ' + period + '…</p>');
+    var selected = fileState(period);
+    if (!selected.memberTrafficLight) return;
+    busy = period; window.renderHistoryGrid(); previewArea('<p role="status">กำลังตรวจ Member Traffic Light งวด ' + period + '…</p>');
     try {
-      var values = await Promise.all(keys.map(function (key) { return readFile(selected[key]); }));
-      var payload = { role: S.role, reportingPeriod: period, tlCsv: values[0], memberTLCsv: values[1], r2yCsv: values[2],
-        sourceFiles: { trafficLightEvolution: selected.trafficLightEvolution.name, memberTrafficLight: selected.memberTrafficLight.name, reporting2You: selected.reporting2You.name } };
+      var value = await readFile(selected.memberTrafficLight);
+      var payload = { role: S.role, reportingPeriod: period, memberTLCsv: value,
+        sourceFiles: { memberTrafficLight: selected.memberTrafficLight.name } };
       var result = await call('previewHistoricalBackfill', payload);
       previews.set(period, { payload: payload, result: result });
       var quality = result.quality || {};
       previewArea('<div class="history-preview-card"><span class="history-eyebrow">PREVIEW · ' + period + '</span><h4>ตรวจงวด ' + safe(monthLabel(period)) + '</h4>' +
-        '<div class="history-preview-stats"><div><strong>' + Number(quality.affectedMembers || 0) + '</strong><span>สมาชิกที่จับคู่ได้</span></div><div><strong>' + Number(quality.evolutionRows || 0) + '</strong><span>คะแนน Evolution</span></div><div><strong>' + (Number(quality.memberTrafficLightRows || 0) + Number(quality.reporting2YouRows || 0)) + '</strong><span>Snapshot จาก 2 รายงาน</span></div></div>' +
-        '<p class="history-preview-note">' + (quality.memberTrafficLightPeriodVerified ? '✓ เดือนใน Member Traffic Light ตรงกับงวดที่เลือก' : '⚠️ ไฟล์ Member Traffic Light ไม่ระบุเดือนที่ตรวจได้ โปรดยืนยันจากต้นฉบับ') + '</p>' +
+        '<div class="history-preview-stats"><div><strong>' + Number(quality.affectedMembers || 0) + '</strong><span>สมาชิกที่จับคู่ได้</span></div><div><strong>' + Number(quality.memberTrafficLightRows || 0) + '</strong><span>Snapshot จาก Member Traffic Light</span></div></div>' +
+        '<p class="history-preview-note">✓ เดือนที่ระบุในรายงานตรงกับงวดที่เลือก · Evolution และ Reporting2You ไม่ถูกนำไปอ้างเป็นข้อมูลย้อนหลัง</p>' +
         (result.replacingPeriod ? '<p class="history-preview-alert">งวดนี้มีข้อมูลแล้ว การยืนยันจะใช้ไฟล์ชุดนี้เป็น snapshot ล่าสุด โดยเก็บ hash และ batch เดิมไว้ตรวจสอบ</p>' : '') +
         (result.alreadyCompleted ? '<p class="history-preview-note">ไฟล์ชุดนี้นำเข้าแล้ว ไม่สร้างรายการซ้ำ</p>' : '<button type="button" class="history-commit" data-history-commit="' + period + '">ยืนยันบันทึก Snapshot งวดนี้</button>') + '</div>');
     } catch (reason) { previews.delete(period); previewArea('<p class="history-error" role="alert">ตรวจไฟล์ไม่สำเร็จ: ' + safe(reason.message) + '</p>'); }
@@ -81,7 +83,7 @@
   }
   async function commit(period) {
     var record = previews.get(period); if (!record || busy) return;
-    if (!window.confirm('ยืนยันนำเข้ารายงาน ' + period + ' ทั้ง 3 ไฟล์?\nโหมดนี้จะเก็บเฉพาะ Historical Snapshot ไม่แก้ค่าปัจจุบันของสมาชิก')) return;
+    if (!window.confirm('ยืนยันนำเข้า Member Traffic Light งวด ' + period + '?\nโหมดนี้จะเก็บเฉพาะ Historical Snapshot ไม่แก้ค่าปัจจุบันของสมาชิก')) return;
     busy = period; window.renderHistoryGrid(); previewArea('<p role="status">กำลังบันทึก Historical Snapshot ' + period + '…</p>');
     try {
       var result = await call('commitHistoricalBackfill', Object.assign({}, record.payload, { batchId: record.result.batchId, previewToken: record.result.previewToken, confirmed: true }));

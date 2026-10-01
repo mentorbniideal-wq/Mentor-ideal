@@ -149,7 +149,7 @@ export async function handleMemberGrowth(p: Record<string, unknown>): Promise<Re
         .select('period_year,period_month,source_type,source_semantics,window_start,window_end,referrals_given,referrals_received,tyfcb_given,tyfcb_received,visitors,one_to_ones,ceu,traffic_light_points,attendance_present,attendance_absent,attendance_late,attendance_medical,attendance_substitute,bni_days,reported_points,import_batch_id,captured_at')
         .eq('chapter_id', chapterId).eq('member_id', memberId)
         .order('period_year', { ascending: false }).order('period_month', { ascending: false }).limit(48),
-      db.from('monthly_sync_batches').select('id,period_year,period_month,status,file_hashes,created_at')
+      db.from('monthly_sync_batches').select('id,period_year,period_month,status,file_hashes,quality_summary,created_at')
         .eq('chapter_id', chapterId).order('created_at', { ascending: false }).limit(500),
     ]);
     if (performanceQ.error || scoresQ.error || sourcesQ.error || batchesQ.error) return errResponse(performanceQ.error?.message || scoresQ.error?.message || sourcesQ.error?.message || batchesQ.error?.message || 'Performance history unavailable');

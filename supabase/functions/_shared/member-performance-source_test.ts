@@ -49,3 +49,17 @@ Deno.test('only latest complete three-file reporting period is trusted', () => {
   assertEquals(result.periods.find(row => row.period === '2026-05')?.status, 'PARTIAL');
   assertEquals(result.periods.find(row => row.period === '2026-07')?.status, 'PARTIAL');
 });
+
+Deno.test('MTL-only historical batch trusts only its dated Member Traffic Light rows', () => {
+  const batches = [{ id: 'mtl-batch', period_year: 2026, period_month: 8, status: 'completed',
+    file_hashes: { memberTrafficLight: 'hash-mtl' }, quality_summary: { importMode: 'historical_backfill', sourceCoverage: 'member_traffic_light_only' }, created_at: '2026-09-01' }];
+  const rows = [
+    { period_year: 2026, period_month: 8, import_batch_id: 'mtl-batch', source_type: 'member_traffic_light', traffic_light_points: 0 },
+    { period_year: 2026, period_month: 8, import_batch_id: 'mtl-batch', source_type: 'reporting2you', referrals_given: 99 },
+  ];
+  const result = trustedSourceSnapshotHistory(rows, batches);
+  assertEquals(result.periods, [{ period: '2026-08', status: 'MTL_ONLY' }]);
+  assertEquals(result.history.length, 1);
+  assertEquals(result.history[0].trafficLightPoints, 0);
+  assertEquals(result.history[0].source, 'member_traffic_light');
+});

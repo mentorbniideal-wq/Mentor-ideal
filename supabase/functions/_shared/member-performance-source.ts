@@ -84,14 +84,19 @@ export function trustedSourceSnapshotHistory(rows: MetricRow[], batches: MetricR
   }
   const periods = [...latest].map(([period, batch]) => {
     const hashes = (batch.file_hashes || {}) as Record<string, unknown>;
+    const quality = (batch.quality_summary || {}) as Record<string, unknown>;
     const complete = batch.status === 'completed' &&
       ['trafficLightEvolution', 'memberTrafficLight', 'reporting2You'].every(key => typeof hashes[key] === 'string' && Boolean(hashes[key]));
-    return { period, status: complete ? 'COMPLETE' : 'PARTIAL' };
+    const mtlOnly = batch.status === 'completed' && quality.importMode === 'historical_backfill' &&
+      quality.sourceCoverage === 'member_traffic_light_only' && typeof hashes.memberTrafficLight === 'string' && Boolean(hashes.memberTrafficLight) &&
+      !hashes.reporting2You && !hashes.trafficLightEvolution;
+    return { period, status: complete ? 'COMPLETE' : mtlOnly ? 'MTL_ONLY' : 'PARTIAL' };
   }).sort((a, b) => b.period.localeCompare(a.period));
   const trusted = rows.filter(row => {
     const period = `${row.period_year}-${String(row.period_month).padStart(2, '0')}`;
     const batch = latest.get(period);
-    return periods.find(item => item.period === period)?.status === 'COMPLETE' &&
+    const status = periods.find(item => item.period === period)?.status;
+    return (status === 'COMPLETE' || (status === 'MTL_ONLY' && row.source_type === 'member_traffic_light')) &&
       String(row.import_batch_id) === String(batch?.id);
   });
   return { history: sourceSnapshotHistory(trusted), periods };
