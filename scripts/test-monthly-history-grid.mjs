@@ -8,7 +8,7 @@ const elements = Object.fromEntries(['history-window-end','history-grid','histor
 }]));
 const listeners = {}, calls = [];
 const context = { window: { confirm: () => true }, document: { getElementById: id => elements[id] || null, addEventListener: (type, fn) => { listeners[type] = fn; } },
-  S: { role: 'mc', token: 'synthetic-oauth', isAdmin: true, isViewer: false, isReadOnly: false }, Intl, Date, Map, Set, Promise, Number, String, Array,
+  S: { role: 'mc', token: 'synthetic-oauth', isVerifiedAdmin: true, isViewer: false, isReadOnly: false }, Intl, Date, Map, Set, Promise, Number, String, Array,
   gsr(action, payload, cb) { calls.push({ action, payload }); cb(action === 'getMonthlySyncHistory' ? { ok: true, rows: [] } :
     action === 'previewHistoricalBackfill' ? { ok: true, batchId: 'batch-1', previewToken: 'token-1', quality: { affectedMembers: 1, evolutionRows: 1, memberTrafficLightRows: 1, reporting2YouRows: 1 } } :
     { ok: true, importedSnapshots: 2 }); },
@@ -16,7 +16,7 @@ const context = { window: { confirm: () => true }, document: { getElementById: i
 };
 vm.runInNewContext(readFileSync(new URL('../public/assets/js/desktop-monthly-history.js', import.meta.url), 'utf8'), context);
 const html = readFileSync(new URL('../public/dashboard.html', import.meta.url), 'utf8');
-assert.match(html, /id="mc-history" class="sec" data-admin-only="1"/);
+assert.match(html, /id="mc-history" class="sec" data-admin-only="1" data-history-admin-only="1"/);
 assert.doesNotMatch(html.slice(html.indexOf('id="gr-tabs"'), html.indexOf('id="mc-ov"')), /openHistoryBackfill|Monthly History/);
 context.window.loadHistoryGrid();
 await new Promise(resolve => setImmediate(resolve));
@@ -38,7 +38,7 @@ await new Promise(resolve => setImmediate(resolve));
 assert.ok(calls.some(call => call.action === 'commitHistoricalBackfill' && call.payload.confirmed === true));
 assert.ok(!calls.some(call => call.action === 'monthlySync'), 'historical path never invokes operational Sync');
 const beforeDenied = calls.length;
-context.S.isAdmin = false;
+context.S.isVerifiedAdmin = false;
 context.window.loadHistoryGrid();
 assert.equal(calls.length, beforeDenied, 'non-admin cannot request archive from UI');
 assert.match(elements['history-grid'].innerHTML, /เจ้าของระบบหรือ Admin/);

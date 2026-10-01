@@ -226,7 +226,7 @@ function enterApp(r){
   // reaches this page, preserve the verified session and route consistently.
   if(routeMentorToMobile(r))return;
   if(r.teamLabels)D.teamLabels=Object.assign({},D.teamLabels||{},r.teamLabels);applyTeamDisplayLabels();
-  S.isReadOnly=!!r.isReadOnly;S.actualRole=r.role;S.capabilities=Array.isArray(r.capabilities)?r.capabilities:[];S.isViewer=!!r.isViewer||r.role==='viewer';S.isAdmin=!!r.isAdmin||r.role==='admin'||S.isViewer;S.role=(r.role==='admin'||r.role==='viewer')?'mc':r.role;S.isMC=r.isMC;S.teamName=r.teamName;S.displayName=r.displayName;
+  S.isReadOnly=!!r.isReadOnly;S.actualRole=r.role;S.capabilities=Array.isArray(r.capabilities)?r.capabilities:[];S.isViewer=!!r.isViewer||r.role==='viewer';S.isAdmin=!!r.isAdmin||r.role==='admin'||S.isViewer;S.isVerifiedAdmin=!!r.isAdmin;S.role=(r.role==='admin'||r.role==='viewer')?'mc':r.role;S.isMC=r.isMC;S.teamName=r.teamName;S.displayName=r.displayName;
   document.body.classList.toggle('viewer-mode',S.isViewer||S.isReadOnly);
   var viewerBanner=document.getElementById('viewer-mode-banner');
   if(!viewerBanner){viewerBanner=document.createElement('div');viewerBanner.id='viewer-mode-banner';viewerBanner.className='viewer-mode-banner';viewerBanner.textContent='👁 VIEWER · โหมดดูอย่างเดียว — ไม่สามารถแก้ไขข้อมูลหรือส่ง LINE';document.body.prepend(viewerBanner);}
@@ -253,6 +253,7 @@ function enterApp(r){
   document.getElementById('btn-monthly-sync').style.display=(S.token&&!S.isReadOnly&&!S.isViewer&&((S.capabilities||[]).indexOf('*')>=0||(S.capabilities||[]).indexOf('growth.monthly_sync.execute')>=0))?'':'none';
   document.getElementById('btn-admin-settings').style.display=(S.isAdmin&&!S.isViewer)?'':'none';
   document.querySelectorAll('[data-admin-only="1"]').forEach(function(el){el.style.display=S.isAdmin?'':'none';});
+  document.querySelectorAll('[data-history-admin-only="1"]').forEach(function(el){el.style.display=(S.token&&S.isVerifiedAdmin&&!S.isViewer&&!S.isReadOnly)?'':'none';});
   document.getElementById('btn-role-growth').style.display=(S.canRoleSwitch&&S.role==='mc')?'':'none';
   document.getElementById('btn-role-mc').style.display=(S.canRoleSwitch&&S.role==='growth')?'':'none';
   var growthMobile=document.getElementById('btn-growth-mobile');

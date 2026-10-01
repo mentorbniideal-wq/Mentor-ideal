@@ -30,7 +30,7 @@
       '<div class="history-state"><span class="history-status ' + state.tone + '">' + state.text + '</span></div>' +
       '<button type="button" class="history-review" data-history-preview="' + period + '"' + (!ready || busy ? ' disabled' : '') + '>ตรวจไฟล์ <span aria-hidden="true">↗</span></button></div>';
   }
-  function canUseHistory() { return Boolean(S.token && S.isAdmin && !S.isReadOnly && !S.isViewer); }
+  function canUseHistory() { return Boolean(S.token && S.isVerifiedAdmin && !S.isReadOnly && !S.isViewer); }
   window.moveHistoryWindow = function (delta) {
     var input = el('history-window-end');
     input.value = monthKey(Math.min(localMonth(), monthIndex(input.value) + delta));

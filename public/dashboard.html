@@ -142,7 +142,7 @@
     <div class="nav-group-label">ระบบและสิทธิ์</div>
     <button class="tb" data-admin-only="1" onclick="sw('mc-usage',this,'mc');loadUsageLog()">📈 Activity</button>
     <button class="tb" data-admin-only="1" onclick="sw('mc-access',this,'mc');loadAccessMgmt()">🔑 Access</button>
-    <button class="tb" data-admin-only="1" onclick="sw('mc-history',this,'mc');loadHistoryGrid()">📊 Monthly History</button>
+    <button class="tb" data-admin-only="1" data-history-admin-only="1" onclick="sw('mc-history',this,'mc');loadHistoryGrid()">📊 Monthly History</button>
     <button class="tb" onclick="sw('mc-import',this,'mc')" style="display:none">📥 Import</button>
     <button class="tb" onclick="sw('mc-copilot',this,'mc')">🤖 AI Copilot</button>
     <button class="tb" onclick="sw('mc-cal',this,'mc');loadCalendar()" style="display:none">📅 Calendar</button>
@@ -199,7 +199,7 @@
           <button class="rail-action" onclick="openMeetingPrep()">Meeting Prep</button>
           <button class="rail-action" onclick="openActionCenter('pq')">Action Center</button>
           <button class="rail-action" onclick="openSyncModal()">Monthly Sync</button>
-          <button class="rail-action" data-admin-only="1" onclick="sw('mc-history',null,'mc');loadHistoryGrid()">Monthly History</button>
+          <button class="rail-action" data-admin-only="1" data-history-admin-only="1" onclick="sw('mc-history',null,'mc');loadHistoryGrid()">Monthly History</button>
           <button class="rail-action" onclick="openTrafficLightMonthlySummary()">Traffic Light Summary</button>
           <button class="rail-action" onclick="generateSnapshot()">Weekly Snapshot</button>
         </div>
@@ -281,7 +281,7 @@
     </div>
 
     <!-- System Owner and Chapter Admin: historical-only report archive -->
-    <div id="mc-history" class="sec" data-admin-only="1">
+    <div id="mc-history" class="sec" data-admin-only="1" data-history-admin-only="1">
       <section id="sync-history-panel" aria-label="ประวัติรายเดือน">
         <div class="history-hero">
           <div><span class="history-eyebrow">MENTOR · REPORT ARCHIVE</span><h3>ประวัติรายเดือน</h3><p>หนึ่งแถวต่อหนึ่งงวด · รายงานครบ 3 ไฟล์ · ไม่เขียนทับข้อมูลปัจจุบัน</p></div>
@@ -2290,8 +2290,8 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 <script src="/assets/js/desktop-blueprint-summary.js?v=20260929.1" defer></script>
 <script src="/assets/js/desktop-growth-workspace.js?v=20260919.1" defer></script>
 <script src="/assets/js/desktop-growth-line.js?v=20260919.1" defer></script>
-<script src="/assets/js/desktop-operations.js?v=20261001-history.2" defer></script>
-<script src="/assets/js/desktop-monthly-history.js?v=20261001.2" defer></script>
+<script src="/assets/js/desktop-operations.js?v=20261001-history.3" defer></script>
+<script src="/assets/js/desktop-monthly-history.js?v=20261001.3" defer></script>
 <script src="/assets/js/desktop-power-team-hub.js?v=20260928.1" defer></script>
 <script src="/assets/js/desktop-growth-my121.js?v=20260928.1" defer></script>
 <script src="/assets/js/member-growth-cycle.js?v=20260930-performance-pulse.1" defer></script>
