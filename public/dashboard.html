@@ -705,13 +705,16 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         <div class="w121-form-grid"><label class="w121-field">คนที่ 1<select class="w121-control" id="w121-manual-a"><option value="">กำลังโหลดสมาชิก…</option></select></label><label class="w121-field">คนที่ 2<select class="w121-control" id="w121-manual-b"><option value="">กำลังโหลดสมาชิก…</option></select></label><label class="w121-field">วันที่เริ่มรอบ<input class="w121-control" id="w121-manual-date" type="date"></label></div>
         <div style="display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap"><button class="btn" onclick="w121CreateManualPair()" style="width:auto;padding:9px 18px">🤝 สร้างคู่และไปตรวจข้อความ →</button><span id="w121-manual-status" style="font-size:11px;color:var(--sub)">ระบบให้เลือกเฉพาะสมาชิกที่เชื่อม LINE แล้ว · ขั้นตอนนี้ยังไม่ส่งทันที</span></div>
       </div></details>
-      <div class="w121-panel" style="margin-top:12px"><div class="w121-panel-head"><div><div class="w121-panel-title">📥 เริ่มรอบใหม่</div><div class="w121-panel-sub">ค่าเริ่มต้นจับเฉพาะผู้มาประชุมที่ไม่มีคู่ Chapter กำลังดำเนินการ · ผู้ส่งตัวแทนไม่เข้ารอบ · คิวจับใหม่ได้ priority · จำนวนคี่เป็นกลุ่ม 3 คน</div></div></div>
+      <div class="w121-panel" style="margin-top:12px"><div class="w121-panel-head"><div><div class="w121-panel-title">🎲 เริ่มรอบใหม่จากสมาชิก Chapter</div><div class="w121-panel-sub">ไม่ต้องใช้ Check-In · เลือกสมาชิก Active ที่เชื่อม LINE แล้ว · คนที่มีคู่ Chapter กำลังดำเนินการจะถูกเว้นเพื่อป้องกันคู่ซ้อน</div></div></div>
+        <div class="w121-simple-upload"><button class="btn w121-main-action" type="button" onclick="w121CreateChapterRound()">1. สร้างร่างจากทั้ง Chapter →</button></div>
+        <div class="w121-mode-note">สุ่มเฉพาะคนที่ยังไม่มีคู่กำลังดำเนินการ เพื่อป้องกันคู่ซ้อน · ยังไม่ส่ง LINE จนกว่าจะ Preview และยืนยัน</div>
+        <details class="w121-advanced"><summary>นำเข้ารายชื่อจาก Check-In CSV (วิธีเดิม)</summary>
         <div class="w121-simple-upload">
           <label class="w121-field">ไฟล์ Check-in CSV<input class="w121-control" id="w121-file" type="file" accept=".csv,text/csv" onchange="w121PrepareNewRound()"></label>
           <button class="btn w121-main-action" onclick="w121Import()">1. ตรวจรายชื่อและสร้างร่าง →</button>
         </div>
         <div id="w121-import-status" class="w121-inline-status">เลือกไฟล์ CSV แล้วกดตรวจรายชื่อ</div>
-        <details class="w121-advanced"><summary>ตัวเลือกเพิ่มเติม · ระบบตั้งค่าที่แนะนำไว้ให้แล้ว</summary><div class="w121-form-grid" style="margin-top:10px"><label class="w121-field">วันที่ในไฟล์<select class="w121-control" id="w121-date"><option value="">ตรวจอัตโนมัติ</option></select></label><label class="w121-field">ไม่จับคู่ซ้ำ<input class="w121-control" id="w121-window" type="number" min="0" max="104" value="12"><span style="font-weight:400">สัปดาห์</span></label><label class="w121-field">Template ข้อความ<select class="w121-control" id="w121-template" onchange="w121TemplateChanged()"><option value="growth_opportunity">🚀 โอกาสทางธุรกิจ</option><option value="warm_connection">🤝 รู้จักกันแบบอบอุ่น</option><option value="referral_focus">🎯 Referral Focus</option><option value="story_trust">✨ Story & Trust</option><option value="quick_action">⚡ Quick Action 20 นาที</option></select></label></div><div id="w121-template-help" class="w121-mode-note">ครบทั้งธุรกิจ Looking for คำถามเปิดบทสนทนา และภารกิจ Referral</div></details>
+        <details class="w121-advanced"><summary>ตัวเลือกเพิ่มเติม · ระบบตั้งค่าที่แนะนำไว้ให้แล้ว</summary><div class="w121-form-grid" style="margin-top:10px"><label class="w121-field">วันที่ในไฟล์<select class="w121-control" id="w121-date"><option value="">ตรวจอัตโนมัติ</option></select></label><label class="w121-field">ไม่จับคู่ซ้ำ<input class="w121-control" id="w121-window" type="number" min="0" max="104" value="12"><span style="font-weight:400">สัปดาห์</span></label><label class="w121-field">Template ข้อความ<select class="w121-control" id="w121-template" onchange="w121TemplateChanged()"><option value="growth_opportunity">🚀 โอกาสทางธุรกิจ</option><option value="warm_connection">🤝 รู้จักกันแบบอบอุ่น</option><option value="referral_focus">🎯 Referral Focus</option><option value="story_trust">✨ Story & Trust</option><option value="quick_action">⚡ Quick Action 20 นาที</option></select></label></div><div id="w121-template-help" class="w121-mode-note">ครบทั้งธุรกิจ Looking for คำถามเปิดบทสนทนา และภารกิจ Referral</div></details></details>
       </div>
       <div id="w121-work" style="display:none">
         <div class="w121-panel" id="w121-review-panel"><div class="w121-panel-head"><div><div class="w121-panel-title">🔎 ตรวจความพร้อม</div><div class="w121-panel-sub">แก้รายการผิดปกติก่อนนำไปจับคู่</div></div></div><div id="w121-summary"></div><div id="w121-issues"></div></div>
@@ -2385,7 +2388,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 <script src="/assets/js/chapter-operations-center.js" defer></script>
 <script src="/assets/js/line-auto-control-center.js?v=20260925b" defer></script>
 <script src="/assets/js/line-delivery-control.js?v=20260907a" defer></script>
-<script src="/assets/js/desktop-one-to-one.js?v=20260912-audit.1" defer></script>
+<script src="/assets/js/desktop-one-to-one.js?v=20261002-chapter-roster.1" defer></script>
 <script src="/assets/js/desktop-bni-import.js?v=20260905a" defer></script>
 <script src="/assets/js/dynamic-team-labels.js?v=20260912-mentor-team-labels.1" defer></script>
 </div>

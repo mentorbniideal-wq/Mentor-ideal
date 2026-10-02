@@ -262,7 +262,7 @@ const ROUTES: Record<string, string> = {
   'getMSBMatchingSuggestions': 'member-success-blueprints',
 
   // Weekly 1-2-1 Matching (MC only)
-  'importWeekly121Csv': 'weekly-121', 'generateWeekly121Matches': 'weekly-121',
+  'importWeekly121Csv': 'weekly-121', 'createChapterOneToOneRound': 'weekly-121', 'generateWeekly121Matches': 'weekly-121',
   'createOneToOneRematchWave': 'weekly-121',
   'getWeekly121Round': 'weekly-121', 'getWeekly121DeliveryLive': 'weekly-121', 'getWeekly121History': 'weekly-121',
   'setWeekly121PairLock': 'weekly-121', 'setWeekly121RoundLock': 'weekly-121', 'sendWeekly121Round': 'weekly-121',
