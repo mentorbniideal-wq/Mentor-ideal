@@ -247,23 +247,25 @@ export async function prepareHistoricalBackfill(
   if (!reportPeriod) throw new Error('Member Traffic Light ไม่ระบุเดือนที่ตรวจสอบได้ จึงไม่สามารถผูกกับงวดย้อนหลังอย่างปลอดภัย');
   if (reportPeriod !== periodKey) throw new Error(`Member Traffic Light ระบุงวด ${reportPeriod} ไม่ตรงกับ ${periodKey}`);
   const mtlData = parseMemberTLStats(mtlRows);
-  const mtlUnmatched = Object.keys(mtlData).filter(name => !memberMap[name]);
-  const unknown = [...new Set(mtlUnmatched)];
-  if (unknown.length) throw new Error(`มีสมาชิกที่จับคู่ stable ID ไม่ได้ ${unknown.length} รายการ; ตรวจรายชื่อก่อนนำเข้า`);
   if (ambiguous.length && Object.keys(mtlData).some(name => ambiguous.includes(name))) throw new Error('ชื่อสมาชิกซ้ำหลายบัญชี ต้องแก้การจับคู่ก่อนนำเข้า');
+  // Archived members with a retained member record still match their stable ID.
+  // An absent ID cannot prove a person dropped: exclude the row rather than
+  // inventing an identity, and expose the names transiently for admin review.
+  const unmatchedNames = Object.keys(mtlData).filter(name => !memberMap[name]);
   const mtlSource = memberTrafficLightSourceValues(mtlRows);
-  const mtl = Object.entries(mtlData).map(([name, item]) => ({ member_id: memberMap[name], ...item,
+  const mtl = Object.entries(mtlData).filter(([name]) => Boolean(memberMap[name])).map(([name, item]) => ({ member_id: memberMap[name], ...item,
     score: item.scorePresent ? item.score : null, source_values: mtlSource[name] }));
   if (!mtl.length) throw new Error('Member Traffic Light ไม่มีข้อมูลสมาชิกที่จับคู่ได้');
   const fileHashes = { memberTrafficLight: await sha256Text(memberTLCsv) };
   const combinedHash = await sha256Text(JSON.stringify({ mode: 'historical_backfill_mtl', chapterId, period, fileHashes }));
-  const previewToken = await sha256Text(JSON.stringify({ chapterId, period, combinedHash, mtl: mtl.length }));
   const requestedFiles = p.sourceFiles && typeof p.sourceFiles === 'object' ? p.sourceFiles as Record<string, unknown> : {};
   const sourceFiles = { memberTrafficLight: String(requestedFiles.memberTrafficLight || '').slice(0, 255) };
   const memberIds = [...new Set(mtl.map(row => String(row.member_id)))];
-  return { period, periodKey, fileHashes, combinedHash, previewToken, sourceFiles, memberIds,
+  const previewToken = await sha256Text(JSON.stringify({ chapterId, period, combinedHash, memberIds, unmatchedNames }));
+  return { period, periodKey, fileHashes, combinedHash, previewToken, sourceFiles, memberIds, unmatchedNames,
     quality: { importMode: 'historical_backfill', sourceCoverage: 'member_traffic_light_only', memberTrafficLightRows: mtl.length,
-      affectedMembers: memberIds.length, memberTrafficLightPeriodVerified: true, sourceWindowVerified: false }, mtl };
+      affectedMembers: memberIds.length, unmatchedRows: unmatchedNames.length,
+      memberTrafficLightPeriodVerified: true, sourceWindowVerified: false }, mtl };
 }
 
 async function captureMonthlySyncSnapshot(db: ReturnType<typeof getServiceClient>, memberIds: string[], period: { year: number; month: number }) {
@@ -1997,6 +1999,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           if (periodError) throw new Error(periodError.message);
           return jsonResponse({ ok: true, batchId: batch.id, previewToken: prepared.previewToken,
             reportingPeriod: prepared.periodKey, quality: prepared.quality,
+            unmatchedNames: prepared.unmatchedNames,
             alreadyCompleted: batch.status === 'completed', replacingPeriod: Boolean(existingPeriods?.length && existingPeriods[0].id !== batch.id),
             historicalOnly: true });
         }
@@ -2024,18 +2027,18 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           const { error: auditError } = await db.from('chapter_audit_events').insert({ chapter_id: scope.chapterId,
             event_type: 'monthly_history_backfill_confirmed', actor_role: String(auth.role), actor_ref: String(auth.email),
             subject_type: 'monthly_sync_batch', subject_ref: String(batch.id),
-            metadata: { period: prepared.periodKey, source_count: 1, source_coverage: 'member_traffic_light_only', snapshot_rows: rows.length },
+            metadata: { period: prepared.periodKey, source_count: 1, source_coverage: 'member_traffic_light_only', snapshot_rows: rows.length, unmatched_rows: prepared.unmatchedNames.length },
           });
           if (auditError) throw new Error(auditError.message);
           const { data: finished, error: finishError } = await db.from('monthly_sync_batches').update({
             status: 'completed', completed_at: new Date().toISOString(),
-            result_summary: { importMode: 'historical_backfill', sourceCoverage: 'member_traffic_light_only', importedSnapshots: rows.length },
+            result_summary: { importMode: 'historical_backfill', sourceCoverage: 'member_traffic_light_only', importedSnapshots: rows.length, unmatchedRows: prepared.unmatchedNames.length },
             after_snapshot: { performanceSnapshots: rows },
           }).eq('id', batch.id).eq('status', 'running').select('id').maybeSingle();
           if (finishError) throw new Error(finishError.message);
           if (!finished) throw new Error('สถานะ batch เปลี่ยนระหว่างนำเข้า; กรุณาตรวจข้อมูลก่อนลองใหม่');
           return jsonResponse({ ok: true, batchId: batch.id, reportingPeriod: prepared.periodKey,
-            periodStatus: 'MTL_ONLY', importedSnapshots: rows.length, historicalOnly: true });
+            periodStatus: 'MTL_ONLY', importedSnapshots: rows.length, unmatchedRows: prepared.unmatchedNames.length, historicalOnly: true });
         } catch (error) {
           await db.from('monthly_sync_batches').update({ status: 'failed', error_summary: String((error as Error).message).slice(0, 2000) }).eq('id', batch.id);
           throw error;

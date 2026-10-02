@@ -10,8 +10,8 @@ const listeners = {}, calls = [];
 const context = { window: { confirm: () => true }, document: { getElementById: id => elements[id] || null, addEventListener: (type, fn) => { listeners[type] = fn; } },
   S: { role: 'mc', token: 'synthetic-oauth', isVerifiedAdmin: true, isViewer: false, isReadOnly: false }, Intl, Date, Map, Set, Promise, Number, String, Array,
   gsr(action, payload, cb) { calls.push({ action, payload }); cb(action === 'getMonthlySyncHistory' ? { ok: true, rows: [] } :
-    action === 'previewHistoricalBackfill' ? { ok: true, batchId: 'batch-1', previewToken: 'token-1', quality: { affectedMembers: 1, memberTrafficLightRows: 1, sourceCoverage: 'member_traffic_light_only' } } :
-    { ok: true, importedSnapshots: 1 }); },
+    action === 'previewHistoricalBackfill' ? { ok: true, batchId: 'batch-1', previewToken: 'token-1', unmatchedNames: ['former example'], quality: { affectedMembers: 1, memberTrafficLightRows: 1, unmatchedRows: 1, sourceCoverage: 'member_traffic_light_only' } } :
+    { ok: true, importedSnapshots: 1, unmatchedRows: 1 }); },
   FileReader: class { readAsText(file) { this.result = file.content; this.onload(); } },
 };
 vm.runInNewContext(readFileSync(new URL('../public/assets/js/desktop-monthly-history.js', import.meta.url), 'utf8'), context);
@@ -36,6 +36,7 @@ assert.equal(calls.at(-1).payload.reportingPeriod, period);
 assert.equal(calls.at(-1).payload.tlCsv, undefined);
 assert.equal(calls.at(-1).payload.r2yCsv, undefined);
 assert.match(elements['history-preview'].innerHTML, /ยืนยันบันทึก Snapshot งวดนี้/);
+assert.match(elements['history-preview'].innerHTML, /ข้าม 1 รายชื่อ/);
 listeners.click({ target: { closest: selector => selector === '[data-history-commit]' ? { dataset: { historyCommit: period } } : null } });
 await new Promise(resolve => setImmediate(resolve));
 assert.ok(calls.some(call => call.action === 'commitHistoricalBackfill' && call.payload.confirmed === true));

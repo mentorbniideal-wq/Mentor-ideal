@@ -56,6 +56,7 @@
 .history-preview-stats strong{display:block;color:var(--tx);font-size:19px}
 .history-preview-stats span,.history-preview-note,.history-preview-alert{font-size:11px;color:var(--sub)}
 .history-preview-alert{color:var(--ye);font-weight:700}
+.history-preview-alert details{margin-top:8px;font-weight:400}.history-preview-alert summary{cursor:pointer;font-weight:700}.history-preview-alert details p{max-height:120px;overflow:auto;line-height:1.65;overflow-wrap:anywhere}
 .history-commit{margin-top:11px;padding:11px 16px;border:0;border-radius:10px;background:var(--ac);color:var(--bg);font-weight:800;cursor:pointer}
 .history-error,.history-success{padding:12px 15px;border-radius:10px;font-size:12px}
 .history-error{color:var(--re);background:rgba(239,87,87,.1)}

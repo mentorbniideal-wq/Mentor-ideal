@@ -76,6 +76,7 @@
       previewArea('<div class="history-preview-card"><span class="history-eyebrow">PREVIEW · ' + period + '</span><h4>ตรวจงวด ' + safe(monthLabel(period)) + '</h4>' +
         '<div class="history-preview-stats"><div><strong>' + Number(quality.affectedMembers || 0) + '</strong><span>สมาชิกที่จับคู่ได้</span></div><div><strong>' + Number(quality.memberTrafficLightRows || 0) + '</strong><span>Snapshot จาก Member Traffic Light</span></div></div>' +
         '<p class="history-preview-note">✓ เดือนที่ระบุในรายงานตรงกับงวดที่เลือก · Evolution และ Reporting2You ไม่ถูกนำไปอ้างเป็นข้อมูลย้อนหลัง</p>' +
+        (Number(quality.unmatchedRows || 0) ? '<div class="history-preview-alert" role="status">ข้าม ' + Number(quality.unmatchedRows) + ' รายชื่อที่ไม่มี stable ID ใน Chapter นี้ จึงไม่สร้างประวัติให้รายชื่อเหล่านั้น · ระบบยังยืนยันไม่ได้ว่าเป็นสมาชิกที่ drop ทั้งหมด<details><summary>ตรวจรายชื่อที่ข้าม</summary><p>' + (result.unmatchedNames || []).map(safe).join(' · ') + '</p></details></div>' : '') +
         (result.replacingPeriod ? '<p class="history-preview-alert">งวดนี้มีข้อมูลแล้ว การยืนยันจะใช้ไฟล์ชุดนี้เป็น snapshot ล่าสุด โดยเก็บ hash และ batch เดิมไว้ตรวจสอบ</p>' : '') +
         (result.alreadyCompleted ? '<p class="history-preview-note">ไฟล์ชุดนี้นำเข้าแล้ว ไม่สร้างรายการซ้ำ</p>' : '<button type="button" class="history-commit" data-history-commit="' + period + '">ยืนยันบันทึก Snapshot งวดนี้</button>') + '</div>');
     } catch (reason) { previews.delete(period); previewArea('<p class="history-error" role="alert">ตรวจไฟล์ไม่สำเร็จ: ' + safe(reason.message) + '</p>'); }
@@ -88,7 +89,7 @@
     try {
       var result = await call('commitHistoricalBackfill', Object.assign({}, record.payload, { batchId: record.result.batchId, previewToken: record.result.previewToken, confirmed: true }));
       previews.delete(period); files.delete(period);
-      previewArea('<p class="history-success" role="status">✓ บันทึก ' + safe(period) + ' สำเร็จ · ' + Number(result.importedSnapshots || 0) + ' snapshot · ไม่เปลี่ยนข้อมูลปัจจุบัน</p>');
+      previewArea('<p class="history-success" role="status">✓ บันทึก ' + safe(period) + ' สำเร็จ · ' + Number(result.importedSnapshots || 0) + ' snapshot' + (Number(result.unmatchedRows || 0) ? ' · ข้าม ' + Number(result.unmatchedRows) + ' รายชื่อที่ไม่มี stable ID' : '') + ' · ไม่เปลี่ยนข้อมูลปัจจุบัน</p>');
       await window.loadHistoryGrid();
     } catch (reason) { previewArea('<p class="history-error" role="alert">บันทึกไม่สำเร็จ: ' + safe(reason.message) + '</p>'); }
     finally { busy = ''; window.renderHistoryGrid(); }
