@@ -42,10 +42,10 @@ const TEAM_ROLE: Record<string, string> = {
   toomtam: 'TOOMTAM', aof: 'Aof', draft: 'Draft', phai: 'PHAI', amp: 'AMP',
 };
 
-function normalizeName(value: unknown): string {
+export function normalizeName(value: unknown): string {
   return String(value || '')
     .replace(/\s*\(bni ideal\)\s*/gi, '')
-    .replace(/\s*export all\s+no data is available\s+to display.*$/gi, '')
+    .replace(/\s*export all(?:\s*loading\.{3})?\s*no data is available\s+to display[.\s]*$/gi, '')
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
@@ -211,7 +211,8 @@ async function monthlySyncFingerprint(inputs: { tlCsv: string | null; memberTLCs
   if (inputs.tlCsv) fileHashes.trafficLightEvolution = await sha256Text(inputs.tlCsv);
   if (inputs.memberTLCsv) fileHashes.memberTrafficLight = await sha256Text(inputs.memberTLCsv);
   if (inputs.r2yCsv) fileHashes.reporting2You = await sha256Text(inputs.r2yCsv);
-  return { fileHashes, combinedHash: await sha256Text(JSON.stringify({ period, fileHashes })) };
+  const legacyCombinedHash = await sha256Text(JSON.stringify({ period, fileHashes }));
+  return { fileHashes, legacyCombinedHash, combinedHash: await sha256Text(JSON.stringify({ period, fileHashes, parserRevision: 'r2y-loading-suffix-v2' })) };
 }
 
 /** Historical backfill accepts only the month-addressable Member Traffic Light report. */
@@ -586,7 +587,7 @@ async function upsertPalmsKeySnapshots(
   return snapshots.length;
 }
 
-function parseR2YRows(
+export function parseR2YRows(
   rows: string[][],
   memberMap: Record<string, string>,
   unmatched?: string[],
@@ -2098,17 +2099,24 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         const missingMemberIds = activeMemberIds.filter(id => !affectedMemberIds.includes(id));
         const fingerprint = await monthlySyncFingerprint(inputs, requestedPeriod);
         const previewToken = await sha256Text(JSON.stringify({ chapterId, requestedPeriod, combinedHash: fingerprint.combinedHash, affectedMemberIds, changes }));
-        const qualitySummary = {
+        const qualitySummary: Record<string, unknown> = {
           scoreRows: scoreRows.length, r2yRows: r2yParsed.length, affectedMembers: affectedMemberIds.length,
           unmatched: [...new Set([...trafficLightUnmatched, ...r2yUnmatched])], missingActiveMembers: missingMemberIds.length,
           anomalyCount: anomalies.length, anomalies: anomalies.slice(0, 20), periodsFound: periods,
           memberTrafficLightPeriod: reportPeriod,
-          sourceWindowVerified: false,
+          sourceWindowVerified: false, parserRevision: 'r2y-loading-suffix-v2',
         };
         const requestedFiles = typeof p.sourceFiles === 'object' && p.sourceFiles ? p.sourceFiles as Record<string, unknown> : {};
         const sourceFiles = Object.fromEntries(Object.entries(requestedFiles).slice(0, 3).map(([key, value]) => [key.slice(0, 80), String(value || '').slice(0, 255)]));
-        const { data: existing } = await db.from('monthly_sync_batches').select('*').eq('chapter_id', chapterId).eq('combined_hash', fingerprint.combinedHash).maybeSingle();
-        let batch = existing as Record<string, unknown> | null;
+        const { data: existing, error: existingError } = await db.from('monthly_sync_batches').select('*').eq('chapter_id', chapterId).eq('combined_hash', fingerprint.combinedHash).maybeSingle();
+        if (existingError) throw new Error(existingError.message);
+        const { data: legacy, error: legacyError } = existing ? { data: null, error: null } : await db.from('monthly_sync_batches').select('*').eq('chapter_id', chapterId).eq('combined_hash', fingerprint.legacyCombinedHash).maybeSingle();
+        if (legacyError) throw new Error(legacyError.message);
+        const legacyBatch = legacy as Record<string, unknown> | null;
+        // Preserve an earlier clean batch. A partial batch remains immutable;
+        // this parser revision gets a new hash and a traceable repair batch.
+        let batch = (existing || (legacyBatch?.status === 'completed' ? legacyBatch : null)) as Record<string, unknown> | null;
+        if (legacyBatch?.status === 'completed_with_warnings' && !existing) qualitySummary.supersedesBatchId = String(legacyBatch.id);
         if (!batch) {
           const { data, error } = await db.from('monthly_sync_batches').insert({
             chapter_id: chapterId, period_year: requestedPeriod.year, period_month: requestedPeriod.month,
@@ -2133,7 +2141,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         }
         return jsonResponse({
           ok: true, batchId: batch.id, previewToken, reportingPeriod: `${requestedPeriod.year}-${String(requestedPeriod.month).padStart(2, '0')}`,
-          duplicate: Boolean(existing), alreadyCompleted: ['completed','completed_with_warnings'].includes(String(batch.status)),
+          duplicate: Boolean(existing || legacyBatch), alreadyCompleted: ['completed','completed_with_warnings'].includes(String(batch.status)),
           quality: qualitySummary, changes: changes.slice(0, 100), totalChanges: changes.length,
         });
       } catch (error) {

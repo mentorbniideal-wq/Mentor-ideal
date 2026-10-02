@@ -412,6 +412,7 @@ function renderMonthlySyncPreview(r){
     '<div class="sync-preview-kpi">สมาชิกได้รับผลกระทบ<b>'+Number(q.affectedMembers||0)+'</b></div>'+
     '<div class="sync-preview-kpi">คะแนนที่จะบันทึก<b>'+Number(q.scoreRows||0)+'</b></div>'+
     '<div class="sync-preview-kpi">R2Y rows<b>'+Number(q.r2yRows||0)+'</b></div></div>'+
+    (q.supersedesBatchId?'<div class="sync-preview-warn">🔧 รอบก่อนอ่าน R2Y ได้ไม่ครบ · Preview นี้เป็นรอบแก้ไขใหม่ ประวัติ Sync เดิมยังเก็บไว้ตรวจย้อนหลัง</div>':'')+
     (unmatched.length?'<div class="sync-preview-warn">⚠️ ไม่พบชื่อ '+unmatched.length+' รายการ: '+escH(unmatched.slice(0,8).join(', '))+'</div>':'<div style="color:var(--gr)">✅ ไม่พบปัญหาชื่อสมาชิก</div>')+
     (q.missingActiveMembers?'<div class="sync-preview-warn">⚠️ สมาชิก Active ที่ไม่อยู่ในไฟล์ '+Number(q.missingActiveMembers)+' คน — ระบบจะไม่ลบข้อมูลของบุคคลเหล่านี้</div>':'')+
     (anomalies.length?'<div class="sync-preview-warn">⚠️ คะแนนเปลี่ยนตั้งแต่ 25 คะแนนขึ้นไป '+anomalies.length+' คน กรุณาตรวจ CSV</div>':'')+
