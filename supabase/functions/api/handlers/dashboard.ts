@@ -9,6 +9,7 @@ import { calcPalmsScore, trafficLight } from '../../_shared/palms.ts';
 import { sortMember360Timeline, summarizeMember360Health } from '../../_shared/member-360.ts';
 import { resolveMsbPlanningYear } from '../../_shared/msb-planning-year.ts';
 import { isActiveMsbPlan } from '../../_shared/msb-submission-coverage.ts';
+import { fetchMonthlyScorePages } from '../../_shared/monthly-score-pages.ts';
 
 // ── PALMS gap computation (mirrors WEBAPP.js gapXxx functions) ────────────────
 type GapEntry = { cat: string; icon: string; cur: number; max: number; next: number; gain: number; action: string; curVal: string; tgtVal: string; altAction?: string; altTgtVal?: string };
@@ -274,12 +275,9 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
       }
 
       // ── Batch-fetch monthly score history for sparklines ──
-      const { data: allScores } = memberIds.length
-        ? await db.from('monthly_scores').select('member_id, score, year, month')
-            .in('member_id', memberIds)
-            .order('year', { ascending: true })
-            .order('month', { ascending: true })
-        : { data: [] };
+      let allScores: Record<string, unknown>[];
+      try { allScores = await fetchMonthlyScorePages(db, memberIds); }
+      catch (error) { return errResponse(error instanceof Error ? error.message : 'โหลดประวัติคะแนนไม่สำเร็จ'); }
       const histMap: Record<string, number[]> = {};
       const scoreHistoryMap: Record<string, { year: number; month: number; label: string; score: number | null }[]> = {};
       for (const s of (allScores || []) as Record<string, unknown>[]) {
@@ -288,13 +286,13 @@ export async function handleDashboard(p: Record<string, unknown>): Promise<Respo
         if (!scoreHistoryMap[mid]) scoreHistoryMap[mid] = [];
         const year = Number(s.year) || 0;
         const month = Number(s.month) || 0;
-        const scoreVal = Number(s.score) || 0;
-        histMap[mid].push(scoreVal);
+        const scoreVal = s.score === null || s.score === undefined ? null : Number(s.score);
+        if (scoreVal !== null && Number.isFinite(scoreVal)) histMap[mid].push(scoreVal);
         scoreHistoryMap[mid].push({
           year,
           month,
           label: `${MONTH_LABELS[month] || String(month)} ${year || ''}`.trim(),
-          score: scoreVal || null,
+          score: scoreVal !== null && Number.isFinite(scoreVal) ? scoreVal : null,
         });
       }
 

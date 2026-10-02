@@ -443,7 +443,7 @@ body.dark{
   --bg:#0E1110;--sf:#171A17;--sf2:#20251F;--sf3:#2A3029;
   --bd:rgba(231,219,196,.16);--bd-hover:rgba(231,219,196,.30);
   --ac:#C8AE7D;--ac2:#D9C394;--ac3:#A98D5D;
-  --gr:var(--gr);--ye:var(--ye);--re:var(--re);--bl:#8DB4D6;--gy:#9EA39A;
+  --gr:#4ADE80;--ye:#FBBF24;--re:#F87171;--bl:#8DB4D6;--gy:#9EA39A;
   --tx:#F5F0E7;--sub:rgba(245,240,231,.72);
   --ac-dim:rgba(200,174,125,.13);--ac-glow:rgba(200,174,125,.06);
   --sh-card:0 10px 28px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,248,231,.035);

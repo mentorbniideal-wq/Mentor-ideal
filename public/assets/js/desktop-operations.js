@@ -7451,7 +7451,7 @@ function restoreDraft(id,key){
 // ── Score Sparkline ───────────────────────────────
 function sparkline(hist){
   if(!hist||!hist.length)return'<span style="color:var(--gy);font-size:10px">—</span>';
-  var pts=hist.slice(-6).map(Number).filter(function(n){return!isNaN(n)&&n>0;});
+  var pts=hist.slice(-6).filter(function(n){return n!==null&&n!==undefined&&n!=='';}).map(Number).filter(function(n){return!isNaN(n)&&n>=0;});
   if(!pts.length)return'<span style="color:var(--gy);font-size:10px">—</span>';
   var mx=Math.max.apply(null,pts)||1;
   var trend=pts.length>=2?pts[pts.length-1]-pts[pts.length-2]:0;

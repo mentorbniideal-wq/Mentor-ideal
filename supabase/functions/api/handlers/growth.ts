@@ -12,6 +12,7 @@ import { reportingGoal, visibleGrowthCategories } from '../../_shared/growth-pla
 import { uniqueMemberNameMap } from '../../_shared/member-import-identity.ts';
 import { evolutionIsHistorical, memberTrafficLightReportPeriod, reportedNumber, reportedScore } from '../../_shared/monthly-sync-period.ts';
 import { performanceSourceRows } from '../../_shared/member-performance-source.ts';
+import { fetchMonthlyScorePages } from '../../_shared/monthly-score-pages.ts';
 import { linePush, sha256Hex } from '../../_shared/line.ts';
 import { evaluateNotificationGuard, logSuppressedNotification } from '../../_shared/notification-orchestrator.ts';
 
@@ -260,8 +261,8 @@ export async function prepareHistoricalBackfill(
 
 async function captureMonthlySyncSnapshot(db: ReturnType<typeof getServiceClient>, memberIds: string[], period: { year: number; month: number }) {
   if (!memberIds.length) return { monthlyScores: [], r2yStats: [], keySnapshots: [], evolution: [], members: [], renewals: [], performanceSnapshots: [] };
-  const [monthly, r2y, keys, evolution, members, renewals, performance] = await Promise.all([
-    db.from('monthly_scores').select('*').in('member_id', memberIds),
+  const [monthlyScores, r2y, keys, evolution, members, renewals, performance] = await Promise.all([
+    fetchMonthlyScorePages(db, memberIds, '*'),
     db.from('r2y_stats').select('*').in('member_id', memberIds),
     db.from('palms_key_snapshots').select('*').in('member_id', memberIds),
     db.from('traffic_light_evolution_summary').select('*').in('member_id', memberIds),
@@ -269,9 +270,9 @@ async function captureMonthlySyncSnapshot(db: ReturnType<typeof getServiceClient
     db.from('renewals').select('*').in('member_id', memberIds),
     db.from('member_performance_source_snapshots').select('*').in('member_id', memberIds).eq('period_year', period.year).eq('period_month', period.month),
   ]);
-  const failed = [monthly, r2y, keys, evolution, members, renewals, performance].find(result => result.error);
+  const failed = [r2y, keys, evolution, members, renewals, performance].find(result => result.error);
   if (failed?.error) throw new Error(failed.error.message);
-  return { monthlyScores: monthly.data || [], r2yStats: r2y.data || [], keySnapshots: keys.data || [], evolution: evolution.data || [], members: members.data || [], renewals: renewals.data || [], performanceSnapshots: performance.data || [] };
+  return { monthlyScores, r2yStats: r2y.data || [], keySnapshots: keys.data || [], evolution: evolution.data || [], members: members.data || [], renewals: renewals.data || [], performanceSnapshots: performance.data || [] };
 }
 
 async function getExistingLatestScorePeriod(
