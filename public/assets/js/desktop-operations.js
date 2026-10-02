@@ -4187,30 +4187,12 @@ function emSave() {
 }
 
 function archiveMemberDlg(name){
-  var choice=prompt(
-    '📁 จัดการสมาชิก: "'+name+'"\n\n'+
-    'พิมพ์ตัวเลขเพื่อเลือก:\n'+
-    '  1 = Archive (ซ่อน — กู้คืนได้)\n'+
-    '  2 = ลบถาวร (ลบทั้งหมด — ไม่สามารถกู้คืนได้)\n'+
-    '\n0 = ยกเลิก'
-  );
-  if(!choice||choice.trim()==='0')return;
-  if(choice.trim()==='1'){
+  if(confirm('Archive "'+name+'"?\n\nสมาชิกจะถูกซ่อนจากรายชื่อ Active แต่ประวัติ MY121 และข้อมูลย้อนหลังยังอยู่ และสามารถกู้คืนได้')){
     call('archiveMember',{memberName:name},function(r){
       if(!r.ok){toast('❌ '+(r.error||'เกิดข้อผิดพลาด'),'err');return;}
       toast('✅ Archive เรียบร้อย: '+name,'ok');
       gsr('getDesktopDashboard',{role:'mc'},function(r2){if(r2.ok){D.mem=r2.members||[];D.sm=r2.summary||{};D.teams=r2.teams||[];D.ren=r2.renewal||[];}renderMem();renderKPI();renderDonut();renderMTTeams();});
     });
-  } else if(choice.trim()==='2'){
-    if(!confirm('⚠️ ลบ "'+name+'" ถาวร?\n\nจะลบข้อมูลทั้งหมด: คะแนน, Checklist, Notes, Renewal\n\nไม่สามารถกู้คืนได้! ยืนยันอีกครั้ง?'))return;
-    call('deleteMember',{memberName:name},function(r){
-      if(!r.ok){toast('❌ '+(r.error||'เกิดข้อผิดพลาด'),'err');return;}
-      toast('✅ ลบถาวร: '+name,'ok');
-      _8wLoaded=false;
-      gsr('getDesktopDashboard',{role:'mc'},function(r2){if(r2.ok){D.mem=r2.members||[];D.sm=r2.summary||{};D.teams=r2.teams||[];D.ren=r2.renewal||[];}renderMCAll();load8WProgress();});
-    });
-  } else {
-    toast('ไม่รู้จักคำสั่ง: '+choice,'err');
   }
 }
 function w8Remove(rowNum,memberName){

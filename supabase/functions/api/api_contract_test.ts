@@ -138,6 +138,10 @@ Deno.test('member CRUD and Member 360 resolve Chapter before accessing a member'
     const next = membersHandler.indexOf('\n    case ', start + caseMarker.length);
     const block = membersHandler.slice(start, next < 0 ? undefined : next);
     assert(block.includes('resolveChapterScope(db, auth)'), `${action} must derive Chapter scope server-side`);
+    if (action === 'deleteMember') {
+      assert(block.includes('Archive') && !block.includes('.delete()') && !block.includes('.update('), 'deleteMember must fail closed without partial child writes');
+      continue;
+    }
     assert(block.includes('scope.chapterId'), `${action} must constrain the resolved Chapter`);
   }
   const memberDetailStart = dashboardHandler.indexOf("case 'getMemberDetail':");

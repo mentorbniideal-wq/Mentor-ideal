@@ -3922,45 +3922,11 @@ export async function handleMembers(
       const scope = await resolveChapterScope(db, auth);
       if (!scope.ok) return errResponse(scope.error, 403);
 
-      const lookup = await findMemberByLegacyPayload(db, p, scope.chapterId);
-      if (lookup.error || !lookup.member) {
-        return errResponse(lookup.error || "member not found");
-      }
-      const mid = lookup.member.id;
+      // Permanent deletion previously performed non-transactional child writes.
+      // A later FK failure could leave the member present but their history partial.
+      // Archive preserves stable identity and is the supported lifecycle action.
+      return errResponse("ไม่รองรับการลบถาวร: กรุณาใช้ Archive เพื่อเก็บประวัติสมาชิกและกู้คืนได้", 409);
 
-      // Manually clean up tables without ON DELETE CASCADE before deleting member
-      await db.from("one_to_one_logs").delete().eq("initiator_id", mid);
-      await db.from("one_to_one_logs").delete().eq("partner_id", mid);
-      await db.from("power_teams").delete().or(
-        `member_a_id.eq.${mid},member_b_id.eq.${mid}`,
-      );
-      await db.from("cross_team_synergy").delete().or(
-        `member_a_id.eq.${mid},member_b_id.eq.${mid}`,
-      );
-      await db.from("visitor_log").update({ invited_by: null }).eq(
-        "invited_by",
-        mid,
-      );
-      await db.from("mc_assignments").update({ member_id: null }).eq(
-        "member_id",
-        mid,
-      );
-      await db.from("growth_tasks").update({ member_id: null }).eq(
-        "member_id",
-        mid,
-      );
-      await db.from("checkin_entries").update({ member_id: null }).eq(
-        "member_id",
-        mid,
-      );
-      await db.from("team_notifs").update({ member_id: null }).eq(
-        "member_id",
-        mid,
-      );
-
-      const { error } = await db.from("members").delete().eq("id", mid).eq("chapter_id", scope.chapterId);
-      if (error) return errResponse(error.message);
-      return jsonResponse({ ok: true, deleted: lookup.member.name });
     }
 
     // ── SAVE monthly score ────────────────────────────────────
