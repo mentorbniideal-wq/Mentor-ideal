@@ -91,34 +91,23 @@ function dataQualityFromFlags(flags: Record<string, boolean>) {
   };
 }
 
-function parseCsvString(csvString: string | null | undefined): string[][] {
+export function parseCsvString(csvString: string | null | undefined): string[][] {
   if (!csvString) return [];
   const rows: string[][] = [];
-  const lines = csvString.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-  for (const line of lines) {
-    if (!line.trim()) continue;
-    const row: string[] = [];
-    let inQuotes = false;
-    let cell = '';
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') {
-        if (inQuotes && line[i + 1] === '"') {
-          cell += '"';
-          i += 1;
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (ch === ',' && !inQuotes) {
-        row.push(cell.trim());
-        cell = '';
-      } else {
-        cell += ch;
-      }
-    }
-    row.push(cell.trim());
-    rows.push(row);
+  const input = csvString.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  let row: string[] = [], cell = '', inQuotes = false;
+  const finishRow = () => { row.push(cell.trim()); if (row.some(value => value)) rows.push(row); row = []; cell = ''; };
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (ch === '"') {
+      if (inQuotes && input[i + 1] === '"') { cell += '"'; i++; }
+      else inQuotes = !inQuotes;
+    } else if (ch === ',' && !inQuotes) { row.push(cell.trim()); cell = ''; }
+    else if (ch === '\n' && !inQuotes) finishRow();
+    else cell += ch;
   }
+  if (inQuotes) throw new Error('ไฟล์ CSV มีเครื่องหมายคำพูดเปิดค้าง กรุณา Export ใหม่จาก BNI Connect');
+  if (row.length || cell) finishRow();
   return rows;
 }
 

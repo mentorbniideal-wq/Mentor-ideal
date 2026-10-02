@@ -362,8 +362,10 @@ function openSyncModal(){
   btn.textContent='🔎 ตรวจ Preview ก่อน';btn.disabled=false;
   _syncPreview=null;_syncPayload=null;
   var preview=document.getElementById('sync-preview');if(preview){preview.className='sync-preview';preview.innerHTML='';}
-  var now=new Date(),period=document.getElementById('sync-reporting-period');
-  if(period)period.value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  // A report exported today can describe an earlier period. Never silently
+  // preselect the browser's current month for a write to historical data.
+  var period=document.getElementById('sync-reporting-period');
+  if(period)period.value='';
   document.getElementById('sync-mtl-file').value='';
   document.getElementById('sync-tl-file').value='';
   document.getElementById('sync-r2y-file').value='';
@@ -387,6 +389,8 @@ function startMonthlySync(){
   var reportingPeriod=document.getElementById('sync-reporting-period').value;
   if(!mtlFile&&!tlFile&&!r2yFile){toast('⚠️ กรุณาเลือกไฟล์ CSV อย่างน้อย 1 ไฟล์');return;}
   if(!reportingPeriod){toast('⚠️ กรุณาเลือกเดือนของข้อมูล');return;}
+  var invalid=[mtlFile,tlFile,r2yFile].filter(function(file){return file&&!/\.csv$/i.test(file.name);});
+  if(invalid.length){toast('⚠️ ปุ่ม Sync รองรับไฟล์ CSV เท่านั้น: '+invalid.map(function(file){return file.name;}).join(', '),'err');return;}
   var btn=document.getElementById('sync-run-btn');
   btn.disabled=true;btn.textContent='⏳ กำลังอ่านและตรวจไฟล์...';
   function readFile(file){return new Promise(function(resolve,reject){if(!file){resolve(null);return;}if(file.size>8*1024*1024){reject(new Error(file.name+' ใหญ่เกิน 8 MB'));return;}var r=new FileReader();r.onload=function(e){resolve(String(e.target.result||''));};r.onerror=function(){reject(new Error('อ่าน '+file.name+' ไม่สำเร็จ'));};r.readAsText(file,'UTF-8');});}
@@ -394,7 +398,7 @@ function startMonthlySync(){
     _syncPayload={role:S.role,tlCsv:values[0],r2yCsv:values[1],memberTLCsv:values[2],reportingPeriod:reportingPeriod,sourceFiles:{trafficLightEvolution:tlFile&&tlFile.name||null,reporting2You:r2yFile&&r2yFile.name||null,memberTrafficLight:mtlFile&&mtlFile.name||null}};
     gsr('previewMonthlySync',_syncPayload,function(r){
       btn.disabled=false;
-      if(!r||!r.ok){btn.textContent='❌ '+(r&&r.error||'Preview ไม่สำเร็จ');_syncPayload=null;return;}
+      if(!r||!r.ok){var message=(r&&r.error)||'Preview ไม่สำเร็จ',preview=document.getElementById('sync-preview');btn.textContent='🔎 ตรวจ Preview อีกครั้ง';if(preview){preview.className='sync-preview open';preview.textContent='❌ '+message+(message.indexOf('เดือนที่เลือกไม่ตรงกับ Member Traffic Light')>=0?' · ตรวจเดือนในหัวไฟล์ แล้วเลือกงวดให้ตรงกัน; ถ้าเป็นงวดย้อนหลังให้ใช้ Monthly History':'');} _syncPayload=null;return;}
       _syncPreview=r;renderMonthlySyncPreview(r);
       btn.textContent=r.alreadyCompleted?'✅ ไฟล์ชุดนี้ Sync แล้ว':'✅ ยืนยัน Sync เดือน '+r.reportingPeriod;
       btn.disabled=!!r.alreadyCompleted;
@@ -423,7 +427,8 @@ function confirmMonthlySync(){
   gsr('monthlySync',payload,function(r){
           if(!r||!r.ok){
             _setSyncStep(2,'error');
-            btn.textContent='❌ '+(r&&r.error||'Sync ไม่สำเร็จ');
+            btn.textContent='🔎 ตรวจ Preview อีกครั้ง';
+            var errorPanel=document.getElementById('sync-preview');if(errorPanel){errorPanel.className='sync-preview open';errorPanel.textContent='❌ '+(r&&r.error||'Sync ไม่สำเร็จ');}
             btn.disabled=false;
             return;
           }
