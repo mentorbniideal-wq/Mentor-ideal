@@ -72,6 +72,20 @@ Deno.test("MY121 aggregates derive Chapter scope before every log query", async 
   assert(tracker.includes("auth.role === 'growth' ? ''"), 'Growth MY121 DTO must omit Mentor-private free text');
 });
 
+Deno.test("MY121 draft pairs stay operator-visible but member-inaccessible", async () => {
+  const operator = await read("supabase/functions/api/handlers/weekly-121.ts");
+  const member = await read("supabase/functions/liff-api/index.ts");
+  const desktop = await read("public/assets/js/desktop-one-to-one.js");
+  assert(operator.includes(".eq('matching_rounds.chapter_id',chapterId).eq('matching_rounds.status','draft')"));
+  assert(operator.includes("drafts:drafts||[]"));
+  assert(operator.includes(".in('matching_rounds.status',ACTIVE_ROUND_STATUSES).in('status',['verified','late_verified'])"));
+  assert(desktop.includes("(r.drafts||[]).map"));
+  const ownPair = member.slice(member.indexOf("async function ownPair("), member.indexOf("async function ownGuidedSession("));
+  assert(ownPair.includes(".in('matching_rounds.status',['confirmed','sending','sent','partially_failed'])"));
+  assert(member.includes("round:matching_rounds!inner(meeting_date,system_version,status)"));
+  assert(member.includes("matching_rounds!inner(meeting_date,status)"));
+});
+
 Deno.test("synthetic two-Chapter and consent-disabled fixtures preserve the Growth projection", () => {
   const members = [
     { id: 'a-1', chapterId: 'chapter-a', companyName: 'Visible Co.', powerTeams: ['Architect'], shareBusiness: true, shareReferral: true },

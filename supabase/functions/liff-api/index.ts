@@ -299,7 +299,8 @@ Deno.serve(async (req: Request) => {
   }
 
   async function ownPair(pairId?:string){
-    let query=db.from('matching_pairs').select('id,round_id,member_a_id,member_b_id,optional_member_c_id,status,moment_photo_path,moment_photo_uploaded_at,moment_photo_uploaded_by,moment_photo_content_type,matching_rounds!inner(meeting_date,starts_at,ends_at,system_version,journey_type)').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId},optional_member_c_id.eq.${memberId}`).is('archived_at',null).neq('status','cancelled');
+    // Draft rounds are operator-only, including when a member supplies a pair ID.
+    let query=db.from('matching_pairs').select('id,round_id,member_a_id,member_b_id,optional_member_c_id,status,moment_photo_path,moment_photo_uploaded_at,moment_photo_uploaded_by,moment_photo_content_type,matching_rounds!inner(meeting_date,starts_at,ends_at,system_version,journey_type,status)').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId},optional_member_c_id.eq.${memberId}`).is('archived_at',null).neq('status','cancelled').in('matching_rounds.status',['confirmed','sending','sent','partially_failed']);
     if(pairId)query=query.eq('id',pairId);else query=query.eq('matching_rounds.system_version',2).eq('matching_rounds.journey_type','chapter').order('created_at',{ascending:false}).limit(1);
     const {data,error}=await query.maybeSingle();return{pair:data as Record<string,unknown>|null,error};
   }
@@ -468,7 +469,7 @@ Deno.serve(async (req: Request) => {
       db.from('members').select('id,name,nickname,profession,company_name,mentor_team').eq('id',partnerId).maybeSingle(),
       db.from('one_to_one_schedules').select('*').eq('pair_id',String(pair.id)).in('status',['proposed','confirmed']).order('created_at',{ascending:false}).limit(3),
       db.from('one_to_one_follow_up_actions').select('*').eq('pair_id',String(pair.id)).eq('owner_member_id',memberId).order('created_at',{ascending:false}),
-      db.from('matching_pairs').select('id,status,created_at,member_a_id,member_b_id,matching_rounds(meeting_date)').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId}`).order('created_at',{ascending:false}).limit(20),
+      db.from('matching_pairs').select('id,status,created_at,member_a_id,member_b_id,matching_rounds!inner(meeting_date,status)').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId}`).in('matching_rounds.status',['confirmed','sending','sent','partially_failed']).order('created_at',{ascending:false}).limit(20),
       db.from('matching_import_rows').select('looking_for').eq('round_id',String(pair.round_id)).eq('matched_member_id',partnerId).limit(1).maybeSingle(),
       db.from('biz_profiles').select('looking_for,ideal_client,referral_trigger_summary').eq('member_id',partnerId).maybeSingle(),
       db.from('one_to_one_logs').select('id,met_at,scheduled_date').or(`initiator_id.eq.${memberId},partner_id.eq.${memberId}`).order('created_at',{ascending:false}).limit(200),
@@ -534,7 +535,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if(action==='get-my-one-to-one-history'){
-    const {data:pairs,error:pairError}=await db.from('matching_pairs').select('id,round_id,status,member_a_id,member_b_id,optional_member_c_id,created_at,moment_photo_path,moment_photo_uploaded_at,round:matching_rounds(meeting_date,system_version),schedules:one_to_one_schedules(id,starts_at,status,meeting_mode,location_or_link)').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId},optional_member_c_id.eq.${memberId}`).order('created_at',{ascending:false}).limit(100);
+    const {data:pairs,error:pairError}=await db.from('matching_pairs').select('id,round_id,status,member_a_id,member_b_id,optional_member_c_id,created_at,moment_photo_path,moment_photo_uploaded_at,round:matching_rounds!inner(meeting_date,system_version,status),schedules:one_to_one_schedules(id,starts_at,status,meeting_mode,location_or_link)').or(`member_a_id.eq.${memberId},member_b_id.eq.${memberId},optional_member_c_id.eq.${memberId}`).in('round.status',['confirmed','sending','sent','partially_failed']).order('created_at',{ascending:false}).limit(100);
     if(pairError)return response({ok:false,error:'ยังเปิดประวัติ 1-2-1 ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'},400);
     const pairRows=(pairs||[]) as Record<string,unknown>[],pairIds=pairRows.map(x=>String(x.id));
     const partnerIds=[...new Set(pairRows.flatMap(x=>[x.member_a_id,x.member_b_id,x.optional_member_c_id].filter(Boolean).map(String)).filter(id=>id!==memberId))];
