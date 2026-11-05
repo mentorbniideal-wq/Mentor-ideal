@@ -6,6 +6,7 @@ import { evaluateNotificationGuard, logSuppressedNotification } from '../../_sha
 import { handshakeCodeHash, recoverableHandshakeCode } from '../../_shared/one-to-one.ts';
 import { member121ProfileCompleteness, member121ProfileMissingFields } from '../../_shared/member-121-profile.ts';
 import { resolveChapterScope } from '../../_shared/chapter-scope.ts';
+import { deduplicate121Members } from '../../_shared/weekly-121.ts';
 
 const isoDate = (value: string) => { const m = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); return m ? `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}` : value; };
 const pairKey = (a: string, b: string) => [a,b].sort().join('|');
@@ -55,6 +56,24 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
   const scope = await resolveChapterScope(db, auth);
   if (!scope.ok) return errResponse(scope.error, 403);
   const chapterId = scope.chapterId;
+
+  if(action==='getWeekly121NameAliases'){
+    if(!auth.isAdmin||auth.isViewer)return errResponse('เฉพาะ Chapter Admin เท่านั้นที่จัดการชื่อที่จำไว้ได้',403);
+    const [{data:aliases,error:aliasError},{data:members,error:memberError}]=await Promise.all([
+      db.from('one_to_one_member_name_aliases').select('id,normalized_name,member_id,last_confirmed_at').eq('chapter_id',chapterId).order('normalized_name').limit(5000),
+      db.from('members').select('id,name,nickname').eq('chapter_id',chapterId).eq('is_archived',false).order('name'),
+    ]);
+    if(aliasError||memberError)return errResponse('โหลดชื่อที่จำไว้ไม่สำเร็จ กรุณาลองใหม่',500);
+    return jsonResponse({ok:true,aliases:aliases||[],members:members||[]});
+  }
+  if(action==='correctWeekly121NameAlias'){
+    if(!auth.isAdmin||auth.isViewer||auth.isReadOnly)return errResponse('เฉพาะ Chapter Admin ที่มีสิทธิ์แก้ไขเท่านั้น',403);
+    if(p.confirmed!==true)return errResponse('กรุณายืนยันการแก้ชื่อก่อนบันทึก');
+    const aliasId=String(p.aliasId||''),oldMemberId=String(p.expectedMemberId||''),memberId=String(p.memberId||'');
+    if(!aliasId||!oldMemberId||!memberId)return errResponse('กรุณาเลือกชื่อและสมาชิก');
+    const {error}=await db.rpc('correct_one_to_one_member_alias',{p_chapter_id:chapterId,p_alias_id:aliasId,p_expected_member_id:oldMemberId,p_member_id:memberId,p_actor:String(auth.email||auth.displayName||auth.role)});
+    return error?errResponse('แก้ชื่อที่จำไว้ไม่สำเร็จ กรุณาโหลดรายการใหม่และลองอีกครั้ง',409):jsonResponse({ok:true});
+  }
 
   if(action==='getOneToOneManualCandidates'){
     const {data:members,error}=await db.from('members').select('id,name,nickname,mentor_team,profession,company_name').eq('chapter_id',chapterId).eq('is_archived',false).order('name');if(error)return errResponse(error.message);const ids=((members||[]) as Record<string,unknown>[]).map(x=>String(x.id));const {data:links}=ids.length?await db.from('line_members').select('member_id,line_user_id').in('member_id',ids):{data:[]};const linked=new Set(((links||[]) as Record<string,unknown>[]).filter(x=>x.line_user_id).map(x=>String(x.member_id)));const candidates=((members||[]) as Record<string,unknown>[]).map(x=>({...x,lineReady:linked.has(String(x.id))}));return jsonResponse({ok:true,members:candidates});
@@ -107,11 +126,12 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
     if (mErr) return errResponse(mErr.message);
     const memberRows = (members || []) as Record<string, unknown>[];
     const ids = memberRows.map(m => String(m.id));
-    const [{ data: links }, { data: biz }, { data: aliases }] = await Promise.all([
-      ids.length ? db.from('line_members').select('member_id,line_user_id').in('member_id', ids) : Promise.resolve({data:[]}),
+    const [{ data: links, error: linkError }, { data: biz }, { data: aliases, error: aliasError }] = await Promise.all([
+      ids.length ? db.from('line_members').select('member_id,line_user_id').in('member_id', ids) : Promise.resolve({data:[],error:null}),
       ids.length ? db.from('biz_profiles').select('member_id,description').in('member_id', ids) : Promise.resolve({data:[]}),
       db.from('one_to_one_member_name_aliases').select('normalized_name,member_id,confirmation_count').eq('chapter_id',chapterId).limit(5000),
     ]);
+    if(linkError||aliasError)return errResponse('ตรวจ LINE หรือประวัติชื่อสมาชิกไม่สำเร็จ กรุณาลองใหม่ก่อนสร้างรอบ',503);
     const lineBy = new Map(((links||[]) as Record<string,unknown>[]).filter(x => hasUsableLineId(x.line_user_id)).map(x => [String(x.member_id),String(x.line_user_id).trim()]));
     const bizBy = new Map(((biz||[]) as Record<string,unknown>[]).map(x => [String(x.member_id),String(x.description)]));
     const byName = new Map<string,Record<string,unknown>[]>();
@@ -119,7 +139,7 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
     const activeMemberById=new Map(memberRows.map(m=>[String(m.id),m]));
     const aliasByName=new Map(((aliases||[]) as Record<string,unknown>[]).map(a=>[String(a.normalized_name),activeMemberById.get(String(a.member_id))]).filter((entry):entry is [string,Record<string,unknown>]=>Boolean(entry[1])));
     const seen = new Set<string>();
-    const reconciled = dayRows.map(r => {
+    const reconciled = deduplicate121Members(dayRows.map(r => {
       const key=normalize121Name(r.fullName); const found=byName.get(key)||[]; let status='not_found', message='ไม่พบชื่อในฐานสมาชิก', member:Record<string,unknown>|null=null,matchedBy='none';
       const isSub=Boolean(r.substituteFor)||normalize121Name(r.userRole)==='substitute';
       if (isSub) { status='substitute'; message=`ผู้มาประชุมแทน ${r.substituteFor||''}`.trim(); }
@@ -129,7 +149,7 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
       else if (aliasByName.has(key)) { member=aliasByName.get(key)!; matchedBy='history'; status=lineBy.has(String(member.id))?'ready':'no_line'; message=status==='ready'?`จำจากประวัติ: ${String(member.name||'สมาชิก')}`:'จำจากประวัติ แต่สมาชิกยังไม่ได้เชื่อม LINE'; }
       seen.add(key);
       return { ...r, normalizedName:key, status, message, matchedBy, member:member?{...member,business:bizBy.get(String(member.id))||'',lineUserId:lineBy.get(String(member.id))||''}:null, candidates:found.map(m=>({id:m.id,name:m.name,nickname:m.nickname})) };
-    });
+    }));
     const meetingDate=isoDate(selectedDate);
     const friday=new Date(`${meetingDate}T00:00:00+07:00`); const saturday=new Date(friday.getTime()+86400000); const thursday=new Date(friday.getTime()+6*86400000+16*60*60*1000+59*60*1000);
     const { data: round, error:rErr } = await db.from('matching_rounds').insert({chapter_id:chapterId,meeting_date:meetingDate,source_file_name:fileName,repeat_window_weeks:Number(p.repeatWindowWeeks||12),created_by:String(auth.displayName||auth.role),system_version:2,feature_flag:'one_to_one_system',message_template_key:templateKey(p.messageTemplateKey),timezone:'Asia/Bangkok',opt_in_closes_at:new Date(saturday.getTime()+5*60*60*1000).toISOString(),starts_at:saturday.toISOString(),ends_at:thursday.toISOString()}).select('id').single();
@@ -318,7 +338,7 @@ export async function handleWeekly121(p: Record<string, unknown>): Promise<Respo
     const {data:deliveryRows,error:deliveryError}=await db.from('line_message_deliveries').select('matching_pair_id,member_id,status,notification_type').eq('module','one_to_one').eq('status','sent').eq('notification_type','weekly_121_matching').in('matching_pair_id',scopedIds(pairIds));if(deliveryError)return errResponse(deliveryError.message);const deliveredPairIds=fullyDeliveredOneToOnePairIds((deliveryRows||[]) as Record<string,unknown>[]);
     const activePromise=db.from('matching_pairs').select('id,status,archived_at,round:matching_rounds!inner(status,journey_type,chapter_id)').is('archived_at',null).eq('matching_rounds.chapter_id',chapterId).eq('matching_rounds.journey_type','chapter').in('matching_rounds.status',ACTIVE_ROUND_STATUSES).in('status',ACTIVE_PAIR_STATUSES);
     const selfSessionsPromise=db.from('matching_pairs').select('id,matching_rounds!inner(journey_type,status,chapter_id)',{count:'exact',head:true}).is('archived_at',null).eq('matching_rounds.chapter_id',chapterId).eq('matching_rounds.journey_type','member_self').eq('matching_rounds.status','sent').in('status',ACTIVE_PAIR_STATUSES);
-    const completedPromise=db.from('matching_pairs').select('id,status,created_at,round:matching_rounds!inner(meeting_date,status,chapter_id),member_a:members!matching_pairs_member_a_id_fkey(id,name,nickname),member_b:members!matching_pairs_member_b_id_fkey(id,name,nickname)',{count:'exact'}).is('archived_at',null).eq('matching_rounds.chapter_id',chapterId).neq('matching_rounds.status','cancelled').in('status',['verified','late_verified']).order('created_at',{ascending:false}).limit(20);
+    const completedPromise=db.from('matching_pairs').select('id,status,created_at,round:matching_rounds!inner(meeting_date,status,chapter_id),member_a:members!matching_pairs_member_a_id_fkey(id,name,nickname),member_b:members!matching_pairs_member_b_id_fkey(id,name,nickname),member_c:members!matching_pairs_optional_member_c_id_fkey(id,name,nickname)',{count:'exact'}).is('archived_at',null).eq('matching_rounds.chapter_id',chapterId).neq('matching_rounds.status','cancelled').in('status',['verified','late_verified']).order('created_at',{ascending:false}).limit(20);
     const [{data:round},{data:activeRows,error:activeError},{data:completedRows,count:completedCount,error:completedError},{count:waiting},{count:followUp},{count:attention},{count:selfSessions},{count:selfInvites},{data:rematchRows}]=await Promise.all([
       db.from('matching_rounds').select('id,meeting_date,status,starts_at,ends_at,feature_flag').eq('chapter_id',chapterId).neq('status','cancelled').order('meeting_date',{ascending:false}).order('created_at',{ascending:false}).limit(1).maybeSingle(),
       activePromise,

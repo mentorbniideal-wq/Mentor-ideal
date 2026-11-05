@@ -233,15 +233,22 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
   if (!auth.ok) return errResponse(auth.error!);
   if (!auth.isAdmin) return errResponse('เฉพาะ Chapter Admin เท่านั้นที่จัดการการเข้าถึงและการตั้งค่าระบบได้', 403);
 
+  let configChapterId: string | null = null;
+  if (['getChapterConfiguration','updateChapterConfiguration','restoreChapterConfiguration'].includes(action)) {
+    const scope = await resolveChapterScope(db, auth);
+    if (!scope.ok) return errResponse(scope.error, 403);
+    configChapterId = scope.chapterId;
+  }
+
   if (action === 'getChapterConfiguration') {
     const { data: activeKeyRow, error: activeKeyError } = await db.from('settings')
       .select('value').eq('key', 'ACTIVE_CHAPTER_KEY').maybeSingle();
     if (activeKeyError) return errResponse(activeKeyError.message);
     const activeChapterKey = String(activeKeyRow?.value || 'bni-ideal');
     const [{ data: chapter, error }, { count: activeMembers }, { count: linkedMembers }, { data: recentJobs }] = await Promise.all([
-      db.from('chapter_profiles').select('id,chapter_key,display_name,short_name,timezone,locale,meeting_weekday,meeting_time,branding,scoring_config,notification_config,config_version,is_active,created_at,updated_at').eq('chapter_key', activeChapterKey).maybeSingle(),
-      db.from('members').select('id', { count: 'exact', head: true }).eq('is_archived', false),
-      db.from('line_members').select('member_id', { count: 'exact', head: true }).not('line_user_id', 'is', null),
+      db.from('chapter_profiles').select('id,chapter_key,display_name,short_name,timezone,locale,meeting_weekday,meeting_time,msb_planning_year,branding,scoring_config,notification_config,config_version,is_active,created_at,updated_at').eq('id', configChapterId!).maybeSingle(),
+      db.from('members').select('id', { count: 'exact', head: true }).eq('chapter_id', configChapterId!).eq('is_archived', false),
+      db.from('line_members').select('member_id,members!inner(chapter_id,is_archived)', { count: 'exact', head: true }).eq('members.chapter_id', configChapterId!).eq('members.is_archived', false).not('line_user_id', 'is', null),
       db.from('system_job_runs').select('job_name,status,started_at,error').order('started_at', { ascending: false }).limit(50),
     ]);
     if (error) return errResponse(error.message);
@@ -274,6 +281,8 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     const locale = String(p.locale || '').trim();
     const meetingWeekday = Number(p.meetingWeekday);
     const meetingTime = String(p.meetingTime || '').trim();
+    const planningYear = p.msbPlanningYear === undefined ? undefined : Number(p.msbPlanningYear);
+    if (planningYear !== undefined && (!Number.isInteger(planningYear) || planningYear < 2020 || planningYear > 2100)) return errResponse('ปี Blueprint ต้องเป็นปี ค.ศ. ระหว่าง 2020–2100');
     const reason = String(p.reason || '').trim().slice(0, 300);
     if (!/^[a-z0-9][a-z0-9_-]{1,62}$/.test(chapterKey)) return errResponse('Chapter key ใช้ได้เฉพาะ a-z, 0-9, _ และ -');
     if (displayName.length < 2 || displayName.length > 120 || shortName.length < 2 || shortName.length > 40) return errResponse('กรุณาตรวจชื่อ Chapter');
@@ -282,23 +291,23 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     if (!Number.isInteger(meetingWeekday) || meetingWeekday < 0 || meetingWeekday > 6) return errResponse('วันประชุมไม่ถูกต้อง');
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(meetingTime)) return errResponse('เวลาประชุมไม่ถูกต้อง');
     const { data: activeKeyRow } = await db.from('settings').select('value').eq('key', 'ACTIVE_CHAPTER_KEY').maybeSingle();
-    const { data: current, error: currentError } = await db.from('chapter_profiles').select('*').eq('chapter_key', String(activeKeyRow?.value || 'bni-ideal')).maybeSingle();
+    const { data: current, error: currentError } = await db.from('chapter_profiles').select('*').eq('id', configChapterId!).maybeSingle();
     if (currentError || !current) return errResponse(currentError?.message || 'ไม่พบ Active Chapter');
     if (Number(p.expectedVersion) !== Number(current.config_version)) return errResponse('ข้อมูลถูกแก้จากหน้าจออื่น กรุณา Refresh แล้วตรวจใหม่', 409);
     const nextVersion = Number(current.config_version) + 1;
-    const update = { chapter_key: chapterKey, display_name: displayName, short_name: shortName, timezone, locale, meeting_weekday: meetingWeekday, meeting_time: meetingTime, config_version: nextVersion, updated_at: new Date().toISOString() };
+    const update = { chapter_key: chapterKey, display_name: displayName, short_name: shortName, timezone, locale, meeting_weekday: meetingWeekday, meeting_time: meetingTime, ...(planningYear === undefined ? {} : { msb_planning_year: planningYear }), config_version: nextVersion, updated_at: new Date().toISOString() };
     const { data: saved, error: saveError } = await db.from('chapter_profiles').update(update).eq('id', current.id).eq('config_version', current.config_version).select('*').maybeSingle();
     if (saveError || !saved) return errResponse(saveError?.message || 'บันทึกไม่สำเร็จ กรุณา Refresh');
     const actor = String(auth.displayName || auth.role || 'Chapter Admin');
     const snapshot = { ...saved }; delete (snapshot as Record<string, unknown>).created_at; delete (snapshot as Record<string, unknown>).updated_at;
     await Promise.all([
       db.from('chapter_profile_revisions').insert({ chapter_id: saved.id, config_version: nextVersion, snapshot, changed_by: actor, change_reason: reason || 'Updated from Chapter Settings' }),
-      db.from('settings').upsert([
+      String(activeKeyRow?.value || 'bni-ideal') === String(current.chapter_key) ? db.from('settings').upsert([
         { key: 'ACTIVE_CHAPTER_KEY', value: chapterKey }, { key: 'CHAPTER_DISPLAY_NAME', value: displayName },
         { key: 'CHAPTER_TIMEZONE', value: timezone }, { key: 'CHAPTER_MEETING_WEEKDAY', value: String(meetingWeekday) },
         { key: 'CHAPTER_MEETING_TIME', value: meetingTime },
-      ], { onConflict: 'key' }),
-      db.from('chapter_audit_events').insert({ event_type: 'chapter_configuration_updated', actor_role: String(auth.role), actor_ref: actor, subject_type: 'chapter_profile', subject_ref: String(saved.id), metadata: { from_version: current.config_version, to_version: nextVersion, changed_fields: Object.keys(update).filter(key => key !== 'updated_at' && key !== 'config_version' && String((current as Record<string, unknown>)[key]) !== String((update as Record<string, unknown>)[key])) } }),
+      ], { onConflict: 'key' }) : Promise.resolve({error:null}),
+      db.from('chapter_audit_events').insert({ chapter_id: current.id, event_type: 'chapter_configuration_updated', actor_role: String(auth.role), actor_ref: actor, subject_type: 'chapter_profile', subject_ref: String(saved.id), metadata: { from_version: current.config_version, to_version: nextVersion, changed_fields: Object.keys(update).filter(key => key !== 'updated_at' && key !== 'config_version' && String((current as Record<string, unknown>)[key]) !== String((update as Record<string, unknown>)[key])) } }),
     ]);
     return jsonResponse({ ok: true, chapter: saved });
   }
@@ -308,21 +317,21 @@ export async function handleAdminSettings(p: Record<string, unknown>): Promise<R
     const revisionId = String(p.revisionId || '');
     const { data: activeKeyRow } = await db.from('settings').select('value').eq('key', 'ACTIVE_CHAPTER_KEY').maybeSingle();
     const [{ data: current }, { data: revision }] = await Promise.all([
-      db.from('chapter_profiles').select('*').eq('chapter_key', String(activeKeyRow?.value || 'bni-ideal')).maybeSingle(),
-      db.from('chapter_profile_revisions').select('*').eq('id', revisionId).maybeSingle(),
+      db.from('chapter_profiles').select('*').eq('id', configChapterId!).maybeSingle(),
+      db.from('chapter_profile_revisions').select('*').eq('chapter_id', configChapterId!).eq('id', revisionId).maybeSingle(),
     ]);
     if (!current || !revision || String(revision.chapter_id) !== String(current.id)) return errResponse('ไม่พบ revision ที่เลือก');
     const snap = (revision.snapshot || {}) as Record<string, unknown>;
     const nextVersion = Number(current.config_version) + 1;
-    const restored = { chapter_key: snap.chapter_key, display_name: snap.display_name, short_name: snap.short_name, timezone: snap.timezone, locale: snap.locale, meeting_weekday: snap.meeting_weekday, meeting_time: snap.meeting_time, branding: snap.branding || {}, scoring_config: snap.scoring_config || {}, notification_config: snap.notification_config || {}, config_version: nextVersion, updated_at: new Date().toISOString() };
+    const restored = { chapter_key: snap.chapter_key, display_name: snap.display_name, short_name: snap.short_name, timezone: snap.timezone, locale: snap.locale, meeting_weekday: snap.meeting_weekday, meeting_time: snap.meeting_time, msb_planning_year: snap.msb_planning_year ?? current.msb_planning_year, branding: snap.branding || {}, scoring_config: snap.scoring_config || {}, notification_config: snap.notification_config || {}, config_version: nextVersion, updated_at: new Date().toISOString() };
     const { data: saved, error } = await db.from('chapter_profiles').update(restored).eq('id', current.id).eq('config_version', current.config_version).select('*').maybeSingle();
     if (error || !saved) return errResponse(error?.message || 'ย้อน Configuration ไม่สำเร็จ');
     const actor = String(auth.displayName || auth.role || 'Chapter Admin');
     const snapshot = { ...saved }; delete (snapshot as Record<string, unknown>).created_at; delete (snapshot as Record<string, unknown>).updated_at;
     await Promise.all([
       db.from('chapter_profile_revisions').insert({ chapter_id: saved.id, config_version: nextVersion, snapshot, changed_by: actor, change_reason: `Restored from version ${revision.config_version}` }),
-      db.from('settings').upsert([{ key:'ACTIVE_CHAPTER_KEY',value:String(saved.chapter_key) },{ key:'CHAPTER_DISPLAY_NAME',value:String(saved.display_name) },{ key:'CHAPTER_TIMEZONE',value:String(saved.timezone) },{ key:'CHAPTER_MEETING_WEEKDAY',value:String(saved.meeting_weekday) },{ key:'CHAPTER_MEETING_TIME',value:String(saved.meeting_time).slice(0,5) }], { onConflict:'key' }),
-      db.from('chapter_audit_events').insert({ event_type:'chapter_configuration_restored',actor_role:String(auth.role),actor_ref:actor,subject_type:'chapter_profile',subject_ref:String(saved.id),metadata:{ restored_from_version:revision.config_version,to_version:nextVersion } }),
+      String(activeKeyRow?.value || 'bni-ideal') === String(current.chapter_key) ? db.from('settings').upsert([{ key:'ACTIVE_CHAPTER_KEY',value:String(saved.chapter_key) },{ key:'CHAPTER_DISPLAY_NAME',value:String(saved.display_name) },{ key:'CHAPTER_TIMEZONE',value:String(saved.timezone) },{ key:'CHAPTER_MEETING_WEEKDAY',value:String(saved.meeting_weekday) },{ key:'CHAPTER_MEETING_TIME',value:String(saved.meeting_time).slice(0,5) }], { onConflict:'key' }) : Promise.resolve({error:null}),
+      db.from('chapter_audit_events').insert({ chapter_id: current.id, event_type:'chapter_configuration_restored',actor_role:String(auth.role),actor_ref:actor,subject_type:'chapter_profile',subject_ref:String(saved.id),metadata:{ restored_from_version:revision.config_version,to_version:nextVersion } }),
     ]);
     return jsonResponse({ ok:true, chapter:saved });
   }

@@ -1,4 +1,4 @@
-import { assert, assertEquals } from "jsr:@std/assert";
+import { assert, assertEquals, assertStringIncludes } from "jsr:@std/assert";
 
 async function read(path: string): Promise<string> {
   return await Deno.readTextFile(new URL(`../../../${path}`, import.meta.url));
@@ -198,4 +198,15 @@ Deno.test("scorecard remains Mentor Co. only because it returns team member brea
   assert(block.includes("requireAuth(db, p, ['mc'])"));
   assert(block.includes("resolveChapterScope(db, auth)"));
   assert(block.includes(".in('id', scopedMemberIds)"));
+});
+Deno.test('MY121 alias correction is restricted, chapter scoped and transactional', async () => {
+  const handler = await Deno.readTextFile(new URL('./handlers/weekly-121.ts', import.meta.url));
+  const migration = await Deno.readTextFile(new URL('../../migrations/20261105000001_correct_one_to_one_alias.sql', import.meta.url));
+  const section = handler.split("if(action==='correctWeekly121NameAlias')")[1].split("if(action==='getOneToOneManualCandidates')")[0];
+  assertStringIncludes(section, '!auth.isAdmin||auth.isViewer||auth.isReadOnly');
+  assertStringIncludes(section, 'p_chapter_id:chapterId');
+  assertStringIncludes(migration, 'FOR UPDATE');
+  assertStringIncludes(migration, 'old_member IS DISTINCT FROM p_expected_member_id');
+  assertStringIncludes(migration, 'one_to_one_alias_corrected');
+  assertStringIncludes(migration, 'FROM PUBLIC, anon, authenticated');
 });

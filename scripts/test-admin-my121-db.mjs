@@ -1,0 +1,45 @@
+// Isolated PostgreSQL engine with synthetic fixtures. Never contacts Supabase.
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const {PGlite}=await import(process.env.PGLITE_MODULE||'@electric-sql/pglite');
+const db=new PGlite();
+try{
+  await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role;
+    CREATE TABLE members(id uuid PRIMARY KEY,chapter_id uuid,is_archived boolean);
+    CREATE TABLE one_to_one_member_name_aliases(id uuid PRIMARY KEY,chapter_id uuid,member_id uuid,last_confirmed_at timestamptz,last_confirmed_by text,confirmation_count int,updated_at timestamptz);
+    CREATE TABLE chapter_audit_events(chapter_id uuid,event_type text,actor_role text,actor_ref text,subject_type text,subject_ref text,metadata jsonb);
+    CREATE TABLE matching_rounds(id uuid PRIMARY KEY,chapter_id uuid);
+    CREATE TABLE matching_pairs(id uuid PRIMARY KEY,round_id uuid,member_a_id uuid,member_b_id uuid,optional_member_c_id uuid,status text,archived_at timestamptz,release_reason text,released_at timestamptz,released_by text,cancellation_reason text);
+    CREATE TABLE one_to_one_schedules(pair_id uuid,status text,change_reason text,changed_by text,updated_at timestamptz);
+    CREATE TABLE one_to_one_follow_up_actions(pair_id uuid,status text,outcome text,updated_at timestamptz);
+    CREATE TABLE one_to_one_attention_items(pair_id uuid,status text,resolution text,resolved_at timestamptz,updated_at timestamptz);
+    CREATE TABLE one_to_one_rematch_requests(pair_id uuid,member_id uuid,status text,priority_points int,reason text,released_by text,released_at timestamptz,consumed_by_pair_id uuid,resolved_at timestamptz,UNIQUE(pair_id,member_id));
+    CREATE TABLE one_to_one_status_events(round_id uuid,pair_id uuid,event_type text,actor_type text,actor_ref text,metadata jsonb);`);
+  for(const name of ['20261105000001_correct_one_to_one_alias.sql','20261105000002_release_one_to_one_groups.sql'])await db.exec(readFileSync('supabase/migrations/'+name,'utf8'));
+  const id=n=>'00000000-0000-0000-0000-'+String(n).padStart(12,'0');
+  const chapter=id(1),other=id(2),alias=id(3),a=id(4),b=id(5),c=id(6),outsider=id(7),round=id(8),pair=id(9);
+  await db.query('INSERT INTO members VALUES($1,$2,false),($3,$2,false),($4,$2,false),($5,$6,false)',[a,chapter,b,c,outsider,other]);
+  await db.query('INSERT INTO one_to_one_member_name_aliases(id,chapter_id,member_id) VALUES($1,$2,$3)',[alias,chapter,a]);
+  const correct=(scope,expected,target)=>db.query('SELECT correct_one_to_one_member_alias($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text)',[scope,alias,expected,target,'synthetic-admin']);
+  await assert.rejects(()=>correct(other,a,b));await assert.rejects(()=>correct(chapter,a,outsider));
+  await correct(chapter,a,b);await correct(chapter,a,b);
+  assert.equal((await db.query('SELECT count(*)::int n FROM chapter_audit_events')).rows[0].n,1);
+  await assert.rejects(()=>correct(chapter,a,a));
+  await db.exec('SET ROLE anon');await assert.rejects(()=>correct(chapter,b,a));await db.exec('RESET ROLE');
+  await db.query('INSERT INTO matching_rounds VALUES($1,$2)',[round,chapter]);
+  await db.query('INSERT INTO matching_pairs(id,round_id,member_a_id,member_b_id,optional_member_c_id,status) VALUES($1,$2,$3,$4,$5,$6)',[pair,round,a,b,c,'matched']);
+  const release=(scope=chapter)=>db.query('SELECT release_one_to_one_group_for_rematch($1::uuid,$2::uuid,$3::text,$4::text)',[scope,pair,'reschedule cycle','synthetic-admin']);
+  await assert.rejects(()=>release(other));
+  await db.query('INSERT INTO one_to_one_schedules(pair_id,status) VALUES($1,$2)',[pair,'confirmed']);
+  await assert.rejects(()=>release());
+  assert.equal((await db.query('SELECT count(*)::int n FROM one_to_one_rematch_requests')).rows[0].n,0);
+  await db.query('UPDATE one_to_one_schedules SET status=$1',['cancelled']);
+  await db.query('UPDATE matching_pairs SET status=$1',['verified']);await assert.rejects(()=>release());
+  await db.query('UPDATE matching_pairs SET status=$1',['matched']);
+  await release();await release();
+  assert.deepEqual((await db.query('SELECT member_id FROM one_to_one_rematch_requests ORDER BY member_id')).rows.map(x=>x.member_id),[a,b,c]);
+  assert.equal((await db.query('SELECT status FROM matching_pairs')).rows[0].status,'released');
+  assert.equal((await db.query('SELECT count(*)::int n FROM one_to_one_status_events')).rows[0].n,1);
+  await db.exec('SET ROLE anon');await assert.rejects(()=>release());await db.exec('RESET ROLE');
+  console.log('PASS SQL: atomic alias + audit, stale/idempotent correction, Chapter isolation, trio release, confirmed/completed protection, retry deduplication, denied public execution');
+}finally{await db.close();}
