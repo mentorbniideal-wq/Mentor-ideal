@@ -107,3 +107,14 @@ Deno.test('Live delivery ไม่ใช้ผลส่งทดสอบแท�
   eq(byMember.get('a')?.status,'failed');
   eq(byMember.has('b'),false);
 });
+import { deduplicate121Members } from './weekly-121.ts';
+
+Deno.test('CSV canonical name plus remembered alias never admits the same member twice',()=>{
+  const rows=deduplicate121Members([
+    {member:{id:'a'},status:'ready',message:'',matchedBy:'exact'},
+    {member:{id:'a'},status:'ready',message:'',matchedBy:'history'},
+    {member:{id:'b'},status:'ready',message:'',matchedBy:'history'},
+    {member:null,status:'substitute',message:'',matchedBy:'none'},
+  ]);
+  eq(rows[0].status,'ready');eq(rows[1].status,'duplicate');eq(rows[1].member,null);eq(rows[2].status,'ready');eq(rows[3].status,'substitute');
+});

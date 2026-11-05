@@ -12,6 +12,17 @@ export function hasUsableLineId(value: unknown): boolean {
   return Boolean(id) && id !== 'null' && id !== 'undefined';
 }
 
+/** A canonical CSV name and a remembered alias can resolve to the same person. */
+export function deduplicate121Members<T extends {member:Record<string,unknown>|null}>(rows:T[]){
+  const seen=new Set<string>();
+  return rows.map(row=>{
+    const id=String(row.member?.id||'');
+    if(!id)return row;
+    if(seen.has(id))return {...row,member:null,status:'duplicate',message:'สมาชิกคนนี้อยู่ในรายชื่อแล้ว แม้ใช้ชื่อสะกดต่างกัน',matchedBy:'none'};
+    seen.add(id);return row;
+  });
+}
+
 export function oneToOneRoundDeliveryStatus(sent: number, failed: number, skipped: number): 'sent' | 'partially_failed' {
   return sent > 0 && failed === 0 && skipped === 0 ? 'sent' : 'partially_failed';
 }
