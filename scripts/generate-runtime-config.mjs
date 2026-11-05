@@ -3,8 +3,11 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
 const env = process.env;
+// Vercel supplies the actual source revision; a manually configured RELEASE_SHA
+// may be left over from an earlier deployment.
+const releaseSha = String(env.VERCEL_GIT_COMMIT_SHA || env.RELEASE_SHA || '').trim();
 const required = ['MY_IDEAL_ENV', 'RELEASE_SHA', 'PUBLIC_APP_URL', 'PUBLIC_SUPABASE_URL', 'PUBLIC_SUPABASE_ANON_KEY'];
-const missing = required.filter((key) => !String(env[key] || '').trim());
+const missing = required.filter((key) => key === 'RELEASE_SHA' ? !releaseSha : !String(env[key] || '').trim());
 if (missing.length) throw new Error(`Missing public runtime configuration: ${missing.join(', ')}`);
 const environment = String(env.MY_IDEAL_ENV).trim();
 if (!['local', 'staging', 'production'].includes(environment)) throw new Error('MY_IDEAL_ENV must be local, staging, or production');
@@ -20,7 +23,7 @@ if (environment === 'staging') {
 if (environment === 'production' && protectedProductionUrl && normalize(protectedProductionUrl) !== supabaseUrl) throw new Error('Production public config must use the protected Production Supabase URL');
 const config = {
   environment,
-  release: String(env.RELEASE_SHA).trim(),
+  release: releaseSha,
   appUrl,
   supabaseUrl,
   supabaseAnonKey: String(env.PUBLIC_SUPABASE_ANON_KEY).trim(),

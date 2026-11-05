@@ -18,5 +18,7 @@ try {
   run({ MY_IDEAL_ENV:'staging', PUBLIC_SUPABASE_URL:'https://staging-ref.supabase.co', LINE_DELIVERY_ENABLED:'true' }, 1);
   const production = run({ MY_IDEAL_ENV:'production', PUBLIC_SUPABASE_URL:'https://production-ref.supabase.co', LINE_DELIVERY_ENABLED:'true' });
   if (!readFileSync(production,'utf8').includes('"production"')) throw new Error('production artifact missing environment');
+  const current = run({ MY_IDEAL_ENV:'production', PUBLIC_SUPABASE_URL:'https://production-ref.supabase.co', VERCEL_GIT_COMMIT_SHA:'current-source-revision', RELEASE_SHA:'stale-revision' });
+  if (!readFileSync(current,'utf8').includes('"release": "current-source-revision"')) throw new Error('stale configured release overrode deployment source');
   console.log('runtime config generation guards passed');
 } finally { rmSync(dir, { recursive:true, force:true }); }

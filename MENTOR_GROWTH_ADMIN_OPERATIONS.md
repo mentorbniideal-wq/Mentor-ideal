@@ -37,7 +37,7 @@ server-authorised Chapter Admin and links to these existing operational tools.
 
 ## Validation and release
 
-Use `deno test --allow-env --allow-read --allow-net supabase/functions/_shared
+Use `MY_IDEAL_ENV=local PUBLIC_APP_URL=http://localhost:3000 SUPABASE_URL=http://localhost:54321 deno test --allow-env --allow-read --allow-net supabase/functions/_shared
 supabase/functions/api` (add `--node-modules-dir=none` when a parent directory
 contains an unrelated npm project).
 
@@ -68,6 +68,30 @@ separate from fixture tests and negative-auth HTTP checks.
 - Legacy Chapter Configuration still writes revision and mirror records after
   the profile update. Transactional configuration revision storage remains debt;
   this release does not claim that the entire legacy configuration path is atomic.
+
+## Production verification — 5 November 2026
+
+- Release was rebased onto `736d665`, which includes the already deployed
+  Growth/Pulse/history and operator-only draft fixes, rather than overwriting
+  them with the older `main` source. IDE worktree changes were not included.
+- The existing repository consent-minimised MSB Growth projection is included:
+  unlike the older live MSB handler, it does not expose unshared business or
+  referral free text to Growth. Mentor/MC authorised views are unchanged.
+- Backend: 290 tests passed, TypeScript entrypoint checks passed; browser
+  Desktop six widths/two themes, Admin dialog and trio flow fixtures passed;
+  both exact migrations passed synthetic PostgreSQL tests.
+- Applied only the two new migrations and verified live function execution is
+  denied to anon/authenticated and granted to service_role. No member data was
+  inserted, edited, rematched or sent to LINE for these checks.
+- API v330 and admin-api v69 deployed. Invalid-session requests were denied
+  by both (api HTTP 401; legacy admin-api HTTP 200 with `ok:false`).
+- Static production files were SHA-256 matched against this release. Found a
+  stale configured runtime release label; generator now prefers Vercel source
+  SHA, and CLI deployment explicitly supplies the source SHA.
+- Signed-in OAuth/PIN acceptance and actual phone/LINE delivery are not proven
+  by these checks. Existing configuration revision/mirror atomicity remains
+  documented debt above; this is not a claim that every legacy operation is
+  now configurable or that no further bugs can exist.
 - The active IDE worktree contains separate unfinished M2M/Blueprint/LIFF and
   legacy import-script work. The release is assembled on current `origin/main`
   in an isolated worktree, so those edits are preserved and not deployed.
