@@ -23,6 +23,9 @@
       if(!(select&&select.hasAttribute('data-team-select'))&&!/(team|mentor|role)/i.test(id))return;
       var code=roleCodes[String(option.value||'').toLowerCase()]||option.value;
       if(labels[code]){
+        // Without an explicit value, changing option text changes its submitted
+        // value too. Keep the stored code (including lowercase role codes).
+        if(!option.hasAttribute('value'))option.value=option.value;
         var current=String(option.textContent||'').trim();
         var prefix=option.getAttribute('data-prefix')||(/^ย้ายไป\s+/.test(current)?'ย้ายไป ':(/^Mentor\s*[:·]\s*/.test(current)?current.match(/^Mentor\s*[:·]\s*/)[0]:''));
         option.textContent=prefix+display(code);

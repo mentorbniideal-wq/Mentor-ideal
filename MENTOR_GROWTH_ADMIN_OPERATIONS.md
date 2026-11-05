@@ -92,6 +92,20 @@ separate from fixture tests and negative-auth HTTP checks.
   by these checks. Existing configuration revision/mirror atomicity remains
   documented debt above; this is not a claim that every legacy operation is
   now configurable or that no further bugs can exist.
+
+## Team dropdown value hotfix — 5 November 2026
+
+- Root cause: an HTML option without an explicit `value` submits its text.
+  Dynamic Mentor display labels changed that text into a label rejected by the
+  API team-code validation. Both label renderers now preserve original values
+  before changing text, including lowercase role codes.
+- Desktop/Mobile static Mentor options now explicitly declare existing team
+  values; related asset cache versions were bumped. API validation, Chapter
+  scope and member creation rules remain unchanged.
+- `scripts/test-team-option-values.mjs` uses synthetic catalog labels and
+  intercepted requests to check both pages, implicit options, repeated label
+  renders, both renderers and the actual Desktop `addNewMember` payload. No live
+  member is created. Desktop responsive regression also passed.
 - The active IDE worktree contains separate unfinished M2M/Blueprint/LIFF and
   legacy import-script work. The release is assembled on current `origin/main`
   in an isolated worktree, so those edits are preserved and not deployed.

@@ -6,6 +6,7 @@ function applyTeamDisplayLabels(){
     var select=option.parentElement,id=String(select&&(select.id||select.name)||'');
     if(!(select&&select.hasAttribute('data-team-select'))&&!/(team|mentor|role)/i.test(id))return;
     var code=option.value;
+    if(!option.hasAttribute('value'))option.value=code;
     var roleCode={toomtam:'TOOMTAM',aof:'Aof',draft:'Draft',phai:'PHAI',amp:'AMP'}[String(code||'').toLowerCase()];
     if(roleCode&&D.teamLabels[roleCode]){var rolePrefix=/^Mentor\s*[:·]\s*/.test(option.textContent||'')?(option.textContent||'').match(/^Mentor\s*[:·]\s*/)[0]:'';option.textContent=rolePrefix+D.teamLabels[roleCode];return;}
     if(!D.teamLabels[code])return;

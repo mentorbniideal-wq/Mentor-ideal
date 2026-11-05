@@ -411,7 +411,7 @@
         <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
           <select id="line-bc-team" style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;color:var(--tx);font-size:12px;outline:none">
             <option value="">ทุกคนที่เชื่อม LINE</option>
-            <option>TOOMTAM</option><option>Aof</option><option>Draft</option><option>PHAI</option><option>AMP</option>
+            <option value="TOOMTAM">TOOMTAM</option><option value="Aof">Aof</option><option value="Draft">Draft</option><option value="PHAI">PHAI</option><option value="AMP">AMP</option>
           </select>
           <textarea id="line-bc-text" rows="3" placeholder="ข้อความ Broadcast…" style="width:100%;box-sizing:border-box;background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:9px 10px;color:var(--tx);font-size:12px;resize:vertical;outline:none;font-family:Sarabun,sans-serif"></textarea>
           <button onclick="deskSendBroadcast()" style="align-self:flex-end;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.4);color:var(--ye);border-radius:8px;padding:7px 18px;font-size:12px;font-weight:700;cursor:pointer;font-family:Sarabun,sans-serif">ตรวจและส่ง Broadcast</button>
@@ -606,7 +606,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         <button class="sp2" data-s="done" onclick="srf('done',this)">✅ ปิด</button>
         <button class="sp2" data-s="reopened" onclick="srf('reopened',this)">🔄 Reopen</button>
         <select id="rtf" onchange="renderRep()" style="background:var(--sf2);border:1px solid var(--bd);border-radius:7px;color:var(--tx);padding:5px 9px;font-size:13px;outline:none">
-          <option value="">ทุกทีม</option><option>TOOMTAM</option><option>Aof</option><option>Draft</option><option>PHAI</option><option>AMP</option>
+          <option value="">ทุกทีม</option><option value="TOOMTAM">TOOMTAM</option><option value="Aof">Aof</option><option value="Draft">Draft</option><option value="PHAI">PHAI</option><option value="AMP">AMP</option>
         </select>
         <input type="text" id="rts" placeholder="ค้นหาชื่อ..." oninput="renderRep()" style="background:var(--sf2);border:1px solid var(--bd);border-radius:7px;color:var(--tx);padding:5px 9px;font-size:13px;outline:none;min-width:110px">
         <button class="bsm" onclick="bulkCloseRep()" style="font-size:11px;background:rgba(52,211,153,.12);color:var(--gr);border-color:rgba(52,211,153,.3)">✅ ปิดทั้งหมด</button>
@@ -773,7 +773,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
             </select>
             <select id="line-activity-team" onchange="loadLineActivityTimeline(true)" style="background:var(--sf);border:1px solid var(--bd);border-radius:7px;color:var(--tx);padding:5px 9px;font-size:11px;outline:none">
               <option value="">ทุกทีม</option>
-              <option>TOOMTAM</option><option>Aof</option><option>Draft</option><option>PHAI</option><option>AMP</option>
+              <option value="TOOMTAM">TOOMTAM</option><option value="Aof">Aof</option><option value="Draft">Draft</option><option value="PHAI">PHAI</option><option value="AMP">AMP</option>
             </select>
             <span style="font-size:11px;color:#06C755;font-weight:700" id="line-activity-count">—</span>
             <button class="bsm" onclick="loadLineActivityTimeline(true)" style="font-size:11px">↺</button>
@@ -892,7 +892,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-bottom:12px">
           <select id="usage-filter-team" style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;color:var(--tx);font-size:12px;outline:none" onchange="renderUsageLog()">
             <option value="">ทุกทีม</option>
-            <option>TOOMTAM</option><option>Aof</option><option>Draft</option><option>PHAI</option><option>AMP</option><option>mc</option><option>growth</option>
+            <option value="TOOMTAM">TOOMTAM</option><option value="Aof">Aof</option><option value="Draft">Draft</option><option value="PHAI">PHAI</option><option value="AMP">AMP</option><option>mc</option><option>growth</option>
           </select>
           <select id="usage-filter-days" style="background:var(--sf2);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;color:var(--tx);font-size:12px;outline:none" onchange="renderUsageLog()">
             <option value="7">7 วันล่าสุด</option>
@@ -1154,7 +1154,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         <button class="sp2" data-s="done" onclick="stf('done',this)">✅ เสร็จ</button>
         <label style="margin-left:6px">ทีม:</label>
         <select id="task-tf" onchange="renderTasks()" style="background:var(--sf2);border:1px solid var(--bd);border-radius:7px;color:var(--tx);padding:5px 9px;font-size:13px;outline:none">
-          <option value="">ทุกทีม</option><option>TOOMTAM</option><option>Aof</option><option>Draft</option><option>PHAI</option><option>AMP</option>
+          <option value="">ทุกทีม</option><option value="TOOMTAM">TOOMTAM</option><option value="Aof">Aof</option><option value="Draft">Draft</option><option value="PHAI">PHAI</option><option value="AMP">AMP</option>
         </select>
         <span class="ctag" style="margin-left:auto" id="taskn">0</span>
       </div>
@@ -2124,8 +2124,8 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
         <label>Mentor ที่ดูแล *</label>
         <select id="nm-d-mentor">
           <option value="">— เลือก Mentor —</option>
-          <option>TOOMTAM</option><option>Aof</option><option>Draft</option>
-          <option>PHAI</option><option>AMP</option>
+          <option value="TOOMTAM">TOOMTAM</option><option value="Aof">Aof</option><option value="Draft">Draft</option>
+          <option value="PHAI">PHAI</option><option value="AMP">AMP</option>
         </select>
       </div>
       <div class="nmf">
@@ -2294,7 +2294,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 <script src="/assets/js/desktop-blueprint-summary.js?v=20260929.1" defer></script>
 <script src="/assets/js/desktop-growth-workspace.js?v=20260919.1" defer></script>
 <script src="/assets/js/desktop-growth-line.js?v=20260919.1" defer></script>
-<script src="/assets/js/desktop-operations.js?v=20261002-dark-trend.1" defer></script>
+<script src="/assets/js/desktop-operations.js?v=20261105-stable-values.1" defer></script>
 <script src="/assets/js/desktop-monthly-history.js?v=20261001.5" defer></script>
 <script src="/assets/js/desktop-power-team-hub.js?v=20260928.1" defer></script>
 <script src="/assets/js/desktop-growth-my121.js?v=20260928.1" defer></script>
@@ -2392,7 +2392,7 @@ MC ได้ Team Leaderboard สรุปคะแนนทีม</pre></detail
 <script src="/assets/js/desktop-one-to-one.js?v=20261105-alias.1" defer></script>
 <script src="/assets/js/admin-self-service.js?v=20261105.1" defer></script>
 <script src="/assets/js/desktop-bni-import.js?v=20260905a" defer></script>
-<script src="/assets/js/dynamic-team-labels.js?v=20260912-mentor-team-labels.1" defer></script>
+<script src="/assets/js/dynamic-team-labels.js?v=20261105-stable-values.1" defer></script>
 </div>
 </body>
 </html>
