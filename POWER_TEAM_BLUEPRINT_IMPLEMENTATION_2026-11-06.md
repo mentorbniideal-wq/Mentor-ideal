@@ -7,8 +7,9 @@ Implemented in the isolated worktree
 `feature/power-team-blueprint-readiness`, based on delivered revision `450b8f9`.
 The original IDE worktree and its pending score-import/other changes were not
 overwritten. Pete approved commit/push, the targeted additive migration and
-Production deployment after checks on 6 November 2026. Rollout is in progress;
-deployment evidence is recorded separately after live verification. No consent
+Production deployment after checks on 6 November 2026. Code revision
+`3abb4a40237d5a22762f5207530e47ed10ce0f08` is on `origin/main` and deployed.
+No consent
 backfill, real team creation, member test write or LINE send is authorized.
 
 ## Operator workflow
@@ -111,6 +112,37 @@ PGlite and Playwright are optional test dependencies; `PGLITE_MODULE` and
 runtime dependencies and no package secrets belong in the repository.
 
 ## Controlled rollout and rollback
+
+### Verified Production rollout
+
+- Only migration `20261106000001` was applied in an explicit transaction and
+  recorded once in migration history. New tables have RLS enabled; direct
+  anon/authenticated table access and write RPC execution are denied.
+- API version 331 and LIFF API version 75 are ACTIVE. Other functions were not
+  deployed. Downloaded pre-rollout API/LIFF source matched base `450b8f9`;
+  separate rollback backups are under `/tmp/bni-power-team-rollout.cVKZ7K/`.
+- Vercel Git integration deployed code `3abb4a4`, deployment
+  `dpl_Anjj5EAJ5RpHDc9hCqKa9FnDrrz3`, Ready on the Production alias.
+  Direct CLI deployment returned Not authorized; this was not treated as
+  success. The Git-created deployment was independently inspected.
+- Dashboard, Blueprint form, Proposal builder, Hub, Mobile operations, LIFF
+  index and member Power Team script each returned HTTP 200 and SHA-256 matched
+  local source. Runtime configuration identified Production, the correct
+  Supabase project and full code revision `3abb4a4`.
+- Invalid staff credential, invalid private Blueprint token and both LIFF
+  invitation read/response calls without LINE identity returned HTTP 401.
+  These do not prove positive-account acceptance.
+- After migration: consent rows 0, request ledger rows 0, proposals 0 and
+  official publications 0. No automatic sharing grants, real team writes or
+  LINE sends were made by this rollout.
+- Final backend rerun: 296 tests / 18 steps passed; entrypoints typechecked.
+  Final exact SQL and browser regression reruns passed, including stale draft
+  consent not overriding the latest server choices.
+
+Next acceptance: Pete opens Desktop Power Team Hub with the intended Admin/
+Growth account; consenting pilot members explicitly choose sharing in Blueprint
+and open MY121 -> Power Team ของฉัน. Verify own invitation response and
+Admin publication with real authorized pilot records, not fabricated members.
 
 Production rollout approval was received. Before rollout, compare the latest
 deployed API/LIFF/static source with this base and preserve any newer changes.
