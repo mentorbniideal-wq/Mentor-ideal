@@ -4,7 +4,7 @@ import vm from 'node:vm';
 
 const code = readFileSync(new URL('../public/assets/js/desktop-power-team-hub.js', import.meta.url), 'utf8');
 const events = {};
-const root = { innerHTML: '', contains: () => true };
+const root = { innerHTML: '', contains: () => true, querySelector: () => null };
 const calls = [];
 let response;
 const context = {
@@ -34,8 +34,8 @@ response.proposals[0].status = 'active';
 context.window.ptLoad(true);
 assert.match(root.innerHTML, /data-pt-action="assign"/);
 assert.match(root.innerHTML, /data-pt-action="publish"/);
-assert.match(root.innerHTML, /ทีมร่างจาก Blueprint/);
-assert.match(root.innerHTML, /Power Team จริง/);
+assert.match(root.innerHTML, /ค้นหาโอกาส/);
+assert.match(root.innerHTML, /ทีมที่อนุมัติแล้ว/);
 assert.equal(calls.filter(call => call.action === 'getPowerTeamProposals').length, 3);
 context.window.ptLoad();
 assert.equal(calls.filter(call => call.action === 'getPowerTeamProposals').length, 4, 'reopening must refresh current Chapter and consent');
@@ -44,4 +44,9 @@ events.click({ target: { closest: () => ({ getAttribute: name => name === 'data-
 assert.equal(calls.filter(call => call.action === 'publishGrowthPowerTeam').length, 1);
 assert.equal(calls.find(call => call.action === 'publishGrowthPowerTeam').payload.confirmed, true);
 assert.equal(calls.filter(call => call.action === 'getPowerTeamProposals').length, 5, 'successful mutation refreshes once');
+events.click({ target: { closest: () => ({ getAttribute: name => name === 'data-pt-action' ? 'view' : 'candidates' }) } });
+assert.match(root.innerHTML, /ทีมร่างจาก Blueprint/);
+assert.match(root.innerHTML, /data-pt-action="create"/);
+assert.doesNotMatch(root.innerHTML, /data-pt-action="publish"/);
+assert.equal(calls.filter(call => call.action === 'getPowerTeamProposals').length, 5, 'local navigation must not write or reload');
 console.log('Desktop Power Team hub behavior: PASS');

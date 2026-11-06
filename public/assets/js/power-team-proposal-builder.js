@@ -20,6 +20,7 @@
     var previous = document.activeElement,
       d = document.createElement("dialog"),
       busy = false;
+    d.className = "pt-dialog";
     d.style.cssText =
       "box-sizing:border-box;width:min(94vw,520px);max-width:calc(100vw - 24px);max-height:85dvh;overflow:auto;border:1px solid var(--bd,#ccc);border-radius:16px;padding:20px;background:var(--sf,#fff);color:var(--tx,#222)";
     var labels = {
@@ -116,6 +117,7 @@
       lastSignature = "",
       busy = false;
     seed = seed || {};
+    dialog.className = "pt-dialog";
     dialog.style.cssText =
       "box-sizing:border-box;max-width:calc(100vw - 24px);width:min(94vw,680px);max-height:88dvh;overflow:auto;background:var(--sf,#fff);color:var(--tx,#222);border:1px solid var(--bd,#ccc);border-radius:16px;padding:20px";
     dialog.innerHTML = "<form><h2>สร้างข้อเสนอ Power Team" +
