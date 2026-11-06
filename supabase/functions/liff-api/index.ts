@@ -18,6 +18,7 @@ import { directoryMatchReasons, directoryProfileProjection, directoryResult, dir
 import { serverEnvironment } from '../_shared/environment.ts';
 import { resolveMsbPlanningYear } from '../_shared/msb-planning-year.ts';
 import { handleMemberPulseLiff } from '../_shared/member-pulse-liff.ts';
+import { memberPowerTeams } from '../_shared/power-team-member.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
 
@@ -82,6 +83,16 @@ Deno.serve(async (req: Request) => {
   const member = identity.member;
   const memberId = identity.memberId;
   const chapterId = String(member.chapter_id || '');
+  if(action==='get-my-power-teams'){
+    try{return response({ok:true,teams:await memberPowerTeams(db,chapterId,memberId)});}
+    catch{return response({ok:false,error:'โหลด Power Team ไม่สำเร็จ กรุณาลองใหม่'},503);}
+  }
+  if(action==='respond-power-team-invitation'){
+    const status=String(body.status||'');
+    if(!['accepted','declined'].includes(status)||body.confirmed!==true)return response({ok:false,error:'กรุณายืนยันตัวเลือก'},400);
+    const {error}=await db.rpc('respond_power_team_invitation',{p_chapter_id:chapterId,p_member_id:memberId,p_proposal_id:String(body.proposalId||''),p_status:status});
+    return error?response({ok:false,error:'บันทึกคำตอบไม่ได้ คำเชิญอาจเปลี่ยน กรุณาโหลดใหม่'},409):response({ok:true});
+  }
 
   if (action === 'get-my-pulse' || action === 'submit-my-pulse') {
     const result = await handleMemberPulseLiff(db, { memberId, chapterId }, action, body);

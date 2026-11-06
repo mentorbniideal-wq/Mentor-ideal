@@ -4282,7 +4282,7 @@ function loadGrowthPowerTeams(forceReload){
     }
     PT.loaded=true;
     PT.teams=r.teams;
-    PT.isGrowth=(S.role==='growth');
+    PT.isGrowth=false; // Legacy overview is read-only; manage official teams in the Hub.
     PT.summary=r.summary;
     renderPTChapterBar(r.summary,r.teams);
     renderPTTeamsFiltered();
@@ -4331,11 +4331,11 @@ function renderPTChapterBar(sum,teams){
     +'</div>';
   document.getElementById('pt-chapter-bar').innerHTML=
     '<div class="pt-toolbar">'
-    +'<span class="pt-toolbar-label">⚡ Power Team — Chapter KPI</span>'
+    +'<span class="pt-toolbar-label">⚡ ทีมร่างจาก Blueprint · ยังไม่ใช่ทีมที่อนุมัติ</span>'
     +'<div>'+editBtn+'<button class="pt-refresh-btn" onclick="loadGrowthPowerTeams(true)">🔄</button></div>'
     +'</div>'
     +'<div class="pt-chapter-bar">'
-    +'<div class="pt-chapter-title">Power Team Revenue Progress</div>'
+    +'<div class="pt-chapter-title">ข้อมูลกิจกรรมของสมาชิกในกลุ่มร่าง ไม่ใช่รายได้ที่เกิดจาก Power Team</div>'
     +'<div class="pt-chapter-nums">'
     +'<div><span class="pt-chapter-recv">฿'+fmt(totalRecv)+'</span>'
     +' <span class="pt-chapter-goal">/ ฿'+fmt(totalGoal)+'</span></div>'
@@ -4376,6 +4376,7 @@ function setPTSearch(val){
 }
 
 function togglePTEditMode(){
+  toast('จัดการ Power Team ได้ที่ Desktop → Power Team Hub โดยไม่แก้ทีม Mentor หรือยอดสมาชิก','warn');return;
   PT.editMode=!PT.editMode;
   renderPTChapterBar(PT.summary,PT.teams);
   if(PT.editMode){

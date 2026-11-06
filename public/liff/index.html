@@ -180,6 +180,7 @@
     <!-- MY121 -->
     <form class="card my121-hub" data-card="121">
       <header class="my121-title"><span>MY121</span><h2>พื้นที่ 1-2-1 ของฉัน</h2><p class="hint">คู่ Chapter, คู่สำรอง และการนัดเอง แยกกันชัดเจนในที่เดียว</p><button class="my121-help" type="button" onclick="openMy121Tour(true)">? วิธีใช้</button></header>
+      <button type="button" class="p121-shortcut" onclick="openMyPowerTeams()">🤝 Power Team ของฉัน · คำเชิญและทีมที่เข้าร่วม</button>
       <nav class="my121-nav" aria-label="เมนู MY121">
         <button type="button" data-my121-page="pair" onclick="showMy121Page('pair')"><span>🤝</span><b>คู่ของฉัน</b></button>
         <button type="button" data-my121-page="profile" onclick="showMy121Page('profile')"><span>👤</span><b>โปรไฟล์</b></button>
@@ -1125,5 +1126,6 @@ $$('form').forEach(f => f.addEventListener('submit', async e => {
 init();
 </script>
 <script src="/liff/verification-help.js?v=20260909a" defer></script>
+<script src="/liff/power-teams.js?v=20261106.1" defer></script>
 </body>
 </html>

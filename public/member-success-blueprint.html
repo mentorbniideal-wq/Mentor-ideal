@@ -72,6 +72,7 @@
       <div class="top">
         <div class="avatar">MSB</div>
         <div class="who"><b id="memberName">กำลังตรวจสอบลิงก์ส่วนตัว...</b><span id="memberMeta">ระบบจะดึงชื่อและทีมจากข้อมูลสมาชิกเดิม</span></div>
+        <button id="sharing-shortcut" type="button" hidden onclick="step=6;render()">ตั้งค่าหรือถอนการแชร์ให้ Growth</button>
       </div>
       <div class="progress"><div class="bar" id="bar"></div></div>
       <div class="content" id="app">
@@ -87,6 +88,20 @@
     var ANON=window.MY_IDEAL_RUNTIME.supabaseAnonKey;
     var HEADERS={'Content-Type':'application/json','Authorization':'Bearer '+ANON};
     var step=0,formToken='',member=null,blueprint=null,previousBlueprint=null,historicalActual=null,year=2027;
+    var draftScope='',pendingSave=null,pendingConsent=null,growthConsentVersion=null;
+    function consentPayload(){return Object.assign({},data.growthConsent,{_expected_updated_at:growthConsentVersion});}
+    function saveGrowthConsentOnly(){
+      var payload=consentPayload(),signature=JSON.stringify(payload),button=document.getElementById('save-growth-consent');
+      if(button&&button.disabled)return;
+      if(!pendingConsent||pendingConsent.signature!==signature)pendingConsent={signature:signature,requestId:crypto.randomUUID()};
+      if(button){button.disabled=true;button.textContent='กำลังบันทึกการแชร์…';}
+      call('saveMemberBlueprintGrowthConsentByToken',{growthConsent:payload,requestId:pendingConsent.requestId},function(r){
+        if(!r.ok){if(button){button.disabled=false;button.textContent='บันทึกเฉพาะการแชร์';}toast(r.error||'บันทึกไม่สำเร็จ');return;}
+        growthConsentVersion=r.growthConsent&&r.growthConsent.updated_at||null;pendingConsent=null;toast('บันทึกการแชร์แล้ว โดยไม่แก้เป้าหมายหรือแผนธุรกิจ');render();
+      });
+    }
+    function growthConsentPanel(){var c=data.growthConsent||{};return '<fieldset style="margin:18px 0;border:1px solid var(--line);padding:16px"><legend>แชร์ Blueprint ให้ทีม Growth · ปี '+year+'</legend><p>แยกจากการแชร์กับคู่ MY121 · ไม่ใช่การสมัคร Power Team · เปลี่ยนหรือถอนการแชร์ได้เมื่อกลับมาบันทึกใหม่</p>'+[['share_referral_focus','แชร์หมวด Looking For และ Power Team เพื่อช่วยหาโอกาสร่วมกัน'],['share_details','แชร์รายละเอียดที่เขียนใน Blueprint เพื่อให้ Growth ช่วยวางแผน'],['share_business','แชร์อาชีพและบริษัทให้ Growth ประกอบการจัดกลุ่ม']].map(function(item){return '<label style="display:block;margin:12px 0"><input type="checkbox" '+(c[item[0]]?'checked':'')+' onchange="setGrowthChoice(\''+item[0]+'\',this.checked)"> '+item[1]+'</label>';}).join('')+'<small>ไม่เปิดตัวเลือกใดก็ยังส่งแผนได้ ตัวเลือกนี้ควบคุมหมวด ข้อความ และข้อมูลธุรกิจ ไม่เปลี่ยนสิทธิ์เดิมของผู้ดูแลในการติดตามตัวเลขเป้าหมายและสถานะส่งแผน</small><button id="save-growth-consent" type="button" onclick="saveGrowthConsentOnly()" style="display:block;margin-top:12px">บันทึกเฉพาะการแชร์</button></fieldset>'; }
+    function setGrowthChoice(key,value){var c=data.growthConsent||(data.growthConsent={share_referral_focus:false,share_details:false,share_business:false});c[key]=value;if(key==='share_details'&&value)c.share_referral_focus=true;if(key==='share_referral_focus'&&!value)c.share_details=false;persist();render();}
     var data={blueprintYear:year,total_sales_target_year:'',expected_sales_from_bni_year:'',existing_customer_revenue_from_bni:'',new_customer_revenue_from_bni:'',average_customer_value_year:'',conversion_rate_percent:'',quality_121_target_per_week:'',monthly_marketing_plan:[],looking_for_categories:[],looking_for_detail:'',power_team_categories:[],power_team_detail:'',personal_goal_category:'',personal_goal_detail:''};
     var helperState={avgMonthly:'',convReferrals:'10',convClosed:'3'},categorySuggestions={looking_for:[],power_team:[]},categoryDraft={looking_for_categories:'',power_team_categories:''};
     var LOOK=['SME Owner','เจ้าของกิจการ','HR / People','Finance / Accounting','Real Estate','Health / Wellness','Education','Retail / F&B','Marketing / Media','Legal / Consulting','IT / Digital','ครอบครัว/เพื่อนของลูกค้า'];
@@ -110,7 +125,7 @@
       var ref=conv>0?Math.ceil(cust/(conv/100)):0;
       return {pct:total>0?bni/total*100:0,bni:bni,cust:cust,ref:ref,month:ref/12,week:ref/52};
     }
-    function persist(){try{localStorage.setItem('msb_draft_'+year,JSON.stringify(data));}catch(e){}}
+    function persist(){if(!draftScope)return;try{localStorage.setItem('msb_draft_'+draftScope,JSON.stringify(data));}catch(e){}}
     function syncHelperStateFromData(){
       if (n(data.average_customer_value_year) > 0 && (!helperState.avgMonthly || Math.abs(n(helperState.avgMonthly) - n(data.average_customer_value_year)/12) > 0.1)) {
         helperState.avgMonthly = String(Math.round(n(data.average_customer_value_year)/12));
@@ -122,12 +137,16 @@
         if (!helperState.convClosed || Math.abs(n(helperState.convClosed) - closed) > 0.1) helperState.convClosed = String(closed);
       }
     }
-    function hydrateDraft(){try{var raw=localStorage.getItem('msb_draft_'+year);if(raw)Object.assign(data,JSON.parse(raw));}catch(e){}} 
+    function hydrateDraft(){if(!draftScope)return;try{var raw=localStorage.getItem('msb_draft_'+draftScope);if(raw){var serverConsent=data.growthConsent;Object.assign(data,JSON.parse(raw));data.growthConsent=serverConsent;}}catch(e){}}
     function loadServer(){
       call('getMemberSuccessBlueprintByToken',{},function(r){
         if(!r.ok){showState('<b>ลิงก์นี้ยังใช้งานไม่ได้</b><br>'+esc(r.error||'ลิงก์ไม่ถูกต้องหรือหมดอายุ')+'<br><br>กรุณาขอลิงก์ใหม่จาก MC หรือ Growth หรือพิมพ์ <b>Goal</b> ใน LINE Official Account');return;}
         member=r.member||{};blueprint=r.blueprint||null;previousBlueprint=r.previousBlueprint||null;historicalActual=r.historicalActual||null;
+        document.getElementById('sharing-shortcut').hidden=false;
         year=Number(r.blueprintYear)||year;
+        draftScope=String(r.draftScope||'');
+        data.growthConsent=r.growthConsent||{share_referral_focus:false,share_details:false,share_business:false};
+        growthConsentVersion=r.growthConsent&&r.growthConsent.updated_at||null;
         data.blueprintYear=year;
         document.getElementById('memberName').textContent=(member.nickname||member.name||'สมาชิก BNI IDEAL');
         document.getElementById('memberMeta').textContent=(member.mentor_team?'ทีม '+member.mentor_team:'BNI IDEAL')+' · '+year;
@@ -237,8 +256,8 @@
       var items=(categorySuggestions[type]||[]).filter(function(x){return x&&x.name;});
       var top=items.slice(0,10);
       var label=type==='looking_for'?'กลุ่มลูกค้าเป้าหมาย':'Power Team';
-      var html='<div class="smartpick"><div class="sp-title">คำที่ Chapter ใช้บ่อย <span>เพิ่มคำเองได้ทันทีหรือเลือกคำที่ตรงกับความต้องการ</span></div>';
-      html+=top.length?'<div class="chips">'+top.map(function(x){var on=(data[k]||[]).includes(x.name);return '<button type="button" class="chip '+(on?'on':'')+'" data-category-action="toggle" data-category-key="'+esc(k)+'" data-category-value="'+esc(x.name)+'">'+esc(x.name)+' · '+x.count+'</button>';}).join('')+'</div>':'<div class="hint" style="margin:0">ยังไม่มีคำยอดนิยมจาก Blueprint ก่อนหน้า</div>';
+      var html='<div class="smartpick"><div class="sp-title">หมวดคำแนะนำของ Chapter <span>เพิ่มคำเองได้ทันทีหรือเลือกคำที่ตรงกับความต้องการ</span></div>';
+      html+=top.length?'<div class="chips">'+top.map(function(x){var on=(data[k]||[]).includes(x.name);return '<button type="button" class="chip '+(on?'on':'')+'" data-category-action="toggle" data-category-key="'+esc(k)+'" data-category-value="'+esc(x.name)+'">'+esc(x.name)+(typeof x.count==='number'?' · '+x.count:'')+'</button>';}).join('')+'</div>':'<div class="hint" style="margin:0">ยังไม่มีคำในคลังคำแนะนำ สามารถเพิ่มคำเองได้</div>';
       html+='<div class="sp-row"><input id="custom-'+type+'" data-category-input="true" data-category-type="'+esc(type)+'" placeholder="เพิ่มคำเอง เช่น '+esc(label)+' ที่ต้องการ" value="'+esc(categoryDraft[k]||'')+'"><button type="button" class="add" data-category-action="add-custom" data-category-type="'+esc(type)+'">เพิ่มคำเอง</button></div>';
       html+='<div class="near" style="margin-top:10px">สามารถใช้คำที่มีอยู่แล้ว หรือพิมพ์คำที่ใช้อธิบายธุรกิจของคุณเองได้ทันที</div>';
       html+='</div>';
@@ -400,10 +419,13 @@
       var e;for(var i=0;i<5;i++){step=i;e=validateStep();if(e){render();toast(e);return;}}
       step=6;render();
       var btn=document.getElementById('saveBtn');if(btn){btn.disabled=true;btn.textContent='กำลังบันทึก...';}
-      call('saveMemberSuccessBlueprintByToken',Object.assign({},data,{status:'submitted'}),function(r){
+      var body=Object.assign({},data,{growthConsent:consentPayload(),status:'submitted',expectedUpdatedAt:blueprint&&blueprint.updated_at||null});
+      var signature=JSON.stringify(body);
+      if(!pendingSave||pendingSave.signature!==signature)pendingSave={signature:signature,requestId:crypto.randomUUID()};
+      call('saveMemberSuccessBlueprintByToken',Object.assign({},body,{requestId:pendingSave.requestId}),function(r){
         if(btn){btn.disabled=false;btn.textContent='บันทึกแผนธุรกิจ';}
         if(!r.ok){toast(r.error||'บันทึกไม่สำเร็จ');return;}
-        blueprint=r.blueprint;try{localStorage.removeItem('msb_draft_'+year);}catch(e){}
+        blueprint=r.blueprint;growthConsentVersion=r.growthConsent&&r.growthConsent.updated_at||null;pendingSave=null;try{localStorage.removeItem('msb_draft_'+draftScope);}catch(e){}
         toast('บันทึกแผนธุรกิจเรียบร้อยครับ');
       });
     }
@@ -420,6 +442,7 @@
       if(step===4)html='<div class="step on"><h2>5. Personal Goal</h2><div class="hint">เลือกเป้าหมายส่วนตัวหนึ่งเรื่องที่อยากให้ Mentor ช่วยติดตาม</div><label>Personal Goal (ต้องเลือกตรงนี้)</label>'+chips(PERSONAL,'personal_goal_category',true)+area('personal_goal_detail','รายละเอียดเพิ่มเติม (ไม่บังคับ)','เช่น อยากนัด 1-2-1 อย่างน้อยสัปดาห์ละ 2 ครั้ง')+nav(false)+'</div>';
       if(step===5){var months=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];html='<div class="step on"><h2>6. Monthly Marketing Plan</h2><div class="hint">เลือกเฉพาะเดือนที่มีแผนชัด เพื่อให้ Growth เห็น Specific Looking For ของ Chapter โดยยังไม่สร้าง Power Team อัตโนมัติ</div><div style="overflow-x:auto"><table style="width:100%;min-width:620px;border-collapse:collapse;font-size:12px"><thead><tr><th>เดือน</th><th>Season / Event</th><th>Product / Service</th><th>Specific Looking For</th></tr></thead><tbody>'+marketingPlanRows().map(function(row){return '<tr><td>'+months[row.month-1]+'</td><td><input value="'+esc(row.season_event)+'" oninput="setMarketingPlan('+row.month+',\'season_event\',this.value)"></td><td><input value="'+esc(row.product_service)+'" oninput="setMarketingPlan('+row.month+',\'product_service\',this.value)"></td><td><input value="'+esc(row.specific_looking_for)+'" oninput="setMarketingPlan('+row.month+',\'specific_looking_for\',this.value)"></td></tr>';}).join('')+'</tbody></table></div>'+nav(false)+'</div>';}
       if(step===6)html='<div class="step on"><h2>Final Summary</h2><div class="summary"><h3>เป้าหมาย BNI ปี '+year+'</h3><div>รายได้จากลูกค้า BNI เดิม: '+money(data.existing_customer_revenue_from_bni)+'</div><div>รายได้จากลูกค้า BNI ใหม่: '+money(data.new_customer_revenue_from_bni)+'</div><div><b>เป้าหมายรวมจาก BNI: '+money(c.bni)+'</b> ('+fmt(c.pct)+'%)</div><hr style="border:0;border-top:1px solid var(--line);margin:12px 0"><div><b>Target Customer:</b> '+esc((data.looking_for_categories||[]).join(', '))+'</div><div>มูลค่าเฉลี่ย / ลูกค้า / ปี: '+money(data.average_customer_value_year)+'</div><div>Conversion Rate: '+fmt(data.conversion_rate_percent)+'%</div><div><b>ต้องการลูกค้าใหม่ '+fmt(c.cust)+' ราย · Referral '+fmt(c.ref)+' ราย/ปี · ≈ '+fmt(c.month)+' ราย/เดือน</b></div><br><div><b>Power Team:</b> '+esc((data.power_team_categories||[]).join(', '))+'</div><div>'+esc(data.power_team_detail)+'</div></div><div id="goalCoach_final">'+goalCoachHtml('final')+'</div><div class="warn on" id="logicWarn"></div>'+nav(true)+'</div>';
+      if(step===6)html=html.replace('<div id="goalCoach_final">',growthConsentPanel()+'<div id="goalCoach_final">');
       document.getElementById('app').innerHTML=html;updateLive();
     }
     init();

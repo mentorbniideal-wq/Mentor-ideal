@@ -13,6 +13,7 @@ import { uniqueMemberNameMap } from '../../_shared/member-import-identity.ts';
 import { evolutionIsHistorical, memberTrafficLightReportPeriod, reportedNumber, reportedScore } from '../../_shared/monthly-sync-period.ts';
 import { performanceSourceRows } from '../../_shared/member-performance-source.ts';
 import { fetchMonthlyScorePages } from '../../_shared/monthly-score-pages.ts';
+import { blueprintCategoryDemand } from '../../_shared/blueprint-category-demand.ts';
 import { linePush, sha256Hex } from '../../_shared/line.ts';
 import { evaluateNotificationGuard, logSuppressedNotification } from '../../_shared/notification-orchestrator.ts';
 
@@ -971,7 +972,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       const [blueprintsResult, linksResult, profilesResult] = memberIds.length ? await Promise.all([
         db.from('member_success_blueprints').select('member_id,status,updated_at,power_team_categories').eq('blueprint_year', blueprintYear).in('member_id', memberIds),
         db.from('line_members').select('member_id').in('member_id', memberIds),
-        db.from('member_one_to_one_profiles').select('member_id,share_referral_focus').in('member_id', memberIds),
+        db.from('member_blueprint_growth_consents').select('member_id,share_referral_focus').eq('chapter_id',scope.chapterId).eq('blueprint_year',blueprintYear).in('member_id', memberIds),
       ]) : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
       const lookupError = blueprintsResult.error || linksResult.error || profilesResult.error;
       if (lookupError) return errResponse(lookupError.message);
@@ -1071,7 +1072,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       if (!auth.ok) return errResponse(auth.error!);
       const scope = await resolveChapterScope(db, auth);
       if (!scope.ok) return errResponse(scope.error, 403);
-      const year = Number(p.blueprintYear || new Date().getFullYear());
+      const year = Number(p.blueprintYear || await resolveMsbPlanningYear(db,{chapterId:scope.chapterId}));
       const { data: members, error: memberError } = await db.from('members')
         .select('id,name,nickname,profession,is_archived').eq('chapter_id', scope.chapterId).eq('is_archived', false);
       if (memberError) return errResponse(memberError.message);
@@ -1079,7 +1080,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       if (!ids.length) return jsonResponse({ ok: true, priorities: [], opportunities: [], connections: [], dataConfidence: 'INSUFFICIENT', freshness: null });
       const [plansQ, profilesQ, categoryQ, tasksQ, proposalsQ, pairsAQ, pairsBQ] = await Promise.all([
         db.from('member_success_blueprints').select('member_id,looking_for_categories,power_team_categories,updated_at').eq('blueprint_year', year).eq('status', 'submitted').in('member_id', ids),
-        db.from('member_one_to_one_profiles').select('member_id,share_referral_focus').in('member_id', ids),
+        db.from('member_blueprint_growth_consents').select('member_id,share_referral_focus,share_business').eq('chapter_id',scope.chapterId).eq('blueprint_year',year).in('member_id', ids),
         db.from('member_growth_category_consents').select('member_id,category_type,category').in('member_id', ids).is('revoked_at', null),
         db.from('growth_tasks').select('id,status,task_text,member_id,created_at').eq('chapter_id', scope.chapterId).not('status', 'in', '(completed,cancelled)').order('created_at', { ascending: false }).limit(100),
         db.from('power_team_proposals').select('id,status,source_category,power_team_proposal_members(member_id)').eq('chapter_id', scope.chapterId).neq('status', 'archived'),
@@ -1090,8 +1091,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
       if (failed?.error) return errResponse(failed.error.message);
       // A missing profile is not proof of permission for historical free text.
       // Keep category projection separate: explicit category grants still work.
-      const referral = new Map(((profilesQ.data || []) as Record<string,unknown>[]).map(row=>[String(row.member_id),row.share_referral_focus !== false])); const allowed = new Map<string,Set<string>>(); for(const row of (categoryQ.data||[]) as Record<string,unknown>[]){const key=`${row.member_id}:${row.category_type}`, set=allowed.get(key)||new Set<string>();set.add(String(row.category).toLowerCase());allowed.set(key,set);}
-      const plans = (plansQ.data || []).map((row: Record<string, unknown>) => { const id=String(row.member_id), visible=(raw:unknown,type:string)=>Array.isArray(raw)?raw.map(String).filter(category=>referral.get(id)!==false||allowed.get(`${id}:${type}`)?.has(category.toLowerCase())):[]; return { memberId:id, lookingFor:visible(row.looking_for_categories,'looking_for'), powerTeam:visible(row.power_team_categories,'power_team'), updatedAt: row.updated_at ? String(row.updated_at) : null }; });
+      const referral = new Map(((profilesQ.data || []) as Record<string,unknown>[]).map(row=>[String(row.member_id),row.share_referral_focus === true])); const allowed = new Map<string,Set<string>>(); for(const row of (categoryQ.data||[]) as Record<string,unknown>[]){const key=`${row.member_id}:${row.category_type}`, set=allowed.get(key)||new Set<string>();set.add(String(row.category).toLowerCase());allowed.set(key,set);}
+      const plans = (plansQ.data || []).map((row: Record<string, unknown>) => { const id=String(row.member_id), visible=(raw:unknown,type:string)=>Array.isArray(raw)?raw.map(String).filter(category=>referral.get(id)===true):[]; return { memberId:id, lookingFor:visible(row.looking_for_categories,'looking_for'), powerTeam:visible(row.power_team_categories,'power_team'), updatedAt: row.updated_at ? String(row.updated_at) : null }; });
       const proposals = (proposalsQ.data || []).map((row: Record<string, unknown>) => {
         const memberIds = (Array.isArray(row.power_team_proposal_members) ? row.power_team_proposal_members : []).map((x: Record<string, unknown>) => String(x.member_id)).filter(Boolean);
         // source_category is historical category data.  A legacy/unassociated
@@ -1106,8 +1107,8 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
         const status = String(pair.status || '');
         return { a: String(pair.member_a_id), b: String(pair.member_b_id), completedAt: ['verified', 'late_verified', 'completed'].includes(status) ? String(round?.meeting_date || '') : null, active: ['matched','contacted','scheduled','confirmed_schedule','awaiting_verification','partially_verified','overdue'].includes(status) };
       });
-      const result = buildGrowthIntelligence({ members: (members || []).map((m: Record<string, unknown>) => ({ id: String(m.id), name: String(m.name), nickname: m.nickname ? String(m.nickname) : null, profession: m.profession ? String(m.profession) : null, isArchived: Boolean(m.is_archived) })), plans, tasks: (tasksQ.data || []).map((t: Record<string, unknown>) => { const memberId=t.member_id ? String(t.member_id) : null; return { id: String(t.id), status: String(t.status), taskText: memberId && referral.get(memberId) === true && t.task_text ? String(t.task_text) : null, memberId, createdAt: t.created_at ? String(t.created_at) : null }; }), proposals, pairs });
-      const memberMap = new Map((members || []).map((m: Record<string, unknown>) => [String(m.id), { id: String(m.id), name: String(m.name), nickname: m.nickname ? String(m.nickname) : null, profession: m.profession ? String(m.profession) : null }]));
+      const result = buildGrowthIntelligence({ members: (members || []).map((m: Record<string, unknown>) => ({ id: String(m.id), name: String(m.name), nickname: m.nickname ? String(m.nickname) : null, profession: (profilesQ.data||[]).some((p:Record<string,unknown>)=>String(p.member_id)===String(m.id)&&p.share_business===true) && m.profession ? String(m.profession) : null, isArchived: Boolean(m.is_archived) })), plans, tasks: (tasksQ.data || []).map((t: Record<string, unknown>) => { const memberId=t.member_id ? String(t.member_id) : null; return { id: String(t.id), status: String(t.status), taskText: null, memberId, createdAt: t.created_at ? String(t.created_at) : null }; }), proposals, pairs });
+      const memberMap = new Map((members || []).map((m: Record<string, unknown>) => [String(m.id), { id: String(m.id), name: String(m.name), nickname: m.nickname ? String(m.nickname) : null, profession: (profilesQ.data||[]).some((p:Record<string,unknown>)=>String(p.member_id)===String(m.id)&&p.share_business===true) && m.profession ? String(m.profession) : null }]));
       const hydrate = (item: Record<string, unknown>) => ({ ...item, affectedMembers: (Array.isArray(item.memberIds) ? item.memberIds : []).map(id => memberMap.get(String(id))).filter(Boolean), source: 'MSB Blueprint + MY121 + Growth actions', freshness: result.dataConfidence === 'INSUFFICIENT' ? 'ข้อมูล MSB ยังไม่ครบ' : 'ข้อมูลจาก Blueprint ที่ submit แล้ว' });
       return jsonResponse({ ok: true, priorities: result.priorities.map(hydrate), opportunities: result.opportunities.map(hydrate), connections: result.connections.map(hydrate), dataConfidence: result.dataConfidence, freshness: plans.length ? plans.map(x => x.updatedAt).filter(Boolean).sort().at(-1) : null });
     }
@@ -1382,7 +1383,7 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           db.from('members').select('id, profession, company_name').in('id', linkedIds),
           db.from('line_members').select('member_id').in('member_id', linkedIds),
           db.from('msb_goal_reviews').select('member_id, blueprint_year, status, note, reviewed_by, reviewed_at').eq('blueprint_year', blueprintYear).in('member_id', linkedIds),
-          db.from('member_one_to_one_profiles').select('member_id,share_business,share_referral_focus').in('member_id', linkedIds),
+          db.from('member_blueprint_growth_consents').select('member_id,share_business,share_referral_focus,share_details').eq('chapter_id',scope.chapterId).eq('blueprint_year',blueprintYear).in('member_id', linkedIds),
           db.from('member_growth_category_consents').select('member_id,category_type,category').in('member_id', linkedIds).is('revoked_at', null),
         ]);
         const profileMap = new Map(((profileRows || []) as Record<string, unknown>[]).map(row => [String(row.member_id), row]));
@@ -1399,9 +1400,9 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
           const flags = profileMap.get(id) || {};
           const shared = flags.share_referral_focus === true;
           for (const [field, type] of [['looking_for_categories', 'looking_for'], ['power_team_categories', 'power_team']] as const) {
-            row[field] = visibleGrowthCategories(row[field], shared, categoryMap.get(`${id}:${type}`));
+            row[field] = visibleGrowthCategories(row[field], shared, undefined);
           }
-          if (!shared) { row.looking_for_detail = ''; row.power_team_detail = ''; }
+          if (flags.share_details !== true) { row.looking_for_detail = ''; row.power_team_detail = ''; }
         }
         for (const r of (r2yRows || []) as Record<string, unknown>[]) {
           const id = String(r.member_id);
@@ -1672,9 +1673,10 @@ export async function handleGrowth(p: Record<string, unknown>): Promise<Response
     case 'getMSBCategoryLibrary': {
       const auth = await requireAuth(db, p, ['mc', 'toomtam', 'aof', 'draft', 'phai', 'amp', 'growth']);
       if (!auth.ok) return errResponse(auth.error!);
-      const blueprintYear = Number(p.blueprintYear || p.blueprint_year || new Date().getFullYear());
+      const scope=await resolveChapterScope(db,auth);if(!scope.ok)return errResponse(scope.error,403);
+      const blueprintYear = Number(p.blueprintYear || p.blueprint_year || await resolveMsbPlanningYear(db,{chapterId:scope.chapterId}));
       const [{ data: demand, error: dErr }, { data: aliases, error: aErr }] = await Promise.all([
-        db.from('v_msb_category_demand').select('category_type, category').eq('blueprint_year', blueprintYear),
+        blueprintCategoryDemand(db,scope.chapterId,blueprintYear,String(auth.role||'').toLowerCase()==='growth').then(data=>({data,error:null})).catch(()=>({data:[],error:{message:'โหลดหมวดที่อนุญาตไม่สำเร็จ'}})),
         db.from('msb_category_aliases').select('id, category_type, canonical_category, alias, created_by, created_at').order('category_type').order('canonical_category'),
       ]);
       if (dErr) return errResponse(dErr.message, 400);

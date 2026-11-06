@@ -53,6 +53,7 @@ const PUBLIC_ACTIONS = new Set([
   // Public token entrypoint. Handler resolves member_id server-side from msb_access_tokens only.
   'getMemberSuccessBlueprintByToken',
   'saveMemberSuccessBlueprintByToken',
+  'saveMemberBlueprintGrowthConsentByToken',
   'getMSBCategorySuggestions',
   'getMemberPulseByToken',
   'saveMemberPulseByToken',
@@ -248,6 +249,7 @@ const ROUTES: Record<string, string> = {
   'saveMyMemberSuccessBlueprint': 'member-success-blueprints',
   'getMemberSuccessBlueprintByToken': 'member-success-blueprints',
   'saveMemberSuccessBlueprintByToken': 'member-success-blueprints',
+  'saveMemberBlueprintGrowthConsentByToken': 'member-success-blueprints',
   'getMSBCategorySuggestions': 'member-success-blueprints',
   'generateMemberSuccessBlueprintLink': 'member-success-blueprints',
   'getMemberSuccessBlueprintsForDashboard': 'member-success-blueprints',

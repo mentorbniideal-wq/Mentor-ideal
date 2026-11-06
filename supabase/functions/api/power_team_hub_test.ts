@@ -20,14 +20,15 @@ Deno.test('Power Team candidate categories require the active Blueprint year and
   const handler = await source('supabase/functions/api/handlers/power-teams.ts');
   assert(handler.includes('resolveMsbPlanningYear'));
   assert(handler.includes(".eq('blueprint_year', year).eq('status', 'submitted')"));
-  assert(handler.includes(".eq('category_type', 'power_team').is('revoked_at', null)"));
+  assert(handler.includes(".eq('chapter_id',chapterId)"));
   assert(handler.includes('consent?.share_referral_focus !== true'));
   assert(handler.includes('profile?.share_business === true'));
-  assert(handler.includes('detailRestricted: true'));
-  const categoryProjection = (categories: string[], fullShare: boolean, activeGrants: string[]) => fullShare
-    ? categories : categories.filter(category => activeGrants.includes(category.toLowerCase()));
+  assert(handler.includes('projectBlueprintProposal'));
+  assert(handler.includes("from('member_blueprint_growth_consents')"));
+  assert(!handler.includes("from('member_one_to_one_profiles')"));
+  const categoryProjection = (categories: string[], fullShare: boolean, _activeGrants: string[]) => fullShare ? categories : [];
   assertEquals(categoryProjection(['A', 'B'], false, []), []);
-  assertEquals(categoryProjection(['A', 'B'], false, ['a']), ['A']);
+  assertEquals(categoryProjection(['A', 'B'], false, ['a']), []); // MY121/legacy grants cannot enable annual Blueprint sharing
   assertEquals(categoryProjection(['A', 'B'], false, []), []); // after revoke, next request
   assertEquals(categoryProjection(['A', 'B'], true, []), ['A', 'B']);
 });

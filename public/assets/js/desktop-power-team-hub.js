@@ -3,12 +3,13 @@
   'use strict';
   var state = null;
   var busy = false;
+  var loadVersion=0;
   var labels = { draft: 'ทีมร่าง', proposed: 'เสนอแล้ว', assigned: 'มอบหมายแล้ว', exploring: 'กำลังสำรวจ', active: 'พร้อมเสนอเป็นทีมจริง', closed: 'ปิดข้อเสนอ', archived: 'เก็บเข้าประวัติ' };
   function el() { return document.getElementById('pt-mgr-content'); }
   function safe(value) { return esc(value == null ? '' : String(value)); }
   function note(value) { return '<div style="color:var(--sub);font-size:12px;margin-top:7px">' + safe(value) + '</div>'; }
   function button(label, action, id) { return '<button type="button" class="bsm" data-pt-action="' + action + '" data-pt-id="' + safe(id) + '">' + safe(label) + '</button>'; }
-  function memberNames(rows) { return (rows || []).map(function (row) { var member = row.members || row; return safe(member.nickname || member.name || 'สมาชิก'); }).join(' · '); }
+  function memberNames(rows,leader) { return (rows || []).map(function (row) { var member = row.members || row; return safe(member.nickname || member.name || 'สมาชิก')+(leader&&String(row.member_id||member.id)===String(leader)?' (ผู้ประสานงาน)':''); }).join(' · '); }
   function card(body, actions) { return '<article style="border:1px solid var(--bd);background:var(--sf2);border-radius:12px;padding:14px;margin:9px 0"><div>' + body + '</div>' + (actions ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">' + actions + '</div>' : '') + '</article>'; }
   function section(title, rows, empty) { return '<section style="margin:22px 0"><h3 style="font-size:14px;margin:0 0 10px">' + safe(title) + ' <small style="color:var(--sub)">(' + rows.length + ')</small></h3>' + (rows.join('') || note(empty)) + '</section>'; }
   function render() {
@@ -22,7 +23,8 @@
       var restricted = proposal.detailRestricted === true;
       var body = '<b>' + (restricted ? 'รายละเอียดจำกัดตาม consent' : safe(proposal.title)) + '</b> <small>' + safe(labels[proposal.status] || proposal.status || 'Proposal') + '</small>';
       body += note('ผู้รับผิดชอบ: ' + (proposal.assigned_owner_name || proposal.assigned_owner_email || 'ยังไม่มอบหมาย'));
-      if (!restricted) body += note('กลุ่มลูกค้า: ' + (proposal.target_customer_group || 'ยังไม่มีข้อมูล')) + note('สมาชิก: ' + memberNames(proposal.power_team_proposal_members));
+      if (!restricted) body += note('กลุ่มลูกค้า: ' + (proposal.target_customer_group || 'ยังไม่มีข้อมูล')) + note('สมาชิก: ' + memberNames(proposal.power_team_proposal_members,proposal.leader_member_id));
+      if(!restricted)body+=note('ตอบรับแล้ว '+(proposal.power_team_proposal_members||[]).filter(function(m){return m.participation_status==='accepted';}).length+' / '+(proposal.power_team_proposal_members||[]).length+' คน · สมาชิกตอบรับเองใน MY121 → Power Team ของฉัน');
       var own = me && String(proposal.assigned_owner_email || '').toLowerCase() === me;
       var actions = '';
       if (canCoordinate) actions += button('มอบหมาย', 'assign', proposal.id);
@@ -34,10 +36,11 @@
       var body = '<b>' + (team.detailRestricted ? 'รายละเอียดจำกัดตาม consent' : safe(team.title)) + '</b> <small>' + (team.status === 'archived' ? 'เก็บเข้าประวัติ' : 'ทีมจริง') + '</small>';
       body += note('เผยแพร่: ' + (team.publishedAt ? new Date(team.publishedAt).toLocaleDateString('th-TH') : 'ไม่ทราบวัน'));
       body += note('สมาชิก ' + Number(team.memberCount || 0) + ' คน');
-      if (!team.detailRestricted) body += note('สมาชิก: ' + memberNames(team.members)) + note('กลุ่มลูกค้า: ' + (team.targetCustomerGroup || 'ยังไม่มีข้อมูล'));
-      return card(body, canApprove && team.status === 'active' ? button('เก็บทีมเข้าประวัติ', 'archive', team.id) : '');
+      if (!team.detailRestricted) body += note('สมาชิก: ' + memberNames(team.members,team.leaderMemberId)) + note('กลุ่มลูกค้า: ' + (team.targetCustomerGroup || 'ยังไม่มีข้อมูล'));
+      return card(body, canApprove && team.status === 'active' ? button('สร้างฉบับปรับปรุง','revise',team.id)+button('เก็บทีมเข้าประวัติ', 'archive', team.id) : '');
     });
-    root.innerHTML = '<p style="color:var(--sub);font-size:12px">ทีมร่างเป็นเพียงข้อเสนอจาก Blueprint ที่ submit แล้ว ไม่ใช่ Referral หรือรายได้ที่ยืนยันแล้ว · ข้อมูลที่ถูกจำกัดตาม consent จะไม่แสดง</p>' +
+    var coverage=state.coverage||{};
+    root.innerHTML = '<p>Blueprint ปี '+safe(state.blueprintYear||'—')+' · ส่งแล้ว '+Number(coverage.submitted||0)+' / '+Number(coverage.activeMembers||0)+' คน · อนุญาตแชร์หมวดให้ Growth '+Number(coverage.sharedCategories||0)+' คน</p>'+(canCoordinate?button('สร้างข้อเสนอเอง','manual',''):'')+'<p style="color:var(--sub);font-size:12px">ทีมร่างเป็นเพียงข้อเสนอจาก Blueprint ที่ submit แล้ว ไม่ใช่ Referral หรือรายได้ที่ยืนยันแล้ว · หมวดที่เหมือนกันยังไม่ยืนยันว่าลูกค้าเหมือนกัน · การแชร์แยกจาก MY121 · ข้อมูลที่ถูกจำกัดตาม consent จะไม่แสดง</p>' +
       section('ทีมร่างจาก Blueprint', candidates, canCoordinate ? 'ยังไม่มีหมวดที่สมาชิกยินยอมและมีอย่างน้อย 2 คนในปีแผนปัจจุบัน' : 'เฉพาะ Coordinator เท่านั้นที่ดูทีมร่าง') +
       section('Proposal ที่กำลังดำเนินการ', proposals, 'ยังไม่มี Proposal ที่เข้าถึงได้') +
       section('Power Team จริง', official, 'ยังไม่มีทีมจริงที่ Admin อนุมัติ');
@@ -52,10 +55,12 @@
     });
   }
   window.ptLoad = function (force) {
-    if (!force && state) { render(); return; }
+    var version=++loadVersion;
+    // Always revalidate scope/consent on entry; never reuse another session DTO.
     var root = el(); if (!root) return;
     root.innerHTML = '<p role="status">⏳ กำลังโหลด Power Team…</p>';
     gsr('getPowerTeamProposals', {}, function (result) {
+      if(version!==loadVersion)return;
       if (!result || !result.ok) { state = null; root.innerHTML = '<p role="alert">โหลด Power Team ไม่สำเร็จ: ' + safe(result && result.error || 'กรุณาลองใหม่') + '</p><button class="bsm" type="button" onclick="ptLoad(true)">ลองใหม่</button>'; return; }
       state = result; render();
     });
@@ -64,6 +69,18 @@
     var control = event.target.closest('[data-pt-action]');
     if (!control || !el() || !el().contains(control) || !state) return;
     var action = control.getAttribute('data-pt-action'), id = control.getAttribute('data-pt-id');
+    if(action==='assign'||action==='status'){
+      var item=(state.proposals||[]).find(function(p){return String(p.id)===id;});if(!item)return;
+      var own=state.viewerEmail&&String(item.assigned_owner_email||'').toLowerCase()===String(state.viewerEmail).toLowerCase();
+      if(action==='assign'&&!state.canCoordinate)return;
+      if(action==='status'&&!state.canCoordinate&&!(own&&state.canManageAssigned))return;
+      openPowerTeamOperationDialog(state,action,item,function(){window.ptLoad(true);});return;
+    }
+    if(['manual','create','revise'].includes(action)&&state.canCoordinate){
+      var seed=action==='create'?(state.candidates||[])[Number(id)]:{};
+      if(action==='revise'){var team=(state.officialTeams||[]).find(function(t){return String(t.id)===id;});if(!team)return;seed={title:team.title,targetCustomerGroup:team.targetCustomerGroup,leaderMemberId:team.leaderMemberId,memberIds:(team.members||[]).map(function(m){return String(m.member_id);}),supersedesPublicationId:team.id};}
+      openPowerTeamProposalBuilder(state,seed,function(){window.ptLoad(true);});return;
+    }
     if (action === 'create' && state.canCoordinate) {
       var candidate = (state.candidates || [])[Number(id)]; if (!candidate) return;
       var title = prompt('ชื่อ Proposal:', candidate.category); if (title === null) return;
@@ -72,7 +89,8 @@
       request('savePowerTeamProposal', { title: title, targetCustomerGroup: target, rationale: reason, sourceCategory: candidate.category, memberIds: candidate.memberIds }, 'สร้าง Proposal แล้ว');
     } else if (action === 'assign' && state.canCoordinate) {
       var email = prompt('OAuth email ของ Growth owner:'); if (!email) return;
-      request('assignPowerTeamProposal', { proposalId: id, ownerEmail: email.trim() }, 'มอบหมายแล้ว');
+      var assignedProposal=(state.proposals||[]).find(function(p){return String(p.id)===id;});
+      request('assignPowerTeamProposal', { proposalId: id, ownerEmail: email.trim(),expectedUpdatedAt:assignedProposal&&assignedProposal.updated_at }, 'มอบหมายแล้ว');
     } else if (action === 'status') {
       var proposal = (state.proposals || []).find(function (item) { return String(item.id) === id; }); if (!proposal) return;
       var canCoordinate = state.canCoordinate === true;
@@ -84,7 +102,7 @@
       if (!(canCoordinate ? ['assigned','exploring','active','closed','archived'] : ['exploring','closed']).includes(status)) { toast('สถานะไม่ถูกต้อง', 'warn'); return; }
       var closeReason = status === 'closed' ? prompt('เหตุผล/ผลลัพธ์การปิด Proposal:') : '';
       if (status === 'closed' && !closeReason) return;
-      request('updatePowerTeamProposal', { proposalId: id, status: status, closeReason: closeReason }, 'อัปเดต Proposal แล้ว');
+      request('updatePowerTeamProposal', { proposalId: id, status: status, closeReason: closeReason,expectedUpdatedAt:proposal.updated_at }, 'อัปเดต Proposal แล้ว');
     } else if (action === 'publish' && state.canApprove) {
       if (confirm('ยืนยันให้ Proposal นี้เป็น Power Team จริง? การดำเนินการนี้จะล็อก Proposal และสมาชิกเดิม')) request('publishGrowthPowerTeam', { proposalId: id, confirmed: true }, 'เผยแพร่ Power Team แล้ว');
     } else if (action === 'archive' && state.canApprove) {

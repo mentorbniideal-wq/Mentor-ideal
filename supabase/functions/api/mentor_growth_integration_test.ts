@@ -92,7 +92,8 @@ Deno.test('historical free text is removed from every current Growth DTO path', 
   assert(members.includes('referralByMember') && members.includes('reason:revealDetail'));
   assert(dashboard.includes('Signal detail is historical free text') && dashboard.includes('Boolean(profileQ.data) && profile.share_referral_focus === true'));
   assert(powerTeams.includes('complete historical category/referral fields as one unit'));
-  assert(powerTeams.includes("source_category: null, target_customer_group: '', rationale: ''"));
+  const privacy=await source('supabase/functions/_shared/blueprint-growth-privacy.ts');
+  assert(/source_category:\s*null/.test(privacy)&&/target_customer_group:\s*["']{2}/.test(privacy)&&/rationale:\s*["']{2}/.test(privacy));
 });
 
 Deno.test('mobile Core Issue reply uses the rendered reply button identifier', async () => {

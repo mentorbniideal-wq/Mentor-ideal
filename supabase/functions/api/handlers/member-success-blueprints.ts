@@ -10,6 +10,7 @@ import { annualGoalProgress } from '../../_shared/msb-goal-progress.ts';
 import { resolveMsbPlanningYear } from '../../_shared/msb-planning-year.ts';
 import { buildBlueprintSubmissionCoverage, preferPlanningBlueprint } from '../../_shared/msb-submission-coverage.ts';
 import { serverEnvironment } from '../../_shared/environment.ts';
+import { projectBlueprintPlan } from '../../_shared/blueprint-growth-privacy.ts';
 
 type Db = ReturnType<typeof getServiceClient>;
 
@@ -226,18 +227,9 @@ async function fetchPlanRows(
   // Mentor/MC workflows keep their existing authorised view.
   if (String(auth.role || '').toLowerCase() !== 'growth' || !mapped.length) return mapped;
   const ids = mapped.map(row => row.memberId);
-  const [{ data: profiles, error: profileError }, { data: categoryConsents, error: consentError }] = await Promise.all([
-    db.from('member_one_to_one_profiles').select('member_id,share_business,share_referral_focus').in('member_id', ids),
-    db.from('member_growth_category_consents').select('member_id,category_type,category').in('member_id', ids).is('revoked_at', null),
-  ]);
-  if (profileError) throw new Error(profileError.message);
-  if (consentError) throw new Error(consentError.message);
-  const consent = new Map(((profiles || []) as Record<string, unknown>[]).map(row => [String(row.member_id), row]));
-  const allowedCategories = new Map<string, Set<string>>();
-  for (const item of (categoryConsents || []) as Record<string, unknown>[]) {
-    const key = `${String(item.member_id)}:${String(item.category_type)}`;
-    const values = allowedCategories.get(key) || new Set<string>(); values.add(String(item.category).toLowerCase()); allowedCategories.set(key, values);
-  }
+  const {data:profiles,error:profileError}=await db.from('member_blueprint_growth_consents').select('member_id,share_business,share_referral_focus,share_details').eq('blueprint_year',year).eq('chapter_id',chapterId).in('member_id',ids);
+  if(profileError)throw new Error(profileError.message);
+  const consent=new Map(((profiles||[]) as Record<string,unknown>[]).map(row=>[String(row.member_id),row]));
   return mapped.map(row => {
     const flags = consent.get(String(row.memberId)) || {};
     const shareBusiness = flags.share_business === true;
@@ -246,10 +238,12 @@ async function fetchPlanRows(
       ...row,
       companyName: shareBusiness ? row.companyName : '',
       profession: shareBusiness ? row.profession : '',
-      lookingForCategories: shareReferral ? row.lookingForCategories : row.lookingForCategories.filter(category => allowedCategories.get(`${String(row.memberId)}:looking_for`)?.has(String(category).toLowerCase())),
-      lookingForDetail: shareReferral ? row.lookingForDetail : '',
-      powerTeamCategories: shareReferral ? row.powerTeamCategories : row.powerTeamCategories.filter(category => allowedCategories.get(`${String(row.memberId)}:power_team`)?.has(String(category).toLowerCase())),
-      powerTeamDetail: shareReferral ? row.powerTeamDetail : '',
+      lookingForCategories: shareReferral ? row.lookingForCategories : [],
+      lookingForDetail: flags.share_details === true ? row.lookingForDetail : '',
+      powerTeamCategories: shareReferral ? row.powerTeamCategories : [],
+      powerTeamDetail: flags.share_details === true ? row.powerTeamDetail : '',
+      personalGoalDetail: flags.share_details === true ? row.personalGoalDetail : '',
+      personalGoalCategory: flags.share_details === true ? row.personalGoalCategory : '',
     };
   });
 }
@@ -771,7 +765,7 @@ async function resolveWebAccessToken(db: Db, token: string): Promise<{
   const raw = txt(token);
   if (!raw) return { error: 'กรุณาเปิดจากลิงก์ส่วนตัวของคุณ' };
   const { data, error } = await db.from('msb_access_tokens')
-    .select('id, member_id, blueprint_year, expires_at, members(id, name, nickname, mentor_team, email, bni_goal)')
+    .select('id, member_id, blueprint_year, expires_at, members(id, chapter_id, name, nickname, mentor_team, email, bni_goal)')
     .eq('token', raw)
     .maybeSingle();
   if (error) return { error: error.message };
@@ -872,25 +866,20 @@ async function saveBlueprintForMember(db: Db, memberId: string, year: number, p:
     source: 'member_form',
     updated_at: new Date().toISOString(),
   };
-  const { data, error: upsertErr } = await db
-    .from('member_success_blueprints')
-    .upsert(payload, { onConflict: 'member_id,blueprint_year' })
-    .select('*')
-    .single();
-  if (upsertErr) return { error: upsertErr.message, status: 400 };
-  const { error: goalErr } = await db
-    .from('members')
-    .update({ bni_goal: payload.expected_sales_from_bni_year })
-    .eq('id', memberId);
-  if (goalErr) return { error: `บันทึก Blueprint แล้ว แต่ sync MSB Goal ไม่สำเร็จ: ${goalErr.message}`, status: 400 };
-  const requestedConsents = Array.isArray(p.growth_category_consents) ? p.growth_category_consents as Record<string, unknown>[] : [];
-  for (const row of requestedConsents.slice(0, 80)) {
-    const type = txt(row.category_type); const category = txt(row.category).slice(0, 120); const granted = row.granted === true;
-    if (!['looking_for','power_team'].includes(type) || !category) continue;
-    if (granted) await db.from('member_growth_category_consents').upsert({ member_id:memberId, category_type:type, category, consented_at:new Date().toISOString(), revoked_at:null, actor_member_id:memberId }, { onConflict:'member_id,category_type,category' });
-    else await db.from('member_growth_category_consents').update({ revoked_at:new Date().toISOString(), actor_member_id:memberId }).eq('member_id', memberId).eq('category_type', type).eq('category', category);
-  }
-  return { blueprint: normalizeBlueprint(data as Record<string, unknown>) };
+  const requestId = txt(p.requestId);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId)) return {error:'กรุณารีเฟรชฟอร์มก่อนบันทึก',status:400};
+  const {data:member,error:memberError}=await db.from('members').select('chapter_id').eq('id',memberId).eq('is_archived',false).maybeSingle();
+  if(memberError||!member)return {error:'ไม่พบสมาชิกที่ใช้งานอยู่',status:403};
+  const consent = p.growthConsent;
+  if(consent!==undefined && (!consent || typeof consent!=='object' || Array.isArray(consent)))return {error:'ข้อมูลการแชร์ไม่ถูกต้อง',status:400};
+  const flags=consent as Record<string,unknown>|undefined;
+  if(flags && ['share_referral_focus','share_details','share_business'].some(k=>typeof flags[k]!=='boolean'))return {error:'กรุณาระบุตัวเลือกการแชร์ให้ครบ',status:400};
+  const {data:saved,error:saveError}=await db.rpc('save_blueprint_growth_atomic',{
+    p_chapter_id:member.chapter_id,p_member_id:memberId,p_year:year,p_request_id:requestId,
+    p_expected_updated_at:p.expectedUpdatedAt||null,p_plan:payload,p_consent:flags||null,
+  });
+  if(saveError)return {error:'บันทึกไม่สำเร็จ ข้อมูลอาจเปลี่ยนระหว่างแก้ไข กรุณาโหลดข้อมูลล่าสุดแล้วลองใหม่',status:409};
+  return {blueprint:normalizeBlueprint((saved as Record<string,unknown>).blueprint as Record<string,unknown>),growthConsent:(saved as Record<string,unknown>).growthConsent};
 }
 
 async function listDashboardRows(db: Db, auth: Awaited<ReturnType<typeof requireAuth>>, year: number, chapterId: string) {
@@ -931,6 +920,11 @@ async function listDashboardRows(db: Db, auth: Awaited<ReturnType<typeof require
   const tokenByMember: Record<string, Record<string, unknown>> = {};
   for (const token of (tokens || []) as Record<string, unknown>[]) tokenByMember[String(token.member_id)] = token;
 
+  const growthReader=String(auth.role||'').toLowerCase()==='growth';
+  const {data:permissions,error:permissionError}=growthReader&&memberIds.length?await db.from('member_blueprint_growth_consents').select('member_id,blueprint_year,share_referral_focus,share_details,share_business').eq('chapter_id',chapterId).in('member_id',memberIds):{data:[],error:null};
+  if(permissionError)throw new Error('โหลดตัวเลือกการแชร์ Blueprint ไม่สำเร็จ');
+  const permissionByPlan=new Map(((permissions||[]) as Record<string,unknown>[]).map(r=>[String(r.member_id)+':'+String(r.blueprint_year),r]));
+
   return memberRows.map(m => {
     const bp = bpByMember[String(m.id)] || null;
     const token = tokenByMember[String(m.id)] || null;
@@ -945,7 +939,7 @@ async function listDashboardRows(db: Db, auth: Awaited<ReturnType<typeof require
       linkCreatedAt: token ? token.created_at : null,
       linkUsedAt: token ? token.used_at : null,
       linkExpiresAt: token ? token.expires_at : null,
-      blueprint: normalizeBlueprint(bp),
+      blueprint: normalizeBlueprint(bp&&growthReader?projectBlueprintPlan(bp,permissionByPlan.get(String(m.id)+':'+String(bp.blueprint_year))):bp),
     };
   });
 }
@@ -1333,14 +1327,31 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       const blueprint = await getBlueprint(db, identity.memberId, tokenYear);
       const previousBlueprint = tokenYear > 2020 && tokenYear !== 2027 ? await getBlueprint(db, identity.memberId, tokenYear - 1) : null;
       const historicalActual = tokenYear > 2026 ? await getGrowth2026Actual(db, identity.memberId) : null;
+      const {data:growthConsent,error:consentError}=await db.from('member_blueprint_growth_consents').select('share_referral_focus,share_details,share_business,updated_at') .eq('member_id',identity.memberId).eq('chapter_id',String(identity.member?.chapter_id||'')).eq('blueprint_year',tokenYear).maybeSingle();
+      if(consentError)return errResponse('โหลดตัวเลือกการแชร์ไม่สำเร็จ กรุณาลองใหม่',503);
       return jsonResponse({
         ok: true,
         member: identity.member,
+        growthConsent:growthConsent||null,
+        draftScope:await sha256Hex(identity.memberId+':'+tokenYear),
         blueprint: normalizeBlueprint(blueprint),
         previousBlueprint: normalizeBlueprint(previousBlueprint),
         historicalActual,
         blueprintYear: tokenYear,
       });
+    }
+
+    case 'saveMemberBlueprintGrowthConsentByToken': {
+      const identity=await resolveWebAccessToken(db,String(p.token||p.t||p.msbToken||''));
+      if(identity.error||!identity.memberId)return errResponse(identity.error||'Unauthorized',401);
+      const currentYear=await currentMemberPlanningYear(db,identity);
+      if(currentYear.error||!currentYear.year)return errResponse('กรุณาเปิดลิงก์ Blueprint ใหม่',409);
+      const flags=p.growthConsent as Record<string,unknown>|null;
+      if(!flags||typeof flags!=='object'||['share_referral_focus','share_details','share_business'].some(k=>typeof flags[k]!=='boolean')||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(p.requestId||'')))return errResponse('ข้อมูลการแชร์ไม่ถูกต้อง',400);
+      const {data:member,error:memberError}=await db.from('members').select('chapter_id').eq('id',identity.memberId).eq('is_archived',false).maybeSingle();
+      if(memberError||!member)return errResponse('ไม่พบสมาชิกที่ใช้งานอยู่',403);
+      const {data,error}=await db.rpc('save_blueprint_growth_consent',{p_chapter_id:member.chapter_id,p_member_id:identity.memberId,p_year:currentYear.year,p_request_id:p.requestId,p_consent:flags});
+      return error?errResponse('ตัวเลือกการแชร์เปลี่ยนแล้วหรือบันทึกไม่สำเร็จ กรุณาโหลดใหม่',409):jsonResponse({ok:true,growthConsent:data});
     }
 
     case 'saveMemberSuccessBlueprintByToken': {
@@ -1351,7 +1362,7 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       const tokenYear = currentYear.year;
       const saved = await saveBlueprintForMember(db, identity.memberId, tokenYear, p);
       if (saved.error) return errResponse(saved.error, saved.status || 400);
-      return jsonResponse({ ok: true, blueprint: saved.blueprint, blueprintYear: tokenYear });
+      return jsonResponse({ ok: true, blueprint: saved.blueprint,growthConsent:saved.growthConsent, blueprintYear: tokenYear });
     }
 
     case 'getMSBCategorySuggestions': {
@@ -1360,14 +1371,9 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       const currentYear = await currentMemberPlanningYear(db, identity);
       if (currentYear.error || !currentYear.year) return errResponse(currentYear.error || 'Unauthorized', 409);
       const tokenYear = currentYear.year;
-      const [{ data, error }, { data: aliases, error: aliasErr }] = await Promise.all([
-        db.from('v_msb_category_demand')
-          .select('category_type, category')
-          .eq('blueprint_year', tokenYear),
-        db.from('msb_category_aliases')
-          .select('category_type, canonical_category, alias'),
-      ]);
-      if (error) return errResponse(error.message, 400);
+      // Member suggestions use configured taxonomy, never other members' plans.
+      const {data:aliases,error:aliasErr}=await db.from('msb_category_aliases').select('category_type,canonical_category,alias');
+      const data=(aliases||[]).map((a:Record<string,unknown>)=>({category_type:a.category_type,category:a.canonical_category}));
       if (aliasErr) return errResponse(aliasErr.message, 400);
       const aliasByKey: Record<string, string> = {};
       for (const a of (aliases || []) as Record<string, unknown>[]) {
@@ -1390,7 +1396,7 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       }
       const toList = (type: string) => Object.values(buckets[type] || {})
         .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'th'))
-        .slice(0, 24);
+        .slice(0, 24).map(item=>({name:item.name,count:null,source:'catalog'}));
       return jsonResponse({
         ok: true,
         blueprintYear: tokenYear,
@@ -1426,7 +1432,7 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       const tokenYear = currentYear.year;
       const saved = await saveBlueprintForMember(db, identity.memberId, tokenYear, p);
       if (saved.error) return errResponse(saved.error, saved.status || 400);
-      return jsonResponse({ ok: true, blueprint: saved.blueprint, blueprintYear: tokenYear });
+      return jsonResponse({ ok: true, blueprint: saved.blueprint,growthConsent:saved.growthConsent, blueprintYear: tokenYear });
     }
 
     case 'getMemberSuccessBlueprintsForDashboard': {
@@ -1670,7 +1676,7 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
       const candidateIds = ((data || []) as Record<string, unknown>[]).map(m => String(m.id));
       const [{ data: profiles, error: profileError }, { data: candidatePlans, error: planError }, { data: categoryConsents, error: consentError }] = candidateIds.length
         ? await Promise.all([
-          db.from('member_one_to_one_profiles').select('member_id,share_business,share_referral_focus').in('member_id', candidateIds),
+          db.from('member_blueprint_growth_consents').select('member_id,share_business,share_referral_focus,share_details').eq('blueprint_year',year).eq('chapter_id',scope.chapterId).in('member_id', candidateIds),
           db.from('member_success_blueprints').select('member_id,looking_for_categories,power_team_categories').eq('blueprint_year', year).eq('status', 'submitted').in('member_id', candidateIds),
           db.from('member_growth_category_consents').select('member_id,category_type,category').in('member_id', candidateIds).is('revoked_at', null),
         ])
@@ -1703,7 +1709,7 @@ export async function handleMemberSuccessBlueprints(p: Record<string, unknown>):
             : [];
           const matched = shareReferral
             ? desired.filter(cat => declared.includes(cat))
-            : desired.filter(cat => explicitlyAllowed.includes(cat));
+            : growthReader ? [] : desired.filter(cat => explicitlyAllowed.includes(cat));
           return {
             memberId: m.id,
             name: m.name,
